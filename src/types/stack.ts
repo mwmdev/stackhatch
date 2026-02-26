@@ -37,13 +37,15 @@ export type ExternalSubtype =
   | "oauth-provider"
   | "email-sms-service";
 
-export type NodeSubtype =
+export type BuiltInNodeSubtype =
   | ClientSubtype
   | ApiSubtype
   | ServicesSubtype
   | DataSubtype
   | InfraSubtype
   | ExternalSubtype;
+
+export type NodeSubtype = BuiltInNodeSubtype | (string & {});
 
 // Connection types between nodes
 export type ConnectionType =

@@ -3,7 +3,8 @@
 import { useState, useRef, useEffect } from "react";
 import * as icons from "lucide-react";
 import type { NodeCategory, NodeSubtype } from "@/types/stack";
-import { categoryOrder, nodeConfig } from "@/lib/node-config";
+import { categoryOrder, nodeConfig, getSubtypesForCategory } from "@/lib/node-config";
+import type { CustomSubtypesMap } from "@/lib/custom-subtypes";
 
 function DynamicIcon({
   name,
@@ -21,9 +22,10 @@ function DynamicIcon({
 
 export interface AddNodeDropdownProps {
   onAddNode: (category: NodeCategory, subtype: NodeSubtype) => void;
+  customSubtypes?: CustomSubtypesMap;
 }
 
-export default function AddNodeDropdown({ onAddNode }: AddNodeDropdownProps) {
+export default function AddNodeDropdown({ onAddNode, customSubtypes }: AddNodeDropdownProps) {
   const [open, setOpen] = useState(false);
   const [expandedCategory, setExpandedCategory] =
     useState<NodeCategory | null>(null);
@@ -104,7 +106,7 @@ export default function AddNodeDropdown({ onAddNode }: AddNodeDropdownProps) {
                 </button>
                 {isExpanded && (
                   <div className="border-t border-[var(--border)] bg-[var(--muted)]">
-                    {Object.entries(config.subtypes).map(
+                    {Object.entries(getSubtypesForCategory(category, customSubtypes)).map(
                       ([subtype, subtypeConfig]) => (
                         <button
                           key={subtype}

@@ -8,6 +8,7 @@ import {
   getCategoryConfig,
   getSubtypesForCategory,
 } from "@/lib/node-config";
+import type { CustomSubtypesMap } from "@/lib/custom-subtypes";
 
 function DynamicIcon({
   name,
@@ -27,6 +28,7 @@ export interface NodeDetailPanelProps {
   onUpdate: (id: string, updates: Partial<StackNode>) => void;
   onDelete: (id: string) => void;
   onClose: () => void;
+  customSubtypes?: CustomSubtypesMap;
 }
 
 export default function NodeDetailPanel({
@@ -34,6 +36,7 @@ export default function NodeDetailPanel({
   onUpdate,
   onDelete,
   onClose,
+  customSubtypes,
 }: NodeDetailPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -61,10 +64,10 @@ export default function NodeDetailPanel({
   if (!node) return null;
 
   const catConfig = getCategoryConfig(node.category);
-  const subtypes = getSubtypesForCategory(node.category);
+  const subtypes = getSubtypesForCategory(node.category, customSubtypes);
 
   function handleCategoryChange(newCategory: NodeCategory) {
-    const newSubtypes = getSubtypesForCategory(newCategory);
+    const newSubtypes = getSubtypesForCategory(newCategory, customSubtypes);
     const firstSubtype = Object.keys(newSubtypes)[0] as NodeSubtype;
     onUpdate(node!.id, {
       category: newCategory,

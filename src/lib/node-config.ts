@@ -1,7 +1,5 @@
-import type {
-  NodeCategory,
-  NodeSubtype,
-} from "@/types/stack";
+import type { NodeCategory, NodeSubtype } from "@/types/stack";
+import type { CustomSubtypesMap } from "@/lib/custom-subtypes";
 
 export interface SubtypeConfig {
   displayName: string;
@@ -100,14 +98,28 @@ export function getCategoryConfig(category: NodeCategory): CategoryConfig {
 export function getSubtypeConfig(
   category: NodeCategory,
   subtype: NodeSubtype,
+  custom?: CustomSubtypesMap,
 ): SubtypeConfig | undefined {
-  return nodeConfig[category]?.subtypes[subtype];
+  const builtIn = nodeConfig[category]?.subtypes[subtype];
+  if (builtIn) return builtIn;
+  const entry = custom?.[category]?.find((e) => e.slug === subtype);
+  if (entry) return { displayName: entry.displayName, icon: entry.icon };
+  return undefined;
 }
 
 export function getSubtypesForCategory(
   category: NodeCategory,
+  custom?: CustomSubtypesMap,
 ): Record<string, SubtypeConfig> {
-  return nodeConfig[category]?.subtypes ?? {};
+  const builtIn = { ...(nodeConfig[category]?.subtypes ?? {}) };
+  const entries = custom?.[category];
+  if (!entries) return builtIn;
+  for (const entry of entries) {
+    if (!builtIn[entry.slug]) {
+      builtIn[entry.slug] = { displayName: entry.displayName, icon: entry.icon };
+    }
+  }
+  return builtIn;
 }
 
 /** All categories in display order */

@@ -1,4 +1,21 @@
-export const SYSTEM_PROMPT = `You are a senior application architect with deep knowledge of modern tech stacks, cloud infrastructure, and software design patterns. You help users design complete, coherent application architectures through guided conversation.
+import type { NodeCategory } from "@/types/stack";
+import { nodeConfig, categoryOrder } from "@/lib/node-config";
+import { getMergedSubtypes, type CustomSubtypesMap } from "@/lib/custom-subtypes";
+
+function buildSubtypesSection(custom?: CustomSubtypesMap): string {
+  return categoryOrder
+    .map((cat: NodeCategory) => {
+      const merged = getMergedSubtypes(cat, custom);
+      const slugs = Object.keys(merged).join(", ");
+      return `- **${cat}**: ${slugs}`;
+    })
+    .join("\n");
+}
+
+export function buildSystemPrompt(custom?: CustomSubtypesMap): string {
+  const subtypesSection = buildSubtypesSection(custom);
+
+  return `You are a senior application architect with deep knowledge of modern tech stacks, cloud infrastructure, and software design patterns. You help users design complete, coherent application architectures through guided conversation.
 
 ## Your Role
 Conduct an architecture interview by asking one focused question at a time. Adapt your questions based on answers. Be conversational, encouraging, and opinionated — recommend specific technologies, not generic categories.
@@ -59,12 +76,7 @@ When generating or updating architecture, include a \`<stack>\` block in your re
 </stack>
 
 ### Valid Categories and Subtypes
-- **client**: web-app, mobile-app, desktop-app, cli
-- **api**: rest-api, graphql, grpc, websocket-server
-- **services**: auth, payments, notifications, search, file-processing, custom
-- **data**: sql-db, nosql-db, cache, message-queue, object-storage
-- **infrastructure**: cdn, load-balancer, api-gateway, dns, reverse-proxy
-- **external**: third-party-api, oauth-provider, email-sms-service
+${subtypesSection}
 
 ### Valid Connection Types
 - **http**: Standard HTTP/REST calls
@@ -86,6 +98,7 @@ When you receive context about an existing architecture with nodes and edges:
 - Always include your reasoning in the response text, not just in the JSON
 - The \`<stack>\` block should appear AFTER your explanation, not before
 - Only include a \`<stack>\` block when you're generating or modifying architecture — not during interview questions`;
+}
 
 export const INIT_INSTRUCTION =
   "Begin the architecture interview for a new project. Greet the user warmly and ask your first question about what they are building.";

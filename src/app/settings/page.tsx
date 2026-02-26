@@ -4,6 +4,9 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useTheme } from "next-themes";
 import { useSyncExternalStore } from "react";
+import { categoryOrder, nodeConfig } from "@/lib/node-config";
+import type { CustomSubtypesMap, CustomSubtypeEntry } from "@/lib/custom-subtypes";
+import type { NodeCategory } from "@/types/stack";
 
 const VALID_MODELS = [
   { id: "claude-sonnet-4-20250514", name: "Sonnet" },
@@ -19,6 +22,7 @@ interface Settings {
   apiKey?: string;
   model?: string;
   theme?: string;
+  customSubtypes?: string;
 }
 
 export default function SettingsPage() {
@@ -40,6 +44,8 @@ export default function SettingsPage() {
     message: string;
   } | null>(null);
   const [keyError, setKeyError] = useState("");
+  const [customSubtypes, setCustomSubtypes] = useState<CustomSubtypesMap>({});
+  const [newSubtype, setNewSubtype] = useState<Record<NodeCategory, { slug: string; displayName: string; icon: string }>>({} as Record<NodeCategory, { slug: string; displayName: string; icon: string }>);
 
   useEffect(() => {
     fetch("/api/settings")
@@ -54,6 +60,11 @@ export default function SettingsPage() {
         }
         if (data.theme) {
           setTheme(data.theme);
+        }
+        if (data.customSubtypes) {
+          try {
+            setCustomSubtypes(JSON.parse(data.customSubtypes));
+          } catch { /* ignore */ }
         }
       })
       .catch(() => {
@@ -140,6 +151,62 @@ export default function SettingsPage() {
       }
     },
     [setTheme],
+  );
+
+  const saveCustomSubtypes = useCallback(async (map: CustomSubtypesMap) => {
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ customSubtypes: JSON.stringify(map) }),
+      });
+      if (res.ok) {
+        showToast("success", "Custom subtypes saved");
+      } else {
+        showToast("error", "Failed to save custom subtypes");
+      }
+    } catch {
+      showToast("error", "Failed to save custom subtypes");
+    }
+  }, [showToast]);
+
+  const handleAddSubtype = useCallback(
+    (category: NodeCategory) => {
+      const form = newSubtype[category];
+      if (!form?.slug || !form?.displayName) return;
+      const entry: CustomSubtypeEntry = {
+        slug: form.slug.toLowerCase().replace(/\s+/g, "-"),
+        displayName: form.displayName,
+        icon: form.icon || "Box",
+      };
+      const builtInSlugs = Object.keys(nodeConfig[category].subtypes);
+      const existingSlugs = customSubtypes[category]?.map((e) => e.slug) ?? [];
+      if (builtInSlugs.includes(entry.slug) || existingSlugs.includes(entry.slug)) {
+        showToast("error", `Subtype "${entry.slug}" already exists`);
+        return;
+      }
+      const updated: CustomSubtypesMap = {
+        ...customSubtypes,
+        [category]: [...(customSubtypes[category] ?? []), entry],
+      };
+      setCustomSubtypes(updated);
+      setNewSubtype((prev) => ({ ...prev, [category]: { slug: "", displayName: "", icon: "" } }));
+      saveCustomSubtypes(updated);
+    },
+    [customSubtypes, newSubtype, showToast, saveCustomSubtypes],
+  );
+
+  const handleRemoveSubtype = useCallback(
+    (category: NodeCategory, slug: string) => {
+      const updated: CustomSubtypesMap = {
+        ...customSubtypes,
+        [category]: (customSubtypes[category] ?? []).filter((e) => e.slug !== slug),
+      };
+      if (updated[category]?.length === 0) delete updated[category];
+      setCustomSubtypes(updated);
+      saveCustomSubtypes(updated);
+    },
+    [customSubtypes, saveCustomSubtypes],
   );
 
   const maskedKey =
@@ -346,6 +413,112 @@ export default function SettingsPage() {
                     {t}
                   </button>
                 ))}
+              </div>
+            </section>
+
+            {/* Node Subtypes Section */}
+            <section className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-6">
+              <h2 className="mb-4 text-lg font-semibold text-[var(--card-foreground)]">
+                Node Subtypes
+              </h2>
+              <p className="mb-4 text-sm text-[var(--muted-foreground)]">
+                Add custom subtypes to existing node categories. Built-in subtypes are always available.
+              </p>
+              <div className="space-y-5">
+                {categoryOrder.map((category) => {
+                  const config = nodeConfig[category];
+                  const customEntries = customSubtypes[category] ?? [];
+                  const form = newSubtype[category] ?? { slug: "", displayName: "", icon: "" };
+                  return (
+                    <div key={category} className="rounded border border-[var(--border)] p-4">
+                      <div className="mb-2 flex items-center gap-2">
+                        <span
+                          className="inline-block rounded-full px-2 py-0.5 text-xs font-medium text-white"
+                          style={{ backgroundColor: config.color }}
+                        >
+                          {config.displayName}
+                        </span>
+                      </div>
+                      {/* Built-in subtypes */}
+                      <div className="mb-2 flex flex-wrap gap-1">
+                        {Object.entries(config.subtypes).map(([slug, sc]) => (
+                          <span
+                            key={slug}
+                            className="inline-block rounded-full bg-[var(--muted)] px-2 py-0.5 text-xs text-[var(--muted-foreground)]"
+                          >
+                            {sc.displayName}
+                          </span>
+                        ))}
+                      </div>
+                      {/* Custom subtypes */}
+                      {customEntries.length > 0 && (
+                        <div className="mb-2 flex flex-wrap gap-1">
+                          {customEntries.map((entry) => (
+                            <span
+                              key={entry.slug}
+                              className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                            >
+                              {entry.displayName}
+                              <button
+                                onClick={() => handleRemoveSubtype(category, entry.slug)}
+                                className="ml-0.5 hover:text-red-500"
+                                aria-label={`Remove ${entry.displayName}`}
+                              >
+                                &times;
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {/* Add form */}
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          placeholder="slug"
+                          value={form.slug}
+                          onChange={(e) =>
+                            setNewSubtype((prev) => ({
+                              ...prev,
+                              [category]: { ...form, slug: e.target.value },
+                            }))
+                          }
+                          className="w-24 rounded border border-[var(--border)] bg-[var(--background)] px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--color-client)]"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Display Name"
+                          value={form.displayName}
+                          onChange={(e) =>
+                            setNewSubtype((prev) => ({
+                              ...prev,
+                              [category]: { ...form, displayName: e.target.value },
+                            }))
+                          }
+                          className="flex-1 rounded border border-[var(--border)] bg-[var(--background)] px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--color-client)]"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Icon"
+                          value={form.icon}
+                          onChange={(e) =>
+                            setNewSubtype((prev) => ({
+                              ...prev,
+                              [category]: { ...form, icon: e.target.value },
+                            }))
+                          }
+                          className="w-20 rounded border border-[var(--border)] bg-[var(--background)] px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--color-client)]"
+                        />
+                        <button
+                          onClick={() => handleAddSubtype(category)}
+                          disabled={!form.slug || !form.displayName}
+                          className="rounded bg-[var(--color-client)] px-2 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
+                        >
+                          Add
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </section>
           </div>

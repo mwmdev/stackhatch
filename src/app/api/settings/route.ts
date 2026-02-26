@@ -13,13 +13,14 @@ const VALID_MODELS = [
 
 const VALID_THEMES = ["light", "dark", "system"] as const;
 
-const VALID_KEYS = new Set(["apiKey", "model", "theme"]);
+const VALID_KEYS = new Set(["apiKey", "model", "theme", "customSubtypes"]);
 
 const updateSettingsSchema = z
   .object({
     apiKey: z.string().optional(),
     model: z.enum(VALID_MODELS).optional(),
     theme: z.enum(VALID_THEMES).optional(),
+    customSubtypes: z.string().optional(),
   })
   .strict();
 

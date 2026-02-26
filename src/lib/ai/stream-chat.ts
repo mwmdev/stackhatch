@@ -3,7 +3,8 @@ import { v4 as uuid } from "uuid";
 import Anthropic from "@anthropic-ai/sdk";
 import type { AppDatabase } from "@/db";
 import { messages, projects, settings } from "@/db/schema";
-import { SYSTEM_PROMPT, INIT_INSTRUCTION } from "@/lib/ai/system-prompt";
+import { buildSystemPrompt, INIT_INSTRUCTION } from "@/lib/ai/system-prompt";
+import { parseCustomSubtypes } from "@/lib/custom-subtypes";
 import { buildMessages } from "@/lib/ai/context-builder";
 import { parseAIResponse } from "@/lib/ai/output-parser";
 import type { ChatMessage } from "@/types/chat";
@@ -66,6 +67,8 @@ export function streamChat(
   }
 
   const model = getModel(settingsMap);
+  const customSubtypes = parseCustomSubtypes(settingsMap.customSubtypes);
+  const systemPrompt = buildSystemPrompt(customSubtypes);
 
   // Save user message if present
   if (userMessage) {
@@ -145,7 +148,7 @@ export function streamChat(
         const anthropicStream = client.messages.stream({
           model,
           max_tokens: 4096,
-          system: SYSTEM_PROMPT,
+          system: systemPrompt,
           messages: anthropicMessages,
         });
 

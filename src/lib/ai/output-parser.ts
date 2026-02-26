@@ -10,36 +10,6 @@ const nodeCategories = [
   "external",
 ] as const;
 
-const nodeSubtypes = [
-  "web-app",
-  "mobile-app",
-  "desktop-app",
-  "cli",
-  "rest-api",
-  "graphql",
-  "grpc",
-  "websocket-server",
-  "auth",
-  "payments",
-  "notifications",
-  "search",
-  "file-processing",
-  "custom",
-  "sql-db",
-  "nosql-db",
-  "cache",
-  "message-queue",
-  "object-storage",
-  "cdn",
-  "load-balancer",
-  "api-gateway",
-  "dns",
-  "reverse-proxy",
-  "third-party-api",
-  "oauth-provider",
-  "email-sms-service",
-] as const;
-
 const connectionTypes = [
   "http",
   "websocket",
@@ -52,7 +22,7 @@ const connectionTypes = [
 const stackNodeSchema = z.object({
   id: z.string().min(1),
   category: z.enum(nodeCategories),
-  subtype: z.enum(nodeSubtypes),
+  subtype: z.string().min(1),
   name: z.string().min(1),
   technology: z.string(),
   description: z.string(),

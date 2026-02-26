@@ -43,6 +43,7 @@ import type {
 import { getSubtypeConfig } from "@/lib/node-config";
 import { applyDagreLayout } from "@/lib/layout";
 import { mergeArchitecture } from "@/lib/merge-architecture";
+import { parseCustomSubtypes, type CustomSubtypesMap } from "@/lib/custom-subtypes";
 
 interface Project {
   id: string;
@@ -86,6 +87,7 @@ export default function ProjectPage() {
   const [pendingConnection, setPendingConnection] =
     useState<PendingConnection | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [customSubtypes, setCustomSubtypes] = useState<CustomSubtypesMap>({});
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<StackNodeData>(
     [],
   );
@@ -219,12 +221,13 @@ export default function ProjectPage() {
         ...n,
         data: {
           ...n.data,
+          customSubtypes,
           onLockToggle: handleLockToggle,
           onDelete: handleNodeDelete,
         },
       }));
     },
-    [handleLockToggle, handleNodeDelete],
+    [handleLockToggle, handleNodeDelete, customSubtypes],
   );
 
   // --- React Flow event handlers ---
@@ -301,7 +304,7 @@ export default function ProjectPage() {
 
   const handleAddNode = useCallback(
     (category: NodeCategory, subtype: NodeSubtype) => {
-      const subtypeConfig = getSubtypeConfig(category, subtype);
+      const subtypeConfig = getSubtypeConfig(category, subtype, customSubtypes);
       const id = crypto.randomUUID();
       const newStackNode: StackNode = {
         id,
@@ -332,6 +335,7 @@ export default function ProjectPage() {
           description: newStackNode.description,
           reasoning: newStackNode.reasoning,
           locked: newStackNode.locked,
+          customSubtypes,
           onLockToggle: handleLockToggle,
           onDelete: handleNodeDelete,
         },
@@ -352,7 +356,7 @@ export default function ProjectPage() {
       });
       setSelectedNode(newStackNode);
     },
-    [handleLockToggle, handleNodeDelete, setRfNodes],
+    [handleLockToggle, handleNodeDelete, setRfNodes, customSubtypes],
   );
 
   // --- Detail panel update ---
@@ -480,6 +484,13 @@ export default function ProjectPage() {
   useEffect(() => {
     async function loadProject() {
       try {
+        // Fetch custom subtypes in parallel
+        fetch("/api/settings")
+          .then((r) => r.json())
+          .then((s) => {
+            if (s.customSubtypes) setCustomSubtypes(parseCustomSubtypes(s.customSubtypes));
+          })
+          .catch(() => {});
         const res = await fetch(`/api/projects/${projectId}`);
         if (!res.ok) {
           setError("Project not found");
@@ -506,6 +517,7 @@ export default function ProjectPage() {
             ...n,
             data: {
               ...n.data,
+              customSubtypes,
               onLockToggle: handleLockToggle,
               onDelete: handleNodeDelete,
             },
@@ -582,7 +594,7 @@ export default function ProjectPage() {
           </Link>
           <h1 className="text-lg font-semibold">{project.name}</h1>
           <div className="ml-auto flex items-center gap-2">
-            <AddNodeDropdown onAddNode={handleAddNode} />
+            <AddNodeDropdown onAddNode={handleAddNode} customSubtypes={customSubtypes} />
             {nodeCount > 0 && (
               <button
                 onClick={handleRelayout}
@@ -678,6 +690,7 @@ export default function ProjectPage() {
             onUpdate={handleNodeUpdate}
             onDelete={handleNodeDelete}
             onClose={handleClosePanel}
+            customSubtypes={customSubtypes}
           />
 
           {/* Toast notification */}

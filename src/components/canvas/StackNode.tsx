@@ -6,6 +6,7 @@ import type { NodeProps } from "reactflow";
 import * as icons from "lucide-react";
 import type { NodeCategory, NodeSubtype, StackNode as StackNodeType } from "@/types/stack";
 import { getCategoryConfig, getSubtypeConfig } from "@/lib/node-config";
+import type { CustomSubtypesMap } from "@/lib/custom-subtypes";
 
 function DynamicIcon({
   name,
@@ -29,6 +30,7 @@ export interface StackNodeData {
   description: string;
   reasoning: string;
   locked: boolean;
+  customSubtypes?: CustomSubtypesMap;
   onLockToggle?: (id: string, locked: boolean) => void;
   onDelete?: (id: string) => void;
   onClick?: (id: string) => void;
@@ -49,7 +51,7 @@ function StackNodeComponent({ id, data, selected }: NodeProps<StackNodeData>) {
   const menuRef = useRef<HTMLDivElement>(null);
 
   const catConfig = getCategoryConfig(data.category);
-  const subtypeConfig = getSubtypeConfig(data.category, data.subtype);
+  const subtypeConfig = getSubtypeConfig(data.category, data.subtype, data.customSubtypes);
   const iconName = subtypeConfig?.icon ?? catConfig.icon;
 
   const handleContextMenu = useCallback(
