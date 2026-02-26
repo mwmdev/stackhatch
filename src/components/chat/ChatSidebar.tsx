@@ -4,7 +4,10 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 
 function stripStackTags(text: string): string {
-  return text.replace(/<stack>\s*[\s\S]*?\s*<\/stack>/g, "").trim();
+  return text
+    .replace(/<stack>\s*[\s\S]*?\s*<\/stack>/g, "")
+    .replace(/<stack>[\s\S]*$/g, "")
+    .trim();
 }
 
 interface Message {
