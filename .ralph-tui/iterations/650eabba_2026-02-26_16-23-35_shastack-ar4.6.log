@@ -1,0 +1,71 @@
+# Iteration 17 Log
+
+## Metadata
+
+- **Task ID**: shastack-ar4.6
+- **Task Title**: T-006: API Route — Settings
+- **Description**: As a user, I need an API endpoint to store and retrieve application settings (API key, model preference) so that configuration persists across sessions.
+
+## Acceptance Criteria
+- [ ] Settings persist ...
+- **Status**: completed
+- **Task Completed**: Yes
+- **Promise Detected**: Yes
+- **Started At**: 2026-02-26T15:23:35.001Z
+- **Ended At**: 2026-02-26T15:25:52.819Z
+- **Duration**: 2m 17s
+- **Input Tokens**: 59
+- **Output Tokens**: 7753
+- **Total Tokens**: 7812
+- **Agent**: claude
+- **Model**: claude-opus-4-6
+- **Epic**: shastack-ar4
+- **Sandbox Mode**: auto
+- **Sandbox Network**: Enabled
+--- RAW OUTPUT ---
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/.ralph-tui/progress.md[0m
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/src/db/schema.ts[0m
+[94m[Glob][0m [95m/home/mike/cloud/apps/mwm/shastack[0m pattern: [96msrc/app/api/settings/**/*.ts[0m
+Let me examine the existing API routes and db module to follow established patterns.
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/src/app/api/projects/route.ts[0m
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/src/app/api/projects/[id]/route.ts[0m
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/src/db/index.ts[0m
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/src/app/api/projects/projects-api.test.ts[0m
+Let me check how settings are currently used in the existing chat flow.
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/src/lib/ai/stream-chat.ts[0m
+[94m[TodoWrite][0m
+[94m[Bash][0m List existing API directories $ ls /home/mike/cloud/apps/mwm/shastack/src/app/api/
+[94m[Write][0m [95m/home/mike/cloud/apps/mwm/shastack/src/app/api/settings/route.ts[0m "import { NextRequest, NextResponse } from "next/server";
+import { getDb } from "@/db";
+import { settings } from "@/db/schema";
+import { runMigrations } from "@/db/migrate";
+import { eq } from "drizzle... (3218 chars)"
+[94m[TodoWrite][0m
+Now let me write the integration tests following the established pattern from `projects-api.test.ts`.
+[94m[Write][0m [95m/home/mike/cloud/apps/mwm/shastack/src/app/api/settings/settings-api.test.ts[0m "import { describe, it, expect, beforeEach, vi } from "vitest";
+import { drizzle } from "drizzle-orm/better-sqlite3";
+import Database from "better-sqlite3";
+import * as schema from "@/db/schema";
+impor... (8605 chars)"
+[94m[Bash][0m Run settings API tests $ npx vitest run src/app/api/settings/settings-api.test.ts 2>&1
+All 18 tests pass. Let me run typecheck and lint.
+[94m[TodoWrite][0m
+[94m[Bash][0m Run TypeScript typecheck $ npx tsc --noEmit 2>&1
+[94m[Bash][0m Run ESLint on settings files $ npx eslint src/app/api/settings/ 2>&1
+Typecheck and lint both pass cleanly. Now let me update progress.md and close the bead.
+[94m[TodoWrite][0m
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/.ralph-tui/progress.md[0m
+[94m[Edit][0m [95m/home/mike/cloud/apps/mwm/shastack/.ralph-tui/progress.md[0m edit: "  - `await import()` after `vi.mock()` ensures moc..." → "  - `await import()` after `vi.mock()` ensures moc..."
+[94m[Bash][0m Close the bead $ bd close shastack-ar4.6 --db /home/mike/cloud/apps/mwm/shastack/.beads/beads.db --reason "Implemente...
+[94m[TodoWrite][0m
+Done. Here's what was implemented:
+
+**GET /api/settings** — Returns all settings as `{ apiKey, model, theme }`. Falls back to `ANTHROPIC_API_KEY` and `ANTHROPIC_MODEL` env vars for unset DB values. Defaults model to `claude-sonnet-4-20250514`.
+
+**PATCH /api/settings** — Upserts settings with Zod `.strict()` validation. Validates `model` against the 3 Claude model IDs and `theme` against `light`/`dark`/`system`. Rejects unknown keys with 400.
+
+**18 integration tests** all passing, covering: defaults, DB persistence, env fallback, DB-overrides-env, unknown key filtering, upsert, invalid values, empty body, invalid JSON, and cross-request persistence.
+
+Typecheck and lint pass cleanly.
+
+<promise>COMPLETE</promise>

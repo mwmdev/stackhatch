@@ -26,6 +26,7 @@ after each iteration and it's included in prompts for context.
 - **fetch mock typing**: When assigning `global.fetch = vi.fn(...)` in strict TS, the mock must accept `(input: RequestInfo | URL, options?: RequestInit)` to match fetch's overloaded signature.
 - **React Flow BaseEdge style**: `BaseEdge` renders stroke properties as inline CSS `style`, not SVG attributes. In tests, check `element.style.stroke` not `getAttribute("stroke")`. `MarkerType.ArrowClosed` renders as literal string "arrowclosed" in jsdom (no `url(#...)` resolution without full React Flow canvas).
 - **Next.js App Router API route testing**: Import handlers directly, pass `new Request(url, init)` and `{ params: Promise.resolve({id}) }`. Use `vi.mock("@/db")` to inject test DB and `vi.mock("@/db/migrate")` to skip migrations. Use `await import()` after `vi.mock()` so mocks are active.
+- **next-themes hydration**: `next-themes` ThemeProvider needs `suppressHydrationWarning` on `<html>`. For mount detection, use `useSyncExternalStore` instead of `useEffect(() => setMounted(true), [])` to satisfy the `react-hooks/set-state-in-effect` lint rule.
 
 ---
 
@@ -281,4 +282,19 @@ after each iteration and it's included in prompts for context.
 - **Learnings:**
   - The `stream-chat.ts` already had `getSettings()`/`getApiKey()`/`getModel()` helpers reading from the settings table — the settings API route is the write counterpart to that read pattern
   - `process.env` mutations in tests (delete/set) need to be in `beforeEach` to avoid test pollution, since vitest runs tests in the same process
+---
+
+## 2026-02-26 - shastack-ar4.7
+- Built project dashboard page (`src/app/page.tsx`) as client component with API-based data fetching
+- Features: project card grid (responsive 1/2/3 columns), empty state with CTA, delete with confirmation modal, settings gear link, theme toggle
+- Installed `next-themes` for dark/light/system theme support with `class` strategy
+- Created `Providers.tsx` (ThemeProvider wrapper) and `ThemeToggle.tsx` (cycles light→dark→system)
+- Updated `layout.tsx` with `Providers` wrapper and `suppressHydrationWarning` on `<html>`
+- Wrote 9 component tests covering: project list rendering, empty state, navigation, delete flow with confirmation, cancel delete, settings link, theme toggle, loading state
+- **Files created:** src/components/Providers.tsx, src/components/ThemeToggle.tsx, src/app/page.test.tsx
+- **Files modified:** src/app/page.tsx (replaced placeholder with full dashboard), src/app/layout.tsx (added Providers + suppressHydrationWarning), package.json (added next-themes)
+- **Learnings:**
+  - ESLint `react-hooks/set-state-in-effect` rule blocks the common `useEffect(() => setMounted(true), [])` pattern — use `useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)` instead for hydration-safe mount detection
+  - `next-themes` requires `suppressHydrationWarning` on `<html>` element to avoid React hydration mismatch warnings from the `class` attribute injection
+  - Casting fetch mocks: use `as unknown as typeof global.fetch` (double cast through unknown) to satisfy strict TypeScript when mock returns partial Response objects
 ---
