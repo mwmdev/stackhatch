@@ -16,6 +16,7 @@ import type {
   ConnectionType,
 } from "@/types/stack";
 import { getSubtypeConfig } from "@/lib/node-config";
+import { applyDagreLayout, type NodePosition } from "@/lib/layout";
 
 interface Project {
   id: string;
@@ -45,6 +46,7 @@ export default function ProjectPage() {
   const [selectedNode, setSelectedNode] = useState<StackNode | null>(null);
   const [pendingConnection, setPendingConnection] =
     useState<PendingConnection | null>(null);
+  const [nodePositions, setNodePositions] = useState<NodePosition[]>([]);
 
   const saveCanvasState = useCallback(
     (canvas: StackArchitecture) => {
@@ -154,6 +156,26 @@ export default function ProjectPage() {
     setPendingConnection(null);
   }, []);
 
+  const handleRelayout = useCallback(() => {
+    if (!project?.canvasState) return;
+    const positions = applyDagreLayout(
+      project.canvasState.nodes,
+      project.canvasState.edges,
+    );
+    setNodePositions(positions);
+  }, [project?.canvasState]);
+
+  // Auto-compute positions when canvas state changes
+  useEffect(() => {
+    if (project?.canvasState?.nodes?.length) {
+      setNodePositions(
+        applyDagreLayout(project.canvasState.nodes, project.canvasState.edges),
+      );
+    } else {
+      setNodePositions([]);
+    }
+  }, [project?.canvasState]);
+
   useEffect(() => {
     async function loadProject() {
       try {
@@ -215,6 +237,15 @@ export default function ProjectPage() {
           <div className="ml-auto flex items-center gap-2">
             <AddNodeDropdown onAddNode={handleAddNode} />
             {nodeCount > 0 && (
+              <button
+                onClick={handleRelayout}
+                className="rounded border border-[var(--border)] px-2 py-1 text-xs text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
+                title="Re-layout nodes"
+              >
+                Re-layout
+              </button>
+            )}
+            {nodeCount > 0 && (
               <span className="text-xs text-[var(--muted-foreground)]">
                 {nodeCount} node{nodeCount !== 1 ? "s" : ""}
               </span>
@@ -247,48 +278,53 @@ export default function ProjectPage() {
             </div>
           )}
 
-          {/* Simple node list view (until React Flow is integrated in T-009) */}
+          {/* Node canvas view with Dagre layout positioning */}
           {hasCanvas && (
             <div className="absolute inset-0 overflow-auto p-6">
-              <div className="flex flex-wrap gap-4">
-                {project.canvasState!.nodes.map((node) => (
-                  <button
-                    key={node.id}
-                    onClick={() => setSelectedNode(node)}
-                    className={`rounded-lg border-l-4 bg-[var(--background)] p-4 text-left shadow-md transition-all hover:shadow-lg ${
-                      selectedNode?.id === node.id
-                        ? "ring-2 ring-[var(--color-client)]"
-                        : ""
-                    }`}
-                    style={{
-                      borderLeftColor: `var(--color-${node.category})`,
-                      minWidth: "200px",
-                    }}
-                    data-testid={`node-card-${node.id}`}
-                  >
-                    <div className="font-medium text-[var(--foreground)]">
-                      {node.name}
-                    </div>
-                    {node.technology && (
-                      <div className="mt-1 text-xs text-[var(--muted-foreground)]">
-                        {node.technology}
-                      </div>
-                    )}
-                    <div
-                      className="mt-2 inline-block rounded-full px-2 py-0.5 text-xs text-white"
+              <div className="relative" style={{ minHeight: "100%" }}>
+                {project.canvasState!.nodes.map((node) => {
+                  const pos = nodePositions.find((p) => p.id === node.id);
+                  return (
+                    <button
+                      key={node.id}
+                      onClick={() => setSelectedNode(node)}
+                      className={`absolute rounded-lg border-l-4 bg-[var(--background)] p-4 text-left shadow-md transition-all hover:shadow-lg ${
+                        selectedNode?.id === node.id
+                          ? "ring-2 ring-[var(--color-client)]"
+                          : ""
+                      }`}
                       style={{
-                        backgroundColor: `var(--color-${node.category})`,
+                        borderLeftColor: `var(--color-${node.category})`,
+                        minWidth: "200px",
+                        left: pos ? `${pos.position.x}px` : undefined,
+                        top: pos ? `${pos.position.y}px` : undefined,
                       }}
+                      data-testid={`node-card-${node.id}`}
                     >
-                      {node.category}
-                    </div>
-                    {node.locked && (
-                      <span className="ml-2 text-xs text-[var(--color-data)]">
-                        🔒
-                      </span>
-                    )}
-                  </button>
-                ))}
+                      <div className="font-medium text-[var(--foreground)]">
+                        {node.name}
+                      </div>
+                      {node.technology && (
+                        <div className="mt-1 text-xs text-[var(--muted-foreground)]">
+                          {node.technology}
+                        </div>
+                      )}
+                      <div
+                        className="mt-2 inline-block rounded-full px-2 py-0.5 text-xs text-white"
+                        style={{
+                          backgroundColor: `var(--color-${node.category})`,
+                        }}
+                      >
+                        {node.category}
+                      </div>
+                      {node.locked && (
+                        <span className="ml-2 text-xs text-[var(--color-data)]">
+                          🔒
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}

@@ -20,6 +20,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
     "better-sqlite3": "^12.6.2",
+    "dagre": "^0.8.5",
     "drizzle-orm": "^0.45.1",
     "lucide-react": "^0.575.0",
     "next": "^16.1.6",
@@ -37,6 +38,7 @@
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@types/better-sqlite3": "^7.6.13",
+    "@types/dagre": "^0.7.53",
     "@types/node": "^25.3.1",
     "@types/react": "^19.2.14",
     "@types/uuid": "^10.0.0",

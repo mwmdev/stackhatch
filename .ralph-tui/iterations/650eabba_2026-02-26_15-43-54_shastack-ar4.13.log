@@ -1,0 +1,113 @@
+# Iteration 7 Log
+
+## Metadata
+
+- **Task ID**: shastack-ar4.13
+- **Task Title**: T-013: Manual Node Addition
+- **Description**: As a user, I want to manually add nodes to the canvas without AI, so that I can build or extend architectures by hand.
+
+## Acceptance Criteria
+- [ ] Add Node dropdown shows all categories and subtypes...
+- **Status**: completed
+- **Task Completed**: Yes
+- **Promise Detected**: Yes
+- **Started At**: 2026-02-26T14:43:54.452Z
+- **Ended At**: 2026-02-26T14:47:44.791Z
+- **Duration**: 3m 50s
+- **Input Tokens**: 78
+- **Output Tokens**: 13348
+- **Total Tokens**: 13426
+- **Agent**: claude
+- **Model**: claude-opus-4-6
+- **Epic**: shastack-ar4
+- **Sandbox Mode**: auto
+- **Sandbox Network**: Enabled
+--- RAW OUTPUT ---
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/.ralph-tui/progress.md[0m
+[94m[Glob][0m [95m/home/mike/cloud/apps/mwm/shastack[0m pattern: [96msrc/components/canvas/**/*.tsx[0m
+[94m[Glob][0m [95m/home/mike/cloud/apps/mwm/shastack[0m pattern: [96msrc/app/project/**/*.tsx[0m
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/src/app/project/[id]/page.tsx[0m
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/src/types/stack.ts[0m
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/src/lib/node-config.ts[0m
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/src/components/canvas/NodeDetailPanel.tsx[0m
+[94m[Bash][0m Check if React Flow is installed $ cat package.json | grep -E "reactflow|@xyflow|dagre"
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/src/components/chat/ChatSidebar.tsx[0m
+[94m[TodoWrite][0m
+[94m[Write][0m [95m/home/mike/cloud/apps/mwm/shastack/src/components/canvas/AddNodeDropdown.tsx[0m ""use client";
+
+import { useState, useRef, useEffect } from "react";
+import * as icons from "lucide-react";
+import type { NodeCategory, NodeSubtype } from "@/types/stack";
+import { categoryOrder, nodeC... (4895 chars)"
+[94m[TodoWrite][0m
+[94m[Write][0m [95m/home/mike/cloud/apps/mwm/shastack/src/components/canvas/ConnectionTypeSelector.tsx[0m ""use client";
+
+import { useRef, useEffect } from "react";
+import type { ConnectionType } from "@/types/stack";
+
+const connectionTypes: { value: ConnectionType; label: string; desc: string }[] =
+  [
+  ... (2205 chars)"
+Now I'll integrate both components into the project page.
+[94m[TodoWrite][0m
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/src/app/project/[id]/page.tsx[0m
+[94m[Write][0m [95m/home/mike/cloud/apps/mwm/shastack/src/app/project/[id]/page.tsx[0m ""use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { useParams } from "next/navigation";
+import Link from "next/link";
+import ChatSidebar from "@/components/chat/ChatSideb... (10453 chars)"
+[94m[TodoWrite][0m
+Now let me check the test setup and write the component tests.
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/src/test/setup.ts[0m
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/vitest.config.ts[0m
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/src/components/canvas/NodeDetailPanel.test.tsx[0m
+Good, I understand the test patterns. Let me write tests for both new components.
+[94m[Write][0m [95m/home/mike/cloud/apps/mwm/shastack/src/components/canvas/AddNodeDropdown.test.tsx[0m "import { describe, it, expect, vi } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
+import AddNodeDropdown from "./AddNodeDropdown";
+import { categoryOrder, nodeConf... (4295 chars)"
+[94m[Write][0m [95m/home/mike/cloud/apps/mwm/shastack/src/components/canvas/ConnectionTypeSelector.test.tsx[0m "import { describe, it, expect, vi } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
+import ConnectionTypeSelector from "./ConnectionTypeSelector";
+
+describe("Connect... (2750 chars)"
+Now let me run the tests.
+[94m[TodoWrite][0m
+[94m[Bash][0m Run component tests for new components $ npx vitest run src/components/canvas/AddNodeDropdown.test.tsx src/components/canvas/ConnectionTypeSe...
+All 17 tests pass. Now let me run typecheck and lint.
+[94m[Bash][0m Run TypeScript type check $ npx tsc --noEmit 2>&1
+[94m[Bash][0m Run ESLint $ npx eslint . 2>&1
+Let me also run the full test suite to make sure nothing is broken.
+[94m[Bash][0m Run all unit tests $ npx vitest run 2>&1
+All 46 tests pass. Typecheck and lint are clean.
+[94m[TodoWrite][0m
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/.ralph-tui/progress.md[0m
+[94m[Edit][0m [95m/home/mike/cloud/apps/mwm/shastack/.ralph-tui/progress.md[0m edit: "  - `react-hooks/set-state-in-effect` lint rule pr..." → "  - `react-hooks/set-state-in-effect` lint rule pr..."
+[94m[Bash][0m Close the bead $ bd close shastack-ar4.13 --db /home/mike/cloud/apps/mwm/shastack/.beads/beads.db --reason "Implement...
+[94m[TodoWrite][0m
+## Summary
+
+Implemented T-013: Manual Node Addition with these components:
+
+**AddNodeDropdown** (`src/components/canvas/AddNodeDropdown.tsx`):
+- Toolbar button that opens a categorized dropdown menu
+- 6 categories (Client, API Layer, Services, Data, Infrastructure, External) with expandable subtypes
+- Clicking a subtype creates a new `StackNode` with default values and triggers the detail panel
+
+**ConnectionTypeSelector** (`src/components/canvas/ConnectionTypeSelector.tsx`):
+- Positioned popover for selecting connection types when creating edges
+- Shows all 6 types (HTTP, WebSocket, gRPC, TCP, Pub/Sub, File I/O) with descriptions
+- Closes on outside click or selection
+
+**Project page integration** (`src/app/project/[id]/page.tsx`):
+- AddNodeDropdown in toolbar with node count indicator
+- New nodes initialize canvasState if empty, appended otherwise
+- Detail panel auto-opens for newly added nodes
+- Simple card-based node list view (until React Flow arrives in T-009)
+- ConnectionTypeSelector wired for pending connections
+- Extracted `saveCanvasState` helper to reduce duplication
+
+**Tests**: 17 new tests (10 + 7), all 46 total tests passing. Typecheck and lint clean.
+
+<promise>COMPLETE</promise>

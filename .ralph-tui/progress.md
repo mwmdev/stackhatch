@@ -137,3 +137,18 @@ after each iteration and it's included in prompts for context.
   - When React Flow isn't integrated yet, a simple card-based node list view works as a functional interim for node management
   - `crypto.randomUUID()` is available in jsdom test environment without polyfill
 ---
+
+## 2026-02-26 - shastack-ar4.14
+- Implemented Dagre auto-layout algorithm for top-to-bottom directed graph positioning
+- Created `src/lib/layout.ts` with `applyDagreLayout()` function supporting: category-based rank grouping (client→api→services→data→infrastructure→external), fixed position constraints for locked nodes, edge filtering for non-existent endpoints
+- Added "Re-layout" button to project page toolbar (visible when nodes exist)
+- Canvas view now uses absolute positioning with Dagre-computed coordinates instead of flex-wrap
+- Auto-recomputes layout via `useEffect` whenever `canvasState` changes
+- Wrote 9 unit tests: empty input, single node, non-overlapping positions, category ordering, disconnected subgraphs, invalid edges, fixed positions, circular dependencies, same-category side-by-side
+- **Files created:** src/lib/layout.ts, src/lib/layout.test.ts
+- **Files modified:** src/app/project/[id]/page.tsx, package.json (added dagre, @types/dagre)
+- **Learnings:**
+  - Dagre returns center coordinates for nodes — offset by half width/height to get top-left for CSS positioning
+  - Dagre's `rank` property on nodes hints at rank placement but the actual rank depends on edges; for strict category ordering, edges between adjacent layers are needed
+  - Dagre handles circular dependencies gracefully without throwing
+---
