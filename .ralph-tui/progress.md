@@ -14,6 +14,9 @@ after each iteration and it's included in prompts for context.
 - **@testing-library/react**: Requires explicit `@testing-library/dom` peer dependency install.
 - **Drizzle ORM + better-sqlite3**: Use `drizzle-orm/better-sqlite3` with synchronous driver. Enable `foreign_keys = ON` pragma explicitly (SQLite defaults to OFF). For tests, use in-memory DB with raw SQL schema creation rather than running file-based migrations.
 - **Drizzle query API**: The `db.query.*.findMany()` relational API may not work with in-memory DBs without proper schema setup. Prefer standard `db.select().from().orderBy()` with imported `desc`/`asc` helpers from `drizzle-orm`.
+- **Next.js App Router dynamic params**: In Next.js 16, dynamic route params are `Promise<{ id: string }>` — must `await params` before accessing `.id`.
+- **Playwright SSE mocking**: Use `route.fulfill()` with string body for SSE streams. Don't use `TextEncoder` — Playwright expects `string | Buffer`, not `Uint8Array`.
+- **Playwright strict mode**: `getByRole('alert')` conflicts with Next.js route announcer div. Use `getByText()` for specific error messages. Use `.first()` when text may appear in both streaming and finalized message elements.
 
 ---
 
@@ -64,4 +67,23 @@ after each iteration and it's included in prompts for context.
   - Drizzle's relational query API (`db.query.*.findMany`) needs careful schema setup; standard select/insert API is more reliable for tests
   - For in-memory test DBs, apply schema via raw SQL rather than running file-based migrations
   - `drizzle-kit generate` auto-names migrations (e.g., `0000_ambiguous_tattoo.sql`)
+---
+
+## 2026-02-26 - shastack-ar4.19
+- Implemented the complete new project flow: form → create → redirect → AI interview
+- Created API routes: POST/GET /api/projects, GET /api/projects/[id], GET /api/projects/[id]/messages, POST /api/projects/[id]/chat (SSE streaming), POST /api/projects/[id]/chat/init
+- Created AI system prompt for architecture interviews (`src/lib/ai/system-prompt.ts`)
+- Created new project form page (`src/app/project/new/page.tsx`) with client-side validation
+- Created project page (`src/app/project/[id]/page.tsx`) with two-panel layout (chat sidebar + canvas placeholder)
+- Created ChatSidebar component (`src/components/chat/ChatSidebar.tsx`) with SSE streaming, markdown rendering, auto-scroll, typing indicator
+- Chat sidebar opens by default for new projects (no canvas state)
+- Wrote 4 Playwright E2E tests with mocked SSE responses for chat init
+- **Files created:** src/app/api/projects/route.ts, src/app/api/projects/[id]/route.ts, src/app/api/projects/[id]/messages/route.ts, src/app/api/projects/[id]/chat/route.ts, src/app/api/projects/[id]/chat/init/route.ts, src/lib/ai/system-prompt.ts, src/app/project/new/page.tsx, src/app/project/[id]/page.tsx, src/components/chat/ChatSidebar.tsx, e2e/new-project.test.ts
+- **Files modified:** package.json (added zod, @anthropic-ai/sdk, react-markdown, uuid deps)
+- **Learnings:**
+  - Next.js 16 dynamic route params are Promise-based — must `await params` before accessing fields
+  - Playwright `route.fulfill()` expects `string | Buffer` for body, not `Uint8Array` — use string directly for SSE mocking
+  - `getByRole('alert')` in Playwright conflicts with Next.js route announcer (`__next-route-announcer__`) — use `getByText()` for specific error messages
+  - When streaming SSE text accumulates and then gets added to messages array, React may briefly show duplicates — use `.first()` in Playwright assertions
+  - Anthropic SDK `messages.stream()` returns an async iterable of events; check `event.type === 'content_block_delta'` and `event.delta.type === 'text_delta'` for text chunks
 ---
