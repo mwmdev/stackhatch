@@ -1,0 +1,144 @@
+{
+  "version": 1,
+  "sessionId": "650eabba-7478-4fa1-adcb-fd474f4ae540",
+  "status": "running",
+  "startedAt": "2026-02-26T13:52:42.797Z",
+  "updatedAt": "2026-02-26T14:02:52.063Z",
+  "currentIteration": 0,
+  "maxIterations": 50,
+  "tasksCompleted": 0,
+  "isPaused": false,
+  "agentPlugin": "claude",
+  "trackerState": {
+    "plugin": "beads-bv",
+    "epicId": "shastack-ar4",
+    "totalTasks": 20,
+    "tasks": [
+      {
+        "id": "shastack-ar4.1",
+        "title": "T-001: Project Scaffolding and Docker Setup",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "shastack-ar4.2",
+        "title": "T-002: Testing Infrastructure",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "shastack-ar4.3",
+        "title": "T-003: Database Schema and Drizzle ORM Setup",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "shastack-ar4.19",
+        "title": "T-019: New Project Flow",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "shastack-ar4.20",
+        "title": "T-020: Full E2E Interview-to-Canvas Flow",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "shastack-ar4.12",
+        "title": "T-012: Node Detail Panel",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "shastack-ar4.13",
+        "title": "T-013: Manual Node Addition",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "shastack-ar4.14",
+        "title": "T-014: Auto-Layout with Dagre",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "shastack-ar4.15",
+        "title": "T-015: Chat Sidebar UI",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "shastack-ar4.16",
+        "title": "T-016: AI System Prompt and Structured Output Schema",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "shastack-ar4.17",
+        "title": "T-017: AI Chat API Route and Anthropic Integration",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "shastack-ar4.18",
+        "title": "T-018: Chat-to-Canvas Integration",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "shastack-ar4.10",
+        "title": "T-010: Custom Node Components",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "shastack-ar4.11",
+        "title": "T-011: Custom Edge Components",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "shastack-ar4.4",
+        "title": "T-004: Domain Model and TypeScript Types",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "shastack-ar4.5",
+        "title": "T-005: API Routes — Project CRUD",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "shastack-ar4.6",
+        "title": "T-006: API Route — Settings",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "shastack-ar4.7",
+        "title": "T-007: Project Dashboard Page",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "shastack-ar4.8",
+        "title": "T-008: Settings Page",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "shastack-ar4.9",
+        "title": "T-009: Canvas Component with React Flow",
+        "status": "open",
+        "completedInSession": false
+      }
+    ]
+  },
+  "iterations": [],
+  "skippedTaskIds": [],
+  "cwd": "/home/mike/cloud/apps/mwm/shastack",
+  "activeTaskIds": [],
+  "subagentPanelVisible": false
+}

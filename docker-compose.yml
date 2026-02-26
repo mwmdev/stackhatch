@@ -1,0 +1,33 @@
+services:
+  dev:
+    build:
+      context: .
+      target: deps
+    command: npx next dev --hostname 0.0.0.0
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - shastack-data:/app/data
+    environment:
+      - NODE_ENV=development
+    env_file:
+      - .env.local
+    profiles:
+      - dev
+
+  prod:
+    build:
+      context: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - shastack-data:/app/data
+    env_file:
+      - .env.local
+    profiles:
+      - prod
+
+volumes:
+  shastack-data:
