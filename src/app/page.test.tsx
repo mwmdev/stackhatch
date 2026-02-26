@@ -68,31 +68,46 @@ describe("Dashboard", () => {
     expect(screen.getByText("Another Project")).toBeInTheDocument();
   });
 
-  it("renders empty state when no projects exist", async () => {
+  it("renders repo URL input and start from scratch when no projects", async () => {
     mockFetch([]);
     render(<Dashboard />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("empty-state")).toBeInTheDocument();
+      expect(screen.getByPlaceholderText("https://github.com/owner/repo")).toBeInTheDocument();
     });
 
-    expect(screen.getByText("No projects yet")).toBeInTheDocument();
-    expect(screen.getByText("Create your first project")).toBeInTheDocument();
+    expect(screen.getByText("Start from scratch")).toBeInTheDocument();
+    expect(screen.getByText("Analyze")).toBeInTheDocument();
   });
 
-  it("renders New Project button linking to /project/new", async () => {
-    mockFetch([]);
+  it("creates project from repo URL and navigates", async () => {
+    global.fetch = vi.fn((input: RequestInfo | URL, options?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url === "/api/projects" && options?.method === "POST") {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ id: "new-1", name: "my-repo" }),
+        });
+      }
+      if (url === "/api/projects") {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+      }
+      return Promise.resolve({ ok: false, json: () => Promise.resolve({}) });
+    }) as unknown as typeof global.fetch;
+
     render(<Dashboard />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("empty-state")).toBeInTheDocument();
+      expect(screen.getByPlaceholderText("https://github.com/owner/repo")).toBeInTheDocument();
     });
 
-    const links = screen.getAllByRole("link");
-    const newProjectLink = links.find(
-      (l) => l.getAttribute("href") === "/project/new",
-    );
-    expect(newProjectLink).toBeTruthy();
+    const input = screen.getByPlaceholderText("https://github.com/owner/repo");
+    fireEvent.change(input, { target: { value: "https://github.com/acme/my-repo" } });
+    fireEvent.click(screen.getByText("Analyze"));
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith("/project/new-1");
+    });
   });
 
   it("navigates to project page when clicking a project card", async () => {
@@ -155,7 +170,7 @@ describe("Dashboard", () => {
     render(<Dashboard />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("empty-state")).toBeInTheDocument();
+      expect(screen.getByText("Start from scratch")).toBeInTheDocument();
     });
 
     const settingsLink = screen.getByLabelText("Settings");
@@ -167,7 +182,7 @@ describe("Dashboard", () => {
     render(<Dashboard />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("empty-state")).toBeInTheDocument();
+      expect(screen.getByText("Start from scratch")).toBeInTheDocument();
     });
 
     expect(screen.getByLabelText("Theme: light")).toBeInTheDocument();
