@@ -270,3 +270,15 @@ after each iteration and it's included in prompts for context.
   - Zod `.strict()` on update schemas rejects unknown fields, preventing accidental data injection
   - `await import()` after `vi.mock()` ensures mocks are active when modules initialize
 ---
+
+## 2026-02-26 - shastack-ar4.6
+- Created `GET /api/settings` and `PATCH /api/settings` API routes
+- GET: returns all valid settings (apiKey, model, theme) as key-value object, with env var fallback for apiKey (ANTHROPIC_API_KEY) and model (ANTHROPIC_MODEL), defaults model to `claude-sonnet-4-20250514`
+- PATCH: upserts settings with Zod `.strict()` validation, validates model against enum of 3 Claude models, validates theme against light/dark/system, rejects unknown keys with 400
+- DB settings override env vars when both exist (consistent with `stream-chat.ts` behavior)
+- Wrote 18 integration tests covering: default values, DB persistence, env var fallback, DB-overrides-env, filtering unknown DB keys, save/upsert, invalid model/theme/keys, empty body, invalid JSON, cross-request persistence
+- **Files created:** src/app/api/settings/route.ts, src/app/api/settings/settings-api.test.ts
+- **Learnings:**
+  - The `stream-chat.ts` already had `getSettings()`/`getApiKey()`/`getModel()` helpers reading from the settings table — the settings API route is the write counterpart to that read pattern
+  - `process.env` mutations in tests (delete/set) need to be in `beforeEach` to avoid test pollution, since vitest runs tests in the same process
+---

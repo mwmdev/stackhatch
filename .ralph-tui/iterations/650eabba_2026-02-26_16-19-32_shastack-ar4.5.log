@@ -1,0 +1,106 @@
+# Iteration 16 Log
+
+## Metadata
+
+- **Task ID**: shastack-ar4.5
+- **Task Title**: T-005: API Routes — Project CRUD
+- **Description**: As a user, I need API endpoints to create, list, read, update, and delete projects so that the frontend can manage project data.
+
+## Acceptance Criteria
+- [ ] All CRUD operations work via HTTP request...
+- **Status**: completed
+- **Task Completed**: Yes
+- **Promise Detected**: Yes
+- **Started At**: 2026-02-26T15:19:32.596Z
+- **Ended At**: 2026-02-26T15:23:33.139Z
+- **Duration**: 4m 0s
+- **Input Tokens**: 86
+- **Output Tokens**: 12867
+- **Total Tokens**: 12953
+- **Agent**: claude
+- **Model**: claude-opus-4-6
+- **Epic**: shastack-ar4
+- **Sandbox Mode**: auto
+- **Sandbox Network**: Enabled
+--- RAW OUTPUT ---
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/.ralph-tui/progress.md[0m
+[94m[Glob][0m [95m/home/mike/cloud/apps/mwm/shastack[0m pattern: [96msrc/app/api/**/*.ts[0m
+[94m[Glob][0m [95m/home/mike/cloud/apps/mwm/shastack[0m pattern: [96msrc/db/**/*.ts[0m
+The progress shows API routes were partially created in ar4.19. Let me check what already exists and what's missing for T-005.
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/src/app/api/projects/route.ts[0m
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/src/app/api/projects/[id]/route.ts[0m
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/src/app/api/projects/[id]/messages/route.ts[0m
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/src/db/schema.ts[0m
+Let me check if PATCH/DELETE are used anywhere and the db index file.
+[94m[Grep][0m [95m/home/mike/cloud/apps/mwm/shastack/src/app/api/projects[0m pattern: [96mPATCH|DELETE[0m
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/src/db/index.ts[0m
+[94m[Grep][0m [95m/home/mike/cloud/apps/mwm/shastack/src[0m pattern: [96mmethod.*PATCH|method.*DELETE|fetch.*projects.*method[0m
+The PATCH is called from the project page but the route handler doesn't exist yet. Let me see the project page to understand the expected API shape, and the existing test file.
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/src/app/project/[id]/page.tsx[0m
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/src/db/db.test.ts[0m
+Now I have a clear picture. The routes for GET and POST exist, but PATCH and DELETE handlers are missing. I also need integration tests. Let me create a plan and execute.
+[94m[TodoWrite][0m
+[94m[TodoWrite][0m
+[94m[Edit][0m [95m/home/mike/cloud/apps/mwm/shastack/src/app/api/projects/[id]/route.ts[0m edit: "import { NextRequest, NextResponse } from "next/se..." → "import { NextRequest, NextResponse } from "next/se..."
+[94m[TodoWrite][0m
+Now let me write the integration tests. Since these are Next.js App Router API routes, I'll test them by importing the route handlers directly and passing mock `NextRequest` objects — this is the most reliable approach for integration testing without spinning up a full server.
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/src/db/migrate.ts[0m
+[94m[Write][0m [95m/home/mike/cloud/apps/mwm/shastack/src/app/api/projects/projects-api.test.ts[0m "import { describe, it, expect, beforeEach, vi } from "vitest";
+import { drizzle } from "drizzle-orm/better-sqlite3";
+import Database from "better-sqlite3";
+import * as schema from "@/db/schema";
+impor... (14813 chars)"
+[94m[Bash][0m Run project CRUD API integration tests $ npx vitest run src/app/api/projects/projects-api.test.ts 2>&1
+All 27 tests pass. Let me clean up that one test with the awkward timestamp check — I had a false start with the SQL syntax.
+[94m[Edit][0m [95m/home/mike/cloud/apps/mwm/shastack/src/app/api/projects/projects-api.test.ts[0m edit: "  it("updates updatedAt timestamp", async () => {
+..." → "  it("updates updatedAt timestamp", async () => {
+..."
+Also remove the unused import.
+[94m[Edit][0m [95m/home/mike/cloud/apps/mwm/shastack/src/app/api/projects/projects-api.test.ts[0m edit: "import * as schema from "@/db/schema";
+import { pr..." → "import { projects, messages } from "@/db/schema";"
+[94m[TodoWrite][0m
+[94m[Bash][0m Run typecheck and lint $ npx tsc --noEmit 2>&1 && echo "---LINT---" && npx eslint . 2>&1
+
+[91m[Error: Exit code 2
+src/app/api/projects/projects-api.test.ts(34,28): error TS18004: No value exists in scope for the shorthand property 'schema'. Either declare one or provide an initializer.
+
+src/app/api/projects/projects-api.test.ts(34,28): error TS18004: No value exists in scope for the shorthand property 'schema'. Either declare one or provide an initializer.][0m
+I removed the `schema` import but it's still used in `drizzle(sqlite, { schema })`. Let me fix that.
+[94m[Edit][0m [95m/home/mike/cloud/apps/mwm/shastack/src/app/api/projects/projects-api.test.ts[0m edit: "import { projects, messages } from "@/db/schema";" → "import * as schema from "@/db/schema";
+import { pr..."
+[94m[Bash][0m Run typecheck and lint $ npx tsc --noEmit 2>&1 && echo "---LINT---" && npx eslint . 2>&1
+Typecheck and lint both pass cleanly. Let me also run all tests to make sure nothing is broken.
+[94m[Bash][0m Run all unit/integration tests $ npx vitest run 2>&1
+All 201 tests pass across 17 test files. Let me close the bead and document learnings.
+[94m[TodoWrite][0m
+[94m[Bash][0m Close the bead $ bd close shastack-ar4.5 --db /home/mike/cloud/apps/mwm/shastack/.beads/beads.db --reason "Implemente...
+Now document learnings in progress.md.
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/.ralph-tui/progress.md[0m
+[94m[Edit][0m [95m/home/mike/cloud/apps/mwm/shastack/.ralph-tui/progress.md[0m edit: "  - React Flow `Node<T>` and `Edge<T>` generics ma..." → "  - React Flow `Node<T>` and `Edge<T>` generics ma..."
+Now add the reusable pattern to the top of progress.md.
+[94m[Edit][0m [95m/home/mike/cloud/apps/mwm/shastack/.ralph-tui/progress.md[0m edit: "- **React Flow BaseEdge style**: `BaseEdge` render..." → "- **React Flow BaseEdge style**: `BaseEdge` render..."
+[94m[TodoWrite][0m
+## Summary
+
+T-005 (API Routes — Project CRUD) is complete. Here's what was done:
+
+**Already existed** (from T-019):
+- `GET /api/projects` — list all projects (excludes canvasState)
+- `POST /api/projects` — create project with Zod validation
+- `GET /api/projects/[id]` — single project with parsed canvasState
+- `GET /api/projects/[id]/messages` — messages ordered by createdAt
+
+**Added:**
+- `PATCH /api/projects/[id]` — partial updates (name, description, canvasState) with Zod `.strict()` validation, auto-updates `updatedAt`
+- `DELETE /api/projects/[id]` — deletes project with cascade message removal, returns 404 for nonexistent IDs
+- **27 integration tests** covering all 6 endpoints: CRUD operations, validation errors (empty name, unknown fields, invalid JSON, empty body), 404 for nonexistent projects, cascade deletes, field exclusion in list response, message ordering
+
+**All acceptance criteria met:**
+- All CRUD operations work via HTTP requests
+- Invalid requests return 400 with descriptive error messages
+- Nonexistent project IDs return 404
+- Deleting a project removes its messages
+- 27 integration tests pass
+- Typecheck and lint pass (201 total tests across 17 files)
+
+<promise>COMPLETE</promise>
