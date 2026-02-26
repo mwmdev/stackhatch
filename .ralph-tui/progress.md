@@ -164,3 +164,17 @@ after each iteration and it's included in prompts for context.
   - When mocking `global.fetch` in vitest with TypeScript strict mode, the mock function parameter must accept `RequestInfo | URL` (not just `string`) to match the `fetch` overload signatures
   - For SSE stream mocking in component tests, create `ReadableStream` with `TextEncoder` and format as `data: {json}\n\n` lines — same pattern works in both Playwright (string body) and vitest (ReadableStream)
 ---
+
+## 2026-02-26 - shastack-ar4.16
+- Enhanced system prompt with comprehensive interview topics, architecture generation rules, valid categories/subtypes/connection types reference, and re-invocation behavior for locked nodes
+- Created `src/types/chat.ts` with `ChatMessage` and `ChatSSEEvent` types
+- Created `src/lib/ai/output-parser.ts` with `parseAIResponse()` — extracts `<stack>` JSON blocks from AI responses, validates against Zod schema, strips the block from display text
+- Created `src/lib/ai/context-builder.ts` with `buildMessages()` — converts chat history to Anthropic message format, prepends canvas state context with locked/unlocked node status and raw JSON when architecture exists
+- Wrote 23 unit tests (11 for output-parser, 12 for context-builder), all passing
+- **Files created:** src/types/chat.ts, src/lib/ai/output-parser.ts, src/lib/ai/output-parser.test.ts, src/lib/ai/context-builder.ts, src/lib/ai/context-builder.test.ts
+- **Files modified:** src/lib/ai/system-prompt.ts (enhanced from basic to comprehensive)
+- **Learnings:**
+  - Zod v4 `z.enum()` works with `as const` arrays — same pattern as v3
+  - For Anthropic context injection, the user+assistant message pair pattern works well to prime the AI without polluting visible chat history
+  - Regex `/<stack>\s*([\s\S]*?)\s*<\/stack>/` handles whitespace around JSON in stack blocks correctly
+---
