@@ -17,6 +17,8 @@ after each iteration and it's included in prompts for context.
 - **Next.js App Router dynamic params**: In Next.js 16, dynamic route params are `Promise<{ id: string }>` — must `await params` before accessing `.id`.
 - **Playwright SSE mocking**: Use `route.fulfill()` with string body for SSE streams. Don't use `TextEncoder` — Playwright expects `string | Buffer`, not `Uint8Array`.
 - **Playwright strict mode**: `getByRole('alert')` conflicts with Next.js route announcer div. Use `getByText()` for specific error messages. Use `.first()` when text may appear in both streaming and finalized message elements.
+- **Playwright route priority**: Later-registered routes have HIGHER priority. When mocking both `/chat/init` and `/chat`, register the general `/chat` route first, then the more specific `/chat/init` second. Better yet, use a single `**/chat**` handler that branches on `url.includes("/chat/init")` vs `url.endsWith("/chat")`.
+- **React Strict Mode double effects**: In dev mode, Next.js runs React Strict Mode which double-invokes `useEffect`. When mocking E2E flows, don't use a shared counter across init and chat handlers — track init and chat separately to avoid counter being incremented twice by the init effect.
 
 ---
 
@@ -86,4 +88,16 @@ after each iteration and it's included in prompts for context.
   - `getByRole('alert')` in Playwright conflicts with Next.js route announcer (`__next-route-announcer__`) — use `getByText()` for specific error messages
   - When streaming SSE text accumulates and then gets added to messages array, React may briefly show duplicates — use `.first()` in Playwright assertions
   - Anthropic SDK `messages.stream()` returns an async iterable of events; check `event.type === 'content_block_delta'` and `event.delta.type === 'text_delta'` for text chunks
+---
+
+## 2026-02-26 - shastack-ar4.20
+- Wrote comprehensive E2E tests for the full interview-to-canvas flow (12 new tests)
+- Created reusable SSE mock helper library (`e2e/helpers/sse-mock.ts`) with builders for text, chunked, architecture, and error SSE responses
+- Full flow tests: project creation → AI interview with multi-turn conversation → message ordering → persistence simulation → markdown rendering
+- Error path tests: missing API key, API failures, network errors, input validation, disabled state during streaming, project not found
+- **Files created:** e2e/helpers/sse-mock.ts, e2e/full-flow.test.ts, e2e/error-paths.test.ts
+- **Learnings:**
+  - Playwright route priority: later-registered routes have higher priority — use single `**/chat**` handler with URL branching instead of separate routes for `/chat` and `/chat/init`
+  - React Strict Mode double-invokes effects in dev mode — SSE mock counters shared between init and chat handlers get incremented twice by init; track chat calls separately
+  - Mocked Playwright routes bypass the server entirely, so DB persistence can't be verified — mock the messages endpoint on reload to simulate persisted data
 ---
