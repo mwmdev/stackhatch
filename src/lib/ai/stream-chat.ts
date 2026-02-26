@@ -90,7 +90,7 @@ export function streamChat(
 
   // Load current canvas state for architecture context
   const project = db
-    .select({ canvasState: projects.canvasState })
+    .select({ description: projects.description, canvasState: projects.canvasState })
     .from(projects)
     .where(eq(projects.id, projectId))
     .get();
@@ -118,9 +118,12 @@ export function streamChat(
 
   // For init (no user message and no history), add init instruction as user message
   if (!userMessage && history.length === 0) {
+    const initContent = project?.description
+      ? `${INIT_INSTRUCTION}\n\nProject description: ${project.description}`
+      : INIT_INSTRUCTION;
     anthropicMessages.push({
       role: "user",
-      content: INIT_INSTRUCTION,
+      content: initContent,
     });
   }
 
