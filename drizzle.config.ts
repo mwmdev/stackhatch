@@ -5,7 +5,7 @@ export default defineConfig({
   out: "./drizzle",
   dialect: "sqlite",
   dbCredentials: {
-    url: (process.env.DATABASE_URL ?? "file:./data/shastack.db").replace(
+    url: (process.env.DATABASE_URL ?? "file:./data/stackhatch.db").replace(
       /^file:/,
       "",
     ),

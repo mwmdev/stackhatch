@@ -5,7 +5,7 @@ import path from "path";
 import fs from "fs";
 
 function getDatabasePath(): string {
-  const dbUrl = process.env.DATABASE_URL ?? "file:./data/shastack.db";
+  const dbUrl = process.env.DATABASE_URL ?? "file:./data/stackhatch.db";
   // Strip "file:" prefix if present
   return dbUrl.replace(/^file:/, "");
 }

@@ -117,7 +117,7 @@ export default function Dashboard() {
       {/* Header */}
       <header className="border-b border-[var(--border)]">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
-          <h1 className="text-xl font-bold">Shastack</h1>
+          <h1 className="text-xl font-bold">StackHatch</h1>
           <div className="flex items-center gap-2">
             <ThemeToggle />
             <Link

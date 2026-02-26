@@ -3,7 +3,7 @@ import { Providers } from "@/components/Providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Shastack",
+  title: "StackHatch",
   description: "Visual Application Architecture Brainstorming Tool",
 };
 
