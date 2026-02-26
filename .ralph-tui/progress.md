@@ -192,3 +192,20 @@ after each iteration and it's included in prompts for context.
   - Mocking `@anthropic-ai/sdk` with `vi.mock()` and async iterators works cleanly for testing SSE streaming — create iterators that yield `content_block_delta` events
   - The `architecture` SSE event should be emitted after all text events but before the `done` event, so the client can process the canvas update before marking the stream as complete
 ---
+
+## 2026-02-26 - shastack-ar4.18
+- Implemented chat-to-canvas integration: architecture SSE events from AI chat update the canvas in real-time
+- Created `src/lib/merge-architecture.ts` with `mergeArchitecture()` function: preserves locked nodes exactly (positions + properties), replaces unlocked nodes with AI's output, handles edge merging (preserved between locked nodes, incoming for mixed)
+- Added `onArchitecture` callback prop to ChatSidebar — emits parsed architecture from SSE `architecture` events to parent
+- Project page handles two cases: first architecture (full Dagre layout) and updates (merge with locked node position constraints)
+- CSS transition-based smooth animation (300ms ease on left/top) for node repositioning during AI updates and re-layout
+- Toast notification for malformed architecture data
+- Used `useRef` for nodePositions to avoid stale closure in `handleArchitecture` callback
+- Wrote 9 unit tests for merge logic covering: locked preservation, fixed positions, edge preservation, edge deduplication, filtering invalid edges, all-locked/no-locked edge cases
+- **Files created:** src/lib/merge-architecture.ts, src/lib/merge-architecture.test.ts
+- **Files modified:** src/components/chat/ChatSidebar.tsx (added onArchitecture prop + architecture event handling), src/app/project/[id]/page.tsx (integrated handleArchitecture, toast, animation state, ref-based positions)
+- **Learnings:**
+  - Use `useRef` to track mutable state (like node positions) that callbacks need to read without re-creating the callback — avoids stale closures while keeping the callback stable for `useCallback`
+  - CSS `transition` on `left`/`top` properties provides smooth animation for absolutely-positioned elements when their coordinates change — toggled via a boolean `animating` state with `setTimeout` cleanup
+  - Architecture merge with edge deduplication: key edges by `source->target` to prevent duplicates when both current (preserved) and incoming edges connect the same nodes
+---

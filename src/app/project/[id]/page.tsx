@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import ChatSidebar from "@/components/chat/ChatSidebar";
@@ -17,6 +17,7 @@ import type {
 } from "@/types/stack";
 import { getSubtypeConfig } from "@/lib/node-config";
 import { applyDagreLayout, type NodePosition } from "@/lib/layout";
+import { mergeArchitecture } from "@/lib/merge-architecture";
 
 interface Project {
   id: string;
@@ -47,6 +48,22 @@ export default function ProjectPage() {
   const [pendingConnection, setPendingConnection] =
     useState<PendingConnection | null>(null);
   const [nodePositions, setNodePositions] = useState<NodePosition[]>([]);
+  const [toast, setToast] = useState<string | null>(null);
+  const [animating, setAnimating] = useState(false);
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const nodePositionsRef = useRef<NodePosition[]>([]);
+
+  // Keep ref in sync for use in callbacks
+  useEffect(() => {
+    nodePositionsRef.current = nodePositions;
+  }, [nodePositions]);
+
+  // Auto-dismiss toast
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 4000);
+    return () => clearTimeout(timer);
+  }, [toast]);
 
   const saveCanvasState = useCallback(
     (canvas: StackArchitecture) => {
@@ -57,6 +74,59 @@ export default function ProjectPage() {
       });
     },
     [projectId],
+  );
+
+  const handleArchitecture = useCallback(
+    (incoming: StackArchitecture) => {
+      try {
+        // Validate incoming architecture has nodes
+        if (!incoming?.nodes || !Array.isArray(incoming.nodes)) {
+          setToast("Failed to update canvas: invalid architecture data");
+          return;
+        }
+
+        setProject((prev) => {
+          if (!prev) return prev;
+
+          const currentCanvas = prev.canvasState;
+          const isFirstArchitecture =
+            !currentCanvas || currentCanvas.nodes.length === 0;
+
+          let finalArchitecture: StackArchitecture;
+          let positions: NodePosition[];
+
+          if (isFirstArchitecture) {
+            // First architecture: use incoming directly, full Dagre layout
+            finalArchitecture = incoming;
+            positions = applyDagreLayout(incoming.nodes, incoming.edges);
+          } else {
+            // Update: merge with locked node preservation
+            const result = mergeArchitecture(
+              currentCanvas,
+              incoming,
+              nodePositionsRef.current,
+            );
+            finalArchitecture = result.architecture;
+            positions = applyDagreLayout(
+              result.architecture.nodes,
+              result.architecture.edges,
+              result.fixedPositions,
+            );
+          }
+
+          // Enable CSS transitions for smooth repositioning
+          setAnimating(true);
+          setNodePositions(positions);
+          setTimeout(() => setAnimating(false), 350);
+
+          // Save to DB (the API route already saved it, but keep local state consistent)
+          return { ...prev, canvasState: finalArchitecture };
+        });
+      } catch {
+        setToast("Failed to update canvas");
+      }
+    },
+    [],
   );
 
   const handleNodeUpdate = useCallback(
@@ -158,14 +228,16 @@ export default function ProjectPage() {
 
   const handleRelayout = useCallback(() => {
     if (!project?.canvasState) return;
+    setAnimating(true);
     const positions = applyDagreLayout(
       project.canvasState.nodes,
       project.canvasState.edges,
     );
     setNodePositions(positions);
+    setTimeout(() => setAnimating(false), 350);
   }, [project?.canvasState]);
 
-  // Auto-compute positions when canvas state changes
+  // Auto-compute positions when canvas state changes (non-animated, e.g. manual add)
   useEffect(() => {
     if (project?.canvasState?.nodes?.length) {
       setNodePositions(
@@ -221,7 +293,11 @@ export default function ProjectPage() {
   return (
     <div className="flex h-screen bg-[var(--background)] text-[var(--foreground)]">
       {/* Chat Sidebar - open by default for new projects (no canvas) */}
-      <ChatSidebar projectId={projectId} defaultOpen={!hasCanvas} />
+      <ChatSidebar
+        projectId={projectId}
+        defaultOpen={!hasCanvas}
+        onArchitecture={handleArchitecture}
+      />
 
       {/* Canvas Area */}
       <div className="flex flex-1 flex-col">
@@ -280,7 +356,7 @@ export default function ProjectPage() {
 
           {/* Node canvas view with Dagre layout positioning */}
           {hasCanvas && (
-            <div className="absolute inset-0 overflow-auto p-6">
+            <div ref={canvasRef} className="absolute inset-0 overflow-auto p-6">
               <div className="relative" style={{ minHeight: "100%" }}>
                 {project.canvasState!.nodes.map((node) => {
                   const pos = nodePositions.find((p) => p.id === node.id);
@@ -288,7 +364,7 @@ export default function ProjectPage() {
                     <button
                       key={node.id}
                       onClick={() => setSelectedNode(node)}
-                      className={`absolute rounded-lg border-l-4 bg-[var(--background)] p-4 text-left shadow-md transition-all hover:shadow-lg ${
+                      className={`absolute rounded-lg border-l-4 bg-[var(--background)] p-4 text-left shadow-md hover:shadow-lg ${
                         selectedNode?.id === node.id
                           ? "ring-2 ring-[var(--color-client)]"
                           : ""
@@ -298,6 +374,9 @@ export default function ProjectPage() {
                         minWidth: "200px",
                         left: pos ? `${pos.position.x}px` : undefined,
                         top: pos ? `${pos.position.y}px` : undefined,
+                        transition: animating
+                          ? "left 300ms ease, top 300ms ease"
+                          : undefined,
                       }}
                       data-testid={`node-card-${node.id}`}
                     >
@@ -345,6 +424,16 @@ export default function ProjectPage() {
             onDelete={handleNodeDelete}
             onClose={handleClosePanel}
           />
+
+          {/* Toast notification */}
+          {toast && (
+            <div
+              className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-lg bg-red-600 px-4 py-2 text-sm text-white shadow-lg"
+              data-testid="canvas-toast"
+            >
+              {toast}
+            </div>
+          )}
         </div>
       </div>
     </div>

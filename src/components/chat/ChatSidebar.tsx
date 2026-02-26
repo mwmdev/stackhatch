@@ -13,11 +13,13 @@ interface Message {
 interface ChatSidebarProps {
   projectId: string;
   defaultOpen?: boolean;
+  onArchitecture?: (architecture: import("@/types/stack").StackArchitecture) => void;
 }
 
 export default function ChatSidebar({
   projectId,
   defaultOpen = false,
+  onArchitecture,
 }: ChatSidebarProps) {
   const [open, setOpen] = useState(defaultOpen);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -94,6 +96,8 @@ export default function ChatSidebar({
             if (event.type === "text") {
               accumulated += event.content;
               setStreamText(accumulated);
+            } else if (event.type === "architecture") {
+              onArchitecture?.(event.content);
             } else if (event.type === "error") {
               setError(event.content);
               setStreaming(false);
