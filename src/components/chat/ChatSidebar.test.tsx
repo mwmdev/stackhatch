@@ -1,0 +1,377 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import ChatSidebar from "./ChatSidebar";
+
+// Mock react-markdown to render plain text (avoids ESM issues in jsdom)
+vi.mock("react-markdown", () => ({
+  default: ({ children }: { children: string }) => <span>{children}</span>,
+}));
+
+// jsdom doesn't implement scrollIntoView
+Element.prototype.scrollIntoView = vi.fn();
+
+function createSSEResponse(events: Array<{ type: string; content?: string }>) {
+  const lines = events
+    .map((e) => `data: ${JSON.stringify(e)}`)
+    .join("\n\n");
+  const stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode(lines + "\n\n"));
+      controller.close();
+    },
+  });
+  return new Response(stream, {
+    headers: { "Content-Type": "text/event-stream" },
+  });
+}
+
+function mockFetch(handlers: Record<string, () => Promise<Response> | Response>) {
+  return vi.fn(async (input: RequestInfo | URL, options?: RequestInit) => {
+    const url = String(input);
+    for (const [pattern, handler] of Object.entries(handlers)) {
+      if (url.includes(pattern)) {
+        const method = options?.method ?? "GET";
+        if (pattern.includes("chat/init") && method === "POST") return handler();
+        if (pattern.includes("/chat") && !pattern.includes("init") && method === "POST") return handler();
+        if (method === "GET") return handler();
+      }
+    }
+    return new Response("Not found", { status: 404 });
+  });
+}
+
+const emptyMessagesResponse = () =>
+  Promise.resolve(new Response(JSON.stringify([]), { status: 200 }));
+
+const messagesWithHistory = () =>
+  Promise.resolve(
+    new Response(
+      JSON.stringify([
+        { id: "m1", role: "assistant", content: "Welcome! What are you building?", createdAt: 1000 },
+        { id: "m2", role: "user", content: "A chat application", createdAt: 2000 },
+        { id: "m3", role: "assistant", content: "Great choice! **Real-time** features are interesting.", createdAt: 3000 },
+      ]),
+      { status: 200 },
+    ),
+  );
+
+describe("ChatSidebar", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("renders collapsed state with open button when defaultOpen is false", () => {
+    global.fetch = mockFetch({
+      "/messages": emptyMessagesResponse,
+      "/chat/init": () => createSSEResponse([{ type: "done" }]),
+    });
+
+    render(<ChatSidebar projectId="p1" defaultOpen={false} />);
+    expect(screen.getByLabelText("Open chat")).toBeInTheDocument();
+    expect(screen.queryByText("Architecture Assistant")).not.toBeInTheDocument();
+  });
+
+  it("renders open state with header when defaultOpen is true", async () => {
+    global.fetch = mockFetch({
+      "/messages": emptyMessagesResponse,
+      "/chat/init": () => createSSEResponse([{ type: "done" }]),
+    });
+
+    render(<ChatSidebar projectId="p1" defaultOpen={true} />);
+    expect(screen.getByText("Architecture Assistant")).toBeInTheDocument();
+    expect(screen.getByLabelText("Collapse chat")).toBeInTheDocument();
+  });
+
+  it("toggles between collapsed and expanded", async () => {
+    global.fetch = mockFetch({
+      "/messages": messagesWithHistory,
+    });
+
+    render(<ChatSidebar projectId="p1" defaultOpen={true} />);
+
+    // Initially open
+    expect(screen.getByText("Architecture Assistant")).toBeInTheDocument();
+
+    // Collapse
+    fireEvent.click(screen.getByLabelText("Collapse chat"));
+    expect(screen.queryByText("Architecture Assistant")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Open chat")).toBeInTheDocument();
+
+    // Expand
+    fireEvent.click(screen.getByLabelText("Open chat"));
+    expect(screen.getByText("Architecture Assistant")).toBeInTheDocument();
+  });
+
+  it("loads and displays message history", async () => {
+    global.fetch = mockFetch({
+      "/messages": messagesWithHistory,
+    });
+
+    render(<ChatSidebar projectId="p1" defaultOpen={true} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Welcome! What are you building?")).toBeInTheDocument();
+    });
+    expect(screen.getByText("A chat application")).toBeInTheDocument();
+    expect(screen.getByText(/Real-time/)).toBeInTheDocument();
+  });
+
+  it("renders user messages with right alignment", async () => {
+    global.fetch = mockFetch({
+      "/messages": messagesWithHistory,
+    });
+
+    render(<ChatSidebar projectId="p1" defaultOpen={true} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("A chat application")).toBeInTheDocument();
+    });
+
+    // User message parent should have text-right class
+    const userMsg = screen.getByText("A chat application");
+    const userBubble = userMsg.closest("[class*='text-right']");
+    expect(userBubble).toBeInTheDocument();
+  });
+
+  it("renders assistant messages with left alignment", async () => {
+    global.fetch = mockFetch({
+      "/messages": messagesWithHistory,
+    });
+
+    render(<ChatSidebar projectId="p1" defaultOpen={true} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Welcome! What are you building?")).toBeInTheDocument();
+    });
+
+    const assistantMsg = screen.getByText("Welcome! What are you building?");
+    const assistantBubble = assistantMsg.closest("[class*='text-left']");
+    expect(assistantBubble).toBeInTheDocument();
+  });
+
+  it("renders markdown in assistant messages", async () => {
+    global.fetch = mockFetch({
+      "/messages": messagesWithHistory,
+    });
+
+    render(<ChatSidebar projectId="p1" defaultOpen={true} />);
+
+    await waitFor(() => {
+      // ReactMarkdown mock renders the raw markdown as text
+      expect(screen.getByText(/Real-time/)).toBeInTheDocument();
+    });
+  });
+
+  it("sends message on Enter key", async () => {
+    let chatCalled = false;
+    global.fetch = mockFetch({
+      "/messages": messagesWithHistory,
+      "/chat": () => {
+        chatCalled = true;
+        return createSSEResponse([
+          { type: "text", content: "Interesting!" },
+          { type: "done" },
+        ]);
+      },
+    });
+
+    render(<ChatSidebar projectId="p1" defaultOpen={true} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("A chat application")).toBeInTheDocument();
+    });
+
+    const textarea = screen.getByPlaceholderText("Describe your application...");
+    fireEvent.change(textarea, { target: { value: "I need WebSocket support" } });
+    fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
+
+    await waitFor(() => {
+      expect(chatCalled).toBe(true);
+    });
+
+    // User message should appear immediately
+    expect(screen.getByText("I need WebSocket support")).toBeInTheDocument();
+  });
+
+  it("does not send message on Shift+Enter", async () => {
+    let chatCalled = false;
+    global.fetch = mockFetch({
+      "/messages": messagesWithHistory,
+      "/chat": () => {
+        chatCalled = true;
+        return createSSEResponse([{ type: "done" }]);
+      },
+    });
+
+    render(<ChatSidebar projectId="p1" defaultOpen={true} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("A chat application")).toBeInTheDocument();
+    });
+
+    const textarea = screen.getByPlaceholderText("Describe your application...");
+    fireEvent.change(textarea, { target: { value: "Hello" } });
+    fireEvent.keyDown(textarea, { key: "Enter", shiftKey: true });
+
+    // Wait briefly and verify chat was NOT called
+    await new Promise((r) => setTimeout(r, 50));
+    expect(chatCalled).toBe(false);
+  });
+
+  it("shows typing indicator during streaming before text arrives", async () => {
+    // Return a stream that never finishes to keep streaming state
+    global.fetch = mockFetch({
+      "/messages": emptyMessagesResponse,
+      "/chat/init": () => {
+        const stream = new ReadableStream({
+          start() {
+            // Never close — keeps streaming state active
+          },
+        });
+        return new Response(stream, {
+          headers: { "Content-Type": "text/event-stream" },
+        });
+      },
+    });
+
+    render(<ChatSidebar projectId="p1" defaultOpen={true} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("typing-indicator")).toBeInTheDocument();
+    });
+  });
+
+  it("clears input after sending a message", async () => {
+    global.fetch = mockFetch({
+      "/messages": messagesWithHistory,
+      "/chat": () =>
+        createSSEResponse([
+          { type: "text", content: "Response" },
+          { type: "done" },
+        ]),
+    });
+
+    render(<ChatSidebar projectId="p1" defaultOpen={true} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("A chat application")).toBeInTheDocument();
+    });
+
+    const textarea = screen.getByPlaceholderText("Describe your application...") as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: "Test message" } });
+    fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
+
+    expect(textarea.value).toBe("");
+  });
+
+  it("disables input while streaming", async () => {
+    global.fetch = mockFetch({
+      "/messages": emptyMessagesResponse,
+      "/chat/init": () => {
+        const stream = new ReadableStream({
+          start() {
+            // Never close — keeps streaming state
+          },
+        });
+        return new Response(stream, {
+          headers: { "Content-Type": "text/event-stream" },
+        });
+      },
+    });
+
+    render(<ChatSidebar projectId="p1" defaultOpen={true} />);
+
+    await waitFor(() => {
+      const textarea = screen.getByPlaceholderText("Waiting for AI...");
+      expect(textarea).toBeDisabled();
+    });
+  });
+
+  it("displays error message from SSE stream", async () => {
+    global.fetch = mockFetch({
+      "/messages": emptyMessagesResponse,
+      "/chat/init": () =>
+        createSSEResponse([{ type: "error", content: "API key not configured" }]),
+    });
+
+    render(<ChatSidebar projectId="p1" defaultOpen={true} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("API key not configured")).toBeInTheDocument();
+    });
+  });
+
+  it("displays error when message load fails", async () => {
+    global.fetch = vi.fn(async (_input: RequestInfo | URL) => {
+      throw new Error("Network error");
+    }) as typeof fetch;
+
+    render(<ChatSidebar projectId="p1" defaultOpen={true} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Failed to load messages")).toBeInTheDocument();
+    });
+  });
+
+  it("triggers chat init when no messages exist", async () => {
+    let initCalled = false;
+    global.fetch = mockFetch({
+      "/messages": emptyMessagesResponse,
+      "/chat/init": () => {
+        initCalled = true;
+        return createSSEResponse([
+          { type: "text", content: "Welcome! What are you building?" },
+          { type: "done" },
+        ]);
+      },
+    });
+
+    render(<ChatSidebar projectId="p1" defaultOpen={true} />);
+
+    await waitFor(() => {
+      expect(initCalled).toBe(true);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Welcome! What are you building?")).toBeInTheDocument();
+    });
+  });
+
+  it("filters out init instruction messages from display", async () => {
+    global.fetch = mockFetch({
+      "/messages": () =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify([
+              { id: "m1", role: "user", content: "Begin the architecture interview for a new project", createdAt: 1000 },
+              { id: "m2", role: "assistant", content: "Welcome! What are you building?", createdAt: 2000 },
+            ]),
+            { status: 200 },
+          ),
+        ),
+    });
+
+    render(<ChatSidebar projectId="p1" defaultOpen={true} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Welcome! What are you building?")).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText(/Begin the architecture interview/)).not.toBeInTheDocument();
+  });
+
+  it("disables send button when input is empty", async () => {
+    global.fetch = mockFetch({
+      "/messages": messagesWithHistory,
+    });
+
+    render(<ChatSidebar projectId="p1" defaultOpen={true} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("A chat application")).toBeInTheDocument();
+    });
+
+    const sendBtn = screen.getByLabelText("Send message");
+    expect(sendBtn).toBeDisabled();
+  });
+});

@@ -3,10 +3,10 @@
   "sessionId": "650eabba-7478-4fa1-adcb-fd474f4ae540",
   "status": "running",
   "startedAt": "2026-02-26T13:52:42.797Z",
-  "updatedAt": "2026-02-26T14:51:58.743Z",
-  "currentIteration": 7,
+  "updatedAt": "2026-02-26T14:56:33.016Z",
+  "currentIteration": 8,
   "maxIterations": 50,
-  "tasksCompleted": 7,
+  "tasksCompleted": 8,
   "isPaused": false,
   "agentPlugin": "claude",
   "trackerState": {
@@ -59,8 +59,8 @@
       {
         "id": "shastack-ar4.14",
         "title": "T-014: Auto-Layout with Dagre",
-        "status": "open",
-        "completedInSession": false
+        "status": "completed",
+        "completedInSession": true
       },
       {
         "id": "shastack-ar4.15",
@@ -206,6 +206,16 @@
       "durationMs": 230339,
       "startedAt": "2026-02-26T14:43:54.452Z",
       "endedAt": "2026-02-26T14:47:44.791Z"
+    },
+    {
+      "iteration": 8,
+      "status": "completed",
+      "taskId": "shastack-ar4.14",
+      "taskTitle": "T-014: Auto-Layout with Dagre",
+      "taskCompleted": true,
+      "durationMs": 251475,
+      "startedAt": "2026-02-26T14:47:46.928Z",
+      "endedAt": "2026-02-26T14:51:58.403Z"
     }
   ],
   "skippedTaskIds": [],

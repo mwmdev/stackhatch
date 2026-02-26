@@ -22,6 +22,8 @@ after each iteration and it's included in prompts for context.
 - **@testing-library/react cleanup**: Auto-cleanup doesn't work with vitest unless `globals: true` is set. Add explicit `cleanup()` in `afterEach` in `src/test/setup.ts` to prevent test leakage.
 - **lucide-react dynamic icons**: Access icons by name using `(icons as unknown as Record<string, typeof icons.Box>)[name]`. The module exports non-component members too (like `createLucideIcon`), so direct `as Record<string, ComponentType>` casts fail.
 - **react-hooks/static-components**: Don't assign icon components to variables during render (e.g., `const Icon = getIcon(name)`). Instead, create a `DynamicIcon` wrapper component that resolves internally.
+- **jsdom scrollIntoView**: jsdom doesn't implement `scrollIntoView`. Mock it in test files: `Element.prototype.scrollIntoView = vi.fn();`
+- **fetch mock typing**: When assigning `global.fetch = vi.fn(...)` in strict TS, the mock must accept `(input: RequestInfo | URL, options?: RequestInit)` to match fetch's overloaded signature.
 
 ---
 
@@ -151,4 +153,14 @@ after each iteration and it's included in prompts for context.
   - Dagre returns center coordinates for nodes — offset by half width/height to get top-left for CSS positioning
   - Dagre's `rank` property on nodes hints at rank placement but the actual rank depends on edges; for strict category ordering, edges between adjacent layers are needed
   - Dagre handles circular dependencies gracefully without throwing
+---
+
+## 2026-02-26 - shastack-ar4.15
+- ChatSidebar component was already fully implemented in T-019 (shastack-ar4.19) with all required features: SSE streaming, markdown rendering, auto-scroll, typing indicator, collapse/expand, message history loading
+- Wrote 17 component tests covering: collapsed/expanded states, toggle, message rendering with alignment, markdown support, Enter/Shift+Enter input behavior, typing indicator, disabled state during streaming, error handling (SSE + network), chat init trigger, init message filtering, send button disabled state
+- **Files created:** src/components/chat/ChatSidebar.test.tsx
+- **Learnings:**
+  - jsdom doesn't implement `Element.prototype.scrollIntoView` — must mock it globally in test files that use components calling `scrollIntoView`
+  - When mocking `global.fetch` in vitest with TypeScript strict mode, the mock function parameter must accept `RequestInfo | URL` (not just `string`) to match the `fetch` overload signatures
+  - For SSE stream mocking in component tests, create `ReadableStream` with `TextEncoder` and format as `data: {json}\n\n` lines — same pattern works in both Playwright (string body) and vitest (ReadableStream)
 ---

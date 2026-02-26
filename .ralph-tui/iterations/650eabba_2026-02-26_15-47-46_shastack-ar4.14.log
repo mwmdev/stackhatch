@@ -1,0 +1,115 @@
+# Iteration 8 Log
+
+## Metadata
+
+- **Task ID**: shastack-ar4.14
+- **Task Title**: T-014: Auto-Layout with Dagre
+- **Description**: As a developer, I need an auto-layout algorithm so that AI-generated architectures are arranged in a clear, readable directed graph instead of random positions.
+
+## Acceptance Criteria
+- [ ] AI-genera...
+- **Status**: completed
+- **Task Completed**: Yes
+- **Promise Detected**: Yes
+- **Started At**: 2026-02-26T14:47:46.928Z
+- **Ended At**: 2026-02-26T14:51:58.403Z
+- **Duration**: 4m 11s
+- **Input Tokens**: 5501
+- **Output Tokens**: 11863
+- **Total Tokens**: 17364
+- **Agent**: claude
+- **Model**: claude-opus-4-6
+- **Epic**: shastack-ar4
+- **Sandbox Mode**: auto
+- **Sandbox Network**: Enabled
+--- RAW OUTPUT ---
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/.ralph-tui/progress.md[0m
+[94m[Glob][0m [95m/home/mike/cloud/apps/mwm/shastack[0m pattern: [96msrc/lib/layout*[0m
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/package.json[0m
+Let me explore the current codebase to understand the types and project page structure.
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/src/types/stack.ts[0m
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/src/app/project/[id]/page.tsx[0m
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/src/lib/node-config.ts[0m
+[94m[TodoWrite][0m
+[94m[TodoWrite][0m
+[94m[Bash][0m Install dagre and its type definitions $ npm install dagre && npm install --save-dev @types/dagre
+[94m[TodoWrite][0m
+Now let me create the layout module. I'll define a `PositionedNode` type since React Flow isn't installed yet.
+[94m[Write][0m [95m/home/mike/cloud/apps/mwm/shastack/src/lib/layout.ts[0m "import dagre from "dagre";
+import type { StackNode, StackEdge, NodeCategory } from "@/types/stack";
+
+export interface NodePosition {
+  id: string;
+  position: { x: number; y: number };
+}
+
+/** Maps eac... (2212 chars)"
+[94m[TodoWrite][0m
+Now let me add the "Re-layout" button to the project page toolbar. I need to integrate the layout function and apply positions to nodes. Since the current canvas uses a simple card list (no React Flow yet), I'll store positions and use them for CSS positioning.
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/src/app/project/[id]/page.tsx[0m
+[94m[Edit][0m [95m/home/mike/cloud/apps/mwm/shastack/src/app/project/[id]/page.tsx[0m edit: "import { getSubtypeConfig } from "@/lib/node-confi..." → "import { getSubtypeConfig } from "@/lib/node-confi..."
+Now add the `nodePositions` state and `handleRelayout` function:
+[94m[Edit][0m [95m/home/mike/cloud/apps/mwm/shastack/src/app/project/[id]/page.tsx[0m edit: "  const [pendingConnection, setPendingConnection] ..." → "  const [pendingConnection, setPendingConnection] ..."
+Now add the `handleRelayout` function after `handleCancelConnection`:
+[94m[Edit][0m [95m/home/mike/cloud/apps/mwm/shastack/src/app/project/[id]/page.tsx[0m edit: "  const handleCancelConnection = useCallback(() =>..." → "  const handleCancelConnection = useCallback(() =>..."
+Add auto-layout when project loads with canvas state:
+[94m[Edit][0m [95m/home/mike/cloud/apps/mwm/shastack/src/app/project/[id]/page.tsx[0m edit: "        const data = await res.json();
+        set..." → "        const data = await res.json();
+        set..."
+Now add the "Re-layout" button in the toolbar:
+[94m[Edit][0m [95m/home/mike/cloud/apps/mwm/shastack/src/app/project/[id]/page.tsx[0m edit: "          <div className="ml-auto flex items-cente..." → "          <div className="ml-auto flex items-cente..."
+Now update the canvas view to use positioned layout instead of flex-wrap. I'll use absolute positioning within the canvas area, building a position lookup map:
+[94m[Edit][0m [95m/home/mike/cloud/apps/mwm/shastack/src/app/project/[id]/page.tsx[0m edit: "          {/* Simple node list view (until React F..." → "          {/* Node canvas view with Dagre layout p..."
+Also need to re-layout when nodes are added:
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/src/app/project/[id]/page.tsx[0m
+Let me simplify by using a `useEffect` to auto-compute positions whenever canvas state changes (pre-React Flow behavior):
+[94m[Edit][0m [95m/home/mike/cloud/apps/mwm/shastack/src/app/project/[id]/page.tsx[0m edit: "  useEffect(() => {
+    async function loadProject..." → "  // Auto-compute positions when canvas state chan..."
+Now remove the duplicate layout call from the loadProject function since the effect handles it:
+[94m[Edit][0m [95m/home/mike/cloud/apps/mwm/shastack/src/app/project/[id]/page.tsx[0m edit: "        const data = await res.json();
+        set..." → "        const data = await res.json();
+        set..."
+Now the `handleRelayout` is still useful as an explicit trigger (same behavior, but user can force it). Let me also remove the unused import `NodePosition` since the effect handles it internally:
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/src/app/project/[id]/page.tsx[0m
+`NodePosition` is used in the `useState<NodePosition[]>` — it's needed. Good. Let me verify the final state of the page:
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/src/app/project/[id]/page.tsx[0m
+Looks good. Now let me write the unit tests.
+[94m[TodoWrite][0m
+[94m[Write][0m [95m/home/mike/cloud/apps/mwm/shastack/src/lib/layout.test.ts[0m "import { describe, it, expect } from "vitest";
+import { applyDagreLayout } from "./layout";
+import type { StackNode, StackEdge } from "@/types/stack";
+
+function makeNode(
+  id: string,
+  category: Sta... (5034 chars)"
+[94m[Bash][0m Run layout unit tests $ npx vitest run src/lib/layout.test.ts 2>&1
+All 9 tests pass. Now let me run typecheck and lint.
+[94m[TodoWrite][0m
+[94m[Bash][0m Run TypeScript typecheck $ npm run typecheck 2>&1
+[94m[Bash][0m Run ESLint $ npm run lint 2>&1
+Both pass clean. Let me also run the full test suite to make sure nothing is broken.
+[94m[Bash][0m Run full vitest suite $ npm test 2>&1
+All 55 tests pass. Now close the bead and document learnings.
+[94m[TodoWrite][0m
+[94m[Bash][0m Close the bead $ bd close shastack-ar4.14 --db /home/mike/cloud/apps/mwm/shastack/.beads/beads.db --reason "Implement...
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/.ralph-tui/progress.md[0m
+[94m[Edit][0m [95m/home/mike/cloud/apps/mwm/shastack/.ralph-tui/progress.md[0m edit: "  - `crypto.randomUUID()` is available in jsdom te..." → "  - `crypto.randomUUID()` is available in jsdom te..."
+[94m[TodoWrite][0m
+<promise>COMPLETE</promise>
+
+## Summary
+
+Implemented T-014: Auto-Layout with Dagre. Here's what was done:
+
+**Files created:**
+- `src/lib/layout.ts` — Core `applyDagreLayout()` function using Dagre for top-to-bottom directed graph layout, with category-based ranking (client at top, data/infra/external at bottom) and support for fixed positions (locked nodes)
+- `src/lib/layout.test.ts` — 9 unit tests covering all edge cases
+
+**Files modified:**
+- `src/app/project/[id]/page.tsx` — Added Re-layout toolbar button, auto-layout on canvas state changes via `useEffect`, absolute CSS positioning of node cards using Dagre coordinates
+- `package.json` — Added `dagre` and `@types/dagre` dependencies
+
+**Verification:**
+- 55/55 unit tests pass (9 new layout tests + 46 existing)
+- TypeScript strict mode passes
+- ESLint passes clean
