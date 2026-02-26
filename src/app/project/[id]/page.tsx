@@ -1,22 +1,47 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import ReactFlow, {
+  Background,
+  Controls,
+  MiniMap,
+  useNodesState,
+  useEdgesState,
+  BackgroundVariant,
+  type Node,
+  type Edge,
+  type Connection,
+  type ReactFlowInstance,
+} from "reactflow";
+import "reactflow/dist/style.css";
 import ChatSidebar from "@/components/chat/ChatSidebar";
 import NodeDetailPanel from "@/components/canvas/NodeDetailPanel";
 import AddNodeDropdown from "@/components/canvas/AddNodeDropdown";
 import ConnectionTypeSelector from "@/components/canvas/ConnectionTypeSelector";
+import StackNodeComponent, {
+  type StackNodeData,
+} from "@/components/canvas/StackNode";
+import StackEdgeComponent, {
+  type StackEdgeData,
+} from "@/components/canvas/StackEdge";
+import EdgeLegend from "@/components/canvas/EdgeLegend";
+import {
+  toReactFlowNodes,
+  toReactFlowEdges,
+  fromReactFlowNodes,
+  fromReactFlowEdges,
+} from "@/types/canvas";
 import type {
   StackNode,
-  StackEdge,
   StackArchitecture,
   NodeCategory,
   NodeSubtype,
   ConnectionType,
 } from "@/types/stack";
 import { getSubtypeConfig } from "@/lib/node-config";
-import { applyDagreLayout, type NodePosition } from "@/lib/layout";
+import { applyDagreLayout } from "@/lib/layout";
 import { mergeArchitecture } from "@/lib/merge-architecture";
 
 interface Project {
@@ -34,9 +59,22 @@ interface PendingConnection {
   position: { x: number; y: number };
 }
 
-function generateId(): string {
-  return crypto.randomUUID();
+/** Stored canvasState extends StackArchitecture with persisted positions */
+interface StoredCanvasState extends StackArchitecture {
+  positions?: Record<string, { x: number; y: number }>;
 }
+
+const nodeTypes = { stackNode: StackNodeComponent };
+const edgeTypes = { stackEdge: StackEdgeComponent };
+
+const MINIMAP_COLORS: Record<string, string> = {
+  client: "#3B82F6",
+  api: "#10B981",
+  services: "#8B5CF6",
+  data: "#F59E0B",
+  infrastructure: "#64748B",
+  external: "#F43F5E",
+};
 
 export default function ProjectPage() {
   const params = useParams();
@@ -47,16 +85,22 @@ export default function ProjectPage() {
   const [selectedNode, setSelectedNode] = useState<StackNode | null>(null);
   const [pendingConnection, setPendingConnection] =
     useState<PendingConnection | null>(null);
-  const [nodePositions, setNodePositions] = useState<NodePosition[]>([]);
   const [toast, setToast] = useState<string | null>(null);
-  const [animating, setAnimating] = useState(false);
-  const canvasRef = useRef<HTMLDivElement>(null);
-  const nodePositionsRef = useRef<NodePosition[]>([]);
+  const [rfNodes, setRfNodes, onNodesChange] = useNodesState<StackNodeData>(
+    [],
+  );
+  const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<StackEdgeData>(
+    [],
+  );
+  const rfInstanceRef = useRef<ReactFlowInstance | null>(null);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
+  const projectRef = useRef<Project | null>(null);
+  const initializedRef = useRef(false);
 
-  // Keep ref in sync for use in callbacks
-  useEffect(() => {
-    nodePositionsRef.current = nodePositions;
-  }, [nodePositions]);
+  // Keep project ref in sync for use in stable callbacks
+  projectRef.current = project;
 
   // Auto-dismiss toast
   useEffect(() => {
@@ -65,114 +109,202 @@ export default function ProjectPage() {
     return () => clearTimeout(timer);
   }, [toast]);
 
-  const saveCanvasState = useCallback(
-    (canvas: StackArchitecture) => {
-      fetch(`/api/projects/${projectId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ canvasState: JSON.stringify(canvas) }),
-      });
-    },
-    [projectId],
-  );
+  // --- Stable callbacks for node data (context menu actions) ---
 
-  const handleArchitecture = useCallback(
-    (incoming: StackArchitecture) => {
-      try {
-        // Validate incoming architecture has nodes
-        if (!incoming?.nodes || !Array.isArray(incoming.nodes)) {
-          setToast("Failed to update canvas: invalid architecture data");
-          return;
-        }
-
-        setProject((prev) => {
-          if (!prev) return prev;
-
-          const currentCanvas = prev.canvasState;
-          const isFirstArchitecture =
-            !currentCanvas || currentCanvas.nodes.length === 0;
-
-          let finalArchitecture: StackArchitecture;
-          let positions: NodePosition[];
-
-          if (isFirstArchitecture) {
-            // First architecture: use incoming directly, full Dagre layout
-            finalArchitecture = incoming;
-            positions = applyDagreLayout(incoming.nodes, incoming.edges);
-          } else {
-            // Update: merge with locked node preservation
-            const result = mergeArchitecture(
-              currentCanvas,
-              incoming,
-              nodePositionsRef.current,
-            );
-            finalArchitecture = result.architecture;
-            positions = applyDagreLayout(
-              result.architecture.nodes,
-              result.architecture.edges,
-              result.fixedPositions,
-            );
-          }
-
-          // Enable CSS transitions for smooth repositioning
-          setAnimating(true);
-          setNodePositions(positions);
-          setTimeout(() => setAnimating(false), 350);
-
-          // Save to DB (the API route already saved it, but keep local state consistent)
-          return { ...prev, canvasState: finalArchitecture };
-        });
-      } catch {
-        setToast("Failed to update canvas");
-      }
-    },
-    [],
-  );
-
-  const handleNodeUpdate = useCallback(
-    (id: string, updates: Partial<StackNode>) => {
+  const handleLockToggle = useCallback(
+    (id: string, locked: boolean) => {
+      setRfNodes((nds) =>
+        nds.map((n) =>
+          n.id === id ? { ...n, data: { ...n.data, locked } } : n,
+        ),
+      );
       setProject((prev) => {
         if (!prev?.canvasState) return prev;
-        const updatedNodes = prev.canvasState.nodes.map((n) =>
-          n.id === id ? { ...n, ...updates } : n,
-        );
-        const newCanvas = { ...prev.canvasState, nodes: updatedNodes };
-        saveCanvasState(newCanvas);
-        return { ...prev, canvasState: newCanvas };
+        return {
+          ...prev,
+          canvasState: {
+            ...prev.canvasState,
+            nodes: prev.canvasState.nodes.map((n) =>
+              n.id === id ? { ...n, locked } : n,
+            ),
+          },
+        };
       });
       setSelectedNode((prev) =>
-        prev && prev.id === id ? { ...prev, ...updates } : prev,
+        prev && prev.id === id ? { ...prev, locked } : prev,
       );
     },
-    [saveCanvasState],
+    [setRfNodes],
   );
 
   const handleNodeDelete = useCallback(
     (id: string) => {
+      setRfNodes((nds) => nds.filter((n) => n.id !== id));
+      setRfEdges((eds) =>
+        eds.filter((e) => e.source !== id && e.target !== id),
+      );
       setProject((prev) => {
         if (!prev?.canvasState) return prev;
-        const updatedNodes = prev.canvasState.nodes.filter((n) => n.id !== id);
-        const updatedEdges = prev.canvasState.edges.filter(
-          (e) => e.source !== id && e.target !== id,
-        );
-        const newCanvas = { nodes: updatedNodes, edges: updatedEdges };
-        saveCanvasState(newCanvas);
-        return { ...prev, canvasState: newCanvas };
+        return {
+          ...prev,
+          canvasState: {
+            nodes: prev.canvasState.nodes.filter((n) => n.id !== id),
+            edges: prev.canvasState.edges.filter(
+              (e) => e.source !== id && e.target !== id,
+            ),
+          },
+        };
       });
       setSelectedNode(null);
     },
-    [saveCanvasState],
+    [setRfNodes, setRfEdges],
   );
 
-  const handleClosePanel = useCallback(() => {
-    setSelectedNode(null);
+  // --- Debounced save ---
+
+  const debouncedSave = useCallback(
+    (nodes: Node<StackNodeData>[], edges: Edge<StackEdgeData>[]) => {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = setTimeout(() => {
+        const stackNodes = fromReactFlowNodes(nodes);
+        const stackEdges = fromReactFlowEdges(edges);
+        const positions: Record<string, { x: number; y: number }> = {};
+        for (const node of nodes) {
+          positions[node.id] = node.position;
+        }
+        const stored: StoredCanvasState = {
+          nodes: stackNodes,
+          edges: stackEdges,
+          positions,
+        };
+        fetch(`/api/projects/${projectId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ canvasState: JSON.stringify(stored) }),
+        });
+        // Keep project domain state in sync
+        setProject((prev) =>
+          prev
+            ? {
+                ...prev,
+                canvasState: { nodes: stackNodes, edges: stackEdges },
+              }
+            : prev,
+        );
+      }, 500);
+    },
+    [projectId],
+  );
+
+  // Trigger debounced save when React Flow state changes
+  useEffect(() => {
+    if (!initializedRef.current) return;
+    if (rfNodes.length === 0 && rfEdges.length === 0) return;
+    debouncedSave(rfNodes, rfEdges);
+  }, [rfNodes, rfEdges, debouncedSave]);
+
+  // Clean up save timer on unmount
+  useEffect(() => {
+    return () => clearTimeout(saveTimerRef.current);
   }, []);
+
+  // --- Build React Flow nodes with injected callbacks ---
+
+  const buildRfNodes = useCallback(
+    (
+      nodes: StackNode[],
+      positions: Map<string, { x: number; y: number }>,
+    ): Node<StackNodeData>[] => {
+      return toReactFlowNodes(nodes, positions).map((n) => ({
+        ...n,
+        data: {
+          ...n.data,
+          onLockToggle: handleLockToggle,
+          onDelete: handleNodeDelete,
+        },
+      }));
+    },
+    [handleLockToggle, handleNodeDelete],
+  );
+
+  // --- React Flow event handlers ---
+
+  const handleNodeClick = useCallback(
+    (_event: React.MouseEvent, node: Node<StackNodeData>) => {
+      const data = node.data;
+      setSelectedNode({
+        id: node.id,
+        category: data.category,
+        subtype: data.subtype,
+        name: data.name,
+        technology: data.technology,
+        description: data.description,
+        reasoning: data.reasoning,
+        locked: data.locked,
+      });
+    },
+    [],
+  );
+
+  const handleConnect = useCallback((connection: Connection) => {
+    if (!connection.source || !connection.target) return;
+    setPendingConnection({
+      sourceId: connection.source,
+      targetId: connection.target,
+      position: { x: 300, y: 300 },
+    });
+  }, []);
+
+  // --- Connection type selected ---
+
+  const handleConnectionTypeSelect = useCallback(
+    (type: ConnectionType) => {
+      if (!pendingConnection) return;
+      const id = crypto.randomUUID();
+      const rfEdge: Edge<StackEdgeData> = {
+        id,
+        type: "stackEdge",
+        source: pendingConnection.sourceId,
+        target: pendingConnection.targetId,
+        data: { connectionType: type, label: type.toUpperCase() },
+      };
+      setRfEdges((eds) => [...eds, rfEdge]);
+      setProject((prev) => {
+        if (!prev?.canvasState) return prev;
+        return {
+          ...prev,
+          canvasState: {
+            ...prev.canvasState,
+            edges: [
+              ...prev.canvasState.edges,
+              {
+                id,
+                source: pendingConnection.sourceId,
+                target: pendingConnection.targetId,
+                connectionType: type,
+                label: type.toUpperCase(),
+              },
+            ],
+          },
+        };
+      });
+      setPendingConnection(null);
+    },
+    [pendingConnection, setRfEdges],
+  );
+
+  const handleCancelConnection = useCallback(() => {
+    setPendingConnection(null);
+  }, []);
+
+  // --- Add node ---
 
   const handleAddNode = useCallback(
     (category: NodeCategory, subtype: NodeSubtype) => {
       const subtypeConfig = getSubtypeConfig(category, subtype);
-      const newNode: StackNode = {
-        id: generateId(),
+      const id = crypto.randomUUID();
+      const newStackNode: StackNode = {
+        id,
         category,
         subtype,
         name: subtypeConfig?.displayName ?? subtype,
@@ -182,71 +314,168 @@ export default function ProjectPage() {
         locked: false,
       };
 
-      setProject((prev) => {
-        const currentCanvas = prev?.canvasState ?? { nodes: [], edges: [] };
-        const newCanvas = {
-          ...currentCanvas,
-          nodes: [...currentCanvas.nodes, newNode],
-        };
-        saveCanvasState(newCanvas);
-        return prev ? { ...prev, canvasState: newCanvas } : prev;
-      });
+      // Position at viewport center
+      const position = rfInstanceRef.current?.screenToFlowPosition({
+        x: window.innerWidth / 2,
+        y: window.innerHeight / 2,
+      }) ?? { x: 200, y: 200 };
 
-      setSelectedNode(newNode);
-    },
-    [saveCanvasState],
-  );
-
-  const handleConnectionTypeSelect = useCallback(
-    (type: ConnectionType) => {
-      if (!pendingConnection) return;
-      const newEdge: StackEdge = {
-        id: generateId(),
-        source: pendingConnection.sourceId,
-        target: pendingConnection.targetId,
-        connectionType: type,
-        label: type.toUpperCase(),
+      const rfNode: Node<StackNodeData> = {
+        id,
+        type: "stackNode",
+        position,
+        data: {
+          category: newStackNode.category,
+          subtype: newStackNode.subtype,
+          name: newStackNode.name,
+          technology: newStackNode.technology,
+          description: newStackNode.description,
+          reasoning: newStackNode.reasoning,
+          locked: newStackNode.locked,
+          onLockToggle: handleLockToggle,
+          onDelete: handleNodeDelete,
+        },
       };
 
+      setRfNodes((nds) => [...nds, rfNode]);
       setProject((prev) => {
-        if (!prev?.canvasState) return prev;
-        const newCanvas = {
-          ...prev.canvasState,
-          edges: [...prev.canvasState.edges, newEdge],
-        };
-        saveCanvasState(newCanvas);
-        return { ...prev, canvasState: newCanvas };
+        const currentCanvas = prev?.canvasState ?? { nodes: [], edges: [] };
+        return prev
+          ? {
+              ...prev,
+              canvasState: {
+                ...currentCanvas,
+                nodes: [...currentCanvas.nodes, newStackNode],
+              },
+            }
+          : prev;
       });
-      setPendingConnection(null);
+      setSelectedNode(newStackNode);
     },
-    [pendingConnection, saveCanvasState],
+    [handleLockToggle, handleNodeDelete, setRfNodes],
   );
 
-  const handleCancelConnection = useCallback(() => {
-    setPendingConnection(null);
+  // --- Detail panel update ---
+
+  const handleNodeUpdate = useCallback(
+    (id: string, updates: Partial<StackNode>) => {
+      setRfNodes((nds) =>
+        nds.map((n) =>
+          n.id === id ? { ...n, data: { ...n.data, ...updates } } : n,
+        ),
+      );
+      setProject((prev) => {
+        if (!prev?.canvasState) return prev;
+        return {
+          ...prev,
+          canvasState: {
+            ...prev.canvasState,
+            nodes: prev.canvasState.nodes.map((n) =>
+              n.id === id ? { ...n, ...updates } : n,
+            ),
+          },
+        };
+      });
+      setSelectedNode((prev) =>
+        prev && prev.id === id ? { ...prev, ...updates } : prev,
+      );
+    },
+    [setRfNodes],
+  );
+
+  const handleClosePanel = useCallback(() => {
+    setSelectedNode(null);
   }, []);
 
-  const handleRelayout = useCallback(() => {
-    if (!project?.canvasState) return;
-    setAnimating(true);
-    const positions = applyDagreLayout(
-      project.canvasState.nodes,
-      project.canvasState.edges,
-    );
-    setNodePositions(positions);
-    setTimeout(() => setAnimating(false), 350);
-  }, [project?.canvasState]);
+  // --- Re-layout ---
 
-  // Auto-compute positions when canvas state changes (non-animated, e.g. manual add)
-  useEffect(() => {
-    if (project?.canvasState?.nodes?.length) {
-      setNodePositions(
-        applyDagreLayout(project.canvasState.nodes, project.canvasState.edges),
-      );
-    } else {
-      setNodePositions([]);
-    }
-  }, [project?.canvasState]);
+  const handleRelayout = useCallback(() => {
+    const canvas = projectRef.current?.canvasState;
+    if (!canvas) return;
+    const positions = applyDagreLayout(canvas.nodes, canvas.edges);
+    const posMap = new Map(positions.map((p) => [p.id, p.position]));
+    setRfNodes((nds) =>
+      nds.map((n) => ({
+        ...n,
+        position: posMap.get(n.id) ?? n.position,
+      })),
+    );
+    setTimeout(
+      () => rfInstanceRef.current?.fitView({ padding: 0.2, duration: 300 }),
+      100,
+    );
+  }, [setRfNodes]);
+
+  // --- AI architecture handler ---
+
+  const handleArchitecture = useCallback(
+    (incoming: StackArchitecture) => {
+      try {
+        if (!incoming?.nodes || !Array.isArray(incoming.nodes)) {
+          setToast("Failed to update canvas: invalid architecture data");
+          return;
+        }
+
+        const currentCanvas = projectRef.current?.canvasState;
+        const isFirst = !currentCanvas || currentCanvas.nodes.length === 0;
+
+        let finalArch: StackArchitecture;
+        let posMap: Map<string, { x: number; y: number }>;
+
+        if (isFirst) {
+          finalArch = incoming;
+          const positions = applyDagreLayout(incoming.nodes, incoming.edges);
+          posMap = new Map(positions.map((p) => [p.id, p.position]));
+        } else {
+          // Get current positions from React Flow nodes
+          const currentRfNodes = rfNodes;
+          const currentPositions = currentRfNodes.map((n) => ({
+            id: n.id,
+            position: n.position,
+          }));
+          const result = mergeArchitecture(
+            currentCanvas,
+            incoming,
+            currentPositions,
+          );
+          finalArch = result.architecture;
+          const positions = applyDagreLayout(
+            result.architecture.nodes,
+            result.architecture.edges,
+            result.fixedPositions,
+          );
+          posMap = new Map(positions.map((p) => [p.id, p.position]));
+        }
+
+        const newRfNodes = buildRfNodes(finalArch.nodes, posMap);
+        const newRfEdges = toReactFlowEdges(finalArch.edges);
+
+        setRfNodes(newRfNodes);
+        setRfEdges(newRfEdges);
+        setProject((prev) =>
+          prev ? { ...prev, canvasState: finalArch } : prev,
+        );
+
+        setTimeout(
+          () =>
+            rfInstanceRef.current?.fitView({ padding: 0.2, duration: 300 }),
+          100,
+        );
+      } catch {
+        setToast("Failed to update canvas");
+      }
+    },
+    [rfNodes, buildRfNodes, setRfNodes, setRfEdges],
+  );
+
+  // --- MiniMap node color ---
+
+  const minimapNodeColor = useCallback((node: Node) => {
+    const cat = (node.data as StackNodeData)?.category;
+    return MINIMAP_COLORS[cat] ?? "#888";
+  }, []);
+
+  // --- Load project ---
 
   useEffect(() => {
     async function loadProject() {
@@ -258,6 +487,41 @@ export default function ProjectPage() {
         }
         const data = await res.json();
         setProject(data);
+
+        // Initialize React Flow state from loaded canvas
+        if (data.canvasState?.nodes?.length) {
+          const stored = data.canvasState as StoredCanvasState;
+          let posMap: Map<string, { x: number; y: number }>;
+
+          if (stored.positions && Object.keys(stored.positions).length > 0) {
+            // Use persisted positions
+            posMap = new Map(Object.entries(stored.positions));
+          } else {
+            // Compute positions with Dagre
+            const positions = applyDagreLayout(stored.nodes, stored.edges);
+            posMap = new Map(positions.map((p) => [p.id, p.position]));
+          }
+
+          const nodes = toReactFlowNodes(stored.nodes, posMap).map((n) => ({
+            ...n,
+            data: {
+              ...n.data,
+              onLockToggle: handleLockToggle,
+              onDelete: handleNodeDelete,
+            },
+          }));
+          const edges = toReactFlowEdges(stored.edges);
+
+          setRfNodes(nodes);
+          setRfEdges(edges);
+
+          // Mark as initialized after a tick to skip the debounced save effect
+          requestAnimationFrame(() => {
+            initializedRef.current = true;
+          });
+        } else {
+          initializedRef.current = true;
+        }
       } catch {
         setError("Failed to load project");
       } finally {
@@ -265,7 +529,18 @@ export default function ProjectPage() {
       }
     }
     loadProject();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
+
+  // --- Derived state ---
+
+  const hasCanvas = useMemo(
+    () =>
+      project?.canvasState !== null &&
+      (project?.canvasState?.nodes?.length ?? 0) > 0,
+    [project?.canvasState],
+  );
+  const nodeCount = project?.canvasState?.nodes?.length ?? 0;
 
   if (loading) {
     return (
@@ -285,10 +560,6 @@ export default function ProjectPage() {
       </div>
     );
   }
-
-  const hasCanvas =
-    project.canvasState !== null && project.canvasState.nodes.length > 0;
-  const nodeCount = project.canvasState?.nodes.length ?? 0;
 
   return (
     <div className="flex h-screen bg-[var(--background)] text-[var(--foreground)]">
@@ -329,84 +600,68 @@ export default function ProjectPage() {
           </div>
         </div>
 
-        {/* Canvas area (relative container for detail panel overlay) */}
-        <div className="relative flex flex-1 items-center justify-center overflow-hidden">
-          {!hasCanvas && (
-            <div className="text-center text-[var(--muted-foreground)]">
-              <svg
-                className="mx-auto mb-4 h-16 w-16 opacity-30"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-              >
-                <rect x="3" y="3" width="18" height="18" rx="2" />
-                <circle cx="8.5" cy="8.5" r="1.5" />
-                <circle cx="15.5" cy="8.5" r="1.5" />
-                <circle cx="12" cy="15.5" r="1.5" />
-                <line x1="8.5" y1="10" x2="12" y2="14" />
-                <line x1="15.5" y1="10" x2="12" y2="14" />
-              </svg>
-              <p className="text-lg font-medium">No architecture yet</p>
-              <p className="mt-1 text-sm">
-                Start a conversation or add nodes manually
-              </p>
-            </div>
-          )}
+        {/* Canvas area */}
+        <div className="relative flex-1">
+          <ReactFlow
+            nodes={rfNodes}
+            edges={rfEdges}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={handleConnect}
+            onNodeClick={handleNodeClick}
+            onInit={(instance) => {
+              rfInstanceRef.current = instance;
+            }}
+            nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
+            fitView
+            snapToGrid
+            snapGrid={[20, 20]}
+            deleteKeyCode={null}
+            data-testid="react-flow-canvas"
+          >
+            <Background
+              variant={BackgroundVariant.Dots}
+              gap={20}
+              size={1}
+              color="var(--muted-foreground)"
+              style={{ opacity: 0.3 }}
+            />
+            <Controls />
+            <MiniMap
+              nodeColor={minimapNodeColor}
+              maskColor="rgba(0, 0, 0, 0.1)"
+            />
+          </ReactFlow>
 
-          {/* Node canvas view with Dagre layout positioning */}
-          {hasCanvas && (
-            <div ref={canvasRef} className="absolute inset-0 overflow-auto p-6">
-              <div className="relative" style={{ minHeight: "100%" }}>
-                {project.canvasState!.nodes.map((node) => {
-                  const pos = nodePositions.find((p) => p.id === node.id);
-                  return (
-                    <button
-                      key={node.id}
-                      onClick={() => setSelectedNode(node)}
-                      className={`absolute rounded-lg border-l-4 bg-[var(--background)] p-4 text-left shadow-md hover:shadow-lg ${
-                        selectedNode?.id === node.id
-                          ? "ring-2 ring-[var(--color-client)]"
-                          : ""
-                      }`}
-                      style={{
-                        borderLeftColor: `var(--color-${node.category})`,
-                        minWidth: "200px",
-                        left: pos ? `${pos.position.x}px` : undefined,
-                        top: pos ? `${pos.position.y}px` : undefined,
-                        transition: animating
-                          ? "left 300ms ease, top 300ms ease"
-                          : undefined,
-                      }}
-                      data-testid={`node-card-${node.id}`}
-                    >
-                      <div className="font-medium text-[var(--foreground)]">
-                        {node.name}
-                      </div>
-                      {node.technology && (
-                        <div className="mt-1 text-xs text-[var(--muted-foreground)]">
-                          {node.technology}
-                        </div>
-                      )}
-                      <div
-                        className="mt-2 inline-block rounded-full px-2 py-0.5 text-xs text-white"
-                        style={{
-                          backgroundColor: `var(--color-${node.category})`,
-                        }}
-                      >
-                        {node.category}
-                      </div>
-                      {node.locked && (
-                        <span className="ml-2 text-xs text-[var(--color-data)]">
-                          🔒
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
+          {/* Empty state overlay */}
+          {!hasCanvas && (
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+              <div className="text-center text-[var(--muted-foreground)]">
+                <svg
+                  className="mx-auto mb-4 h-16 w-16 opacity-30"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                >
+                  <rect x="3" y="3" width="18" height="18" rx="2" />
+                  <circle cx="8.5" cy="8.5" r="1.5" />
+                  <circle cx="15.5" cy="8.5" r="1.5" />
+                  <circle cx="12" cy="15.5" r="1.5" />
+                  <line x1="8.5" y1="10" x2="12" y2="14" />
+                  <line x1="15.5" y1="10" x2="12" y2="14" />
+                </svg>
+                <p className="text-lg font-medium">No architecture yet</p>
+                <p className="mt-1 text-sm">
+                  Start a conversation or add nodes manually
+                </p>
               </div>
             </div>
           )}
+
+          {/* Edge Legend */}
+          <EdgeLegend />
 
           {/* Connection Type Selector popover */}
           {pendingConnection && (
@@ -428,7 +683,7 @@ export default function ProjectPage() {
           {/* Toast notification */}
           {toast && (
             <div
-              className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-lg bg-red-600 px-4 py-2 text-sm text-white shadow-lg"
+              className="absolute bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-red-600 px-4 py-2 text-sm text-white shadow-lg"
               data-testid="canvas-toast"
             >
               {toast}

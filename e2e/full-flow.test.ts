@@ -66,7 +66,7 @@ test.describe("Full E2E Interview-to-Canvas Flow", () => {
 
     // 13. Verify the empty canvas message is still visible (canvas not yet implemented)
     await expect(
-      page.getByText("Start a conversation to generate your architecture"),
+      page.getByText("Start a conversation or add nodes manually"),
     ).toBeVisible();
   });
 

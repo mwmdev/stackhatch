@@ -117,7 +117,7 @@ test.describe("New Project Flow", () => {
 
     // Empty canvas message should be visible
     await expect(
-      page.getByText("Start a conversation to generate your architecture"),
+      page.getByText("Start a conversation or add nodes manually"),
     ).toBeVisible();
   });
 });

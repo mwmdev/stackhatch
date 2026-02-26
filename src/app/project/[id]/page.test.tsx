@@ -1,0 +1,513 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, waitFor, act } from "@testing-library/react";
+
+// Mock next/navigation
+vi.mock("next/navigation", () => ({
+  useParams: () => ({ id: "test-project-id" }),
+}));
+
+// Mock reactflow — minimal version for jsdom that avoids text conflicts
+vi.mock("reactflow", () => {
+  const React = require("react");
+
+  function ReactFlow({
+    children,
+    nodes,
+    edges,
+    ...props
+  }: {
+    children?: React.ReactNode;
+    nodes?: unknown[];
+    edges?: unknown[];
+    [key: string]: unknown;
+  }) {
+    return React.createElement(
+      "div",
+      {
+        "data-testid": "react-flow-canvas",
+        "data-node-count": String((nodes ?? []).length),
+        "data-edge-count": String((edges ?? []).length),
+        ...(props.className ? { className: props.className } : {}),
+        ...(props.style ? { style: props.style } : {}),
+      },
+      children,
+    );
+  }
+
+  function Background() {
+    return React.createElement("div", {
+      "data-testid": "react-flow-background",
+    });
+  }
+  function Controls() {
+    return React.createElement("div", {
+      "data-testid": "react-flow-controls",
+    });
+  }
+  function MiniMap() {
+    return React.createElement("div", {
+      "data-testid": "react-flow-minimap",
+    });
+  }
+
+  return {
+    __esModule: true,
+    default: ReactFlow,
+    Background,
+    Controls,
+    MiniMap,
+    BackgroundVariant: { Dots: "dots", Lines: "lines", Cross: "cross" },
+    useNodesState: (initial: unknown[]) => {
+      const [nodes, setNodes] = React.useState(initial);
+      const onNodesChange = React.useCallback(() => {}, []);
+      return [nodes, setNodes, onNodesChange];
+    },
+    useEdgesState: (initial: unknown[]) => {
+      const [edges, setEdges] = React.useState(initial);
+      const onEdgesChange = React.useCallback(() => {}, []);
+      return [edges, setEdges, onEdgesChange];
+    },
+    ReactFlowProvider: ({ children }: { children: React.ReactNode }) =>
+      React.createElement(React.Fragment, null, children),
+    Handle: () => null,
+    Position: { Top: "top", Bottom: "bottom", Left: "left", Right: "right" },
+  };
+});
+
+// Mock CSS import
+vi.mock("reactflow/dist/style.css", () => ({}));
+
+// Mock child components to keep tests focused
+vi.mock("@/components/chat/ChatSidebar", () => ({
+  default: ({
+    projectId,
+    defaultOpen,
+  }: {
+    projectId: string;
+    defaultOpen: boolean;
+  }) => (
+    <div
+      data-testid="chat-sidebar"
+      data-project-id={projectId}
+      data-default-open={String(defaultOpen)}
+    >
+      Chat Sidebar
+    </div>
+  ),
+}));
+
+vi.mock("@/components/canvas/NodeDetailPanel", () => ({
+  default: ({ node }: { node: unknown }) => (
+    <div data-testid="node-detail-panel" data-has-node={String(!!node)}>
+      Detail Panel
+    </div>
+  ),
+}));
+
+vi.mock("@/components/canvas/AddNodeDropdown", () => ({
+  default: ({
+    onAddNode,
+  }: {
+    onAddNode: (cat: string, sub: string) => void;
+  }) => (
+    <button
+      data-testid="add-node-button"
+      onClick={() => onAddNode("data", "sql-db")}
+    >
+      Add Node
+    </button>
+  ),
+}));
+
+vi.mock("@/components/canvas/ConnectionTypeSelector", () => ({
+  default: () => <div data-testid="connection-type-selector" />,
+}));
+
+vi.mock("@/components/canvas/StackNode", () => ({
+  __esModule: true,
+  default: () => null,
+}));
+
+vi.mock("@/components/canvas/StackEdge", () => ({
+  __esModule: true,
+  default: () => null,
+}));
+
+vi.mock("@/components/canvas/EdgeLegend", () => ({
+  default: () => <div data-testid="edge-legend">Edge Legend</div>,
+}));
+
+import ProjectPage from "./page";
+
+// --- Test data ---
+
+const emptyProject = {
+  id: "test-project-id",
+  name: "Test Project",
+  description: "A test project",
+  canvasState: null,
+  createdAt: 1000000,
+  updatedAt: 1000000,
+};
+
+const projectWithNodes = {
+  ...emptyProject,
+  canvasState: {
+    nodes: [
+      {
+        id: "n1",
+        category: "client",
+        subtype: "web-app",
+        name: "Frontend",
+        technology: "React",
+        description: "Web frontend",
+        reasoning: "User preference",
+        locked: false,
+      },
+      {
+        id: "n2",
+        category: "data",
+        subtype: "sql-db",
+        name: "Database",
+        technology: "PostgreSQL",
+        description: "Primary DB",
+        reasoning: "ACID compliance",
+        locked: true,
+      },
+    ],
+    edges: [
+      {
+        id: "e1",
+        source: "n1",
+        target: "n2",
+        connectionType: "http",
+        label: "REST",
+      },
+    ],
+  },
+};
+
+const projectWithPositions = {
+  ...emptyProject,
+  canvasState: {
+    ...projectWithNodes.canvasState!,
+    positions: {
+      n1: { x: 100, y: 50 },
+      n2: { x: 100, y: 200 },
+    },
+  },
+};
+
+function mockFetchProject(project: unknown) {
+  global.fetch = vi.fn(
+    (input: RequestInfo | URL, _options?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/api/projects/test-project-id/messages")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve([]),
+        } as Response);
+      }
+      if (url.includes("/api/projects/test-project-id")) {
+        if ((_options as RequestInit)?.method === "PATCH") {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({}),
+          } as Response);
+        }
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(project),
+        } as Response);
+      }
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({}),
+      } as Response);
+    },
+  ) as unknown as typeof global.fetch;
+}
+
+function mockFetchNotFound() {
+  global.fetch = vi.fn(() =>
+    Promise.resolve({ ok: false, status: 404 } as Response),
+  ) as unknown as typeof global.fetch;
+}
+
+function mockFetchError() {
+  global.fetch = vi.fn(() =>
+    Promise.reject(new Error("Network error")),
+  ) as unknown as typeof global.fetch;
+}
+
+// Mock scrollIntoView (jsdom doesn't implement it)
+Element.prototype.scrollIntoView = vi.fn();
+
+describe("ProjectPage", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  describe("loading state", () => {
+    it("shows loading indicator on mount", () => {
+      mockFetchProject(emptyProject);
+      render(<ProjectPage />);
+      expect(screen.getByText("Loading...")).toBeInTheDocument();
+    });
+
+    it("transitions from loading to loaded", async () => {
+      mockFetchProject(emptyProject);
+      render(<ProjectPage />);
+      await waitFor(() => {
+        expect(screen.queryByText("Loading...")).not.toBeInTheDocument();
+      });
+      expect(screen.getByText("Test Project")).toBeInTheDocument();
+    });
+  });
+
+  describe("error state", () => {
+    it("shows error when project not found", async () => {
+      mockFetchNotFound();
+      render(<ProjectPage />);
+      await waitFor(() => {
+        expect(screen.getByText("Project not found")).toBeInTheDocument();
+      });
+      expect(screen.getByText("Back to Dashboard")).toBeInTheDocument();
+    });
+
+    it("shows error on network failure", async () => {
+      mockFetchError();
+      render(<ProjectPage />);
+      await waitFor(() => {
+        expect(screen.getByText("Failed to load project")).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe("empty canvas (new project)", () => {
+    it("shows empty state message when no canvas", async () => {
+      mockFetchProject(emptyProject);
+      render(<ProjectPage />);
+      await waitFor(() => {
+        expect(screen.getByText("No architecture yet")).toBeInTheDocument();
+      });
+      expect(
+        screen.getByText("Start a conversation or add nodes manually"),
+      ).toBeInTheDocument();
+    });
+
+    it("opens chat sidebar by default for new projects", async () => {
+      mockFetchProject(emptyProject);
+      render(<ProjectPage />);
+      await waitFor(() => {
+        const sidebar = screen.getByTestId("chat-sidebar");
+        expect(sidebar).toHaveAttribute("data-default-open", "true");
+      });
+    });
+
+    it("renders React Flow canvas even when empty", async () => {
+      mockFetchProject(emptyProject);
+      render(<ProjectPage />);
+      await waitFor(() => {
+        expect(screen.getByTestId("react-flow-canvas")).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe("toolbar", () => {
+    it("displays project name", async () => {
+      mockFetchProject(emptyProject);
+      render(<ProjectPage />);
+      await waitFor(() => {
+        expect(screen.getByText("Test Project")).toBeInTheDocument();
+      });
+    });
+
+    it("shows Add Node button", async () => {
+      mockFetchProject(emptyProject);
+      render(<ProjectPage />);
+      await waitFor(() => {
+        expect(screen.getByTestId("add-node-button")).toBeInTheDocument();
+      });
+    });
+
+    it("shows Re-layout button when nodes exist", async () => {
+      mockFetchProject(projectWithNodes);
+      render(<ProjectPage />);
+      await waitFor(() => {
+        expect(screen.getByText("Re-layout")).toBeInTheDocument();
+      });
+    });
+
+    it("hides Re-layout button when no nodes", async () => {
+      mockFetchProject(emptyProject);
+      render(<ProjectPage />);
+      await waitFor(() => {
+        expect(screen.getByText("Test Project")).toBeInTheDocument();
+      });
+      expect(screen.queryByText("Re-layout")).not.toBeInTheDocument();
+    });
+
+    it("shows node count in toolbar", async () => {
+      mockFetchProject(projectWithNodes);
+      render(<ProjectPage />);
+      await waitFor(() => {
+        expect(screen.getByText("Re-layout")).toBeInTheDocument();
+      });
+      // Use getAllByText since the mock canvas also renders node info
+      const nodeCountEl = screen.getByText(/2 node/);
+      expect(nodeCountEl).toBeInTheDocument();
+    });
+
+    it("shows back to dashboard link", async () => {
+      mockFetchProject(emptyProject);
+      render(<ProjectPage />);
+      await waitFor(() => {
+        expect(screen.getByText("Test Project")).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe("canvas with existing state", () => {
+    it("loads nodes into React Flow canvas", async () => {
+      mockFetchProject(projectWithNodes);
+      render(<ProjectPage />);
+      await waitFor(() => {
+        const canvas = screen.getByTestId("react-flow-canvas");
+        expect(canvas).toHaveAttribute("data-node-count", "2");
+      });
+    });
+
+    it("loads edges into React Flow canvas", async () => {
+      mockFetchProject(projectWithNodes);
+      render(<ProjectPage />);
+      await waitFor(() => {
+        const canvas = screen.getByTestId("react-flow-canvas");
+        expect(canvas).toHaveAttribute("data-edge-count", "1");
+      });
+    });
+
+    it("uses persisted positions when available", async () => {
+      mockFetchProject(projectWithPositions);
+      render(<ProjectPage />);
+      await waitFor(() => {
+        const canvas = screen.getByTestId("react-flow-canvas");
+        expect(canvas).toHaveAttribute("data-node-count", "2");
+      });
+    });
+
+    it("closes chat sidebar by default when canvas has nodes", async () => {
+      mockFetchProject(projectWithNodes);
+      render(<ProjectPage />);
+      await waitFor(() => {
+        const sidebar = screen.getByTestId("chat-sidebar");
+        expect(sidebar).toHaveAttribute("data-default-open", "false");
+      });
+    });
+
+    it("hides empty state when nodes exist", async () => {
+      mockFetchProject(projectWithNodes);
+      render(<ProjectPage />);
+      await waitFor(() => {
+        expect(screen.getByText("Re-layout")).toBeInTheDocument();
+      });
+      expect(
+        screen.queryByText("No architecture yet"),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  describe("React Flow components", () => {
+    it("renders Background component", async () => {
+      mockFetchProject(emptyProject);
+      render(<ProjectPage />);
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("react-flow-background"),
+        ).toBeInTheDocument();
+      });
+    });
+
+    it("renders Controls component", async () => {
+      mockFetchProject(emptyProject);
+      render(<ProjectPage />);
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("react-flow-controls"),
+        ).toBeInTheDocument();
+      });
+    });
+
+    it("renders MiniMap component", async () => {
+      mockFetchProject(emptyProject);
+      render(<ProjectPage />);
+      await waitFor(() => {
+        expect(screen.getByTestId("react-flow-minimap")).toBeInTheDocument();
+      });
+    });
+
+    it("renders EdgeLegend component", async () => {
+      mockFetchProject(emptyProject);
+      render(<ProjectPage />);
+      await waitFor(() => {
+        expect(screen.getByTestId("edge-legend")).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe("two-panel layout", () => {
+    it("renders chat sidebar and canvas area side by side", async () => {
+      mockFetchProject(emptyProject);
+      render(<ProjectPage />);
+      await waitFor(() => {
+        expect(screen.getByTestId("chat-sidebar")).toBeInTheDocument();
+        expect(screen.getByTestId("react-flow-canvas")).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe("add node", () => {
+    it("adds node to React Flow canvas and opens detail panel", async () => {
+      mockFetchProject(projectWithNodes);
+      render(<ProjectPage />);
+
+      // Wait for initial load
+      await waitFor(() => {
+        expect(screen.getByText("Re-layout")).toBeInTheDocument();
+      });
+
+      // Verify initial state
+      expect(screen.getByTestId("react-flow-canvas")).toHaveAttribute(
+        "data-node-count",
+        "2",
+      );
+      expect(screen.getByTestId("node-detail-panel")).toHaveAttribute(
+        "data-has-node",
+        "false",
+      );
+
+      // Click add node button
+      await act(async () => {
+        screen.getByTestId("add-node-button").click();
+      });
+
+      // Node count should increase
+      await waitFor(() => {
+        expect(screen.getByTestId("react-flow-canvas")).toHaveAttribute(
+          "data-node-count",
+          "3",
+        );
+      });
+
+      // Detail panel should open for new node
+      expect(screen.getByTestId("node-detail-panel")).toHaveAttribute(
+        "data-has-node",
+        "true",
+      );
+    });
+  });
+});

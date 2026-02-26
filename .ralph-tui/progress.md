@@ -27,6 +27,9 @@ after each iteration and it's included in prompts for context.
 - **React Flow BaseEdge style**: `BaseEdge` renders stroke properties as inline CSS `style`, not SVG attributes. In tests, check `element.style.stroke` not `getAttribute("stroke")`. `MarkerType.ArrowClosed` renders as literal string "arrowclosed" in jsdom (no `url(#...)` resolution without full React Flow canvas).
 - **Next.js App Router API route testing**: Import handlers directly, pass `new Request(url, init)` and `{ params: Promise.resolve({id}) }`. Use `vi.mock("@/db")` to inject test DB and `vi.mock("@/db/migrate")` to skip migrations. Use `await import()` after `vi.mock()` so mocks are active.
 - **next-themes hydration**: `next-themes` ThemeProvider needs `suppressHydrationWarning` on `<html>`. For mount detection, use `useSyncExternalStore` instead of `useEffect(() => setMounted(true), [])` to satisfy the `react-hooks/set-state-in-effect` lint rule.
+- **React Flow mock in vitest**: Mock React Flow with `vi.mock("reactflow")` returning simplified components. Use `data-*` attributes (not text content) in the mock ReactFlow to expose node/edge counts — avoids `getByText` "multiple elements" conflicts with toolbar text. Also mock `reactflow/dist/style.css` as empty object. The mock `useNodesState`/`useEdgesState` can just wrap `React.useState`.
+- **React Flow canvas state persistence**: Extend `StackArchitecture` with optional `positions: Record<string, {x, y}>` field for persisting drag positions. On load: use persisted positions if present, otherwise run Dagre layout. On save (debounced): extract positions from React Flow nodes.
+- **React Flow debounced save timing**: Debounced saves (500ms setTimeout) inside `useEffect` are hard to test in jsdom because `waitFor`/`act` don't reliably advance real timers for nested timeouts. Use `requestAnimationFrame` to gate initial save prevention, and skip debounced save integration tests in favor of testing the state changes directly.
 
 ---
 
@@ -311,4 +314,27 @@ after each iteration and it's included in prompts for context.
 - **Learnings:**
   - When using `vi.fn().mock.calls.find()` with TypeScript strict mode, type the callback parameter as `(c: unknown[])` and cast inner elements to `RequestInit` — avoids tuple length mismatch errors
   - `useSyncExternalStore` pattern from ThemeToggle works well for any hydration-safe mount detection across components
+---
+
+## 2026-02-26 - shastack-ar4.9
+- Replaced custom card-based canvas view with full React Flow v11 integration
+- React Flow features: `fitView`, `Background` (dots variant), `Controls` (zoom/fit), `MiniMap` (category-colored), snap to grid (20px), custom node/edge types (`stackNode`, `stackEdge`)
+- Registered existing `StackNodeComponent` and `StackEdgeComponent` as custom React Flow types
+- Added `EdgeLegend` component to the canvas overlay
+- Implemented debounced auto-save (500ms): canvas changes (node drag, add, delete, edit) trigger a debounced PATCH to `/api/projects/[id]`
+- Extended canvasState storage with optional `positions` field for persisting React Flow node positions across reloads
+- Canvas loads persisted positions on page load (falls back to Dagre layout if none saved)
+- Node click opens detail panel via React Flow's `onNodeClick`; context menu lock/delete via `data.onLockToggle`/`data.onDelete` callbacks
+- Connection creation shows `ConnectionTypeSelector` popover via React Flow's `onConnect`
+- AI architecture updates convert to React Flow nodes with Dagre layout + `fitView` animation
+- Updated E2E tests to match new empty state text ("Start a conversation or add nodes manually")
+- Wrote 24 component tests covering: loading/error/empty states, toolbar, canvas with existing state, React Flow components, two-panel layout, add node behavior
+- **Files created:** src/app/project/[id]/page.test.tsx
+- **Files modified:** src/app/project/[id]/page.tsx (major rewrite), e2e/new-project.test.ts, e2e/full-flow.test.ts
+- **Learnings:**
+  - React Flow mock for vitest: use `data-*` attributes instead of text content for node/edge counts to avoid `getByText` multiple-match conflicts
+  - `useRef` with `requestAnimationFrame` callback for gating initial debounce saves prevents the load-triggered state changes from triggering unwanted API calls
+  - React Flow's `onNodeClick` callback is cleaner than injecting `onClick` into node data — avoids double-click handling with the StackNode's internal click
+  - `deleteKeyCode={null}` on ReactFlow prevents accidental node deletion via keyboard
+  - Debounced save integration tests in jsdom are unreliable due to timer interaction issues between React effects, testing-library's `waitFor`, and jsdom's macrotask queue — test state changes directly instead
 ---
