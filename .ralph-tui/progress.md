@@ -298,3 +298,17 @@ after each iteration and it's included in prompts for context.
   - `next-themes` requires `suppressHydrationWarning` on `<html>` element to avoid React hydration mismatch warnings from the `class` attribute injection
   - Casting fetch mocks: use `as unknown as typeof global.fetch` (double cast through unknown) to satisfy strict TypeScript when mock returns partial Response objects
 ---
+
+## 2026-02-26 - shastack-ar4.8
+- Built Settings page (`src/app/settings/page.tsx`) as client component with three configuration sections
+- API Key section: password input with show/hide toggle, masked display for existing key, `sk-ant-` format validation, green/red status indicator badge
+- Model section: dropdown select with 3 Claude model options (Sonnet, Opus, Haiku), persists via PATCH /api/settings
+- Theme section: light/dark/system buttons with aria-pressed, applies theme immediately via next-themes and persists to API
+- CSS-only toast notification for success/error feedback (auto-dismiss after 3s)
+- Back to Dashboard link, loading state, disabled save when empty
+- Wrote 15 component tests covering: form rendering, loading state, navigation, API key status indicators, validation errors, save success/error toasts, model loading/saving, theme buttons/highlighting/persistence, show/hide toggle, disabled state
+- **Files created:** src/app/settings/page.tsx, src/app/settings/settings-page.test.tsx
+- **Learnings:**
+  - When using `vi.fn().mock.calls.find()` with TypeScript strict mode, type the callback parameter as `(c: unknown[])` and cast inner elements to `RequestInit` — avoids tuple length mismatch errors
+  - `useSyncExternalStore` pattern from ThemeToggle works well for any hydration-safe mount detection across components
+---
