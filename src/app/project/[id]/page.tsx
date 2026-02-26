@@ -90,6 +90,7 @@ export default function ProjectPage() {
   const [toast, setToast] = useState<string | null>(null);
   const [customSubtypes, setCustomSubtypes] = useState<CustomSubtypesMap>({});
   const [scanTrigger, setScanTrigger] = useState(0);
+  const [chatStreaming, setChatStreaming] = useState(false);
   const [showScanInput, setShowScanInput] = useState(false);
   const [scanUrlInput, setScanUrlInput] = useState("");
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<StackNodeData>(
@@ -586,6 +587,7 @@ export default function ProjectPage() {
         defaultOpen={!hasCanvas}
         scanTrigger={scanTrigger}
         onArchitecture={handleArchitecture}
+        onStreaming={setChatStreaming}
       />
 
       {/* Canvas Area */}
@@ -701,8 +703,29 @@ export default function ProjectPage() {
             />
           </ReactFlow>
 
+          {/* Generating architecture overlay */}
+          {chatStreaming && !hasCanvas && (
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+              <div className="text-center text-[var(--muted-foreground)]">
+                <svg
+                  className="mx-auto mb-3 h-10 w-10 animate-spin opacity-50"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                </svg>
+                <p className="text-lg font-medium">Generating architecture...</p>
+                <p className="mt-1 text-sm">
+                  The AI is designing your stack
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Empty state overlay */}
-          {!hasCanvas && (
+          {!chatStreaming && !hasCanvas && (
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
               <div className="text-center text-[var(--muted-foreground)]">
                 <svg

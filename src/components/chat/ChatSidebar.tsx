@@ -23,6 +23,7 @@ interface ChatSidebarProps {
   defaultOpen?: boolean;
   scanTrigger?: number;
   onArchitecture?: (architecture: import("@/types/stack").StackArchitecture) => void;
+  onStreaming?: (streaming: boolean) => void;
 }
 
 export default function ChatSidebar({
@@ -31,6 +32,7 @@ export default function ChatSidebar({
   defaultOpen = false,
   scanTrigger = 0,
   onArchitecture,
+  onStreaming,
 }: ChatSidebarProps) {
   const [open, setOpen] = useState(defaultOpen);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -42,6 +44,10 @@ export default function ChatSidebar({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const initCalledRef = useRef(false);
+
+  useEffect(() => {
+    onStreaming?.(streaming);
+  }, [streaming, onStreaming]);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
