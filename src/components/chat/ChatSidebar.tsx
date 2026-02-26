@@ -34,6 +34,7 @@ export default function ChatSidebar({
   const [initialized, setInitialized] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const initCalledRef = useRef(false);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -61,8 +62,9 @@ export default function ChatSidebar({
           setMessages(displayMessages);
           setInitialized(data.length > 0);
 
-          // If no messages, trigger chat init
-          if (data.length === 0) {
+          // If no messages, trigger chat init (guard against strict mode double-fire)
+          if (data.length === 0 && !initCalledRef.current) {
+            initCalledRef.current = true;
             initChat();
           }
         }
