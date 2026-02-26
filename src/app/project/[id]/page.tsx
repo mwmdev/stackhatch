@@ -39,6 +39,7 @@ import type {
   NodeCategory,
   NodeSubtype,
   ConnectionType,
+  AlternativeNode,
 } from "@/types/stack";
 import { getSubtypeConfig } from "@/lib/node-config";
 import { applyDagreLayout } from "@/lib/layout";
@@ -64,6 +65,7 @@ interface PendingConnection {
 /** Stored canvasState extends StackArchitecture with persisted positions */
 interface StoredCanvasState extends StackArchitecture {
   positions?: Record<string, { x: number; y: number }>;
+  alternatives?: Record<string, AlternativeNode[]>;
 }
 
 const nodeTypes = { stackNode: StackNodeComponent };
@@ -93,6 +95,8 @@ export default function ProjectPage() {
   const [chatStreaming, setChatStreaming] = useState(false);
   const [showScanInput, setShowScanInput] = useState(false);
   const [scanUrlInput, setScanUrlInput] = useState("");
+  const [alternatives, setAlternatives] = useState<Record<string, AlternativeNode[]>>({});
+  const [altLoading, setAltLoading] = useState(false);
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<StackNodeData>(
     [],
   );
@@ -105,9 +109,11 @@ export default function ProjectPage() {
   );
   const projectRef = useRef<Project | null>(null);
   const initializedRef = useRef(false);
+  const alternativesRef = useRef<Record<string, AlternativeNode[]>>({});
 
-  // Keep project ref in sync for use in stable callbacks
+  // Keep refs in sync for use in stable callbacks
   projectRef.current = project;
+  alternativesRef.current = alternatives;
 
   // Auto-dismiss toast
   useEffect(() => {
@@ -183,6 +189,7 @@ export default function ProjectPage() {
           nodes: stackNodes,
           edges: stackEdges,
           positions,
+          alternatives: alternativesRef.current,
         };
         fetch(`/api/projects/${projectId}`, {
           method: "PATCH",
@@ -396,6 +403,76 @@ export default function ProjectPage() {
     setSelectedNode(null);
   }, []);
 
+  // --- Suggest alternatives ---
+
+  const handleSuggestAlternatives = useCallback(async () => {
+    const node = selectedNode;
+    if (!node) return;
+    setAltLoading(true);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/alternatives`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          node: {
+            name: node.name,
+            technology: node.technology,
+            category: node.category,
+            subtype: node.subtype,
+            description: node.description,
+          },
+        }),
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.alternatives) {
+        setAlternatives((prev) => ({ ...prev, [node.id]: data.alternatives }));
+      }
+    } finally {
+      setAltLoading(false);
+    }
+  }, [selectedNode, projectId]);
+
+  // --- Swap alternative ---
+
+  const handleSwapAlternative = useCallback(
+    (alt: AlternativeNode) => {
+      const node = selectedNode;
+      if (!node) return;
+
+      // Save current node data as an alternative
+      const currentAsAlt: AlternativeNode = {
+        name: node.name,
+        technology: node.technology,
+        description: node.description,
+        reasoning: node.reasoning,
+        category: node.category,
+        subtype: node.subtype,
+      };
+
+      // Apply alternative fields to canvas node
+      handleNodeUpdate(node.id, {
+        name: alt.name,
+        technology: alt.technology,
+        description: alt.description,
+        reasoning: alt.reasoning,
+        category: alt.category,
+        subtype: alt.subtype,
+      });
+
+      // Swap in alternatives list: remove the swapped-in, add the swapped-out
+      setAlternatives((prev) => {
+        const list = prev[node.id] ?? [];
+        const updated = list.filter(
+          (a) => a.technology !== alt.technology || a.name !== alt.name,
+        );
+        updated.push(currentAsAlt);
+        return { ...prev, [node.id]: updated };
+      });
+    },
+    [selectedNode, handleNodeUpdate],
+  );
+
   // --- Re-layout ---
 
   const handleRelayout = useCallback(() => {
@@ -507,6 +584,9 @@ export default function ProjectPage() {
         // Initialize React Flow state from loaded canvas
         if (data.canvasState?.nodes?.length) {
           const stored = data.canvasState as StoredCanvasState;
+          if (stored.alternatives) {
+            setAlternatives(stored.alternatives);
+          }
           let posMap: Map<string, { x: number; y: number }>;
 
           if (stored.positions && Object.keys(stored.positions).length > 0) {
@@ -769,6 +849,10 @@ export default function ProjectPage() {
             onDelete={handleNodeDelete}
             onClose={handleClosePanel}
             customSubtypes={customSubtypes}
+            alternatives={selectedNode ? alternatives[selectedNode.id] : undefined}
+            alternativesLoading={altLoading}
+            onSuggestAlternatives={handleSuggestAlternatives}
+            onSwapAlternative={handleSwapAlternative}
           />
 
           {/* Toast notification */}

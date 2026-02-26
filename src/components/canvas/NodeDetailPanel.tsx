@@ -2,13 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import * as icons from "lucide-react";
-import type { NodeCategory, NodeSubtype, StackNode } from "@/types/stack";
+import type { NodeCategory, NodeSubtype, StackNode, AlternativeNode } from "@/types/stack";
 import {
   categoryOrder,
   getCategoryConfig,
   getSubtypesForCategory,
 } from "@/lib/node-config";
 import type { CustomSubtypesMap } from "@/lib/custom-subtypes";
+import AlternativesSection from "@/components/canvas/AlternativesSection";
 
 function DynamicIcon({
   name,
@@ -29,6 +30,10 @@ export interface NodeDetailPanelProps {
   onDelete: (id: string) => void;
   onClose: () => void;
   customSubtypes?: CustomSubtypesMap;
+  alternatives?: AlternativeNode[];
+  alternativesLoading?: boolean;
+  onSuggestAlternatives?: () => void;
+  onSwapAlternative?: (alt: AlternativeNode) => void;
 }
 
 export default function NodeDetailPanel({
@@ -37,6 +42,10 @@ export default function NodeDetailPanel({
   onDelete,
   onClose,
   customSubtypes,
+  alternatives,
+  alternativesLoading,
+  onSuggestAlternatives,
+  onSwapAlternative,
 }: NodeDetailPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -234,6 +243,18 @@ export default function NodeDetailPanel({
             />
           </button>
         </div>
+
+        {/* Alternatives */}
+        {onSuggestAlternatives && onSwapAlternative && (
+          <AlternativesSection
+            nodeId={node.id}
+            node={node}
+            alternatives={alternatives ?? []}
+            loading={alternativesLoading ?? false}
+            onSuggest={onSuggestAlternatives}
+            onSwap={onSwapAlternative}
+          />
+        )}
       </div>
 
       {/* Footer - Delete */}

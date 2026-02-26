@@ -7,7 +7,7 @@ import { nodeConfig } from "@/lib/node-config";
  * Builds a context block describing the current canvas state for the AI.
  * Includes locked status so the AI knows what to preserve.
  */
-function buildCanvasContext(architecture: StackArchitecture): string {
+export function buildCanvasContext(architecture: StackArchitecture): string {
   const lockedNodes = architecture.nodes.filter((n) => n.locked);
   const unlockedNodes = architecture.nodes.filter((n) => !n.locked);
 

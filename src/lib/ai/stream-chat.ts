@@ -2,34 +2,14 @@ import { eq, asc } from "drizzle-orm";
 import { v4 as uuid } from "uuid";
 import Anthropic from "@anthropic-ai/sdk";
 import type { AppDatabase } from "@/db";
-import { messages, projects, settings } from "@/db/schema";
+import { messages, projects } from "@/db/schema";
 import { buildSystemPrompt, INIT_INSTRUCTION } from "@/lib/ai/system-prompt";
 import { parseCustomSubtypes } from "@/lib/custom-subtypes";
 import { buildMessages } from "@/lib/ai/context-builder";
 import { parseAIResponse } from "@/lib/ai/output-parser";
+import { getSettings, getApiKey, getModel } from "@/lib/ai/settings";
 import type { ChatMessage } from "@/types/chat";
 import type { StackArchitecture } from "@/types/stack";
-
-function getSettings(db: AppDatabase) {
-  const rows = db.select().from(settings).all();
-  const map: Record<string, string> = {};
-  for (const row of rows) {
-    map[row.key] = row.value;
-  }
-  return map;
-}
-
-function getApiKey(settingsMap: Record<string, string>): string | null {
-  return settingsMap.apiKey || process.env.ANTHROPIC_API_KEY || null;
-}
-
-function getModel(settingsMap: Record<string, string>): string {
-  return (
-    settingsMap.model ||
-    process.env.ANTHROPIC_MODEL ||
-    "claude-sonnet-4-20250514"
-  );
-}
 
 export function sseEvent(data: object): string {
   return `data: ${JSON.stringify(data)}\n\n`;

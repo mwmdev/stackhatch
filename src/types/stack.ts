@@ -77,6 +77,16 @@ export interface StackEdge {
   label: string;
 }
 
+// An alternative technology suggestion for a canvas slot
+export interface AlternativeNode {
+  name: string;
+  technology: string;
+  description: string;
+  reasoning: string;
+  category: NodeCategory;
+  subtype: NodeSubtype;
+}
+
 // The complete architecture state
 export interface StackArchitecture {
   nodes: StackNode[];
