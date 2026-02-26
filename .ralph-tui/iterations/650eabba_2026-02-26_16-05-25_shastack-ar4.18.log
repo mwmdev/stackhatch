@@ -1,0 +1,105 @@
+# Iteration 12 Log
+
+## Metadata
+
+- **Task ID**: shastack-ar4.18
+- **Task Title**: T-018: Chat-to-Canvas Integration
+- **Description**: As a user, when the AI generates or updates an architecture in the chat, I want the canvas to update in real-time showing the new/modified nodes and connections.
+
+## Acceptance Criteria
+- [ ] New arch...
+- **Status**: completed
+- **Task Completed**: Yes
+- **Promise Detected**: Yes
+- **Started At**: 2026-02-26T15:05:25.568Z
+- **Ended At**: 2026-02-26T15:09:33.153Z
+- **Duration**: 4m 7s
+- **Input Tokens**: 79
+- **Output Tokens**: 14159
+- **Total Tokens**: 14238
+- **Agent**: claude
+- **Model**: claude-opus-4-6
+- **Epic**: shastack-ar4
+- **Sandbox Mode**: auto
+- **Sandbox Network**: Enabled
+--- RAW OUTPUT ---
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/.ralph-tui/progress.md[0m
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/.ralph-tui/iterations/650eabba_2026-02-26_16-00-50_shastack-ar4.17.log[0m
+Let me read the current project page and related files to understand the integration points.
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/src/app/project/[id]/page.tsx[0m
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/src/components/chat/ChatSidebar.tsx[0m
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/src/lib/layout.ts[0m
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/src/types/stack.ts[0m
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/src/lib/ai/stream-chat.ts[0m
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/src/lib/ai/output-parser.ts[0m
+[94m[TodoWrite][0m
+[94m[TodoWrite][0m
+First, add the `onArchitecture` callback prop to ChatSidebar so it can notify the parent when architecture events arrive.
+[94m[Edit][0m [95m/home/mike/cloud/apps/mwm/shastack/src/components/chat/ChatSidebar.tsx[0m edit: "interface ChatSidebarProps {
+  projectId: string;
+..." → "interface ChatSidebarProps {
+  projectId: string;
+..."
+[94m[Edit][0m [95m/home/mike/cloud/apps/mwm/shastack/src/components/chat/ChatSidebar.tsx[0m edit: "export default function ChatSidebar({
+  projectId,..." → "export default function ChatSidebar({
+  projectId,..."
+Now add handling for `architecture` SSE events in `processSSEStream`:
+[94m[Edit][0m [95m/home/mike/cloud/apps/mwm/shastack/src/components/chat/ChatSidebar.tsx[0m edit: "            if (event.type === "text") {
+         ..." → "            if (event.type === "text") {
+         ..."
+[94m[TodoWrite][0m
+Now create the `mergeArchitecture` function that handles locked node preservation during architecture updates.
+[94m[Write][0m [95m/home/mike/cloud/apps/mwm/shastack/src/lib/merge-architecture.ts[0m "import type { StackArchitecture, StackNode, StackEdge } from "@/types/stack";
+import type { NodePosition } from "@/lib/layout";
+
+export interface MergeResult {
+  architecture: StackArchitecture;
+  fix... (2257 chars)"
+[94m[TodoWrite][0m
+Now integrate everything into the project page. I need to:
+1. Add `onArchitecture` handler that uses `mergeArchitecture` 
+2. Add CSS transition for smooth node repositioning
+3. Add fitView after update
+4. Add toast for malformed architecture
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/src/app/project/[id]/page.tsx[0m
+Now I'll rewrite the project page with the chat-to-canvas integration:
+[94m[Write][0m [95m/home/mike/cloud/apps/mwm/shastack/src/app/project/[id]/page.tsx[0m ""use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useParams } from "next/navigation";
+import Link from "next/link";
+import ChatSidebar from "@/components/chat/C... (14904 chars)"
+[94m[TodoWrite][0m
+Now write unit tests for the merge logic.
+[94m[Write][0m [95m/home/mike/cloud/apps/mwm/shastack/src/lib/merge-architecture.test.ts[0m "import { describe, it, expect } from "vitest";
+import { mergeArchitecture } from "./merge-architecture";
+import type { StackArchitecture, StackNode, StackEdge } from "@/types/stack";
+import type { Nod... (8112 chars)"
+[94m[Bash][0m Run merge architecture unit tests $ npx vitest run src/lib/merge-architecture.test.ts 2>&1
+All 9 tests pass. Now let me run typecheck and lint.
+[94m[TodoWrite][0m
+[94m[Bash][0m Run TypeScript type checking $ npx tsc --noEmit 2>&1
+[94m[Bash][0m Run ESLint $ npx eslint . 2>&1
+[94m[Bash][0m Run all unit/integration tests $ npx vitest run 2>&1
+All 117 tests pass, typecheck clean, lint clean. Now close the bead and update progress.
+[94m[TodoWrite][0m
+[94m[Bash][0m Close bead shastack-ar4.18 $ bd close shastack-ar4.18 --db /home/mike/cloud/apps/mwm/shastack/.beads/beads.db --reason "Chat-to-c...
+Now update progress.md:
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/.ralph-tui/progress.md[0m
+[94m[Edit][0m [95m/home/mike/cloud/apps/mwm/shastack/.ralph-tui/progress.md[0m edit: "  - The `architecture` SSE event should be emitted..." → "  - The `architecture` SSE event should be emitted..."
+[94m[TodoWrite][0m
+## Summary
+
+Implemented T-018: Chat-to-Canvas Integration with the following changes:
+
+**New files:**
+- `src/lib/merge-architecture.ts` — Merge function that preserves locked nodes (positions + properties), replaces unlocked nodes from AI, handles edge merging with deduplication
+- `src/lib/merge-architecture.test.ts` — 9 unit tests covering all merge scenarios
+
+**Modified files:**
+- `src/components/chat/ChatSidebar.tsx` — Added `onArchitecture` callback prop; emits parsed `StackArchitecture` when `architecture` SSE events arrive
+- `src/app/project/[id]/page.tsx` — Integrated `handleArchitecture` handler with two paths (first architecture → full layout, update → merge with locked constraints), CSS transition animation (300ms), toast for errors, `useRef` for stable position access
+
+**All checks pass:** 117 tests, typecheck, lint clean.
+
+<promise>COMPLETE</promise>

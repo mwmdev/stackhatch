@@ -209,3 +209,20 @@ after each iteration and it's included in prompts for context.
   - CSS `transition` on `left`/`top` properties provides smooth animation for absolutely-positioned elements when their coordinates change — toggled via a boolean `animating` state with `setTimeout` cleanup
   - Architecture merge with edge deduplication: key edges by `source->target` to prevent duplicates when both current (preserved) and incoming edges connect the same nodes
 ---
+
+## 2026-02-26 - shastack-ar4.10
+- Created custom React Flow node component (`StackNode.tsx`) with card-style visual design
+- Installed `reactflow` v11 package
+- Node features: left border accent color per category, dynamic lucide-react icon per subtype, name + technology display, category badge pill, connection handles (top target, bottom source) colored per category
+- Lock indicator: lock icon in top-right corner + dashed border when `data.locked === true`
+- Selection state: blue ring-2 outline when React Flow marks node as selected
+- Right-click context menu: Lock/Unlock and Delete options with callback props, closes on outside click
+- Used `memo()` for performance optimization
+- Wrote 22 component tests covering: rendering with different categories, lock/unlock indicators, selection styling, connection handles, context menu show/hide/actions, click callbacks, border accent colors
+- **Files created:** src/components/canvas/StackNode.tsx, src/components/canvas/StackNode.test.tsx
+- **Files modified:** package.json (added reactflow)
+- **Learnings:**
+  - React Flow custom nodes need `ReactFlowProvider` wrapper in tests for `Handle` components to render
+  - `memo()` wrapping is important for React Flow custom nodes since the canvas re-renders on every pan/zoom
+  - Context menu positioning via `e.nativeEvent.offsetX/offsetY` works well within the node's coordinate space
+---
