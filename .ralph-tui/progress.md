@@ -178,3 +178,17 @@ after each iteration and it's included in prompts for context.
   - For Anthropic context injection, the user+assistant message pair pattern works well to prime the AI without polluting visible chat history
   - Regex `/<stack>\s*([\s\S]*?)\s*<\/stack>/` handles whitespace around JSON in stack blocks correctly
 ---
+
+## 2026-02-26 - shastack-ar4.17
+- Integrated context-builder and output-parser into chat API routes for full AI architecture flow
+- Created shared `src/lib/ai/stream-chat.ts` helper used by both `/chat` and `/chat/init` routes, eliminating code duplication
+- Chat route now: uses `buildMessages()` to include architecture context with locked node info, uses `parseAIResponse()` to extract `<stack>` blocks, saves extracted architecture to project canvasState, emits `architecture` SSE event
+- Init route refactored to delegate to shared `streamChat()` function
+- Wrote 13 integration tests covering: SSE streaming, message persistence, architecture extraction + canvasState saving, API key handling (DB + env fallback), Anthropic API errors, init flow, model selection from settings, architecture context injection, malformed canvasState/JSON handling
+- **Files created:** src/lib/ai/stream-chat.ts, src/lib/ai/stream-chat.test.ts
+- **Files modified:** src/app/api/projects/[id]/chat/route.ts (simplified to use shared helper), src/app/api/projects/[id]/chat/init/route.ts (simplified to use shared helper)
+- **Learnings:**
+  - Extracting streaming logic to a shared function that accepts `db` and `projectId` parameters makes it testable without mocking Next.js route handlers
+  - Mocking `@anthropic-ai/sdk` with `vi.mock()` and async iterators works cleanly for testing SSE streaming — create iterators that yield `content_block_delta` events
+  - The `architecture` SSE event should be emitted after all text events but before the `done` event, so the client can process the canvas update before marking the stream as complete
+---
