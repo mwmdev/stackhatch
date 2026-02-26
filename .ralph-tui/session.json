@@ -3,10 +3,10 @@
   "sessionId": "650eabba-7478-4fa1-adcb-fd474f4ae540",
   "status": "running",
   "startedAt": "2026-02-26T13:52:42.797Z",
-  "updatedAt": "2026-02-26T14:02:52.063Z",
-  "currentIteration": 0,
+  "updatedAt": "2026-02-26T14:07:37.184Z",
+  "currentIteration": 1,
   "maxIterations": 50,
-  "tasksCompleted": 0,
+  "tasksCompleted": 1,
   "isPaused": false,
   "agentPlugin": "claude",
   "trackerState": {
@@ -17,8 +17,8 @@
       {
         "id": "shastack-ar4.1",
         "title": "T-001: Project Scaffolding and Docker Setup",
-        "status": "open",
-        "completedInSession": false
+        "status": "completed",
+        "completedInSession": true
       },
       {
         "id": "shastack-ar4.2",
@@ -136,7 +136,18 @@
       }
     ]
   },
-  "iterations": [],
+  "iterations": [
+    {
+      "iteration": 1,
+      "status": "completed",
+      "taskId": "shastack-ar4.1",
+      "taskTitle": "T-001: Project Scaffolding and Docker Setup",
+      "taskCompleted": true,
+      "durationMs": 607645,
+      "startedAt": "2026-02-26T13:52:44.243Z",
+      "endedAt": "2026-02-26T14:02:51.888Z"
+    }
+  ],
   "skippedTaskIds": [],
   "cwd": "/home/mike/cloud/apps/mwm/shastack",
   "activeTaskIds": [],

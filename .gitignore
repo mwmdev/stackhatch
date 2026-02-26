@@ -26,5 +26,10 @@ npm-debug.log*
 # data
 data/
 
+# test
+test-results/
+playwright-report/
+coverage/
+
 # bv (beads viewer)
 .bv/
