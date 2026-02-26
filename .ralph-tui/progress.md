@@ -25,6 +25,7 @@ after each iteration and it's included in prompts for context.
 - **jsdom scrollIntoView**: jsdom doesn't implement `scrollIntoView`. Mock it in test files: `Element.prototype.scrollIntoView = vi.fn();`
 - **fetch mock typing**: When assigning `global.fetch = vi.fn(...)` in strict TS, the mock must accept `(input: RequestInfo | URL, options?: RequestInit)` to match fetch's overloaded signature.
 - **React Flow BaseEdge style**: `BaseEdge` renders stroke properties as inline CSS `style`, not SVG attributes. In tests, check `element.style.stroke` not `getAttribute("stroke")`. `MarkerType.ArrowClosed` renders as literal string "arrowclosed" in jsdom (no `url(#...)` resolution without full React Flow canvas).
+- **Next.js App Router API route testing**: Import handlers directly, pass `new Request(url, init)` and `{ params: Promise.resolve({id}) }`. Use `vi.mock("@/db")` to inject test DB and `vi.mock("@/db/migrate")` to skip migrations. Use `await import()` after `vi.mock()` so mocks are active.
 
 ---
 
@@ -252,4 +253,20 @@ after each iteration and it's included in prompts for context.
 - **Learnings:**
   - Most of T-004's types and config were already created as prerequisites by T-012 (NodeDetailPanel) and T-016 (AI output parser) — only the canvas converter functions were missing
   - React Flow `Node<T>` and `Edge<T>` generics map cleanly to domain types when custom node/edge components define their own data interfaces
+---
+
+## 2026-02-26 - shastack-ar4.5
+- Added PATCH and DELETE handlers to `/api/projects/[id]/route.ts`
+- PATCH: partial updates (name, description, canvasState) with Zod `.strict()` validation, updates `updatedAt` timestamp, returns updated project with parsed canvasState
+- DELETE: removes project (messages cascade-delete via FK), returns `{ success: true }`
+- GET/POST routes already existed from T-019 (shastack-ar4.19)
+- GET /api/projects/[id]/messages already existed from T-019
+- Wrote 27 integration tests covering all 6 endpoints: empty state, ordering, field exclusion, creation with/without description, validation errors, 404s, partial updates, cascade deletes, message ordering
+- **Files created:** src/app/api/projects/projects-api.test.ts
+- **Files modified:** src/app/api/projects/[id]/route.ts (added PATCH, DELETE, Zod schema)
+- **Learnings:**
+  - For Next.js App Router API route integration tests, import handlers directly and pass `Request` objects + `{ params: Promise.resolve({id}) }` — avoids needing a running server
+  - Use `vi.mock("@/db")` and `vi.mock("@/db/migrate")` to inject a test DB and skip migrations — the route handlers call `getDb()` which returns the mocked test DB
+  - Zod `.strict()` on update schemas rejects unknown fields, preventing accidental data injection
+  - `await import()` after `vi.mock()` ensures mocks are active when modules initialize
 ---
