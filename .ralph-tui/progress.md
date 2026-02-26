@@ -19,6 +19,9 @@ after each iteration and it's included in prompts for context.
 - **Playwright strict mode**: `getByRole('alert')` conflicts with Next.js route announcer div. Use `getByText()` for specific error messages. Use `.first()` when text may appear in both streaming and finalized message elements.
 - **Playwright route priority**: Later-registered routes have HIGHER priority. When mocking both `/chat/init` and `/chat`, register the general `/chat` route first, then the more specific `/chat/init` second. Better yet, use a single `**/chat**` handler that branches on `url.includes("/chat/init")` vs `url.endsWith("/chat")`.
 - **React Strict Mode double effects**: In dev mode, Next.js runs React Strict Mode which double-invokes `useEffect`. When mocking E2E flows, don't use a shared counter across init and chat handlers — track init and chat separately to avoid counter being incremented twice by the init effect.
+- **@testing-library/react cleanup**: Auto-cleanup doesn't work with vitest unless `globals: true` is set. Add explicit `cleanup()` in `afterEach` in `src/test/setup.ts` to prevent test leakage.
+- **lucide-react dynamic icons**: Access icons by name using `(icons as unknown as Record<string, typeof icons.Box>)[name]`. The module exports non-component members too (like `createLucideIcon`), so direct `as Record<string, ComponentType>` casts fail.
+- **react-hooks/static-components**: Don't assign icon components to variables during render (e.g., `const Icon = getIcon(name)`). Instead, create a `DynamicIcon` wrapper component that resolves internally.
 
 ---
 
@@ -100,4 +103,21 @@ after each iteration and it's included in prompts for context.
   - Playwright route priority: later-registered routes have higher priority — use single `**/chat**` handler with URL branching instead of separate routes for `/chat` and `/chat/init`
   - React Strict Mode double-invokes effects in dev mode — SSE mock counters shared between init and chat handlers get incremented twice by init; track chat calls separately
   - Mocked Playwright routes bypass the server entirely, so DB persistence can't be verified — mock the messages endpoint on reload to simulate persisted data
+---
+
+## 2026-02-26 - shastack-ar4.12
+- Implemented NodeDetailPanel slide-out component with full CRUD on node properties
+- Created prerequisite domain types (`src/types/stack.ts`) and node config (`src/lib/node-config.ts`) since T-004 was not yet implemented
+- Panel features: editable name, technology, description fields; category/subtype dropdowns with filtered subtypes; lock toggle switch; two-click delete confirmation; outside-click-to-close; animated slide-in
+- Integrated panel into project page with state management for node updates and deletes (persists to API)
+- Installed `lucide-react` for category icons with dynamic icon resolution
+- Wrote 15 component tests covering rendering, field updates, lock toggle, delete confirmation, category changes, and rerender behavior
+- Fixed test setup: added explicit `cleanup()` to `src/test/setup.ts` for proper inter-test isolation
+- **Files created:** src/types/stack.ts, src/lib/node-config.ts, src/components/canvas/NodeDetailPanel.tsx, src/components/canvas/NodeDetailPanel.test.tsx
+- **Files modified:** src/app/project/[id]/page.tsx, src/test/setup.ts, package.json (added lucide-react)
+- **Learnings:**
+  - `@testing-library/react` auto-cleanup doesn't work with vitest without `globals: true` — always add explicit cleanup
+  - lucide-react exports non-component members (`createLucideIcon`, etc.) so cast through `unknown` when accessing by dynamic name
+  - ESLint `react-hooks/static-components` rule prevents creating component references during render — use wrapper components for dynamic icon resolution
+  - `react-hooks/set-state-in-effect` lint rule prevents direct setState in effects — use derived state (compare IDs) instead of resetting state in effects
 ---

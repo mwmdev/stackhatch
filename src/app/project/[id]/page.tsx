@@ -1,15 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import ChatSidebar from "@/components/chat/ChatSidebar";
+import NodeDetailPanel from "@/components/canvas/NodeDetailPanel";
+import type { StackNode, StackArchitecture } from "@/types/stack";
 
 interface Project {
   id: string;
   name: string;
   description: string | null;
-  canvasState: unknown;
+  canvasState: StackArchitecture | null;
   createdAt: number;
   updatedAt: number;
 }
@@ -20,6 +22,56 @@ export default function ProjectPage() {
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [selectedNode, setSelectedNode] = useState<StackNode | null>(null);
+
+  const handleNodeUpdate = useCallback(
+    (id: string, updates: Partial<StackNode>) => {
+      setProject((prev) => {
+        if (!prev?.canvasState) return prev;
+        const updatedNodes = prev.canvasState.nodes.map((n) =>
+          n.id === id ? { ...n, ...updates } : n,
+        );
+        const newCanvas = { ...prev.canvasState, nodes: updatedNodes };
+        // Debounced save will be handled by the canvas component (T-009)
+        fetch(`/api/projects/${projectId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ canvasState: JSON.stringify(newCanvas) }),
+        });
+        return { ...prev, canvasState: newCanvas };
+      });
+      // Update selected node in-place
+      setSelectedNode((prev) =>
+        prev && prev.id === id ? { ...prev, ...updates } : prev,
+      );
+    },
+    [projectId],
+  );
+
+  const handleNodeDelete = useCallback(
+    (id: string) => {
+      setProject((prev) => {
+        if (!prev?.canvasState) return prev;
+        const updatedNodes = prev.canvasState.nodes.filter((n) => n.id !== id);
+        const updatedEdges = prev.canvasState.edges.filter(
+          (e) => e.source !== id && e.target !== id,
+        );
+        const newCanvas = { nodes: updatedNodes, edges: updatedEdges };
+        fetch(`/api/projects/${projectId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ canvasState: JSON.stringify(newCanvas) }),
+        });
+        return { ...prev, canvasState: newCanvas };
+      });
+      setSelectedNode(null);
+    },
+    [projectId],
+  );
+
+  const handleClosePanel = useCallback(() => {
+    setSelectedNode(null);
+  }, []);
 
   useEffect(() => {
     async function loadProject() {
@@ -79,8 +131,8 @@ export default function ProjectPage() {
           <h1 className="text-lg font-semibold">{project.name}</h1>
         </div>
 
-        {/* Canvas placeholder */}
-        <div className="flex flex-1 items-center justify-center">
+        {/* Canvas area (relative container for detail panel overlay) */}
+        <div className="relative flex flex-1 items-center justify-center overflow-hidden">
           {!hasCanvas && (
             <div className="text-center text-[var(--muted-foreground)]">
               <svg
@@ -103,6 +155,14 @@ export default function ProjectPage() {
               </p>
             </div>
           )}
+
+          {/* Node Detail Panel (overlays canvas from right) */}
+          <NodeDetailPanel
+            node={selectedNode}
+            onUpdate={handleNodeUpdate}
+            onDelete={handleNodeDelete}
+            onClose={handleClosePanel}
+          />
         </div>
       </div>
     </div>
