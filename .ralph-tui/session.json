@@ -3,10 +3,10 @@
   "sessionId": "650eabba-7478-4fa1-adcb-fd474f4ae540",
   "status": "running",
   "startedAt": "2026-02-26T13:52:42.797Z",
-  "updatedAt": "2026-02-26T14:43:52.676Z",
-  "currentIteration": 5,
+  "updatedAt": "2026-02-26T14:47:45.116Z",
+  "currentIteration": 6,
   "maxIterations": 50,
-  "tasksCompleted": 5,
+  "tasksCompleted": 6,
   "isPaused": false,
   "agentPlugin": "claude",
   "trackerState": {
@@ -47,8 +47,8 @@
       {
         "id": "shastack-ar4.12",
         "title": "T-012: Node Detail Panel",
-        "status": "open",
-        "completedInSession": false
+        "status": "completed",
+        "completedInSession": true
       },
       {
         "id": "shastack-ar4.13",
@@ -186,6 +186,16 @@
       "durationMs": 883484,
       "startedAt": "2026-02-26T14:20:27.900Z",
       "endedAt": "2026-02-26T14:35:11.384Z"
+    },
+    {
+      "iteration": 6,
+      "status": "completed",
+      "taskId": "shastack-ar4.12",
+      "taskTitle": "T-012: Node Detail Panel",
+      "taskCompleted": true,
+      "durationMs": 519026,
+      "startedAt": "2026-02-26T14:35:13.365Z",
+      "endedAt": "2026-02-26T14:43:52.391Z"
     }
   ],
   "skippedTaskIds": [],

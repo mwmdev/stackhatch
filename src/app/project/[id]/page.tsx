@@ -5,7 +5,17 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import ChatSidebar from "@/components/chat/ChatSidebar";
 import NodeDetailPanel from "@/components/canvas/NodeDetailPanel";
-import type { StackNode, StackArchitecture } from "@/types/stack";
+import AddNodeDropdown from "@/components/canvas/AddNodeDropdown";
+import ConnectionTypeSelector from "@/components/canvas/ConnectionTypeSelector";
+import type {
+  StackNode,
+  StackEdge,
+  StackArchitecture,
+  NodeCategory,
+  NodeSubtype,
+  ConnectionType,
+} from "@/types/stack";
+import { getSubtypeConfig } from "@/lib/node-config";
 
 interface Project {
   id: string;
@@ -16,6 +26,16 @@ interface Project {
   updatedAt: number;
 }
 
+interface PendingConnection {
+  sourceId: string;
+  targetId: string;
+  position: { x: number; y: number };
+}
+
+function generateId(): string {
+  return crypto.randomUUID();
+}
+
 export default function ProjectPage() {
   const params = useParams();
   const projectId = params.id as string;
@@ -23,6 +43,19 @@ export default function ProjectPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedNode, setSelectedNode] = useState<StackNode | null>(null);
+  const [pendingConnection, setPendingConnection] =
+    useState<PendingConnection | null>(null);
+
+  const saveCanvasState = useCallback(
+    (canvas: StackArchitecture) => {
+      fetch(`/api/projects/${projectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ canvasState: JSON.stringify(canvas) }),
+      });
+    },
+    [projectId],
+  );
 
   const handleNodeUpdate = useCallback(
     (id: string, updates: Partial<StackNode>) => {
@@ -32,20 +65,14 @@ export default function ProjectPage() {
           n.id === id ? { ...n, ...updates } : n,
         );
         const newCanvas = { ...prev.canvasState, nodes: updatedNodes };
-        // Debounced save will be handled by the canvas component (T-009)
-        fetch(`/api/projects/${projectId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ canvasState: JSON.stringify(newCanvas) }),
-        });
+        saveCanvasState(newCanvas);
         return { ...prev, canvasState: newCanvas };
       });
-      // Update selected node in-place
       setSelectedNode((prev) =>
         prev && prev.id === id ? { ...prev, ...updates } : prev,
       );
     },
-    [projectId],
+    [saveCanvasState],
   );
 
   const handleNodeDelete = useCallback(
@@ -57,20 +84,74 @@ export default function ProjectPage() {
           (e) => e.source !== id && e.target !== id,
         );
         const newCanvas = { nodes: updatedNodes, edges: updatedEdges };
-        fetch(`/api/projects/${projectId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ canvasState: JSON.stringify(newCanvas) }),
-        });
+        saveCanvasState(newCanvas);
         return { ...prev, canvasState: newCanvas };
       });
       setSelectedNode(null);
     },
-    [projectId],
+    [saveCanvasState],
   );
 
   const handleClosePanel = useCallback(() => {
     setSelectedNode(null);
+  }, []);
+
+  const handleAddNode = useCallback(
+    (category: NodeCategory, subtype: NodeSubtype) => {
+      const subtypeConfig = getSubtypeConfig(category, subtype);
+      const newNode: StackNode = {
+        id: generateId(),
+        category,
+        subtype,
+        name: subtypeConfig?.displayName ?? subtype,
+        technology: "",
+        description: "",
+        reasoning: "Manually added",
+        locked: false,
+      };
+
+      setProject((prev) => {
+        const currentCanvas = prev?.canvasState ?? { nodes: [], edges: [] };
+        const newCanvas = {
+          ...currentCanvas,
+          nodes: [...currentCanvas.nodes, newNode],
+        };
+        saveCanvasState(newCanvas);
+        return prev ? { ...prev, canvasState: newCanvas } : prev;
+      });
+
+      setSelectedNode(newNode);
+    },
+    [saveCanvasState],
+  );
+
+  const handleConnectionTypeSelect = useCallback(
+    (type: ConnectionType) => {
+      if (!pendingConnection) return;
+      const newEdge: StackEdge = {
+        id: generateId(),
+        source: pendingConnection.sourceId,
+        target: pendingConnection.targetId,
+        connectionType: type,
+        label: type.toUpperCase(),
+      };
+
+      setProject((prev) => {
+        if (!prev?.canvasState) return prev;
+        const newCanvas = {
+          ...prev.canvasState,
+          edges: [...prev.canvasState.edges, newEdge],
+        };
+        saveCanvasState(newCanvas);
+        return { ...prev, canvasState: newCanvas };
+      });
+      setPendingConnection(null);
+    },
+    [pendingConnection, saveCanvasState],
+  );
+
+  const handleCancelConnection = useCallback(() => {
+    setPendingConnection(null);
   }, []);
 
   useEffect(() => {
@@ -111,7 +192,9 @@ export default function ProjectPage() {
     );
   }
 
-  const hasCanvas = project.canvasState !== null;
+  const hasCanvas =
+    project.canvasState !== null && project.canvasState.nodes.length > 0;
+  const nodeCount = project.canvasState?.nodes.length ?? 0;
 
   return (
     <div className="flex h-screen bg-[var(--background)] text-[var(--foreground)]">
@@ -121,14 +204,22 @@ export default function ProjectPage() {
       {/* Canvas Area */}
       <div className="flex flex-1 flex-col">
         {/* Toolbar */}
-        <div className="flex items-center border-b border-[var(--border)] px-4 py-2">
+        <div className="flex items-center gap-3 border-b border-[var(--border)] px-4 py-2">
           <Link
             href="/"
-            className="mr-4 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+            className="mr-1 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
           >
             &larr;
           </Link>
           <h1 className="text-lg font-semibold">{project.name}</h1>
+          <div className="ml-auto flex items-center gap-2">
+            <AddNodeDropdown onAddNode={handleAddNode} />
+            {nodeCount > 0 && (
+              <span className="text-xs text-[var(--muted-foreground)]">
+                {nodeCount} node{nodeCount !== 1 ? "s" : ""}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Canvas area (relative container for detail panel overlay) */}
@@ -151,9 +242,64 @@ export default function ProjectPage() {
               </svg>
               <p className="text-lg font-medium">No architecture yet</p>
               <p className="mt-1 text-sm">
-                Start a conversation to generate your architecture
+                Start a conversation or add nodes manually
               </p>
             </div>
+          )}
+
+          {/* Simple node list view (until React Flow is integrated in T-009) */}
+          {hasCanvas && (
+            <div className="absolute inset-0 overflow-auto p-6">
+              <div className="flex flex-wrap gap-4">
+                {project.canvasState!.nodes.map((node) => (
+                  <button
+                    key={node.id}
+                    onClick={() => setSelectedNode(node)}
+                    className={`rounded-lg border-l-4 bg-[var(--background)] p-4 text-left shadow-md transition-all hover:shadow-lg ${
+                      selectedNode?.id === node.id
+                        ? "ring-2 ring-[var(--color-client)]"
+                        : ""
+                    }`}
+                    style={{
+                      borderLeftColor: `var(--color-${node.category})`,
+                      minWidth: "200px",
+                    }}
+                    data-testid={`node-card-${node.id}`}
+                  >
+                    <div className="font-medium text-[var(--foreground)]">
+                      {node.name}
+                    </div>
+                    {node.technology && (
+                      <div className="mt-1 text-xs text-[var(--muted-foreground)]">
+                        {node.technology}
+                      </div>
+                    )}
+                    <div
+                      className="mt-2 inline-block rounded-full px-2 py-0.5 text-xs text-white"
+                      style={{
+                        backgroundColor: `var(--color-${node.category})`,
+                      }}
+                    >
+                      {node.category}
+                    </div>
+                    {node.locked && (
+                      <span className="ml-2 text-xs text-[var(--color-data)]">
+                        🔒
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Connection Type Selector popover */}
+          {pendingConnection && (
+            <ConnectionTypeSelector
+              position={pendingConnection.position}
+              onSelect={handleConnectionTypeSelect}
+              onCancel={handleCancelConnection}
+            />
           )}
 
           {/* Node Detail Panel (overlays canvas from right) */}

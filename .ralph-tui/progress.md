@@ -121,3 +121,19 @@ after each iteration and it's included in prompts for context.
   - ESLint `react-hooks/static-components` rule prevents creating component references during render — use wrapper components for dynamic icon resolution
   - `react-hooks/set-state-in-effect` lint rule prevents direct setState in effects — use derived state (compare IDs) instead of resetting state in effects
 ---
+
+## 2026-02-26 - shastack-ar4.13
+- Implemented manual node addition: AddNodeDropdown component with categorized menu, ConnectionTypeSelector popover for edge creation
+- AddNodeDropdown: expandable categories showing subtypes, click to add node with defaults, auto-opens detail panel for editing
+- ConnectionTypeSelector: positioned popover showing all 6 connection types (HTTP, WebSocket, gRPC, TCP, Pub/Sub, File I/O) with descriptions
+- Integrated both into project page: toolbar has Add Node button, node count display, simple card-based node list view (pending React Flow from T-009)
+- Updated empty state message to mention manual addition option
+- `hasCanvas` now checks `nodes.length > 0` instead of just `canvasState !== null` (empty architecture = no canvas)
+- Extracted `saveCanvasState` helper in project page to reduce duplication
+- Wrote 17 component tests (10 AddNodeDropdown + 7 ConnectionTypeSelector), all passing
+- **Files created:** src/components/canvas/AddNodeDropdown.tsx, src/components/canvas/AddNodeDropdown.test.tsx, src/components/canvas/ConnectionTypeSelector.tsx, src/components/canvas/ConnectionTypeSelector.test.tsx
+- **Files modified:** src/app/project/[id]/page.tsx
+- **Learnings:**
+  - When React Flow isn't integrated yet, a simple card-based node list view works as a functional interim for node management
+  - `crypto.randomUUID()` is available in jsdom test environment without polyfill
+---

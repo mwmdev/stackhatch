@@ -1,0 +1,496 @@
+# Iteration 6 Log
+
+## Metadata
+
+- **Task ID**: shastack-ar4.12
+- **Task Title**: T-012: Node Detail Panel
+- **Description**: As a user, I want to click a node and see its full details (name, type, technology, description, reasoning) in a side panel so that I can understand and edit each component.
+
+## Acceptance Criteria
+- ...
+- **Status**: completed
+- **Task Completed**: Yes
+- **Promise Detected**: Yes
+- **Started At**: 2026-02-26T14:35:13.365Z
+- **Ended At**: 2026-02-26T14:43:52.391Z
+- **Duration**: 8m 39s
+- **Input Tokens**: 152
+- **Output Tokens**: 26026
+- **Total Tokens**: 26178
+- **Agent**: claude
+- **Model**: claude-opus-4-6
+- **Epic**: shastack-ar4
+- **Sandbox Mode**: auto
+- **Sandbox Network**: Enabled
+--- RAW OUTPUT ---
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/.ralph-tui/progress.md[0m
+[94m[Glob][0m [95m/home/mike/cloud/apps/mwm/shastack[0m pattern: [96msrc/components/canvas/**/*[0m
+[94m[Glob][0m [95m/home/mike/cloud/apps/mwm/shastack[0m pattern: [96msrc/app/project/**/*[0m
+Let me explore the existing codebase to understand the current state.
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/src/app/project/[id]/page.tsx[0m
+[94m[Glob][0m [95m/home/mike/cloud/apps/mwm/shastack[0m pattern: [96msrc/types/**/*[0m
+[94m[Glob][0m [95m/home/mike/cloud/apps/mwm/shastack[0m pattern: [96msrc/lib/**/*[0m
+[94m[Glob][0m [95m/home/mike/cloud/apps/mwm/shastack[0m pattern: [96msrc/components/**/*[0m
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/package.json[0m
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/src/components/chat/ChatSidebar.tsx[0m
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/src/app/globals.css[0m
+[94m[TodoWrite][0m
+[94m[TodoWrite][0m
+[94m[Write][0m [95m/home/mike/cloud/apps/mwm/shastack/src/types/stack.ts[0m "// Node categories and their subtypes
+export type NodeCategory =
+  | "client"
+  | "api"
+  | "services"
+  | "data"
+  | "infrastructure"
+  | "external";
+
+export type ClientSubtype = "web-app" | "mobile-... (1585 chars)"
+[94m[TodoWrite][0m
+[94m[Write][0m [95m/home/mike/cloud/apps/mwm/shastack/src/lib/node-config.ts[0m "import type {
+  NodeCategory,
+  NodeSubtype,
+} from "@/types/stack";
+
+export interface SubtypeConfig {
+  displayName: string;
+  icon: string; // lucide-react icon name
+}
+
+export interface CategoryConf... (3609 chars)"
+[94m[TodoWrite][0m
+[94m[Bash][0m Install lucide-react icons $ npm install lucide-react 2>&1 | tail -5
+Now let me create the NodeDetailPanel component.
+[94m[TodoWrite][0m
+[94m[Bash][0m Check if canvas directory exists $ ls /home/mike/cloud/apps/mwm/shastack/src/components/canvas/ 2>/dev/null || echo "directory does not...
+[94m[Bash][0m Create canvas components directory $ mkdir -p /home/mike/cloud/apps/mwm/shastack/src/components/canvas
+[94m[Write][0m [95m/home/mike/cloud/apps/mwm/shastack/src/components/canvas/NodeDetailPanel.tsx[0m ""use client";
+
+import { useEffect, useRef, useState } from "react";
+import * as icons from "lucide-react";
+import type { NodeCategory, NodeSubtype, StackNode } from "@/types/stack";
+import {
+  categor... (9038 chars)"
+[94m[TodoWrite][0m
+Now let me write the component tests.
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/src/test/setup.ts[0m
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/vitest.config.ts[0m
+[94m[Write][0m [95m/home/mike/cloud/apps/mwm/shastack/src/components/canvas/NodeDetailPanel.test.tsx[0m "import { describe, it, expect, vi } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
+import NodeDetailPanel from "./NodeDetailPanel";
+import type { StackNode } from "... (8572 chars)"
+Let me run the tests to see if they pass.
+[94m[Bash][0m Run NodeDetailPanel component tests $ npx vitest run src/components/canvas/NodeDetailPanel.test.tsx 2>&1
+
+[91m[Error: Exit code 1
+
+ RUN  v3.2.4 /home/mike/cloud/apps/mwm/shastack
+
+ ❯ src/components/canvas/NodeDetailPanel.test.tsx (15 tests | 13 failed) 704ms
+   ✓ NodeDetailPanel > renders nothing when node is null 21ms
+   ✓ NodeDetailPanel > renders node data correctly 67ms
+   × NodeDetailPanel > renders correct category and subtype selections 30ms
+     → Found multiple elements with the text of: Category
+
+Here are the matching elements:
+
+Ignored nodes: comments, script, style
+[36m<select[39m
+  [33maria-label[39m=[32m"Category"[39m
+  [33mclass[39m=[32m"w-full rounded border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"[39m
+[36m>[39m
+  [36m<option[39m
+    [33mvalue[39m=[32m"client"[39m
+  [36m>[39m
+    [0mClient[0m
+  [36m</option>[39m
+  [36m<option[39m
+    [33mvalue[39m=[32m"api"[39m
+  [36m>[39m
+    [0mAPI Layer[0m
+  [36m</option>[39m
+  [36m<option[39m
+    [33mvalue[39m=[32m"services"[39m
+  [36m>[39m
+    [0mServices[0m
+  [36m</option>[39m
+  [36m<option[39m
+    [33mvalue[39m=[32m"data"[39m
+  [36m>[39m
+    [0mData[0m
+  [36m</option>[39m
+  [36m<option[39m
+    [33mvalue[39m=[32m"infrastructure"[39m
+  [36m>[39m
+    [0mInfrastructure[0m
+  [36m</option>[39m
+  [36m<option[39m
+    [33mvalue[39m=[32m"external"[39m
+  [36m>[39m
+    [0mExternal[0m
+  [36m</option>[39m
+[36m</select>[39m
+
+Ignored nodes: comments, script, style
+[36m<select[39m
+  [33maria-label[39m=[32m"Category"[39m
+  [33mclass[39m=[32m"w-full rounded border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"[39m
+[36m>[39m
+  [36m<option[39m
+    [33mvalue[39m=[32m"client"[39m
+  [36m>[39m
+    [0mClient[0m
+  [36m</option>[39m
+  [36m<option[39m
+    [33mvalue[39m=[32m"api"[39m
+  [36m>[39m
+    [0mAPI Layer[0m
+  [36m</option>[39m
+  [36m<option[39m
+    [33mvalue[39m=[32m"services"[39m
+  [36m>[39m
+    [0mServices[0m
+  [36m</option>[39m
+  [36m<option[39m
+    [33mvalue[39m=[32m"data"[39m
+  [36m>[39m
+    [0mData[0m
+  [36m</option>[39m
+  [36m<option[39m
+    [33mvalue[39m=[32m"infrastructure"[39m
+  [36m>[39m
+    [0mInfrastructure[0m
+  [36m</option>[39m
+  [36m<option[39m
+    [33mvalue[39m=[32m"external"[39m
+  [36m>[39m
+    [0mExternal[0m
+  [36m</option>[39m
+[36m</select>[39m
+
+(If this is intentional, then use the `*AllBy*` variant of the query (like `queryAllByText`, `getAllByText`, or `findAllByText`)).
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div />[39m
+  [36m<div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"absolute right-0 top-0 z-20 flex h-full w-[400px] flex-col border-l border-[var(--border)] bg-[var(--background)] shadow-xl transition-transform duration-200 ease-out"[39m
+      [33mdata-testid[39m=[32m"node-detail-panel"[39m
+    [36m>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"flex items-center gap-3 border-b border-[var(--border)] px-4 py-3"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"flex h-8 w-8 items-center justify-center rounded"[39m
+          [33mstyle[39m=[32m"background-color: var(--color-data); color: white;"[39m
+        [36m>[39m
+          [36m<svg[39m
+            [33maria-hidden[39m=[32m"true"[39m
+            [33mclass[39m=[32m"lucide lucide-database"[39m
+            [33mfill[39m=[32m"none"[39m
+            [33mheight[39m=[32m"18"[39m
+            [33mstroke[39m=[32m"currentColor"[39m
+            [33mstroke-linecap[39m=[32m"round"[39m
+            [33mstroke-linejoin[39m=[32m"round"[39m
+            [33mstroke-width[39m=[32m"2"[39m
+            [33mviewBox[39m=[32m"0 0 24 24"[39m
+            [33mwidth[39m=[32m"18"[39m
+            [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+          [36m>[39m
+            [36m<ellipse[39m
+              [33mcx[39m=[32m"12"[39m
+              [33mcy[39m=[32m"5"[39m
+              [33mrx[39m=[32m"9"[39m
+              [33mry[39m=[32m"3"[39m
+            [36m/>[39m
+            [36m<path[39m
+              [33md[39m=[32m"M3 5V19A9 3 0 0 0 21 19V5"[39m
+            [36m/>[39m
+            [36m<path[39m
+              [33md[39m=[32m"M3 12A9 3 0 0 0 21 12"[39m
+            [36m/>[39m
+          [36m</svg>[39m
+        [36m</div>[39m
+        [36m<input[39m
+          [33maria-label[39m=[32m"Node name"[39m
+          [33mclass[39m=[32m"flex-1 bg-transparent text-lg font-semibold text-[var(--foreground)] outline-none focus:ring-2 focus:ring-[var(--color-client)] focus:rounded px-1"[39m
+          [33mtype[39m=[32m"text"[39m
+          [33mvalue[39m=[32m"PostgreSQL Database"[39m
+        [36m/>[39m
+        [36m<button[39m
+          [33maria-label[39m=[32m"Close panel"[39m
+          [
+
+... [49977 characters truncated] ...
+
+y[0m
+          [36m</label>[39m
+          [36m<select[39m
+            [33maria-label[39m=[32m"Category"[39m
+            [33mclass[39m=[32m"w-full rounded border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"[39m
+          [36m>[39m
+            [36m<option[39m
+              [33mvalue[39m=[32m"client"[39m
+            [36m>[39m
+              [0mClient[0m
+            [36m</option>[39m
+            [36m<option[39m
+              [33mvalue[39m=[32m"api"[39m
+            [36m>[39m
+              [0mAPI Layer[0m
+            [36m</option>[39m
+            [36m<option[39m
+              [33mvalue[39m=[32m"services"[39m
+            [36m>[39m
+              [0mServices[0m
+            [36m</option>[39m
+            [36m<option[39m
+              [33mvalue[39m=[32m"data"[39m
+            [36m>[39m
+              [0mData[0m
+            [36m</option>[39m
+            [36m<option[39m
+              [33mvalue[39m=[32m"infrastructure"[39m
+            [36m>[39m
+              [0mInfrastructure[0m
+            [36m</option>[39m
+            [36m<option[39m
+              [33mvalue[39m=[32m"external"[39m
+            [36m>[39m
+              [0mExternal[0m
+            [36m</option>[39m
+          [36m</select>[39m
+        [36m</div>[39m
+        [36m<div>[39m
+          [36m<label[39m
+            [33mclass[39m=[32m"mb-1 block text-xs font-medium uppercase tracking-wider text-[var(--muted-foreground)]"[39m
+          [36m>[39m
+            [0mSubtype[0m
+          [36m</label>[39m
+          [36m<select[39m
+            [33maria-label[39m=[32m"Subtype"[39m
+            [33mclass[39m=[32m"w-full rounded border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"[39m
+          [36m>[39m
+            [36m<option[39m
+              [33mvalue[39m=[32m"sql-db"[39m
+            [36m>[39m
+              [0mSQL Database[0m
+            [36m</option>[39m
+            [36m<option[39m
+              [33mvalue[39m=[32m"nosql-db"[39m
+            [36m>[39m
+              [0mNoSQL Database[0m
+            [36m</option>[39m
+            [36m<option[39m
+              [33mvalue[39m=[32m"cache"[39m
+            [36m>[39m
+              [0mCache[0m
+            [36m</opti...
+   × NodeDetailPanel > calls onUpdate with new category and first subtype when category changes 28ms
+     → Found multiple elements with the text of: Category
+
+Here are the matching elements:
+
+Ignored nodes: comments, script, style
+[36m<select[39m
+  [33maria-label[39m=[32m"Category"[39m
+  [33mclass[39m=[32m"w-full rounded border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"[39m
+[36m>[39m
+  [36m<option[39m
+    [33mvalue[39m=[32m"client"[39m
+  [36m>[39m
+    [0mClient[0m
+  [36m</option>[39m
+  [36m<option[39m
+    [33mvalue[39m=[32m"api"[39m
+  [36m>[39m
+    [0mAPI Layer[0m
+  [36m</option>[39m
+  [36m<option[39m
+    [33mvalue[39m=[32m"services"[39m
+  [36m>[39m
+    [0mServices[0m
+  [36m</option>[39m
+  [36m<option[39m
+    [33mvalue[39m=[32m"data"[39m
+  [36m>[39m
+    [0mData[0m
+  [36m</option>[39m
+  [36m<option[39m
+    [33mvalue[39m=[32m"infrastructure"[39m
+  [36m>[39m
+    [0mInfrastructure[0m
+  [36m</option>[39m
+  [36m<option[39m
+    [33mvalue[39m=[32m"external"[39m
+  [36m>[39m
+    [0mExternal[0m
+  [36m</option>[39m
+[36m</select>[39m
+
+Ignored nodes: comments, script, style
+[36m<select[39m
+  [33maria-label[39m=[32m"Category"[39m
+  [33mclass[39m=[32m"w-full rounded border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"[39m
+[36m>[39m
+  [36m<option[39m
+    [33mvalue[39m=[32m"client"[39m
+  [36m>[39m
+    [0mClient[0m
+  [36m</option>[39m
+  [36m<option[39m
+    [33mvalue[39m=[32m"api"[39m
+  [36m>[39m
+    [0mAPI Layer[0m
+  [36m</option>[39m
+  [36m<option[39m
+    [33mvalue[39m=[32m"services"[39m
+  [36m>[39m
+    [0mServices[0m
+  [36m</option>[39m
+  [36m<option[39m
+    [33mvalue[39m=[32m"data"[39m
+  [36m>[39m
+    [0mData[0m
+  [36m</option>[39m
+  [36m<option[39m
+    [33mvalue[39m=[32m"infrastructure"[39m
+  [36m>[39m
+    [0mInfrastructure[0m
+  [36m</option>[39m
+  [36m<option[39m
+    [33mvalue[39m=[32m"external"[39m
+  [36m>[39m
+    [0mExternal[0m
+  [36m</option>[39m
+[36m</select>[39m
+
+Ignored nodes: comments, script, style
+[36m<select[39m
+  [33maria-label[39m=[32m"Category"[39m
+  [33mclass[39m=[32m"w-full rounded border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreg][0m
+The tests are failing because of multiple elements with same aria-label. This is likely a cleanup issue between tests. Let me fix the test setup and tests.
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/src/test/setup.ts[0m
+[94m[Edit][0m [95m/home/mike/cloud/apps/mwm/shastack/src/test/setup.ts[0m edit: "import "@testing-library/jest-dom/vitest";" → "import "@testing-library/jest-dom/vitest";
+import ..."
+[94m[Bash][0m Run NodeDetailPanel tests after cleanup fix $ npx vitest run src/components/canvas/NodeDetailPanel.test.tsx 2>&1
+All 15 tests pass. Now let me integrate the panel into the project page.
+[94m[TodoWrite][0m
+Now I need to integrate the NodeDetailPanel into the project page. The canvas with React Flow doesn't exist yet (T-009), so I'll integrate the panel in a way that works with the current placeholder canvas and will also work when React Flow is added later. I'll add a demo/preview capability using the existing canvas state data.
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/src/app/project/[id]/page.tsx[0m
+I need to integrate the NodeDetailPanel into the project page. The panel will be positioned absolutely within the canvas area and will be driven by a selected node state. Since React Flow isn't set up yet, I'll add the state management hooks that will be used when it is, and wire the panel into the layout.
+[94m[Edit][0m [95m/home/mike/cloud/apps/mwm/shastack/src/app/project/[id]/page.tsx[0m edit: ""use client";
+
+import { useEffect, useState } from..." → ""use client";
+
+import { useCallback, useEffect, us..."
+[94m[Edit][0m [95m/home/mike/cloud/apps/mwm/shastack/src/app/project/[id]/page.tsx[0m edit: "  const [project, setProject] = useState<Project |..." → "  const [project, setProject] = useState<Project |..."
+Now update the canvas area to include the NodeDetailPanel:
+[94m[Edit][0m [95m/home/mike/cloud/apps/mwm/shastack/src/app/project/[id]/page.tsx[0m edit: "        {/* Canvas placeholder */}
+        <div cl..." → "        {/* Canvas area (relative container for de..."
+[94m[TodoWrite][0m
+[94m[Bash][0m Run TypeScript type check $ npx tsc --noEmit 2>&1
+[94m[Bash][0m Run ESLint $ npx eslint . 2>&1 | tail -30
+
+[91m[Error: Exit code 2
+src/components/canvas/NodeDetailPanel.tsx(15,17): error TS2352: Conversion of type 'typeof import("/home/mike/cloud/apps/mwm/shastack/node_modules/lucide-react/dist/lucide-react")' to type 'Record<string, LucideIcon>' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Property 'Icon' is incompatible with index signature.
+    Type 'ForwardRefExoticComponent<Omit<IconComponentProps, "ref"> & RefAttributes<SVGSVGElement>>' is not comparable to type 'LucideIcon'.
+      Type 'ForwardRefExoticComponent<Omit<IconComponentProps, "ref"> & RefAttributes<SVGSVGElement>>' is not comparable to type 'FunctionComponent<{ size?: number | undefined; className?: string | undefined; }>'.
+        Types of parameters 'props' and 'props' are incompatible.
+          Type '{ size?: number | undefined; className?: string | undefined; }' is not comparable to type 'Omit<IconComponentProps, "ref"> & RefAttributes<SVGSVGElement>'.
+            Property 'iconNode' is missing in type '{ size?: number | undefined; className?: string | undefined; }' but required in type 'Omit<IconComponentProps, "ref">'.
+
+src/components/canvas/NodeDetailPanel.tsx(15,17): error TS2352: Conversion of type 'typeof import("/home/mike/cloud/apps/mwm/shastack/node_modules/lucide-react/dist/lucide-react")' to type 'Record<string, LucideIcon>' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Property 'Icon' is incompatible with index signature.
+    Type 'ForwardRefExoticComponent<Omit<IconComponentProps, "ref"> & RefAttributes<SVGSVGElement>>' is not comparable to type 'LucideIcon'.
+      Type 'ForwardRefExoticComponent<Omit<IconComponentProps, "ref"> & RefAttributes<SVGSVGElement>>' is not comparable to type 'FunctionComponent<{ size?: number | undefined; className?: string | undefined; }>'.
+        Types of parameters 'props' and 'props' are incompatible.
+          Type '{ size?: number | undefined; className?: string | undefined; }' is not comparable to type 'Omit<IconComponentProps, "ref"> & RefAttributes<SVGSVGElement>'.
+            Property 'iconNode' is missing in type '{ size?: number | undefined; className?: string | undefined; }' but required in type 'Omit<IconComponentProps, "ref">'.][0m
+
+[91m[Error: <tool_use_error>Sibling tool call errored</tool_use_error>][0m
+Need to fix the LucideIcon type casting in NodeDetailPanel.
+[94m[Edit][0m [95m/home/mike/cloud/apps/mwm/shastack/src/components/canvas/NodeDetailPanel.tsx[0m edit: "type LucideIcon = React.ComponentType<{ size?: num..." → "// eslint-disable-next-line @typescript-eslint/no-..."
+[94m[Bash][0m Run TypeScript type check $ npx tsc --noEmit 2>&1
+
+[91m[Error: Exit code 2
+src/components/canvas/NodeDetailPanel.tsx(15,17): error TS2352: Conversion of type 'typeof import("/home/mike/cloud/apps/mwm/shastack/node_modules/lucide-react/dist/lucide-react")' to type 'Record<string, ComponentType<any>>' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Property 'createLucideIcon' is incompatible with index signature.
+    Type '(iconName: string, iconNode: IconNode) => ForwardRefExoticComponent<Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>>' is not comparable to type 'ComponentType<any>'.
+      Type '(iconName: string, iconNode: IconNode) => ForwardRefExoticComponent<Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>>' is not comparable to type 'FunctionComponent<any>'.
+        Target signature provides too few arguments. Expected 2 or more, but got 1.
+
+src/components/canvas/NodeDetailPanel.tsx(15,17): error TS2352: Conversion of type 'typeof import("/home/mike/cloud/apps/mwm/shastack/node_modules/lucide-react/dist/lucide-react")' to type 'Record<string, ComponentType<any>>' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Property 'createLucideIcon' is incompatible with index signature.
+    Type '(iconName: string, iconNode: IconNode) => ForwardRefExoticComponent<Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>>' is not comparable to type 'ComponentType<any>'.
+      Type '(iconName: string, iconNode: IconNode) => ForwardRefExoticComponent<Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>>' is not comparable to type 'FunctionComponent<any>'.
+        Target signature provides too few arguments. Expected 2 or more, but got 1.][0m
+Need to cast through `unknown` first:
+[94m[Edit][0m [95m/home/mike/cloud/apps/mwm/shastack/src/components/canvas/NodeDetailPanel.tsx[0m edit: "// eslint-disable-next-line @typescript-eslint/no-..." → "// eslint-disable-next-line @typescript-eslint/no-..."
+[94m[Bash][0m Run TypeScript type check $ npx tsc --noEmit 2>&1
+[94m[Bash][0m Run ESLint $ npx eslint . 2>&1 | tail -20
+The ESLint rule `react-hooks/static-components` flags creating components during render. Let me fix this by creating a reusable Icon component.
+[94m[Edit][0m [95m/home/mike/cloud/apps/mwm/shastack/src/components/canvas/NodeDetailPanel.tsx[0m edit: "// eslint-disable-next-line @typescript-eslint/no-..." → "// eslint-disable-next-line @typescript-eslint/no-..."
+Now update the usage of `CatIcon` to use `DynamicIcon`:
+[94m[Edit][0m [95m/home/mike/cloud/apps/mwm/shastack/src/components/canvas/NodeDetailPanel.tsx[0m edit: "  const catConfig = getCategoryConfig(node.categor..." → "  const catConfig = getCategoryConfig(node.categor..."
+[94m[Edit][0m [95m/home/mike/cloud/apps/mwm/shastack/src/components/canvas/NodeDetailPanel.tsx[0m edit: "          <CatIcon size={18} />" → "          <DynamicIcon name={catConfig.icon} size=..."
+[94m[Bash][0m Run typecheck and lint $ npx tsc --noEmit 2>&1 && npx eslint . 2>&1 | tail -10
+[94m[Edit][0m [95m/home/mike/cloud/apps/mwm/shastack/src/components/canvas/NodeDetailPanel.tsx[0m edit: "  const panelRef = useRef<HTMLDivElement>(null);
+ ..." → "  const panelRef = useRef<HTMLDivElement>(null);
+ ..."
+Now update the `handleDelete` function and the `setConfirmDelete` call:
+[94m[Edit][0m [95m/home/mike/cloud/apps/mwm/shastack/src/components/canvas/NodeDetailPanel.tsx[0m edit: "  function handleDelete() {
+    if (!confirmDelete..." → "  function handleDelete() {
+    if (!confirmDelete..."
+[94m[Bash][0m Run typecheck and lint $ npx tsc --noEmit 2>&1 && npx eslint . 2>&1 | tail -10
+[94m[Edit][0m [95m/home/mike/cloud/apps/mwm/shastack/src/components/canvas/NodeDetailPanel.tsx[0m edit: "// eslint-disable-next-line @typescript-eslint/no-..." → "const iconMap = icons as unknown as Record<string,..."
+[94m[Bash][0m Run typecheck and lint $ npx tsc --noEmit 2>&1 && npx eslint . 2>&1 | tail -5
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/src/components/canvas/NodeDetailPanel.tsx[0m
+The `eslint-disable-line` annotation doesn't seem to match. Let me just remove the `any` by using `unknown`:
+[94m[Edit][0m [95m/home/mike/cloud/apps/mwm/shastack/src/components/canvas/NodeDetailPanel.tsx[0m edit: "const iconMap = icons as unknown as Record<string,..." → "function DynamicIcon({
+  name,
+  size,
+  className..."
+[94m[Bash][0m Run typecheck and lint $ npx tsc --noEmit 2>&1 && npx eslint . 2>&1 | tail -5
+Clean typecheck and lint. Let me also run all tests to make sure nothing is broken.
+[94m[Bash][0m Run all unit tests $ npx vitest run 2>&1
+All 29 tests pass. Now let me update progress and close the bead.
+[94m[TodoWrite][0m
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/.ralph-tui/progress.md[0m
+[94m[Edit][0m [95m/home/mike/cloud/apps/mwm/shastack/.ralph-tui/progress.md[0m edit: "- **React Strict Mode double effects**: In dev mod..." → "- **React Strict Mode double effects**: In dev mod..."
+Now append the implementation notes:
+[94m[Edit][0m [95m/home/mike/cloud/apps/mwm/shastack/.ralph-tui/progress.md[0m edit: "  - Mocked Playwright routes bypass the server ent..." → "  - Mocked Playwright routes bypass the server ent..."
+Now close the bead:
+[94m[Bash][0m Close bead shastack-ar4.12 $ bd close shastack-ar4.12 --db /home/mike/cloud/apps/mwm/shastack/.beads/beads.db --reason "NodeDetai...
+[94m[TodoWrite][0m
+<promise>COMPLETE</promise>
+
+## Summary
+
+Implemented T-012: Node Detail Panel with the following:
+
+### Files Created
+- **`src/types/stack.ts`** — Domain types for `StackNode`, `StackEdge`, `NodeCategory`, `NodeSubtype`, `ConnectionType`, `StackArchitecture` (prerequisite for T-004)
+- **`src/lib/node-config.ts`** — Category/subtype config with display names, colors, and lucide-react icon mappings
+- **`src/components/canvas/NodeDetailPanel.tsx`** — Slide-out detail panel with:
+  - Editable name, technology, description fields
+  - Category dropdown (changes subtype options and resets to first subtype)
+  - Subtype dropdown (filtered by selected category)
+  - Read-only AI reasoning section
+  - Lock/unlock toggle switch
+  - Two-click delete confirmation
+  - Outside-click-to-close behavior
+  - Animated slide-in/out via CSS transition
+- **`src/components/canvas/NodeDetailPanel.test.tsx`** — 15 component tests
+
+### Files Modified
+- **`src/app/project/[id]/page.tsx`** — Integrated panel with `selectedNode` state, `handleNodeUpdate`, `handleNodeDelete`, `handleClosePanel` callbacks
+- **`src/test/setup.ts`** — Added explicit cleanup for proper test isolation
+- **`package.json`** — Added `lucide-react` dependency
+
+### Key Learnings
+- `@testing-library/react` auto-cleanup requires `globals: true` in vitest — add explicit `cleanup()` instead
+- lucide-react dynamic icon access needs `unknown` intermediate cast
+- ESLint `react-hooks/static-components` requires wrapper components for dynamic icon resolution
