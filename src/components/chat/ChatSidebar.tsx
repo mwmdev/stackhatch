@@ -16,13 +16,17 @@ interface Message {
 
 interface ChatSidebarProps {
   projectId: string;
+  repoUrl?: string | null;
   defaultOpen?: boolean;
+  scanTrigger?: number;
   onArchitecture?: (architecture: import("@/types/stack").StackArchitecture) => void;
 }
 
 export default function ChatSidebar({
   projectId,
+  repoUrl,
   defaultOpen = false,
+  scanTrigger = 0,
   onArchitecture,
 }: ChatSidebarProps) {
   const [open, setOpen] = useState(defaultOpen);
@@ -56,16 +60,21 @@ export default function ChatSidebar({
             (m: Message) =>
               !(
                 m.role === "user" &&
-                m.content.startsWith("Begin the architecture interview")
+                (m.content.startsWith("Begin the architecture interview") ||
+                  m.content.startsWith("Analyze this GitHub repository"))
               ),
           );
           setMessages(displayMessages);
           setInitialized(data.length > 0);
 
-          // If no messages, trigger chat init (guard against strict mode double-fire)
+          // If no messages, trigger chat init or repo scan
           if (data.length === 0 && !initCalledRef.current) {
             initCalledRef.current = true;
-            initChat();
+            if (repoUrl) {
+              scanRepo();
+            } else {
+              initChat();
+            }
           }
         }
       } catch {
@@ -75,6 +84,14 @@ export default function ChatSidebar({
     loadMessages();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
+
+  // Re-scan when toolbar button triggers it
+  useEffect(() => {
+    if (scanTrigger > 0 && repoUrl) {
+      scanRepo();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scanTrigger]);
 
   async function processSSEStream(response: Response) {
     const reader = response.body?.getReader();
@@ -133,6 +150,7 @@ export default function ChatSidebar({
       }
     } finally {
       reader.releaseLock();
+      setStreaming(false);
     }
   }
 
@@ -146,6 +164,30 @@ export default function ChatSidebar({
       await processSSEStream(res);
     } catch {
       setError("Failed to start conversation");
+      setStreaming(false);
+    }
+  }
+
+  async function scanRepo() {
+    setMessages([]);
+    setStreaming(true);
+    setOpen(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/projects/${projectId}/repo-scan`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ repoUrl }),
+      });
+      if (!res.ok && !res.headers.get("content-type")?.includes("text/event-stream")) {
+        const data = await res.json().catch(() => ({ error: "Failed to scan repository" }));
+        setError(data.error || "Failed to scan repository");
+        setStreaming(false);
+        return;
+      }
+      await processSSEStream(res);
+    } catch {
+      setError("Failed to scan repository");
       setStreaming(false);
     }
   }

@@ -9,6 +9,7 @@ import { desc } from "drizzle-orm";
 const createProjectSchema = z.object({
   name: z.string().min(1, "Name is required"),
   description: z.string().optional(),
+  repoUrl: z.string().optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -30,6 +31,7 @@ export async function POST(request: NextRequest) {
       id: uuid(),
       name: parsed.data.name,
       description: parsed.data.description ?? null,
+      repoUrl: parsed.data.repoUrl ?? null,
       canvasState: null,
       createdAt: now,
       updatedAt: now,

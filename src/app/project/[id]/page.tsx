@@ -49,6 +49,7 @@ interface Project {
   id: string;
   name: string;
   description: string | null;
+  repoUrl: string | null;
   canvasState: StackArchitecture | null;
   createdAt: number;
   updatedAt: number;
@@ -88,6 +89,9 @@ export default function ProjectPage() {
     useState<PendingConnection | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [customSubtypes, setCustomSubtypes] = useState<CustomSubtypesMap>({});
+  const [scanTrigger, setScanTrigger] = useState(0);
+  const [showScanInput, setShowScanInput] = useState(false);
+  const [scanUrlInput, setScanUrlInput] = useState("");
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<StackNodeData>(
     [],
   );
@@ -578,7 +582,9 @@ export default function ProjectPage() {
       {/* Chat Sidebar - open by default for new projects (no canvas) */}
       <ChatSidebar
         projectId={projectId}
+        repoUrl={project.repoUrl}
         defaultOpen={!hasCanvas}
+        scanTrigger={scanTrigger}
         onArchitecture={handleArchitecture}
       />
 
@@ -608,6 +614,55 @@ export default function ProjectPage() {
               <span className="text-xs text-[var(--muted-foreground)]">
                 {nodeCount} node{nodeCount !== 1 ? "s" : ""}
               </span>
+            )}
+            {project.repoUrl ? (
+              <button
+                onClick={() => setScanTrigger((t) => t + 1)}
+                className="rounded border border-[var(--border)] px-2 py-1 text-xs text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
+                title={`Re-scan: ${project.repoUrl}`}
+              >
+                Re-scan Repo
+              </button>
+            ) : (
+              <>
+                <button
+                  onClick={() => setShowScanInput((v) => !v)}
+                  className="rounded border border-[var(--border)] px-2 py-1 text-xs text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
+                  title="Scan a GitHub repository"
+                >
+                  Scan Repo
+                </button>
+                {showScanInput && (
+                  <form
+                    className="flex items-center gap-1"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (!scanUrlInput.trim()) return;
+                      setProject((prev) =>
+                        prev ? { ...prev, repoUrl: scanUrlInput.trim() } : prev,
+                      );
+                      setShowScanInput(false);
+                      setScanTrigger((t) => t + 1);
+                    }}
+                  >
+                    <input
+                      type="url"
+                      value={scanUrlInput}
+                      onChange={(e) => setScanUrlInput(e.target.value)}
+                      placeholder="https://github.com/owner/repo"
+                      className="w-56 rounded border border-[var(--border)] bg-[var(--background)] px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--color-client)]"
+                      autoFocus
+                    />
+                    <button
+                      type="submit"
+                      disabled={!scanUrlInput.trim()}
+                      className="rounded bg-[var(--color-client)] px-2 py-1 text-xs text-white hover:opacity-90 disabled:opacity-50"
+                    >
+                      Go
+                    </button>
+                  </form>
+                )}
+              </>
             )}
           </div>
         </div>

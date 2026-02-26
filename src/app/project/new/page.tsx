@@ -8,6 +8,7 @@ export default function NewProjectPage() {
   const router = useRouter();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [repoUrl, setRepoUrl] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -28,6 +29,7 @@ export default function NewProjectPage() {
         body: JSON.stringify({
           name: name.trim(),
           description: description.trim() || undefined,
+          repoUrl: repoUrl.trim() || undefined,
         }),
       });
 
@@ -99,6 +101,29 @@ export default function NewProjectPage() {
               rows={3}
               className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-4 py-2 text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
             />
+          </div>
+
+          <div>
+            <label
+              htmlFor="repoUrl"
+              className="mb-1 block text-sm font-medium"
+            >
+              GitHub Repository URL{" "}
+              <span className="text-[var(--muted-foreground)]">
+                (optional)
+              </span>
+            </label>
+            <input
+              id="repoUrl"
+              type="url"
+              value={repoUrl}
+              onChange={(e) => setRepoUrl(e.target.value)}
+              placeholder="https://github.com/owner/repo"
+              className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-4 py-2 text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
+            />
+            <p className="mt-1 text-xs text-[var(--muted-foreground)]">
+              Public GitHub repos only. The AI will analyze the repo and generate an architecture.
+            </p>
           </div>
 
           {error && (

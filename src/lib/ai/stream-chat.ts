@@ -31,11 +31,11 @@ function getModel(settingsMap: Record<string, string>): string {
   );
 }
 
-function sseEvent(data: object): string {
+export function sseEvent(data: object): string {
   return `data: ${JSON.stringify(data)}\n\n`;
 }
 
-const SSE_HEADERS = {
+export const SSE_HEADERS = {
   "Content-Type": "text/event-stream",
   "Cache-Control": "no-cache",
   Connection: "keep-alive",
@@ -53,6 +53,7 @@ export function streamChat(
   db: AppDatabase,
   projectId: string,
   userMessage: string | null,
+  initMessage?: string,
 ): Response {
   const settingsMap = getSettings(db);
   const apiKey = getApiKey(settingsMap);
@@ -121,9 +122,10 @@ export function streamChat(
 
   // For init (no user message and no history), add init instruction as user message
   if (!userMessage && history.length === 0) {
-    const initContent = project?.description
-      ? `${INIT_INSTRUCTION}\n\nProject description: ${project.description}`
-      : INIT_INSTRUCTION;
+    const initContent = initMessage
+      ?? (project?.description
+        ? `${INIT_INSTRUCTION}\n\nProject description: ${project.description}`
+        : INIT_INSTRUCTION);
     anthropicMessages.push({
       role: "user",
       content: initContent,
@@ -188,7 +190,7 @@ export function streamChat(
               id: uuid(),
               projectId,
               role: "user",
-              content: INIT_INSTRUCTION,
+              content: initMessage ?? INIT_INSTRUCTION,
               createdAt: saveTimestamp - 1,
             })
             .run();

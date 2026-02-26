@@ -9,6 +9,7 @@ const updateProjectSchema = z
   .object({
     name: z.string().min(1, "Name cannot be empty").optional(),
     description: z.string().nullable().optional(),
+    repoUrl: z.string().nullable().optional(),
     canvasState: z.string().nullable().optional(),
   })
   .strict();
