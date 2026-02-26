@@ -242,3 +242,14 @@ after each iteration and it's included in prompts for context.
   - `MarkerType.ArrowClosed` renders as the literal string "arrowclosed" in test environment without the full React Flow canvas — in production, React Flow resolves it to a `url(#...)` marker reference
   - `memo()` wrapping is important for custom edges too, as canvas re-renders on every pan/zoom
 ---
+
+## 2026-02-26 - shastack-ar4.4
+- Created `src/types/canvas.ts` with converter functions between domain types (StackNode/StackEdge) and React Flow types (Node<StackNodeData>/Edge<StackEdgeData>)
+- Four converter functions: `toReactFlowNodes()` (with optional position map), `toReactFlowEdges()`, `fromReactFlowNodes()`, `fromReactFlowEdges()`
+- All domain types (`src/types/stack.ts`), chat types (`src/types/chat.ts`), and node config (`src/lib/node-config.ts`) were already implemented by earlier tasks (T-012, T-016)
+- Wrote 12 unit tests covering: forward conversion, position mapping, empty inputs, reverse conversion, and round-trip identity for all categories and connection types
+- **Files created:** src/types/canvas.ts, src/types/canvas.test.ts
+- **Learnings:**
+  - Most of T-004's types and config were already created as prerequisites by T-012 (NodeDetailPanel) and T-016 (AI output parser) — only the canvas converter functions were missing
+  - React Flow `Node<T>` and `Edge<T>` generics map cleanly to domain types when custom node/edge components define their own data interfaces
+---
