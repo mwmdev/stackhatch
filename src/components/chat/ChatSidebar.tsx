@@ -3,6 +3,10 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 
+function stripStackTags(text: string): string {
+  return text.replace(/<stack>\s*[\s\S]*?\s*<\/stack>/g, "").trim();
+}
+
 interface Message {
   id: string;
   role: "user" | "assistant";
@@ -253,7 +257,7 @@ export default function ChatSidebar({
             >
               {msg.role === "assistant" ? (
                 <div className="prose prose-sm max-w-none dark:prose-invert [&_p]:m-0 [&_p]:mb-2 [&_p:last-child]:mb-0">
-                  <ReactMarkdown>{msg.content}</ReactMarkdown>
+                  <ReactMarkdown>{stripStackTags(msg.content)}</ReactMarkdown>
                 </div>
               ) : (
                 <span>{msg.content}</span>
@@ -267,7 +271,7 @@ export default function ChatSidebar({
           <div className="mb-4 text-left">
             <div className="inline-block max-w-[85%] rounded-lg bg-[var(--muted)] px-3 py-2 text-sm text-[var(--foreground)]">
               <div className="prose prose-sm max-w-none dark:prose-invert [&_p]:m-0 [&_p]:mb-2 [&_p:last-child]:mb-0">
-                <ReactMarkdown>{streamText}</ReactMarkdown>
+                <ReactMarkdown>{stripStackTags(streamText)}</ReactMarkdown>
               </div>
             </div>
           </div>
