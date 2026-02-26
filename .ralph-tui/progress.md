@@ -24,6 +24,7 @@ after each iteration and it's included in prompts for context.
 - **react-hooks/static-components**: Don't assign icon components to variables during render (e.g., `const Icon = getIcon(name)`). Instead, create a `DynamicIcon` wrapper component that resolves internally.
 - **jsdom scrollIntoView**: jsdom doesn't implement `scrollIntoView`. Mock it in test files: `Element.prototype.scrollIntoView = vi.fn();`
 - **fetch mock typing**: When assigning `global.fetch = vi.fn(...)` in strict TS, the mock must accept `(input: RequestInfo | URL, options?: RequestInit)` to match fetch's overloaded signature.
+- **React Flow BaseEdge style**: `BaseEdge` renders stroke properties as inline CSS `style`, not SVG attributes. In tests, check `element.style.stroke` not `getAttribute("stroke")`. `MarkerType.ArrowClosed` renders as literal string "arrowclosed" in jsdom (no `url(#...)` resolution without full React Flow canvas).
 
 ---
 
@@ -225,4 +226,19 @@ after each iteration and it's included in prompts for context.
   - React Flow custom nodes need `ReactFlowProvider` wrapper in tests for `Handle` components to render
   - `memo()` wrapping is important for React Flow custom nodes since the canvas re-renders on every pan/zoom
   - Context menu positioning via `e.nativeEvent.offsetX/offsetY` works well within the node's coordinate space
+---
+
+## 2026-02-26 - shastack-ar4.11
+- Created custom React Flow edge component (`StackEdge.tsx`) with visual distinction per `ConnectionType`
+- Edge styles: http (solid blue), websocket (dashed green), grpc (solid purple 3px), tcp (dotted gray), pub-sub (dash-dot orange), file-io (dotted brown)
+- Features: `BaseEdge` with `getBezierPath` for bezier curves, `EdgeLabelRenderer` for midpoint label pills, `MarkerType.ArrowClosed` for directional arrows, selected state increases stroke width to 3px
+- Exported `edgeStyles` config object for reuse by EdgeLegend and other components
+- Created `EdgeLegend.tsx` floating panel: toggleable visibility, shows all 6 connection types with SVG line samples matching actual edge styles
+- Wrote 23 component tests (13 StackEdge + 10 EdgeLegend), all passing
+- **Files created:** src/components/canvas/StackEdge.tsx, src/components/canvas/StackEdge.test.tsx, src/components/canvas/EdgeLegend.tsx, src/components/canvas/EdgeLegend.test.tsx
+- **Learnings:**
+  - React Flow `BaseEdge` renders stroke/strokeWidth/strokeDasharray as inline CSS `style` properties, not as SVG element attributes — tests must check `element.style.stroke` not `getAttribute("stroke")`
+  - `EdgeLabelRenderer` uses a React Flow portal — labels render outside the SVG, need a portal target in the DOM (or skip label tests when rendering edge in isolation)
+  - `MarkerType.ArrowClosed` renders as the literal string "arrowclosed" in test environment without the full React Flow canvas — in production, React Flow resolves it to a `url(#...)` marker reference
+  - `memo()` wrapping is important for custom edges too, as canvas re-renders on every pan/zoom
 ---

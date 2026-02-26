@@ -1,0 +1,87 @@
+# Iteration 13 Log
+
+## Metadata
+
+- **Task ID**: shastack-ar4.10
+- **Task Title**: T-010: Custom Node Components
+- **Description**: As a user, I want architecture nodes displayed as visually distinct cards with icons and colors per category, so that I can quickly understand the architecture at a glance.
+
+## Acceptance Criteria
+- [...
+- **Status**: completed
+- **Task Completed**: Yes
+- **Promise Detected**: Yes
+- **Started At**: 2026-02-26T15:09:35.012Z
+- **Ended At**: 2026-02-26T15:12:51.737Z
+- **Duration**: 3m 16s
+- **Input Tokens**: 72
+- **Output Tokens**: 9556
+- **Total Tokens**: 9628
+- **Agent**: claude
+- **Model**: claude-opus-4-6
+- **Epic**: shastack-ar4
+- **Sandbox Mode**: auto
+- **Sandbox Network**: Enabled
+--- RAW OUTPUT ---
+Let me start by studying the progress file and understanding the current state of the codebase.
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/.ralph-tui/progress.md[0m
+[94m[Glob][0m [95m/home/mike/cloud/apps/mwm/shastack[0m pattern: [96msrc/components/canvas/**/*[0m
+No `StackNode.tsx` exists yet. Let me read the key files I need to understand before implementing.
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/src/types/stack.ts[0m
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/src/lib/node-config.ts[0m
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/src/app/project/[id]/page.tsx[0m
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/src/app/globals.css[0m
+Let me check what's installed and see if React Flow is present.
+[94m[Bash][0m Check if React Flow is installed $ grep -E "reactflow|@reactflow" package.json
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/src/components/canvas/NodeDetailPanel.tsx[0m
+[94m[TodoWrite][0m
+[94m[Bash][0m Install reactflow package $ npm install reactflow 2>&1 | tail -5
+[94m[Bash][0m Verify reactflow is installed $ grep '"reactflow"' package.json
+Good, reactflow v11 is installed. Now let me create the StackNode component.
+[94m[TodoWrite][0m
+[94m[Write][0m [95m/home/mike/cloud/apps/mwm/shastack/src/components/canvas/StackNode.tsx[0m ""use client";
+
+import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { Handle, Position } from "reactflow";
+import type { NodeProps } from "reactflow";
+import * as icons from ... (6095 chars)"
+[94m[TodoWrite][0m
+Now let me write the component tests. I need to understand the React Flow testing patterns - custom nodes receive `NodeProps` from React Flow.
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/src/components/canvas/NodeDetailPanel.test.tsx[0m
+Good, I can see the test patterns. Now let me write the tests for the StackNode component. Since it's a React Flow custom node, I need to handle the `NodeProps` interface. React Flow `Handle` components need a `ReactFlowProvider` context.
+[94m[Write][0m [95m/home/mike/cloud/apps/mwm/shastack/src/components/canvas/StackNode.test.tsx[0m "import { describe, it, expect, vi } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
+import { ReactFlowProvider } from "reactflow";
+import StackNodeComponent from "./... (7152 chars)"
+Now let me run the tests.
+[94m[Bash][0m Run StackNode component tests $ npx vitest run src/components/canvas/StackNode.test.tsx 2>&1
+All 22 tests pass. Now let me run typecheck and lint.
+[94m[TodoWrite][0m
+[94m[Bash][0m Run TypeScript type checking $ npx tsc --noEmit 2>&1 | head -40
+[94m[Bash][0m Run ESLint on new files $ npx eslint src/components/canvas/StackNode.tsx src/components/canvas/StackNode.test.tsx 2>&1
+Both typecheck and lint pass cleanly. Let me also run the full test suite to make sure nothing is broken.
+[94m[Bash][0m Run full test suite $ npx vitest run 2>&1
+All 139 tests pass (including the new 22 for StackNode). Now let me update progress.md and close the bead.
+[94m[TodoWrite][0m
+[94m[Read][0m [95m/home/mike/cloud/apps/mwm/shastack/.ralph-tui/progress.md[0m
+[94m[Edit][0m [95m/home/mike/cloud/apps/mwm/shastack/.ralph-tui/progress.md[0m edit: "  - Architecture merge with edge deduplication: ke..." → "  - Architecture merge with edge deduplication: ke..."
+[94m[Bash][0m Close the bead $ bd close shastack-ar4.10 --db /home/mike/cloud/apps/mwm/shastack/.beads/beads.db --reason "Custom St...
+[94m[TodoWrite][0m
+T-010 is complete. Here's what was implemented:
+
+**Created `src/components/canvas/StackNode.tsx`** — a custom React Flow node component with:
+- Card-style design with rounded corners, shadow, and 4px left border accent in category color
+- Dynamic lucide-react icon per subtype (falls back to category icon)
+- Node name (bold) + technology subtitle (muted)
+- Category badge pill with category color
+- Connection handles: top (target) and bottom (source) colored per category
+- Lock indicator: lock icon in top-right + dashed border when locked
+- Selection state: blue ring when selected
+- Right-click context menu with Lock/Unlock and Delete actions
+- `memo()` wrapped for React Flow performance
+
+**Created `src/components/canvas/StackNode.test.tsx`** — 22 tests covering all acceptance criteria
+
+**All checks pass:** 139/139 tests, typecheck clean, lint clean.
+
+<promise>COMPLETE</promise>
