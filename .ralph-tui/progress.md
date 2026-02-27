@@ -91,3 +91,15 @@ after each iteration and it's included in prompts for context.
   - Middleware `matcher` config can exclude specific patterns but be careful with static asset matching
 ---
 
+## 2026-02-27 - shastack-uh7.5
+- Implemented login page with GitHub OAuth sign-in flow
+- Files changed:
+  - `/home/mike/cloud/apps/mwm/shastack/src/app/login/page.tsx` - Created login page with GitHub OAuth button and auth redirect handling
+- **Learnings:**
+  - NextAuth v5 server actions work seamlessly with `signIn("github", { redirectTo: "/" })` in form actions
+  - Server-side session checking with `auth()` function allows automatic redirect of authenticated users
+  - Login page follows existing design patterns: same header layout, CSS custom properties, and card styling
+  - GitHub OAuth button uses proper GitHub logo SVG and follows accessibility best practices
+  - Form action approach eliminates need for client-side signIn imports or SessionProvider at this stage
+---
+
