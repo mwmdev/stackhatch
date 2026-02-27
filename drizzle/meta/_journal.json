@@ -15,6 +15,13 @@
       "when": 1772134174164,
       "tag": "0001_hard_cassandra_nova",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1772194510250,
+      "tag": "0002_strong_gressill",
+      "breakpoints": true
     }
   ]
 }
