@@ -3,7 +3,7 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import Database from "better-sqlite3";
 import { eq, asc } from "drizzle-orm";
 import * as schema from "@/db/schema";
-import { projects, messages, settings } from "@/db/schema";
+import { projects, messages, settings, users } from "@/db/schema";
 import type { AppDatabase } from "@/db";
 
 // Mock the Anthropic SDK
@@ -22,14 +22,24 @@ function createTestDb(): AppDatabase {
   sqlite.pragma("foreign_keys = ON");
 
   sqlite.exec(`
+    CREATE TABLE users (
+      id TEXT PRIMARY KEY NOT NULL,
+      github_id TEXT NOT NULL UNIQUE,
+      email TEXT,
+      name TEXT,
+      avatar_url TEXT,
+      created_at INTEGER NOT NULL
+    );
     CREATE TABLE projects (
       id TEXT PRIMARY KEY NOT NULL,
       name TEXT NOT NULL,
       description TEXT,
       repo_url TEXT,
       canvas_state TEXT,
+      user_id TEXT,
       created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
     CREATE TABLE messages (
       id TEXT PRIMARY KEY NOT NULL,
@@ -98,10 +108,21 @@ async function readSSEEvents(
 
 let db: AppDatabase;
 const projectId = "test-proj-1";
+const testUser = {
+  id: "test-user-1",
+  githubId: "12345",
+  email: "test@example.com",
+  name: "Test User",
+  avatarUrl: "https://example.com/avatar.png",
+  createdAt: Date.now(),
+};
 
 beforeEach(() => {
   db = createTestDb();
   vi.clearAllMocks();
+
+  // Insert a test user
+  db.insert(users).values(testUser).run();
 
   // Insert a test project
   db.insert(projects)
@@ -110,6 +131,7 @@ beforeEach(() => {
       name: "Test Project",
       description: null,
       canvasState: null,
+      userId: testUser.id,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     })

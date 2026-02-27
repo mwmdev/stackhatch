@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { getDb } from "@/db";
@@ -8,6 +8,7 @@ import { runMigrations } from "@/db/migrate";
 import { getSettings, getApiKey, getModel } from "@/lib/ai/settings";
 import { buildCanvasContext } from "@/lib/ai/context-builder";
 import type { StackArchitecture, AlternativeNode } from "@/types/stack";
+import { getAuthenticatedUserId } from "@/lib/auth";
 
 const requestSchema = z.object({
   node: z.object({
@@ -33,6 +34,14 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
+
+  const userId = await getAuthenticatedUserId();
+  if (!userId) {
+    return NextResponse.json(
+      { error: "Authentication required" },
+      { status: 401 },
+    );
+  }
 
   let body: unknown;
   try {
@@ -63,12 +72,16 @@ export async function POST(
 
   const model = getModel(settingsMap);
 
-  // Load current architecture for context
+  // Load current architecture for context and verify ownership
   const project = db
     .select({ canvasState: projects.canvasState })
     .from(projects)
-    .where(eq(projects.id, id))
+    .where(and(eq(projects.id, id), eq(projects.userId, userId)))
     .get();
+
+  if (!project) {
+    return NextResponse.json({ error: "Project not found" }, { status: 404 });
+  }
 
   let architectureContext = "";
   if (project?.canvasState) {

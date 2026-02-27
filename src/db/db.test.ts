@@ -3,7 +3,7 @@ import { eq, desc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import Database from "better-sqlite3";
 import * as schema from "./schema";
-import { projects, messages, settings } from "./schema";
+import { projects, messages, settings, users } from "./schema";
 
 function createTestDb() {
   const sqlite = new Database(":memory:");
@@ -11,14 +11,24 @@ function createTestDb() {
 
   // Apply schema directly for in-memory test DB
   sqlite.exec(`
+    CREATE TABLE users (
+      id TEXT PRIMARY KEY NOT NULL,
+      github_id TEXT NOT NULL UNIQUE,
+      email TEXT,
+      name TEXT,
+      avatar_url TEXT,
+      created_at INTEGER NOT NULL
+    );
     CREATE TABLE projects (
       id TEXT PRIMARY KEY NOT NULL,
       name TEXT NOT NULL,
       description TEXT,
       repo_url TEXT,
       canvas_state TEXT,
+      user_id TEXT,
       created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
     CREATE TABLE messages (
       id TEXT PRIMARY KEY NOT NULL,
@@ -39,8 +49,19 @@ function createTestDb() {
 
 let db: ReturnType<typeof createTestDb>;
 
+const testUser = {
+  id: "test-user-1",
+  githubId: "12345",
+  email: "test@example.com",
+  name: "Test User",
+  avatarUrl: "https://example.com/avatar.png",
+  createdAt: Date.now(),
+};
+
 beforeEach(() => {
   db = createTestDb();
+  // Create a test user for all project tests
+  db.insert(users).values(testUser).run();
 });
 
 describe("projects", () => {
@@ -49,6 +70,7 @@ describe("projects", () => {
     name: "Test Project",
     description: "A test project",
     canvasState: null,
+    userId: testUser.id,
     createdAt: Date.now(),
     updatedAt: Date.now(),
   };
@@ -122,6 +144,7 @@ describe("messages", () => {
     name: "Msg Project",
     description: null,
     canvasState: null,
+    userId: testUser.id,
     createdAt: Date.now(),
     updatedAt: Date.now(),
   };

@@ -2,9 +2,10 @@ import { NextRequest } from "next/server";
 import { getDb } from "@/db";
 import { projects } from "@/db/schema";
 import { runMigrations } from "@/db/migrate";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 import { streamChat } from "@/lib/ai/stream-chat";
+import { getAuthenticatedUserId } from "@/lib/auth";
 
 const chatSchema = z.object({
   message: z.string().min(1),
@@ -15,13 +16,22 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
+
+  const userId = await getAuthenticatedUserId();
+  if (!userId) {
+    return new Response(JSON.stringify({ error: "Authentication required" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
   const db = getDb();
   runMigrations(db);
 
   const project = db
     .select({ id: projects.id })
     .from(projects)
-    .where(eq(projects.id, id))
+    .where(and(eq(projects.id, id), eq(projects.userId, userId)))
     .get();
 
   if (!project) {

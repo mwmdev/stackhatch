@@ -17,6 +17,13 @@ after each iteration and it's included in prompts for context.
 - Use explicit type casting (String()) for GitHub profile.id to avoid TypeScript issues
 - Migrations auto-run via `runMigrations()` calls in API routes - no manual migration needed
 
+### Authentication and Authorization Pattern
+- Create centralized auth helper (`src/lib/auth.ts`) with `getAuthenticatedUserId()` for consistent session handling
+- Use `auth()` function from centralized auth config for server-side session access
+- Add `userId` column to data tables with foreign key constraints to users table
+- Use `and(eq(table.id, id), eq(table.userId, userId))` pattern for ownership verification
+- All API routes check authentication first, return 401 if unauthenticated, 404 if resource not owned by user
+
 ---
 
 ## 2026-02-27 - shastack-uh7.1
@@ -45,5 +52,29 @@ after each iteration and it's included in prompts for context.
   - NextAuth signIn callback perfect place for upsert logic - create on first login, update name/avatar on subsequent
   - JWT callback must fetch userId from DB after user creation to include in session
   - Type safety requires explicit casting (String()) for GitHub profile data to avoid TypeScript eq() errors
+---
+
+## 2026-02-27 - shastack-uh7.3
+- Implemented user project scoping and ownership verification across all routes
+- Files changed:
+  - `/home/mike/cloud/apps/mwm/shastack/src/db/schema.ts` - Added userId column to projects table with foreign key to users
+  - `/home/mike/cloud/apps/mwm/shastack/drizzle/0003_easy_sway.sql` - Generated migration for userId column addition
+  - `/home/mike/cloud/apps/mwm/shastack/src/lib/auth-config.ts` - Extracted NextAuth config for reusable auth function
+  - `/home/mike/cloud/apps/mwm/shastack/src/lib/auth.ts` - Centralized authentication helpers for session management
+  - `/home/mike/cloud/apps/mwm/shastack/src/app/api/projects/route.ts` - Updated GET/POST routes for user scoping
+  - `/home/mike/cloud/apps/mwm/shastack/src/app/api/projects/[id]/route.ts` - Updated GET/PATCH/DELETE for ownership verification
+  - `/home/mike/cloud/apps/mwm/shastack/src/app/api/projects/[id]/chat/route.ts` - Added ownership verification
+  - `/home/mike/cloud/apps/mwm/shastack/src/app/api/projects/[id]/chat/init/route.ts` - Added ownership verification
+  - `/home/mike/cloud/apps/mwm/shastack/src/app/api/projects/[id]/messages/route.ts` - Added ownership verification
+  - `/home/mike/cloud/apps/mwm/shastack/src/app/api/projects/[id]/alternatives/route.ts` - Added ownership verification
+  - `/home/mike/cloud/apps/mwm/shastack/src/app/api/projects/[id]/repo-scan/route.ts` - Added ownership verification
+  - Updated test database schemas in `src/db/db.test.ts` and `src/lib/ai/stream-chat.test.ts`
+- **Learnings:**
+  - Centralized auth config pattern enables both route handlers and session access from single source
+  - NextAuth v5 requires `auth()` function import from centralized config, not `getServerSession`
+  - Ownership verification pattern: check authentication first, then verify resource belongs to user
+  - Database migrations automatically apply in development via runMigrations() calls in routes
+  - Test database schemas must be manually updated to match production schema changes
+  - Foreign key constraints ensure data integrity between users and their projects
 ---
 

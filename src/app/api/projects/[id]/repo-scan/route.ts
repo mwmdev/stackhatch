@@ -2,10 +2,11 @@ import { NextRequest } from "next/server";
 import { getDb } from "@/db";
 import { messages, projects } from "@/db/schema";
 import { runMigrations } from "@/db/migrate";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 import { analyzeRepo, formatRepoAnalysis } from "@/lib/github-analyzer";
 import { streamChat, sseEvent, SSE_HEADERS } from "@/lib/ai/stream-chat";
+import { getAuthenticatedUserId } from "@/lib/auth";
 
 const scanSchema = z.object({
   repoUrl: z.string().min(1, "Repository URL is required"),
@@ -16,13 +17,22 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
+
+  const userId = await getAuthenticatedUserId();
+  if (!userId) {
+    return new Response(JSON.stringify({ error: "Authentication required" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
   const db = getDb();
   runMigrations(db);
 
   const project = db
     .select({ id: projects.id })
     .from(projects)
-    .where(eq(projects.id, id))
+    .where(and(eq(projects.id, id), eq(projects.userId, userId)))
     .get();
 
   if (!project) {
@@ -55,7 +65,7 @@ export async function POST(
   // Save repoUrl and clear canvas state for fresh architecture
   db.update(projects)
     .set({ repoUrl, canvasState: null, updatedAt: Date.now() })
-    .where(eq(projects.id, id))
+    .where(and(eq(projects.id, id), eq(projects.userId, userId)))
     .run();
 
   // Delete existing messages (reset conversation for re-scan)

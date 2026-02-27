@@ -1,0 +1,100 @@
+import NextAuth from "next-auth";
+import GitHubProvider from "next-auth/providers/github";
+import { getDb } from "@/db";
+import { users } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { v4 as uuid } from "uuid";
+
+export const { handlers: { GET, POST }, auth, signIn, signOut } = NextAuth({
+  providers: [
+    GitHubProvider({
+      clientId: process.env.GITHUB_CLIENT_ID!,
+      clientSecret: process.env.GITHUB_CLIENT_SECRET!,
+    }),
+  ],
+  session: {
+    strategy: "jwt",
+  },
+  secret: process.env.NEXTAUTH_SECRET,
+  callbacks: {
+    async signIn({ account, profile }) {
+      if (account?.provider === "github" && profile?.id) {
+        try {
+          const db = getDb();
+          const githubId = String(profile.id);
+
+          // Check if user already exists
+          const existingUser = await db
+            .select()
+            .from(users)
+            .where(eq(users.githubId, githubId))
+            .limit(1);
+
+          if (existingUser.length === 0) {
+            // Create new user on first login
+            await db.insert(users).values({
+              id: uuid(),
+              githubId,
+              email: profile.email || null,
+              name: profile.name || null,
+              avatarUrl: (profile as any).avatar_url || null,
+              createdAt: Date.now(),
+            });
+          } else {
+            // Update existing user's name and avatar on subsequent logins
+            await db
+              .update(users)
+              .set({
+                name: profile.name || existingUser[0].name,
+                avatarUrl: (profile as any).avatar_url || existingUser[0].avatarUrl,
+              })
+              .where(eq(users.githubId, githubId));
+          }
+
+          return true;
+        } catch (error) {
+          console.error("Error upserting user:", error);
+          return false;
+        }
+      }
+
+      return true;
+    },
+    async jwt({ token, account, profile }) {
+      // Store GitHub information in the token
+      if (account && profile) {
+        const githubId = String(profile.id);
+        token.githubId = githubId;
+
+        // Fetch the user ID from the database
+        try {
+          const db = getDb();
+          const user = await db
+            .select()
+            .from(users)
+            .where(eq(users.githubId, githubId))
+            .limit(1);
+
+          if (user.length > 0) {
+            token.userId = user[0].id;
+          }
+        } catch (error) {
+          console.error("Error fetching user ID:", error);
+        }
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      // Add GitHub ID and user ID to session
+      if (session.user) {
+        if (token.githubId) {
+          (session.user as any).githubId = token.githubId;
+        }
+        if (token.userId) {
+          (session.user as any).userId = token.userId;
+        }
+      }
+      return session;
+    },
+  },
+});

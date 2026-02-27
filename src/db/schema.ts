@@ -15,6 +15,7 @@ export const projects = sqliteTable("projects", {
   description: text("description"),
   repoUrl: text("repo_url"),
   canvasState: text("canvas_state"),
+  userId: text("user_id").references(() => users.id, { onDelete: "cascade" }),
   createdAt: integer("created_at", { mode: "number" }).notNull(),
   updatedAt: integer("updated_at", { mode: "number" }).notNull(),
 });

@@ -4,7 +4,8 @@ import { projects } from "@/db/schema";
 import { runMigrations } from "@/db/migrate";
 import { v4 as uuid } from "uuid";
 import { z } from "zod";
-import { desc } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
+import { getAuthenticatedUserId } from "@/lib/auth";
 
 const createProjectSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -14,6 +15,14 @@ const createProjectSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    const userId = await getAuthenticatedUserId();
+    if (!userId) {
+      return NextResponse.json(
+        { error: "Authentication required" },
+        { status: 401 },
+      );
+    }
+
     const body = await request.json();
     const parsed = createProjectSchema.safeParse(body);
     if (!parsed.success) {
@@ -33,6 +42,7 @@ export async function POST(request: NextRequest) {
       description: parsed.data.description ?? null,
       repoUrl: parsed.data.repoUrl ?? null,
       canvasState: null,
+      userId,
       createdAt: now,
       updatedAt: now,
     };
@@ -50,10 +60,18 @@ export async function POST(request: NextRequest) {
 
 export async function GET() {
   try {
+    const userId = await getAuthenticatedUserId();
+    if (!userId) {
+      return NextResponse.json(
+        { error: "Authentication required" },
+        { status: 401 },
+      );
+    }
+
     const db = getDb();
     runMigrations(db);
 
-    const allProjects = db
+    const userProjects = db
       .select({
         id: projects.id,
         name: projects.name,
@@ -62,10 +80,11 @@ export async function GET() {
         updatedAt: projects.updatedAt,
       })
       .from(projects)
+      .where(eq(projects.userId, userId))
       .orderBy(desc(projects.updatedAt))
       .all();
 
-    return NextResponse.json(allProjects);
+    return NextResponse.json(userProjects);
   } catch {
     return NextResponse.json(
       { error: "Failed to fetch projects" },
