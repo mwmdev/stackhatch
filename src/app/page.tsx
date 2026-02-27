@@ -117,8 +117,8 @@ export default function Dashboard() {
       {/* Header */}
       <header className="border-b border-[var(--border)]">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
-          <h1 className="text-xl font-bold">StackHatch</h1>
-          <div className="flex items-center gap-2">
+          <span className="text-lg font-bold tracking-tight">StackHatch</span>
+          <div className="flex items-center gap-1">
             <ThemeToggle />
             <Link
               href="/settings"
@@ -135,84 +135,165 @@ export default function Dashboard() {
         </div>
       </header>
 
-      {/* Main content */}
-      <main className="mx-auto max-w-5xl px-6 py-8">
-        {/* Hero: two paths */}
-        <div className="mx-auto max-w-xl py-8 text-center">
-          <h2 className="mb-2 text-2xl font-bold">Design your stack</h2>
-          <p className="mb-6 text-[var(--muted-foreground)]">
-            Paste a GitHub repo URL to analyze, upload a PRD, or start from scratch.
-          </p>
+      <main>
+        {/* Hero */}
+        <section className="relative overflow-hidden border-b border-[var(--border)]">
+          <div className="hero-grid absolute inset-0" aria-hidden="true" />
+          <div className="hero-glow absolute inset-0" aria-hidden="true" />
 
-          <form onSubmit={handleRepoSubmit} className="flex gap-2">
-            <input
-              type="url"
-              value={repoUrl}
-              onChange={(e) => setRepoUrl(e.target.value)}
-              placeholder="https://github.com/owner/repo"
-              disabled={creating}
-              className="flex-1 rounded-lg border border-[var(--border)] bg-[var(--background)] px-4 py-2.5 text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)] disabled:opacity-50"
-            />
-            <button
-              type="submit"
-              disabled={creating || !repoUrl.trim()}
-              className="rounded-lg bg-[var(--color-client)] px-5 py-2.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
-            >
-              {creating ? "Creating..." : "Analyze"}
-            </button>
-          </form>
-
-          <div className="my-4 flex items-center gap-3">
-            <div className="h-px flex-1 bg-[var(--border)]" />
-            <span className="text-xs text-[var(--muted-foreground)]">or</span>
-            <div className="h-px flex-1 bg-[var(--border)]" />
-          </div>
-
-          <div className="flex items-center justify-center gap-3">
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={creating}
-              className="rounded-lg border border-[var(--border)] px-6 py-2.5 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--muted)] disabled:opacity-50"
-            >
-              Upload a PRD
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".md,.txt,.pdf,.doc,.docx"
-              onChange={handleFileUpload}
-              className="hidden"
-            />
-            <span className="text-xs text-[var(--muted-foreground)]">or</span>
-            <button
-              onClick={() => createProject()}
-              disabled={creating}
-              className="rounded-lg border border-[var(--border)] px-6 py-2.5 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--muted)] disabled:opacity-50"
-            >
-              Start from scratch
-            </button>
-          </div>
-
-          {error && (
-            <p className="mt-3 text-sm text-red-500">{error}</p>
-          )}
-        </div>
-
-        {/* Existing projects */}
-        {loading ? (
-          <div className="py-8 text-center text-[var(--muted-foreground)]">
-            Loading projects...
-          </div>
-        ) : projects.length > 0 && (
-          <>
-            <div className="mb-4 mt-4 border-t border-[var(--border)] pt-6">
-              <h3 className="text-sm font-semibold text-[var(--muted-foreground)]">Recent projects</h3>
+          <div className="relative mx-auto max-w-5xl px-6 pb-16 pt-20">
+            {/* Headline */}
+            <div className="mx-auto max-w-2xl text-center">
+              <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
+                Design your architecture
+                <span className="text-[var(--color-client)]"> with AI</span>
+              </h1>
+              <p className="mt-4 text-lg leading-relaxed text-[var(--muted-foreground)]">
+                From idea to visual architecture in seconds. Paste a repo,
+                upload requirements, or start a conversation.
+              </p>
+              <p className="mt-2 text-sm text-[var(--muted-foreground)] opacity-60">
+                Powered by Claude · Bring your own API key
+              </p>
             </div>
+
+            {/* Three entry cards */}
+            <div className="mx-auto mt-14 grid max-w-4xl grid-cols-1 gap-5 md:grid-cols-3">
+              {/* Analyze Repo */}
+              <div className="entry-card animate-fade-in-up flex flex-col rounded-xl border border-[var(--border)] bg-[var(--card)] p-6">
+                <div
+                  className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg text-[var(--color-client)]"
+                  style={{ backgroundColor: 'color-mix(in srgb, var(--color-client) 12%, transparent)' }}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="16 18 22 12 16 6" />
+                    <polyline points="8 6 2 12 8 18" />
+                  </svg>
+                </div>
+                <h3 className="font-semibold text-[var(--card-foreground)]">
+                  Analyze a Repository
+                </h3>
+                <p className="mt-1 flex-1 text-sm text-[var(--muted-foreground)]">
+                  Reverse-engineer architecture from a public GitHub repo
+                </p>
+                <form onSubmit={handleRepoSubmit} className="mt-4 space-y-2">
+                  <input
+                    type="url"
+                    value={repoUrl}
+                    onChange={(e) => setRepoUrl(e.target.value)}
+                    placeholder="https://github.com/owner/repo"
+                    disabled={creating}
+                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)] disabled:opacity-50"
+                  />
+                  <button
+                    type="submit"
+                    disabled={creating || !repoUrl.trim()}
+                    className="w-full rounded-lg bg-[var(--color-client)] py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+                  >
+                    {creating ? "Creating..." : "Analyze"}
+                  </button>
+                </form>
+              </div>
+
+              {/* Upload PRD */}
+              <div
+                className="entry-card animate-fade-in-up flex flex-col rounded-xl border border-[var(--border)] bg-[var(--card)] p-6"
+                style={{ animationDelay: "80ms" }}
+              >
+                <div
+                  className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg text-[var(--color-services)]"
+                  style={{ backgroundColor: 'color-mix(in srgb, var(--color-services) 12%, transparent)' }}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                    <line x1="16" y1="13" x2="8" y2="13" />
+                    <line x1="16" y1="17" x2="8" y2="17" />
+                  </svg>
+                </div>
+                <h3 className="font-semibold text-[var(--card-foreground)]">
+                  Upload a PRD
+                </h3>
+                <p className="mt-1 flex-1 text-sm text-[var(--muted-foreground)]">
+                  Generate architecture from your requirements document
+                </p>
+                <div className="mt-4">
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={creating}
+                    className="w-full rounded-lg border border-dashed border-[var(--border)] py-2 text-sm font-medium text-[var(--foreground)] hover:border-[var(--color-services)] hover:bg-[var(--muted)] disabled:opacity-50"
+                  >
+                    Choose file...
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".md,.txt,.pdf,.doc,.docx"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+                  <p className="mt-1.5 text-center text-xs text-[var(--muted-foreground)]">
+                    .md, .txt, .pdf, .docx
+                  </p>
+                </div>
+              </div>
+
+              {/* Start from Scratch */}
+              <div
+                className="entry-card animate-fade-in-up flex flex-col rounded-xl border border-[var(--border)] bg-[var(--card)] p-6"
+                style={{ animationDelay: "160ms" }}
+              >
+                <div
+                  className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg text-[var(--color-api)]"
+                  style={{ backgroundColor: 'color-mix(in srgb, var(--color-api) 12%, transparent)' }}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2" />
+                    <line x1="12" y1="8" x2="12" y2="16" />
+                    <line x1="8" y1="12" x2="16" y2="12" />
+                  </svg>
+                </div>
+                <h3 className="font-semibold text-[var(--card-foreground)]">
+                  Start Fresh
+                </h3>
+                <p className="mt-1 flex-1 text-sm text-[var(--muted-foreground)]">
+                  Begin with a blank canvas and let AI guide your design
+                </p>
+                <div className="mt-4">
+                  <button
+                    onClick={() => createProject()}
+                    disabled={creating}
+                    className="w-full rounded-lg border border-[var(--border)] py-2 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--muted)] disabled:opacity-50"
+                  >
+                    Start from scratch
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {error && (
+              <p className="mt-4 text-center text-sm text-red-500">{error}</p>
+            )}
+          </div>
+        </section>
+
+        {/* Recent projects */}
+        {loading ? (
+          <section className="mx-auto max-w-5xl px-6 py-10">
+            <div className="py-8 text-center text-[var(--muted-foreground)]">
+              Loading projects...
+            </div>
+          </section>
+        ) : projects.length > 0 && (
+          <section className="mx-auto max-w-5xl px-6 py-10">
+            <h2 className="mb-5 text-xs font-semibold uppercase tracking-widest text-[var(--muted-foreground)]">
+              Recent projects
+            </h2>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {projects.map((project) => (
                 <div
                   key={project.id}
-                  className="group relative rounded-lg border border-[var(--border)] bg-[var(--card)] p-4 transition-shadow hover:shadow-md"
+                  className="group relative rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 transition-all duration-200 hover:shadow-md"
                 >
                   <button
                     onClick={() => router.push(`/project/${project.id}`)}
@@ -248,7 +329,7 @@ export default function Dashboard() {
                 </div>
               ))}
             </div>
-          </>
+          </section>
         )}
       </main>
 
@@ -260,7 +341,7 @@ export default function Dashboard() {
           data-testid="delete-modal"
         >
           <div
-            className="mx-4 w-full max-w-sm rounded-lg bg-[var(--card)] p-6 shadow-xl"
+            className="mx-4 w-full max-w-sm rounded-xl bg-[var(--card)] p-6 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-lg font-semibold text-[var(--card-foreground)]">

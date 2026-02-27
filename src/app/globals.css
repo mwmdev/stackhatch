@@ -39,5 +39,47 @@
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Hero background effects */
+.hero-grid {
+  background-image: radial-gradient(circle, var(--border) 1px, transparent 1px);
+  background-size: 24px 24px;
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,0.5) 0%, transparent 70%);
+  mask-image: linear-gradient(to bottom, rgba(0,0,0,0.5) 0%, transparent 70%);
+}
+
+.hero-glow {
+  background: radial-gradient(
+    ellipse 600px 400px at 50% 0%,
+    color-mix(in srgb, var(--color-client) 8%, transparent),
+    transparent
+  );
+}
+
+/* Entry card hover */
+.entry-card {
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+}
+
+.entry-card:hover {
+  border-color: color-mix(in srgb, var(--color-client) 25%, var(--border));
+  box-shadow: 0 8px 24px -4px color-mix(in srgb, var(--color-client) 10%, transparent);
+  transform: translateY(-2px);
+}
+
+/* Staggered fade-in */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.5s ease-out both;
 }

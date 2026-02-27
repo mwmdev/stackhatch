@@ -1,14 +1,14 @@
 {
-  "id": "650eabba-7478-4fa1-adcb-fd474f4ae540",
+  "id": "4f0d275b-6cc9-4fab-986e-cd5f38fbe954",
   "status": "running",
-  "startedAt": "2026-02-26T13:52:42.235Z",
-  "updatedAt": "2026-02-26T15:35:12.174Z",
+  "startedAt": "2026-02-27T12:10:55.735Z",
+  "updatedAt": "2026-02-27T12:10:55.735Z",
   "agentPlugin": "claude",
   "trackerPlugin": "beads-bv",
-  "epicId": "shastack-ar4",
-  "currentIteration": 19,
+  "epicId": "shastack-uh7",
+  "currentIteration": 0,
   "maxIterations": 50,
   "totalTasks": 0,
-  "tasksCompleted": 19,
+  "tasksCompleted": 0,
   "cwd": "/home/mike/cloud/apps/mwm/shastack"
 }
