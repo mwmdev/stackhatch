@@ -78,3 +78,16 @@ after each iteration and it's included in prompts for context.
   - Foreign key constraints ensure data integrity between users and their projects
 ---
 
+## 2026-02-27 - shastack-uh7.4
+- Implemented NextAuth.js middleware to protect all routes automatically
+- Files changed:
+  - `/home/mike/cloud/apps/mwm/shastack/src/middleware.ts` - Created middleware with auth protection for all routes
+  - `/home/mike/cloud/apps/mwm/shastack/src/app/api/projects/projects-api.test.ts` - Fixed test database schema and added auth mocking
+- **Learnings:**
+  - NextAuth.js v5 middleware uses `auth()` function from centralized config, not `getServerSession`
+  - Middleware automatically handles route protection - API routes get 401 JSON, pages get redirected to `/login`
+  - Test database schemas need manual updates when schema changes (users table, userId column)
+  - NextAuth imports in test files require proper mocking to avoid module resolution errors
+  - Middleware `matcher` config can exclude specific patterns but be careful with static asset matching
+---
+

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import Database from "better-sqlite3";
 import * as schema from "@/db/schema";
-import { projects, messages } from "@/db/schema";
+import { projects, messages, users } from "@/db/schema";
 import type { AppDatabase } from "@/db";
 
 let testDb: AppDatabase;
@@ -11,14 +11,24 @@ function createTestDb() {
   const sqlite = new Database(":memory:");
   sqlite.pragma("foreign_keys = ON");
   sqlite.exec(`
+    CREATE TABLE users (
+      id TEXT PRIMARY KEY NOT NULL,
+      github_id TEXT NOT NULL UNIQUE,
+      email TEXT,
+      name TEXT,
+      avatar_url TEXT,
+      created_at INTEGER NOT NULL
+    );
     CREATE TABLE projects (
       id TEXT PRIMARY KEY NOT NULL,
       name TEXT NOT NULL,
       description TEXT,
       repo_url TEXT,
       canvas_state TEXT,
+      user_id TEXT,
       created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
     CREATE TABLE messages (
       id TEXT PRIMARY KEY NOT NULL,
@@ -42,6 +52,17 @@ vi.mock("@/db", () => ({
 
 vi.mock("@/db/migrate", () => ({
   runMigrations: () => {},
+}));
+
+// Mock authentication
+vi.mock("@/lib/auth", () => ({
+  getAuthenticatedUserId: vi.fn(() => Promise.resolve("test-user-id")),
+  getAuthenticatedUser: vi.fn(() => Promise.resolve({
+    userId: "test-user-id",
+    name: "Test User",
+    email: "test@example.com",
+    image: null,
+  })),
 }));
 
 // Import routes after mocks
@@ -69,6 +90,15 @@ function makeParams(id: string) {
 
 beforeEach(() => {
   testDb = createTestDb();
+  // Create test user
+  testDb.insert(users).values({
+    id: "test-user-id",
+    githubId: "123456789",
+    email: "test@example.com",
+    name: "Test User",
+    avatarUrl: null,
+    createdAt: Date.now(),
+  }).run();
 });
 
 describe("GET /api/projects", () => {
@@ -88,6 +118,7 @@ describe("GET /api/projects", () => {
           name: "Old Project",
           description: null,
           canvasState: null,
+          userId: "test-user-id",
           createdAt: now - 2000,
           updatedAt: now - 2000,
         },
@@ -96,6 +127,7 @@ describe("GET /api/projects", () => {
           name: "New Project",
           description: "desc",
           canvasState: null,
+          userId: "test-user-id",
           createdAt: now,
           updatedAt: now,
         },
@@ -118,6 +150,7 @@ describe("GET /api/projects", () => {
         name: "Test",
         description: null,
         canvasState: '{"nodes":[],"edges":[]}',
+        userId: "test-user-id",
         createdAt: Date.now(),
         updatedAt: Date.now(),
       })
@@ -210,6 +243,7 @@ describe("GET /api/projects/[id]", () => {
         name: "Test",
         description: "desc",
         canvasState: JSON.stringify(canvas),
+        userId: "test-user-id",
         createdAt: Date.now(),
         updatedAt: Date.now(),
       })
@@ -234,6 +268,7 @@ describe("GET /api/projects/[id]", () => {
         name: "Test",
         description: null,
         canvasState: null,
+        userId: "test-user-id",
         createdAt: Date.now(),
         updatedAt: Date.now(),
       })
@@ -268,6 +303,7 @@ describe("PATCH /api/projects/[id]", () => {
         name: "Original",
         description: "Original desc",
         canvasState: null,
+        userId: "test-user-id",
         createdAt: Date.now(),
         updatedAt: Date.now() - 10000,
       })
@@ -402,6 +438,7 @@ describe("DELETE /api/projects/[id]", () => {
         name: "To Delete",
         description: null,
         canvasState: null,
+        userId: "test-user-id",
         createdAt: Date.now(),
         updatedAt: Date.now(),
       })
@@ -428,6 +465,7 @@ describe("DELETE /api/projects/[id]", () => {
         name: "With Messages",
         description: null,
         canvasState: null,
+        userId: "test-user-id",
         createdAt: Date.now(),
         updatedAt: Date.now(),
       })
@@ -485,6 +523,7 @@ describe("GET /api/projects/[id]/messages", () => {
         name: "Test",
         description: null,
         canvasState: null,
+        userId: "test-user-id",
         createdAt: Date.now(),
         updatedAt: Date.now(),
       })
