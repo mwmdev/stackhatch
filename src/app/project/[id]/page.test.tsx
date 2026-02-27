@@ -2,8 +2,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor, act } from "@testing-library/react";
 
 // Mock next/navigation
+const mockPush = vi.fn();
 vi.mock("next/navigation", () => ({
   useParams: () => ({ id: "test-project-id" }),
+  useRouter: () => ({ push: mockPush }),
 }));
 
 // Mock reactflow — minimal version for jsdom that avoids text conflicts
@@ -76,6 +78,22 @@ vi.mock("reactflow", () => {
 
 // Mock CSS import
 vi.mock("reactflow/dist/style.css", () => ({}));
+
+// Mock next-auth/react
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: {
+      user: {
+        name: "Test User",
+        email: "test@example.com",
+        image: "https://example.com/avatar.jpg",
+      },
+    },
+    status: "authenticated",
+  }),
+  signOut: vi.fn(),
+  SessionProvider: ({ children }: { children: React.ReactNode }) => children,
+}));
 
 // Mock child components to keep tests focused
 vi.mock("@/components/chat/ChatSidebar", () => ({

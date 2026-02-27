@@ -14,6 +14,22 @@ vi.mock("next-themes", () => ({
   useTheme: () => ({ theme: "light", setTheme: vi.fn() }),
 }));
 
+// Mock next-auth/react
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: {
+      user: {
+        name: "Test User",
+        email: "test@example.com",
+        image: "https://example.com/avatar.jpg",
+      },
+    },
+    status: "authenticated",
+  }),
+  signOut: vi.fn(),
+  SessionProvider: ({ children }: { children: React.ReactNode }) => children,
+}));
+
 const mockProjects = [
   {
     id: "p1",

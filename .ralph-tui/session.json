@@ -3,10 +3,10 @@
   "sessionId": "4f0d275b-6cc9-4fab-986e-cd5f38fbe954",
   "status": "running",
   "startedAt": "2026-02-27T12:10:56.215Z",
-  "updatedAt": "2026-02-27T12:29:58.777Z",
-  "currentIteration": 4,
+  "updatedAt": "2026-02-27T12:34:56.875Z",
+  "currentIteration": 5,
   "maxIterations": 50,
-  "tasksCompleted": 4,
+  "tasksCompleted": 5,
   "isPaused": false,
   "agentPlugin": "claude",
   "trackerState": {
@@ -41,8 +41,8 @@
       {
         "id": "shastack-uh7.5",
         "title": "US-005: Create login page",
-        "status": "open",
-        "completedInSession": false
+        "status": "completed",
+        "completedInSession": true
       },
       {
         "id": "shastack-uh7.6",
@@ -98,6 +98,16 @@
       "durationMs": 209151,
       "startedAt": "2026-02-27T12:24:34.098Z",
       "endedAt": "2026-02-27T12:28:03.249Z"
+    },
+    {
+      "iteration": 5,
+      "status": "completed",
+      "taskId": "shastack-uh7.5",
+      "taskTitle": "US-005: Create login page",
+      "taskCompleted": true,
+      "durationMs": 113797,
+      "startedAt": "2026-02-27T12:28:04.820Z",
+      "endedAt": "2026-02-27T12:29:58.617Z"
     }
   ],
   "skippedTaskIds": [],

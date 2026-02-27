@@ -103,3 +103,21 @@ after each iteration and it's included in prompts for context.
   - Form action approach eliminates need for client-side signIn imports or SessionProvider at this stage
 ---
 
+## 2026-02-27 - shastack-uh7.6
+- Implemented user avatar and logout dropdown functionality in both dashboard header and project page toolbar
+- Files changed:
+  - `/home/mike/cloud/apps/mwm/shastack/src/components/Providers.tsx` - Added SessionProvider wrapper for client-side session access
+  - `/home/mike/cloud/apps/mwm/shastack/src/components/UserAvatar.tsx` - Created user avatar component with dropdown containing user info and logout functionality
+  - `/home/mike/cloud/apps/mwm/shastack/src/app/page.tsx` - Added UserAvatar to dashboard header
+  - `/home/mike/cloud/apps/mwm/shastack/src/app/project/[id]/page.tsx` - Added UserAvatar to project page toolbar
+  - `/home/mike/cloud/apps/mwm/shastack/src/app/page.test.tsx` - Added NextAuth mocking for test compatibility
+  - `/home/mike/cloud/apps/mwm/shastack/src/app/project/[id]/page.test.tsx` - Added NextAuth and useRouter mocking for test compatibility
+- **Learnings:**
+  - NextAuth SessionProvider must wrap the app in Providers component for useSession() hook to work in client components
+  - Test files require proper NextAuth mocking to avoid "useSession must be wrapped in a SessionProvider" errors
+  - UserAvatar component handles avatar image fallbacks gracefully with initials fallback and error handling
+  - Test mocks must include all hooks used by components - both useSession and useRouter needed for UserAvatar
+  - Dropdown closes on outside click using useEffect with mousedown event listener and ref checks
+  - NextAuth signOut() with redirect: false allows custom redirect handling via useRouter
+---
+

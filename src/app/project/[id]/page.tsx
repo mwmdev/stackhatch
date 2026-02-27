@@ -27,6 +27,7 @@ import StackEdgeComponent, {
   type StackEdgeData,
 } from "@/components/canvas/StackEdge";
 import EdgeLegend from "@/components/canvas/EdgeLegend";
+import UserAvatar from "@/components/UserAvatar";
 import {
   toReactFlowNodes,
   toReactFlowEdges,
@@ -746,6 +747,7 @@ export default function ProjectPage() {
                 )}
               </>
             )}
+            <UserAvatar />
           </div>
         </div>
 
