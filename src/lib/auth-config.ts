@@ -1,7 +1,7 @@
 import NextAuth from "next-auth";
 import GitHubProvider from "next-auth/providers/github";
 import { getDb } from "@/db";
-import { users } from "@/db/schema";
+import { users, type UserRole } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { v4 as uuid } from "uuid";
 
@@ -30,6 +30,8 @@ export const { handlers: { GET, POST }, auth, signIn, signOut } = NextAuth({
             .where(eq(users.githubId, githubId))
             .limit(1);
 
+          const isAdmin = githubId === process.env.ADMIN_GITHUB_ID;
+
           if (existingUser.length === 0) {
             // Create new user on first login
             await db.insert(users).values({
@@ -38,16 +40,22 @@ export const { handlers: { GET, POST }, auth, signIn, signOut } = NextAuth({
               email: profile.email || null,
               name: profile.name || null,
               avatarUrl: (profile as any).avatar_url || null,
+              role: isAdmin ? "admin" : "free-user",
               createdAt: Date.now(),
             });
           } else {
             // Update existing user's name and avatar on subsequent logins
+            const updates: Record<string, unknown> = {
+              name: profile.name || existingUser[0].name,
+              avatarUrl: (profile as any).avatar_url || existingUser[0].avatarUrl,
+            };
+            // Promote to admin if matching ADMIN_GITHUB_ID
+            if (isAdmin && existingUser[0].role !== "admin") {
+              updates.role = "admin";
+            }
             await db
               .update(users)
-              .set({
-                name: profile.name || existingUser[0].name,
-                avatarUrl: (profile as any).avatar_url || existingUser[0].avatarUrl,
-              })
+              .set(updates)
               .where(eq(users.githubId, githubId));
           }
 
@@ -77,6 +85,7 @@ export const { handlers: { GET, POST }, auth, signIn, signOut } = NextAuth({
 
           if (user.length > 0) {
             token.userId = user[0].id;
+            token.role = user[0].role;
           }
         } catch (error) {
           console.error("Error fetching user ID:", error);
@@ -92,6 +101,9 @@ export const { handlers: { GET, POST }, auth, signIn, signOut } = NextAuth({
         }
         if (token.userId) {
           (session.user as any).userId = token.userId;
+        }
+        if (token.role) {
+          (session.user as any).role = token.role;
         }
       }
       return session;

@@ -424,6 +424,10 @@ export default function ProjectPage() {
           },
         }),
       });
+      if (res.status === 403) {
+        setToast("AI features require a paid plan. Please upgrade to use alternatives.");
+        return;
+      }
       if (!res.ok) return;
       const data = await res.json();
       if (data.alternatives) {

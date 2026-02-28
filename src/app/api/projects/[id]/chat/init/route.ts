@@ -4,7 +4,7 @@ import { messages, projects } from "@/db/schema";
 import { runMigrations } from "@/db/migrate";
 import { eq, asc, and } from "drizzle-orm";
 import { streamChat } from "@/lib/ai/stream-chat";
-import { getAuthenticatedUserId } from "@/lib/auth";
+import { getAuthenticatedUser, requireRole } from "@/lib/auth";
 
 export async function POST(
   _request: NextRequest,
@@ -12,13 +12,16 @@ export async function POST(
 ) {
   const { id } = await params;
 
-  const userId = await getAuthenticatedUserId();
-  if (!userId) {
+  const user = await getAuthenticatedUser();
+  if (!user) {
     return new Response(JSON.stringify({ error: "Authentication required" }), {
       status: 401,
       headers: { "Content-Type": "application/json" },
     });
   }
+  const roleErr = requireRole(user.role, ["admin", "paid-user"]);
+  if (roleErr) return roleErr;
+  const userId = user.userId;
 
   const db = getDb();
   runMigrations(db);

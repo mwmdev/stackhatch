@@ -1,11 +1,14 @@
 import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
 
+export type UserRole = "admin" | "free-user" | "paid-user";
+
 export const users = sqliteTable("users", {
   id: text("id").primaryKey(),
   githubId: text("github_id").notNull().unique(),
   email: text("email"),
   name: text("name"),
   avatarUrl: text("avatar_url"),
+  role: text("role", { enum: ["admin", "free-user", "paid-user"] }).notNull().default("free-user"),
   createdAt: integer("created_at", { mode: "number" }).notNull(),
 });
 

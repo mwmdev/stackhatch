@@ -1,14 +1,13 @@
 "use client";
 
 import { ThemeProvider } from "next-themes";
-import { SessionProvider } from "next-auth/react";
+import DevRoleSwitcher from "@/components/DevRoleSwitcher";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <SessionProvider>
-      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-        {children}
-      </ThemeProvider>
-    </SessionProvider>
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+      {children}
+      {process.env.NODE_ENV === "development" && <DevRoleSwitcher />}
+    </ThemeProvider>
   );
 }

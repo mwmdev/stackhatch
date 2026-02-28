@@ -170,6 +170,11 @@ export default function ChatSidebar({
       const res = await fetch(`/api/projects/${projectId}/chat/init`, {
         method: "POST",
       });
+      if (res.status === 403) {
+        setError("AI features require a paid plan. Please upgrade to access chat.");
+        setStreaming(false);
+        return;
+      }
       await processSSEStream(res);
     } catch {
       setError("Failed to start conversation");
@@ -188,6 +193,11 @@ export default function ChatSidebar({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ repoUrl }),
       });
+      if (res.status === 403) {
+        setError("AI features require a paid plan. Please upgrade to access repo scanning.");
+        setStreaming(false);
+        return;
+      }
       if (!res.ok && !res.headers.get("content-type")?.includes("text/event-stream")) {
         const data = await res.json().catch(() => ({ error: "Failed to scan repository" }));
         setError(data.error || "Failed to scan repository");
@@ -228,6 +238,11 @@ export default function ChatSidebar({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: text }),
       });
+      if (res.status === 403) {
+        setError("AI features require a paid plan. Please upgrade to continue chatting.");
+        setStreaming(false);
+        return;
+      }
       await processSSEStream(res);
     } catch {
       setError("Failed to send message");

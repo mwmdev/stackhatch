@@ -6,7 +6,7 @@ import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 import { analyzeRepo, formatRepoAnalysis } from "@/lib/github-analyzer";
 import { streamChat, sseEvent, SSE_HEADERS } from "@/lib/ai/stream-chat";
-import { getAuthenticatedUserId } from "@/lib/auth";
+import { getAuthenticatedUser, requireRole } from "@/lib/auth";
 
 const scanSchema = z.object({
   repoUrl: z.string().min(1, "Repository URL is required"),
@@ -18,13 +18,16 @@ export async function POST(
 ) {
   const { id } = await params;
 
-  const userId = await getAuthenticatedUserId();
-  if (!userId) {
+  const user = await getAuthenticatedUser();
+  if (!user) {
     return new Response(JSON.stringify({ error: "Authentication required" }), {
       status: 401,
       headers: { "Content-Type": "application/json" },
     });
   }
+  const roleErr = requireRole(user.role, ["admin", "paid-user"]);
+  if (roleErr) return roleErr;
+  const userId = user.userId;
 
   const db = getDb();
   runMigrations(db);

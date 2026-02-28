@@ -8,7 +8,7 @@ import { runMigrations } from "@/db/migrate";
 import { getSettings, getApiKey, getModel } from "@/lib/ai/settings";
 import { buildCanvasContext } from "@/lib/ai/context-builder";
 import type { StackArchitecture, AlternativeNode } from "@/types/stack";
-import { getAuthenticatedUserId } from "@/lib/auth";
+import { getAuthenticatedUser, requireRole } from "@/lib/auth";
 
 const requestSchema = z.object({
   node: z.object({
@@ -35,13 +35,16 @@ export async function POST(
 ) {
   const { id } = await params;
 
-  const userId = await getAuthenticatedUserId();
-  if (!userId) {
+  const user = await getAuthenticatedUser();
+  if (!user) {
     return NextResponse.json(
       { error: "Authentication required" },
       { status: 401 },
     );
   }
+  const roleErr = requireRole(user.role, ["admin", "paid-user"]);
+  if (roleErr) return roleErr;
+  const userId = user.userId;
 
   let body: unknown;
   try {
