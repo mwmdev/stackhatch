@@ -1,6 +1,6 @@
 "use client";
 
-import { memo } from "react";
+import { memo, useState, useRef, useEffect } from "react";
 import {
   BaseEdge,
   EdgeLabelRenderer,
@@ -13,6 +13,7 @@ import type { ConnectionType } from "@/types/stack";
 export interface StackEdgeData {
   connectionType: ConnectionType;
   label: string;
+  onLabelChange?: (edgeId: string, label: string) => void;
 }
 
 export interface EdgeStyleConfig {
@@ -68,6 +69,83 @@ export const edgeStyles: Record<ConnectionType, EdgeStyleConfig> = {
   },
 };
 
+function getUserRole(): string {
+  if (typeof document === "undefined") return "admin";
+  const match = document.cookie.match(/(?:^|; )dev-role=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : "admin";
+}
+
+function EdgeLabel({
+  edgeId,
+  label,
+  labelX,
+  labelY,
+  onLabelChange,
+}: {
+  edgeId: string;
+  label: string;
+  labelX: number;
+  labelY: number;
+  onLabelChange?: (edgeId: string, label: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(label);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setValue(label);
+  }, [label]);
+
+  useEffect(() => {
+    if (editing) inputRef.current?.select();
+  }, [editing]);
+
+  const canEdit = onLabelChange && getUserRole() !== "free-user";
+
+  function commit() {
+    const trimmed = value.trim();
+    if (trimmed && trimmed !== label) {
+      onLabelChange!(edgeId, trimmed);
+    } else {
+      setValue(label);
+    }
+    setEditing(false);
+  }
+
+  return (
+    <div
+      className={`stack-edge-label absolute rounded-full border border-[var(--border)] bg-[var(--card)] px-2 py-0.5 text-[10px] font-medium text-[var(--card-foreground)] ${canEdit ? "pointer-events-auto cursor-pointer hover:border-[var(--color-client)]" : "pointer-events-none"}`}
+      style={{
+        transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
+      }}
+      data-testid={`edge-label-${edgeId}`}
+      onDoubleClick={() => {
+        if (canEdit) setEditing(true);
+      }}
+    >
+      {editing ? (
+        <input
+          ref={inputRef}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") commit();
+            if (e.key === "Escape") {
+              setValue(label);
+              setEditing(false);
+            }
+          }}
+          className="w-24 border-none bg-transparent text-center text-[10px] font-medium text-[var(--card-foreground)] outline-none"
+          autoFocus
+        />
+      ) : (
+        label
+      )}
+    </div>
+  );
+}
+
 function StackEdgeComponent({
   id,
   sourceX,
@@ -107,15 +185,13 @@ function StackEdgeComponent({
       />
       {data?.label && (
         <EdgeLabelRenderer>
-          <div
-            className="stack-edge-label pointer-events-none absolute rounded-full border border-[var(--border)] bg-[var(--card)] px-2 py-0.5 text-[10px] font-medium text-[var(--card-foreground)]"
-            style={{
-              transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
-            }}
-            data-testid={`edge-label-${id}`}
-          >
-            {data.label}
-          </div>
+          <EdgeLabel
+            edgeId={id}
+            label={data.label}
+            labelX={labelX}
+            labelY={labelY}
+            onLabelChange={data.onLabelChange}
+          />
         </EdgeLabelRenderer>
       )}
     </>

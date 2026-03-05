@@ -314,6 +314,40 @@ export default function ProjectPage() {
     setPendingConnection(null);
   }, []);
 
+  // --- Edge label editing ---
+
+  const handleEdgeLabelChange = useCallback(
+    (edgeId: string, newLabel: string) => {
+      setRfEdges((eds) =>
+        eds.map((e) =>
+          e.id === edgeId ? { ...e, data: { ...e.data!, label: newLabel } } : e,
+        ),
+      );
+      setProject((prev) => {
+        if (!prev?.canvasState) return prev;
+        return {
+          ...prev,
+          canvasState: {
+            ...prev.canvasState,
+            edges: prev.canvasState.edges.map((e) =>
+              e.id === edgeId ? { ...e, label: newLabel } : e,
+            ),
+          },
+        };
+      });
+    },
+    [setRfEdges],
+  );
+
+  const edgesWithCallbacks = useMemo(
+    () =>
+      rfEdges.map((e) => ({
+        ...e,
+        data: { ...e.data!, onLabelChange: handleEdgeLabelChange },
+      })),
+    [rfEdges, handleEdgeLabelChange],
+  );
+
   // --- Add node ---
 
   const handleAddNode = useCallback(
@@ -767,7 +801,7 @@ export default function ProjectPage() {
         <div className="relative flex-1">
           <ReactFlow
             nodes={rfNodes}
-            edges={rfEdges}
+            edges={edgesWithCallbacks}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={handleConnect}
