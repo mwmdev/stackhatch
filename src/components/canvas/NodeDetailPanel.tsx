@@ -10,6 +10,7 @@ import {
 } from "@/lib/node-config";
 import type { CustomSubtypesMap } from "@/lib/custom-subtypes";
 import AlternativesSection from "@/components/canvas/AlternativesSection";
+import { sanitizeHtml, containsHtml } from "@/lib/sanitize-html";
 
 function DynamicIcon({
   name,
@@ -131,14 +132,20 @@ export default function NodeDetailPanel({
           <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-[var(--muted-foreground)]">
             Technology
           </label>
-          <input
-            type="text"
+          <textarea
             value={node.technology}
             onChange={(e) => onUpdate(node.id, { technology: e.target.value })}
             placeholder="e.g., PostgreSQL 16"
-            className="w-full rounded border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
+            rows={2}
+            className="w-full resize-none rounded border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
             aria-label="Technology"
           />
+          {containsHtml(node.technology) && (
+            <div
+              className="mt-1 rounded bg-[var(--muted)] px-3 py-1.5 text-sm text-[var(--foreground)] [&_a]:text-blue-500 [&_a]:underline"
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(node.technology) }}
+            />
+          )}
         </div>
 
         {/* Category */}
@@ -196,6 +203,12 @@ export default function NodeDetailPanel({
             className="w-full resize-none rounded border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
             aria-label="Description"
           />
+          {containsHtml(node.description) && (
+            <div
+              className="mt-1 rounded bg-[var(--muted)] px-3 py-1.5 text-sm text-[var(--foreground)] [&_a]:text-blue-500 [&_a]:underline"
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(node.description) }}
+            />
+          )}
         </div>
 
         {/* Reasoning (read-only) */}

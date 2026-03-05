@@ -7,6 +7,7 @@ import * as icons from "lucide-react";
 import type { NodeCategory, NodeSubtype, StackNode as StackNodeType } from "@/types/stack";
 import { getCategoryConfig, getSubtypeConfig } from "@/lib/node-config";
 import type { CustomSubtypesMap } from "@/lib/custom-subtypes";
+import { sanitizeHtml, containsHtml } from "@/lib/sanitize-html";
 
 function DynamicIcon({
   name,
@@ -130,7 +131,14 @@ function StackNodeComponent({ id, data, selected }: NodeProps<StackNodeData>) {
         {/* Technology subtitle */}
         {data.technology && (
           <div className="mt-1 pl-8 text-xs text-[var(--muted-foreground)]">
-            {data.technology}
+            {containsHtml(data.technology) ? (
+              <span
+                dangerouslySetInnerHTML={{ __html: sanitizeHtml(data.technology) }}
+                className="[&_a]:text-blue-500 [&_a]:underline"
+              />
+            ) : (
+              data.technology
+            )}
           </div>
         )}
 
