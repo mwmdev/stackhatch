@@ -27,6 +27,7 @@ import StackEdgeComponent, {
   type StackEdgeData,
 } from "@/components/canvas/StackEdge";
 import EdgeLegend from "@/components/canvas/EdgeLegend";
+import ExportDropdown from "@/components/canvas/ExportDropdown";
 import UserAvatar from "@/components/UserAvatar";
 import {
   toReactFlowNodes,
@@ -696,6 +697,13 @@ export default function ProjectPage() {
               >
                 Re-layout
               </button>
+            )}
+            {nodeCount > 0 && (
+              <ExportDropdown
+                rfInstanceRef={rfInstanceRef}
+                projectName={project.name}
+                onError={setToast}
+              />
             )}
             {nodeCount > 0 && (
               <span className="text-xs text-[var(--muted-foreground)]">

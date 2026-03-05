@@ -22,6 +22,7 @@
     "better-sqlite3": "^12.6.2",
     "dagre": "^0.8.5",
     "drizzle-orm": "^0.45.1",
+    "html-to-image": "^1.11.13",
     "lucide-react": "^0.575.0",
     "next": "^16.1.6",
     "next-auth": "^5.0.0-beta.30",
