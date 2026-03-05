@@ -7,6 +7,7 @@ import { useSyncExternalStore } from "react";
 import { categoryOrder, nodeConfig } from "@/lib/node-config";
 import type { CustomSubtypesMap, CustomSubtypeEntry } from "@/lib/custom-subtypes";
 import type { NodeCategory } from "@/types/stack";
+import { DEFAULT_CHAT_PROMPT, DEFAULT_ALTERNATIVES_PROMPT, DEFAULT_PRD_PROMPT } from "@/lib/ai/default-prompts";
 
 const VALID_MODELS = [
   { id: "claude-sonnet-4-20250514", name: "Sonnet" },
@@ -23,6 +24,9 @@ interface Settings {
   model?: string;
   theme?: string;
   customSubtypes?: string;
+  prompt_chat?: string;
+  prompt_alternatives?: string;
+  prompt_prd?: string;
 }
 
 export default function SettingsPage() {
@@ -47,6 +51,13 @@ export default function SettingsPage() {
   const [customSubtypes, setCustomSubtypes] = useState<CustomSubtypesMap>({});
   const [viewAsRole, setViewAsRole] = useState("admin");
   const [newSubtype, setNewSubtype] = useState<Record<NodeCategory, { slug: string; displayName: string; icon: string }>>({} as Record<NodeCategory, { slug: string; displayName: string; icon: string }>);
+  const [prompts, setPrompts] = useState({
+    prompt_chat: "",
+    prompt_alternatives: "",
+    prompt_prd: "",
+  });
+  const [expandedPrompt, setExpandedPrompt] = useState<string | null>(null);
+  const [savingPrompt, setSavingPrompt] = useState<string | null>(null);
 
   useEffect(() => {
     const match = document.cookie.match(/(?:^|; )dev-role=([^;]*)/);
@@ -80,6 +91,11 @@ export default function SettingsPage() {
             setCustomSubtypes(JSON.parse(data.customSubtypes));
           } catch { /* ignore */ }
         }
+        setPrompts({
+          prompt_chat: data.prompt_chat ?? "",
+          prompt_alternatives: data.prompt_alternatives ?? "",
+          prompt_prd: data.prompt_prd ?? "",
+        });
       })
       .catch(() => {
         // Use defaults
@@ -222,6 +238,54 @@ export default function SettingsPage() {
     },
     [customSubtypes, saveCustomSubtypes],
   );
+
+  const promptDefaults: Record<string, string> = {
+    prompt_chat: DEFAULT_CHAT_PROMPT,
+    prompt_alternatives: DEFAULT_ALTERNATIVES_PROMPT,
+    prompt_prd: DEFAULT_PRD_PROMPT,
+  };
+
+  const handleSavePrompt = useCallback(async (key: string) => {
+    setSavingPrompt(key);
+    try {
+      const value = prompts[key as keyof typeof prompts];
+      const res = await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [key]: value || promptDefaults[key] }),
+      });
+      if (res.ok) {
+        showToast("success", "Prompt saved");
+      } else {
+        showToast("error", "Failed to save prompt");
+      }
+    } catch {
+      showToast("error", "Failed to save prompt");
+    } finally {
+      setSavingPrompt(null);
+    }
+  }, [prompts, showToast]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleResetPrompt = useCallback(async (key: string) => {
+    setSavingPrompt(key);
+    setPrompts((prev) => ({ ...prev, [key]: "" }));
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [key]: "" }),
+      });
+      if (res.ok) {
+        showToast("success", "Prompt reset to default");
+      } else {
+        showToast("error", "Failed to reset prompt");
+      }
+    } catch {
+      showToast("error", "Failed to reset prompt");
+    } finally {
+      setSavingPrompt(null);
+    }
+  }, [showToast]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const maskedKey =
     hasExistingKey && !showKey && apiKey
@@ -560,6 +624,74 @@ export default function SettingsPage() {
                 })}
               </div>
             </section>
+            {/* AI Prompts Section — Admin Only */}
+            {viewAsRole === "admin" && (
+              <section className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-6">
+                <h2 className="mb-4 text-lg font-semibold text-[var(--card-foreground)]">
+                  AI Prompts
+                </h2>
+                <p className="mb-4 text-sm text-[var(--muted-foreground)]">
+                  Customize the system prompts used by AI features. Leave empty to use the default.
+                </p>
+                <div className="space-y-4">
+                  {([
+                    { key: "prompt_chat", label: "Chat Prompt", description: "System prompt for the architecture chat interview. The valid categories/subtypes section is appended automatically." },
+                    { key: "prompt_alternatives", label: "Alternatives Prompt", description: "System prompt for suggesting alternative technologies for a node." },
+                    { key: "prompt_prd", label: "PRD Export Prompt", description: "System prompt for generating Product Requirements Documents." },
+                  ] as const).map(({ key, label, description }) => (
+                    <div key={key} className="rounded border border-[var(--border)]">
+                      <button
+                        type="button"
+                        onClick={() => setExpandedPrompt(expandedPrompt === key ? null : key)}
+                        className="flex w-full items-center justify-between p-4 text-left"
+                      >
+                        <div>
+                          <span className="font-medium text-[var(--card-foreground)]">{label}</span>
+                          <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">{description}</p>
+                        </div>
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          className={`transition-transform ${expandedPrompt === key ? "rotate-180" : ""}`}
+                        >
+                          <polyline points="6 9 12 15 18 9" />
+                        </svg>
+                      </button>
+                      {expandedPrompt === key && (
+                        <div className="border-t border-[var(--border)] p-4">
+                          <textarea
+                            value={prompts[key] || promptDefaults[key]}
+                            onChange={(e) => setPrompts((prev) => ({ ...prev, [key]: e.target.value }))}
+                            rows={12}
+                            className="w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
+                          />
+                          <div className="mt-3 flex gap-2">
+                            <button
+                              onClick={() => handleSavePrompt(key)}
+                              disabled={savingPrompt === key}
+                              className="rounded-md bg-[var(--color-client)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+                            >
+                              {savingPrompt === key ? "Saving..." : "Save"}
+                            </button>
+                            <button
+                              onClick={() => handleResetPrompt(key)}
+                              disabled={savingPrompt === key}
+                              className="rounded-md border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--muted)] disabled:opacity-50"
+                            >
+                              Reset to Default
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
           </div>
         )}
       </main>

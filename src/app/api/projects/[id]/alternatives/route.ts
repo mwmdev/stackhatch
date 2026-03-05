@@ -5,7 +5,8 @@ import { z } from "zod";
 import { getDb } from "@/db";
 import { projects } from "@/db/schema";
 import { runMigrations } from "@/db/migrate";
-import { getSettings, getApiKey, getModel } from "@/lib/ai/settings";
+import { getSettings, getApiKey, getModel, getPrompt } from "@/lib/ai/settings";
+import { DEFAULT_ALTERNATIVES_PROMPT } from "@/lib/ai/default-prompts";
 import { buildCanvasContext } from "@/lib/ai/context-builder";
 import type { StackArchitecture, AlternativeNode } from "@/types/stack";
 import { getAuthenticatedUser, requireRole } from "@/lib/auth";
@@ -98,13 +99,13 @@ export async function POST(
 
   const { node } = parsed.data;
   const client = new Anthropic({ apiKey });
+  const alternativesPrompt = getPrompt(settingsMap, "prompt_alternatives", DEFAULT_ALTERNATIVES_PROMPT);
 
   try {
     const response = await client.messages.create({
       model,
       max_tokens: 1024,
-      system:
-        "You are a software architecture advisor. Given an architecture and a specific node, suggest 3-5 alternative technologies that could fill the same role. Return ONLY a JSON array of objects with fields: name, technology, description, reasoning, category, subtype. No markdown, no explanation — just the JSON array.",
+      system: alternativesPrompt,
       messages: [
         {
           role: "user",

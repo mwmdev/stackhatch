@@ -21,3 +21,11 @@ export function getModel(settingsMap: Record<string, string>): string {
     "claude-sonnet-4-20250514"
   );
 }
+
+export function getPrompt(
+  settingsMap: Record<string, string>,
+  key: string,
+  defaultValue: string,
+): string {
+  return settingsMap[key] || defaultValue;
+}

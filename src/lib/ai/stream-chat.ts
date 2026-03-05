@@ -7,7 +7,8 @@ import { buildSystemPrompt, INIT_INSTRUCTION } from "@/lib/ai/system-prompt";
 import { parseCustomSubtypes } from "@/lib/custom-subtypes";
 import { buildMessages } from "@/lib/ai/context-builder";
 import { parseAIResponse } from "@/lib/ai/output-parser";
-import { getSettings, getApiKey, getModel } from "@/lib/ai/settings";
+import { getSettings, getApiKey, getModel, getPrompt } from "@/lib/ai/settings";
+import { DEFAULT_CHAT_PROMPT } from "@/lib/ai/default-prompts";
 import type { ChatMessage } from "@/types/chat";
 import type { StackArchitecture } from "@/types/stack";
 
@@ -49,7 +50,8 @@ export function streamChat(
 
   const model = getModel(settingsMap);
   const customSubtypes = parseCustomSubtypes(settingsMap.customSubtypes);
-  const systemPrompt = buildSystemPrompt(customSubtypes);
+  const chatBase = getPrompt(settingsMap, "prompt_chat", DEFAULT_CHAT_PROMPT);
+  const systemPrompt = buildSystemPrompt(customSubtypes, chatBase);
 
   // Save user message if present
   if (userMessage) {
