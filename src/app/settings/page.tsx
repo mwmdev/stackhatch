@@ -45,7 +45,21 @@ export default function SettingsPage() {
   } | null>(null);
   const [keyError, setKeyError] = useState("");
   const [customSubtypes, setCustomSubtypes] = useState<CustomSubtypesMap>({});
+  const [viewAsRole, setViewAsRole] = useState("admin");
   const [newSubtype, setNewSubtype] = useState<Record<NodeCategory, { slug: string; displayName: string; icon: string }>>({} as Record<NodeCategory, { slug: string; displayName: string; icon: string }>);
+
+  useEffect(() => {
+    const match = document.cookie.match(/(?:^|; )dev-role=([^;]*)/);
+    if (match) setViewAsRole(decodeURIComponent(match[1]));
+  }, []);
+
+  const handleViewAsRole = useCallback((newRole: string) => {
+    document.cookie = newRole === "admin"
+      ? "dev-role=;path=/;max-age=0"
+      : `dev-role=${newRole};path=/;max-age=31536000`;
+    setViewAsRole(newRole);
+    window.location.reload();
+  }, []);
 
   useEffect(() => {
     fetch("/api/settings")
@@ -411,6 +425,31 @@ export default function SettingsPage() {
                     aria-pressed={currentTheme === t}
                   >
                     {t}
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            {/* View As Role Section */}
+            <section className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-6">
+              <h2 className="mb-4 text-lg font-semibold text-[var(--card-foreground)]">
+                View As Role
+              </h2>
+              <p className="mb-3 text-sm text-[var(--muted-foreground)]">
+                Impersonate a different role to see the interface as that user would.
+              </p>
+              <div className="flex gap-3">
+                {(["admin", "paid-user", "free-user"] as const).map((r) => (
+                  <button
+                    key={r}
+                    onClick={() => handleViewAsRole(r)}
+                    className={`rounded-md border px-4 py-2 text-sm font-medium capitalize transition-colors ${
+                      viewAsRole === r
+                        ? "border-[var(--color-client)] bg-[var(--color-client)] text-white"
+                        : "border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--muted)]"
+                    }`}
+                  >
+                    {r}
                   </button>
                 ))}
               </div>
