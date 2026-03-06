@@ -173,3 +173,28 @@ after each iteration and it's included in prompts for context.
   - Using two variants (inline/modal) for UpgradePrompt covers both in-context hints (chat sidebar, settings) and blocking prompts (project creation, export)
 ---
 
+## 2026-03-06 - stackhatch-6ms.8
+- Implemented US-008: Add billing management to settings
+- Created `POST /api/billing/cancel` — cancel subscription at period end or reactivate a canceled subscription
+- Created `POST /api/billing/update-payment` — creates Stripe SetupIntent for card updates (redirects to portal)
+- Created `POST /api/billing/portal` — creates Stripe billing portal session for invoice history
+- Extended `POST /api/billing/manage` with `change_plan` action using Zod discriminatedUnion for plan upgrades/downgrades with proration
+- Enhanced settings billing section with:
+  - "Change Plan" button with modal showing Pro/Team5/Team15 selection, current plan highlighted
+  - "Update Payment Method" button opening Stripe billing portal
+  - "Cancel Subscription" button with confirmation dialog showing period end date
+  - "Reactivate Subscription" button when status is canceled
+  - "Invoice History" button opening Stripe billing portal in new tab
+  - Status badge shows "Cancels at period end" for canceled subscriptions
+- **Files changed:**
+  - `src/app/api/billing/cancel/route.ts` (new)
+  - `src/app/api/billing/update-payment/route.ts` (new)
+  - `src/app/api/billing/portal/route.ts` (new)
+  - `src/app/api/billing/manage/route.ts` (extended with change_plan action)
+  - `src/app/settings/page.tsx` (billing management UI)
+- **Learnings:**
+  - Zod's `discriminatedUnion` cleanly handles multiple action types in a single endpoint — each branch gets type-safe access to its specific fields
+  - Stripe's `cancel_at_period_end: true/false` is the right way to handle cancel/reactivate — keeps subscription active until period end
+  - Stripe billing portal covers both payment method updates and invoice history — avoids building custom Stripe Elements forms for card updates
+---
+

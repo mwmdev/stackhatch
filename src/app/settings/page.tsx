@@ -66,6 +66,12 @@ export default function SettingsPage() {
     currentPeriodEnd: number | null;
   } | null>(null);
   const [switchingInterval, setSwitchingInterval] = useState(false);
+  const [canceling, setCanceling] = useState(false);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [showChangePlan, setShowChangePlan] = useState(false);
+  const [changingPlan, setChangingPlan] = useState(false);
+  const [updatingPayment, setUpdatingPayment] = useState(false);
+  const [openingPortal, setOpeningPortal] = useState(false);
 
   useEffect(() => {
     const match = document.cookie.match(/(?:^|; )dev-role=([^;]*)/);
@@ -275,6 +281,109 @@ export default function SettingsPage() {
       setSwitchingInterval(false);
     }
   }, [billing, showToast]);
+
+  const handleCancelSubscription = useCallback(async () => {
+    setCanceling(true);
+    try {
+      const res = await fetch("/api/billing/cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setBilling((prev) => prev ? { ...prev, status: "canceled" } : prev);
+        showToast("success", data.message);
+      } else {
+        showToast("error", data.error || "Failed to cancel subscription");
+      }
+    } catch {
+      showToast("error", "Failed to cancel subscription");
+    } finally {
+      setCanceling(false);
+      setShowCancelConfirm(false);
+    }
+  }, [showToast]);
+
+  const handleReactivate = useCallback(async () => {
+    setCanceling(true);
+    try {
+      const res = await fetch("/api/billing/cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reactivate: true }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setBilling((prev) => prev ? { ...prev, status: "active" } : prev);
+        showToast("success", data.message);
+      } else {
+        showToast("error", data.error || "Failed to reactivate subscription");
+      }
+    } catch {
+      showToast("error", "Failed to reactivate subscription");
+    } finally {
+      setCanceling(false);
+    }
+  }, [showToast]);
+
+  const handleChangePlan = useCallback(async (plan: string) => {
+    setChangingPlan(true);
+    try {
+      const res = await fetch("/api/billing/manage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "change_plan", plan }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setBilling((prev) => prev ? { ...prev, plan: data.plan } : prev);
+        showToast("success", data.message);
+        setShowChangePlan(false);
+      } else {
+        showToast("error", data.error || "Failed to change plan");
+      }
+    } catch {
+      showToast("error", "Failed to change plan");
+    } finally {
+      setChangingPlan(false);
+    }
+  }, [showToast]);
+
+  const handleUpdatePayment = useCallback(async () => {
+    setUpdatingPayment(true);
+    try {
+      // Use Stripe billing portal for payment method updates (simplest approach)
+      const res = await fetch("/api/billing/portal", { method: "POST" });
+      const data = await res.json();
+      if (res.ok && data.url) {
+        window.location.href = data.url;
+      } else {
+        showToast("error", data.error || "Failed to open payment update");
+      }
+    } catch {
+      showToast("error", "Failed to open payment update");
+    } finally {
+      setUpdatingPayment(false);
+    }
+  }, [showToast]);
+
+  const handleOpenPortal = useCallback(async () => {
+    setOpeningPortal(true);
+    try {
+      const res = await fetch("/api/billing/portal", { method: "POST" });
+      const data = await res.json();
+      if (res.ok && data.url) {
+        window.open(data.url, "_blank");
+      } else {
+        showToast("error", data.error || "Failed to open billing portal");
+      }
+    } catch {
+      showToast("error", "Failed to open billing portal");
+    } finally {
+      setOpeningPortal(false);
+    }
+  }, [showToast]);
 
   const promptDefaults: Record<string, string> = {
     prompt_chat: DEFAULT_CHAT_PROMPT,
@@ -589,34 +698,148 @@ export default function SettingsPage() {
                             ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
                             : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
                       }`}>
-                        {billing.status === "past_due" ? "Past Due" : billing.status}
+                        {billing.status === "past_due" ? "Past Due" : billing.status === "canceled" ? "Cancels at period end" : billing.status}
                       </span>
                     </div>
                   )}
-                  <div className="border-t border-[var(--border)] pt-3">
+                  <div className="flex flex-wrap gap-2 border-t border-[var(--border)] pt-3">
+                    {billing.status === "active" && (
+                      <>
+                        <button
+                          onClick={() => setShowChangePlan(true)}
+                          className="rounded-md border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--muted)]"
+                        >
+                          Change Plan
+                        </button>
+                        <button
+                          onClick={handleUpdatePayment}
+                          disabled={updatingPayment}
+                          className="rounded-md border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--muted)] disabled:opacity-50"
+                        >
+                          {updatingPayment ? "Opening..." : "Update Payment Method"}
+                        </button>
+                        <button
+                          onClick={handleSwitchInterval}
+                          disabled={switchingInterval}
+                          className="rounded-md border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--muted)] disabled:opacity-50"
+                        >
+                          {switchingInterval
+                            ? "Switching..."
+                            : billing.billingInterval === "monthly"
+                              ? "Switch to Annual (Save ~21%)"
+                              : "Switch to Monthly"}
+                        </button>
+                        <button
+                          onClick={() => setShowCancelConfirm(true)}
+                          className="rounded-md border border-red-300 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20"
+                        >
+                          Cancel Subscription
+                        </button>
+                      </>
+                    )}
+                    {billing.status === "canceled" && (
+                      <button
+                        onClick={handleReactivate}
+                        disabled={canceling}
+                        className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+                      >
+                        {canceling ? "Reactivating..." : "Reactivate Subscription"}
+                      </button>
+                    )}
                     <button
-                      onClick={handleSwitchInterval}
-                      disabled={switchingInterval}
-                      className="rounded-md border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--muted)] disabled:opacity-50"
+                      onClick={handleOpenPortal}
+                      disabled={openingPortal}
+                      className="rounded-md border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--muted-foreground)] hover:bg-[var(--muted)] disabled:opacity-50"
                     >
-                      {switchingInterval
-                        ? "Switching..."
-                        : billing.billingInterval === "monthly"
-                          ? "Switch to Annual Billing (Save ~21%)"
-                          : "Switch to Monthly Billing"}
+                      {openingPortal ? "Opening..." : "Invoice History"}
                     </button>
-                    {billing.billingInterval === "monthly" && (
-                      <p className="mt-2 text-xs text-[var(--muted-foreground)]">
-                        Switching to annual billing will prorate the charge.
-                      </p>
-                    )}
-                    {billing.billingInterval === "annual" && (
-                      <p className="mt-2 text-xs text-[var(--muted-foreground)]">
-                        Switching to monthly billing takes effect at the end of your current annual period.
-                      </p>
-                    )}
                   </div>
+                  {billing.billingInterval === "monthly" && billing.status === "active" && (
+                    <p className="text-xs text-[var(--muted-foreground)]">
+                      Switching to annual billing will prorate the charge.
+                    </p>
+                  )}
                 </div>
+
+                {/* Cancel Confirmation Dialog */}
+                {showCancelConfirm && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+                    <div className="mx-4 max-w-md rounded-lg bg-[var(--card)] p-6 shadow-xl">
+                      <h3 className="mb-2 text-lg font-semibold text-[var(--card-foreground)]">
+                        Cancel Subscription?
+                      </h3>
+                      <p className="mb-4 text-sm text-[var(--muted-foreground)]">
+                        Your subscription will remain active until the end of your current billing period
+                        {billing.currentPeriodEnd && (
+                          <> ({new Date(billing.currentPeriodEnd).toLocaleDateString()})</>
+                        )}. After that, you&apos;ll be downgraded to the Free plan.
+                      </p>
+                      <div className="flex justify-end gap-2">
+                        <button
+                          onClick={() => setShowCancelConfirm(false)}
+                          className="rounded-md border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--muted)]"
+                        >
+                          Keep Subscription
+                        </button>
+                        <button
+                          onClick={handleCancelSubscription}
+                          disabled={canceling}
+                          className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                        >
+                          {canceling ? "Canceling..." : "Yes, Cancel"}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Change Plan Dialog */}
+                {showChangePlan && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+                    <div className="mx-4 max-w-md rounded-lg bg-[var(--card)] p-6 shadow-xl">
+                      <h3 className="mb-4 text-lg font-semibold text-[var(--card-foreground)]">
+                        Change Plan
+                      </h3>
+                      <div className="space-y-2">
+                        {[
+                          { key: "pro", label: "Pro", price: "$19/mo" },
+                          { key: "team5", label: "Team (5 users)", price: "$39/mo" },
+                          { key: "team15", label: "Team (15 users)", price: "$79/mo" },
+                        ].map((p) => {
+                          const isCurrent = billing.plan === (p.key.startsWith("team") ? "team" : p.key);
+                          return (
+                            <button
+                              key={p.key}
+                              onClick={() => handleChangePlan(p.key)}
+                              disabled={changingPlan || isCurrent}
+                              className={`flex w-full items-center justify-between rounded-md border px-4 py-3 text-left text-sm font-medium transition-colors ${
+                                isCurrent
+                                  ? "border-[var(--color-client)] bg-[var(--color-client)]/10 text-[var(--foreground)]"
+                                  : "border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--muted)] disabled:opacity-50"
+                              }`}
+                            >
+                              <span>{p.label}</span>
+                              <span className="text-[var(--muted-foreground)]">
+                                {isCurrent ? "Current" : p.price}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <p className="mt-3 text-xs text-[var(--muted-foreground)]">
+                        Plan changes are prorated. You&apos;ll be charged or credited the difference.
+                      </p>
+                      <div className="mt-4 flex justify-end">
+                        <button
+                          onClick={() => setShowChangePlan(false)}
+                          className="rounded-md border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--muted)]"
+                        >
+                          Close
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </section>
             )}
 

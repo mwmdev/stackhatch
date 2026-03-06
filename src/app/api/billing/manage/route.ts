@@ -7,10 +7,16 @@ import { eq } from "drizzle-orm";
 import { getAuthenticatedUserId } from "@/lib/auth";
 import { stripe, getPriceId } from "@/lib/stripe";
 
-const manageSchema = z.object({
-  action: z.enum(["switch_interval"]),
-  interval: z.enum(["monthly", "annual"]),
-});
+const manageSchema = z.discriminatedUnion("action", [
+  z.object({
+    action: z.literal("switch_interval"),
+    interval: z.enum(["monthly", "annual"]),
+  }),
+  z.object({
+    action: z.literal("change_plan"),
+    plan: z.enum(["pro", "team5", "team15"]),
+  }),
+]);
 
 export async function POST(request: NextRequest) {
   try {
@@ -31,8 +37,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { interval } = parsed.data;
-
     const db = getDb();
     runMigrations(db);
 
@@ -46,13 +50,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: "No active subscription found" },
         { status: 404 },
-      );
-    }
-
-    if (subscription.billingInterval === interval) {
-      return NextResponse.json(
-        { error: `Already on ${interval} billing` },
-        { status: 400 },
       );
     }
 
@@ -76,69 +73,84 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Determine the plan type from current subscription
-    const plan = subscription.plan as "pro" | "team";
-    // For team plans, we need to figure out which team tier (team5 or team15)
-    // by matching the current price ID
-    let planKey: "pro" | "team5" | "team15" = "pro";
-    if (plan === "team") {
-      const currentPriceId = currentItem.price.id;
-      const team5MonthlyPrice = getPriceId("team5", "monthly");
-      const team5AnnualPrice = getPriceId("team5", "annual");
-      if (
-        currentPriceId === team5MonthlyPrice ||
-        currentPriceId === team5AnnualPrice
-      ) {
-        planKey = "team5";
-      } else {
-        planKey = "team15";
+    const { action } = parsed.data;
+
+    if (action === "switch_interval") {
+      const { interval } = parsed.data;
+
+      if (subscription.billingInterval === interval) {
+        return NextResponse.json(
+          { error: `Already on ${interval} billing` },
+          { status: 400 },
+        );
       }
+
+      // Determine current plan key from price ID
+      const currentPlan = subscription.plan as "pro" | "team";
+      let planKey: "pro" | "team5" | "team15" = "pro";
+      if (currentPlan === "team") {
+        const currentPriceId = currentItem.price.id;
+        const team5MonthlyPrice = getPriceId("team5", "monthly");
+        const team5AnnualPrice = getPriceId("team5", "annual");
+        if (currentPriceId === team5MonthlyPrice || currentPriceId === team5AnnualPrice) {
+          planKey = "team5";
+        } else {
+          planKey = "team15";
+        }
+      }
+
+      const newPriceId = getPriceId(planKey, interval);
+
+      if (interval === "annual") {
+        await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
+          items: [{ id: currentItem.id, price: newPriceId }],
+          proration_behavior: "create_prorations",
+        });
+      } else {
+        await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
+          items: [{ id: currentItem.id, price: newPriceId }],
+          proration_behavior: "none",
+          billing_cycle_anchor: "unchanged",
+        });
+      }
+
+      db.update(subscriptions)
+        .set({ billingInterval: interval, updatedAt: Date.now() })
+        .where(eq(subscriptions.id, subscription.id))
+        .run();
+
+      return NextResponse.json({
+        success: true,
+        billingInterval: interval,
+        message:
+          interval === "annual"
+            ? "Switched to annual billing. Proration applied."
+            : "Switched to monthly billing. Takes effect at end of current period.",
+      });
     }
 
-    const newPriceId = getPriceId(planKey, interval);
+    if (action === "change_plan") {
+      const { plan: newPlanKey } = parsed.data;
+      const interval = (subscription.billingInterval || "monthly") as "monthly" | "annual";
+      const newPriceId = getPriceId(newPlanKey, interval);
+      const newPlanName = newPlanKey.startsWith("team") ? "team" : newPlanKey;
 
-    if (interval === "annual") {
-      // Monthly → Annual: prorate immediately
       await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
-        items: [
-          {
-            id: currentItem.id,
-            price: newPriceId,
-          },
-        ],
+        items: [{ id: currentItem.id, price: newPriceId }],
         proration_behavior: "create_prorations",
       });
-    } else {
-      // Annual → Monthly: take effect at end of current period
-      await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
-        items: [
-          {
-            id: currentItem.id,
-            price: newPriceId,
-          },
-        ],
-        proration_behavior: "none",
-        billing_cycle_anchor: "unchanged",
+
+      db.update(subscriptions)
+        .set({ plan: newPlanName as "pro" | "team", updatedAt: Date.now() })
+        .where(eq(subscriptions.id, subscription.id))
+        .run();
+
+      return NextResponse.json({
+        success: true,
+        plan: newPlanName,
+        message: `Plan changed to ${newPlanKey}. Proration applied.`,
       });
     }
-
-    // Update local record
-    db.update(subscriptions)
-      .set({
-        billingInterval: interval,
-        updatedAt: Date.now(),
-      })
-      .where(eq(subscriptions.id, subscription.id))
-      .run();
-
-    return NextResponse.json({
-      success: true,
-      billingInterval: interval,
-      message:
-        interval === "annual"
-          ? "Switched to annual billing. Proration applied."
-          : "Switched to monthly billing. Takes effect at end of current period.",
-    });
   } catch (error) {
     console.error("Billing manage error:", error);
     return NextResponse.json(
