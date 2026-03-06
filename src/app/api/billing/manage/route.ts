@@ -5,7 +5,7 @@ import { runMigrations } from "@/db/migrate";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { getAuthenticatedUserId } from "@/lib/auth";
-import { stripe, getPriceId } from "@/lib/stripe";
+import { getStripe, getPriceId } from "@/lib/stripe";
 
 const manageSchema = z.discriminatedUnion("action", [
   z.object({
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get the Stripe subscription to find the current item
-    const stripeSubscription = await stripe.subscriptions.retrieve(
+    const stripeSubscription = await getStripe().subscriptions.retrieve(
       subscription.stripeSubscriptionId,
     );
 
@@ -102,12 +102,12 @@ export async function POST(request: NextRequest) {
       const newPriceId = getPriceId(planKey, interval);
 
       if (interval === "annual") {
-        await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
+        await getStripe().subscriptions.update(subscription.stripeSubscriptionId, {
           items: [{ id: currentItem.id, price: newPriceId }],
           proration_behavior: "create_prorations",
         });
       } else {
-        await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
+        await getStripe().subscriptions.update(subscription.stripeSubscriptionId, {
           items: [{ id: currentItem.id, price: newPriceId }],
           proration_behavior: "none",
           billing_cycle_anchor: "unchanged",
@@ -135,7 +135,7 @@ export async function POST(request: NextRequest) {
       const newPriceId = getPriceId(newPlanKey, interval);
       const newPlanName = newPlanKey.startsWith("team") ? "team" : newPlanKey;
 
-      await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
+      await getStripe().subscriptions.update(subscription.stripeSubscriptionId, {
         items: [{ id: currentItem.id, price: newPriceId }],
         proration_behavior: "create_prorations",
       });

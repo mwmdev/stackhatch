@@ -4,7 +4,7 @@ import { subscriptions } from "@/db/schema";
 import { runMigrations } from "@/db/migrate";
 import { eq } from "drizzle-orm";
 import { getAuthenticatedUserId } from "@/lib/auth";
-import { stripe } from "@/lib/stripe";
+import { getStripe } from "@/lib/stripe";
 
 export async function POST(request: NextRequest) {
   try {
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
+      await getStripe().subscriptions.update(subscription.stripeSubscriptionId, {
         cancel_at_period_end: false,
       });
 
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
+    await getStripe().subscriptions.update(subscription.stripeSubscriptionId, {
       cancel_at_period_end: true,
     });
 

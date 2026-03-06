@@ -5,7 +5,7 @@ import { runMigrations } from "@/db/migrate";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { getAuthenticatedUser } from "@/lib/auth";
-import { stripe, getPriceId } from "@/lib/stripe";
+import { getStripe, getPriceId } from "@/lib/stripe";
 
 const createTeamSchema = z.object({
   name: z.string().min(1).max(100),
@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
 
     let customerId = existingSub?.stripeCustomerId;
     if (!customerId) {
-      const customer = await stripe.customers.create({
+      const customer = await getStripe().customers.create({
         email: dbUser.email || undefined,
         name: dbUser.name || undefined,
         metadata: { userId: user.userId },
@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create Stripe checkout session for team plan
-    const session = await stripe.checkout.sessions.create({
+    const session = await getStripe().checkout.sessions.create({
       customer: customerId,
       payment_method_types: ["card"],
       mode: "subscription",

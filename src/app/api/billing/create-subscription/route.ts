@@ -5,7 +5,7 @@ import { runMigrations } from "@/db/migrate";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { getAuthenticatedUserId } from "@/lib/auth";
-import { stripe } from "@/lib/stripe";
+import { getStripe } from "@/lib/stripe";
 import { v4 as uuid } from "uuid";
 
 const createSubscriptionSchema = z.object({
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     runMigrations(db);
 
     // Retrieve the checkout session from Stripe
-    const session = await stripe.checkout.sessions.retrieve(sessionId, {
+    const session = await getStripe().checkout.sessions.retrieve(sessionId, {
       expand: ['subscription'],
     });
 

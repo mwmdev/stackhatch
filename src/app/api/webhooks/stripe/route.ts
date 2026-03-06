@@ -3,7 +3,7 @@ import { getDb } from "@/db";
 import { subscriptions, users, usage } from "@/db/schema";
 import { runMigrations } from "@/db/migrate";
 import { eq } from "drizzle-orm";
-import { stripe, getPlanByPriceId } from "@/lib/stripe";
+import { getStripe, getPlanByPriceId } from "@/lib/stripe";
 import { v4 as uuid } from "uuid";
 import type Stripe from "stripe";
 
@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
 
   let event: Stripe.Event;
   try {
-    event = stripe.webhooks.constructEvent(
+    event = getStripe().webhooks.constructEvent(
       body,
       signature,
       process.env.STRIPE_WEBHOOK_SECRET!,

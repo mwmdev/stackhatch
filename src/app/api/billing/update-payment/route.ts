@@ -4,7 +4,7 @@ import { subscriptions } from "@/db/schema";
 import { runMigrations } from "@/db/migrate";
 import { eq } from "drizzle-orm";
 import { getAuthenticatedUserId } from "@/lib/auth";
-import { stripe } from "@/lib/stripe";
+import { getStripe } from "@/lib/stripe";
 
 export async function POST() {
   try {
@@ -33,7 +33,7 @@ export async function POST() {
     }
 
     // Create a Stripe SetupIntent for updating payment method
-    const setupIntent = await stripe.setupIntents.create({
+    const setupIntent = await getStripe().setupIntents.create({
       customer: subscription.stripeCustomerId,
       payment_method_types: ["card"],
       metadata: { userId },
