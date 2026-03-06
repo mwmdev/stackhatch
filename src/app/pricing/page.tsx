@@ -1,12 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Check } from "lucide-react";
 import CheckoutButton from "@/components/billing/CheckoutButton";
 import Link from "next/link";
 
 export default function PricingPage() {
   const [billingInterval, setBillingInterval] = useState<'monthly' | 'annual'>('monthly');
+  const [currentPlan, setCurrentPlan] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/billing/subscription")
+      .then(res => res.ok ? res.json() : null)
+      .then(data => { if (data?.plan) setCurrentPlan(data.plan); })
+      .catch(() => {});
+  }, []);
 
   const plans = [
     {
@@ -80,6 +88,14 @@ export default function PricingPage() {
     return null;
   };
 
+  const isCurrentPlan = (planName: string) => {
+    if (!currentPlan) return false;
+    if (planName === "Free" && currentPlan === "free") return true;
+    if (planName === "Pro" && currentPlan === "pro") return true;
+    if (planName === "Team" && (currentPlan === "team" || currentPlan === "team5" || currentPlan === "team15")) return true;
+    return false;
+  };
+
   return (
     <div className="min-h-screen bg-[var(--background)] py-12">
       <div className="max-w-6xl mx-auto px-4">
@@ -130,18 +146,26 @@ export default function PricingPage() {
             <div
               key={plan.name}
               className={`relative bg-[var(--card)] rounded-lg border p-8 ${
-                plan.popular
-                  ? 'border-blue-500 shadow-lg scale-105'
-                  : 'border-[var(--border)]'
+                isCurrentPlan(plan.name)
+                  ? 'border-green-500 shadow-lg ring-2 ring-green-500/20'
+                  : plan.popular
+                    ? 'border-blue-500 shadow-lg scale-105'
+                    : 'border-[var(--border)]'
               }`}
             >
-              {plan.popular && (
+              {isCurrentPlan(plan.name) ? (
+                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                  <span className="bg-green-600 text-white px-3 py-1 rounded-full text-sm font-medium">
+                    Current Plan
+                  </span>
+                </div>
+              ) : plan.popular ? (
                 <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
                   <span className="bg-blue-500 text-white px-3 py-1 rounded-full text-sm font-medium">
                     Most Popular
                   </span>
                 </div>
-              )}
+              ) : null}
 
               <div className="text-center mb-6">
                 <h3 className="text-2xl font-bold text-[var(--foreground)] mb-2">
@@ -191,7 +215,11 @@ export default function PricingPage() {
               </ul>
 
               <div className="mt-auto">
-                {plan.name === 'Free' ? (
+                {isCurrentPlan(plan.name) ? (
+                  <span className="w-full bg-green-600/10 text-green-600 dark:text-green-400 font-medium py-2 px-4 rounded-md text-center block border border-green-600/20">
+                    Current Plan
+                  </span>
+                ) : plan.name === 'Free' ? (
                   <Link
                     href="/login"
                     className="w-full bg-[var(--muted)] hover:bg-[var(--border)] text-[var(--foreground)] font-medium py-2 px-4 rounded-md transition-colors text-center block"

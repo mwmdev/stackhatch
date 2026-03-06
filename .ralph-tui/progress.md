@@ -135,3 +135,16 @@ after each iteration and it's included in prompts for context.
   - Orphaned comments need no DB changes — just check if nodeId exists in the current nodeNames map at render time
 ---
 
+## 2026-03-06 - stackhatch-6ms.6
+- US-006 pricing page was already 10/11 complete from previous iteration
+- Added current plan highlighting for logged-in users (the missing criterion)
+  - Fetches `/api/billing/subscription` on mount, silently fails for unauthenticated users
+  - Current plan card gets green border + ring + "Current Plan" badge
+  - CTA button replaced with non-clickable "Current Plan" label
+  - Handles all plan variants: free, pro, team/team5/team15
+- **Files changed:** `src/app/pricing/page.tsx` (added useEffect subscription fetch, isCurrentPlan helper, conditional card styling and CTA)
+- **Learnings:**
+  - The subscription API returns 401 for unauthenticated users, so the fetch `.catch(() => {})` pattern keeps the page working for visitors
+  - Team plans can be stored as "team", "team5", or "team15" in the DB — isCurrentPlan checks all variants
+---
+

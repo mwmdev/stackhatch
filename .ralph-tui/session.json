@@ -3,10 +3,10 @@
   "sessionId": "0f73ab6a-5673-4c9d-9dbd-661c8aed267c",
   "status": "running",
   "startedAt": "2026-03-06T16:43:49.073Z",
-  "updatedAt": "2026-03-06T17:07:52.213Z",
-  "currentIteration": 5,
+  "updatedAt": "2026-03-06T17:09:50.420Z",
+  "currentIteration": 6,
   "maxIterations": 50,
-  "tasksCompleted": 5,
+  "tasksCompleted": 6,
   "isPaused": false,
   "agentPlugin": "claude",
   "model": "opus",
@@ -66,8 +66,8 @@
       {
         "id": "stackhatch-6ms.13",
         "title": "US-013: Implement node-anchored comments on canvas",
-        "status": "open",
-        "completedInSession": false
+        "status": "completed",
+        "completedInSession": true
       },
       {
         "id": "stackhatch-6ms.6",
@@ -157,6 +157,16 @@
       "durationMs": 156434,
       "startedAt": "2026-03-06T17:00:13.120Z",
       "endedAt": "2026-03-06T17:02:49.554Z"
+    },
+    {
+      "iteration": 6,
+      "status": "completed",
+      "taskId": "stackhatch-6ms.13",
+      "taskTitle": "US-013: Implement node-anchored comments on canvas",
+      "taskCompleted": true,
+      "durationMs": 300961,
+      "startedAt": "2026-03-06T17:02:51.096Z",
+      "endedAt": "2026-03-06T17:07:52.057Z"
     }
   ],
   "skippedTaskIds": [],
