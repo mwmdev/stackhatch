@@ -1,0 +1,1 @@
+ALTER TABLE `subscriptions` ADD `billing_interval` text DEFAULT 'monthly';

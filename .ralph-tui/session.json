@@ -3,10 +3,10 @@
   "sessionId": "0f73ab6a-5673-4c9d-9dbd-661c8aed267c",
   "status": "running",
   "startedAt": "2026-03-06T16:43:49.073Z",
-  "updatedAt": "2026-03-06T16:46:06.052Z",
-  "currentIteration": 0,
+  "updatedAt": "2026-03-06T16:52:02.875Z",
+  "currentIteration": 1,
   "maxIterations": 50,
-  "tasksCompleted": 0,
+  "tasksCompleted": 1,
   "isPaused": false,
   "agentPlugin": "claude",
   "model": "opus",
@@ -36,8 +36,8 @@
       {
         "id": "stackhatch-6ms.14",
         "title": "US-014: Implement team diagram library",
-        "status": "open",
-        "completedInSession": false
+        "status": "completed",
+        "completedInSession": true
       },
       {
         "id": "stackhatch-6ms.15",
@@ -107,7 +107,18 @@
       }
     ]
   },
-  "iterations": [],
+  "iterations": [
+    {
+      "iteration": 1,
+      "status": "completed",
+      "taskId": "stackhatch-6ms.14",
+      "taskTitle": "US-014: Implement team diagram library",
+      "taskCompleted": true,
+      "durationMs": 133615,
+      "startedAt": "2026-03-06T16:43:52.084Z",
+      "endedAt": "2026-03-06T16:46:05.699Z"
+    }
+  ],
   "skippedTaskIds": [],
   "cwd": "/home/mike/cloud/apps/mwm/stackhatch",
   "activeTaskIds": [],

@@ -76,6 +76,7 @@ export async function POST(request: NextRequest) {
       stripeCustomerId: session.customer as string,
       stripeSubscriptionId: stripeSubscription.id,
       plan: plan.startsWith('team') ? 'team' as const : plan as 'pro',
+      billingInterval: interval,
       status: stripeSubscription.status === 'active' ? 'active' as const : 'past_due' as const,
       currentPeriodEnd: stripeSubscription.current_period_end * 1000, // Convert to milliseconds
       createdAt: existingSubscription?.createdAt || now,
@@ -88,6 +89,7 @@ export async function POST(request: NextRequest) {
           stripeCustomerId: subscriptionData.stripeCustomerId,
           stripeSubscriptionId: subscriptionData.stripeSubscriptionId,
           plan: subscriptionData.plan,
+          billingInterval: subscriptionData.billingInterval,
           status: subscriptionData.status,
           currentPeriodEnd: subscriptionData.currentPeriodEnd,
           updatedAt: subscriptionData.updatedAt,

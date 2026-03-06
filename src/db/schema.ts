@@ -48,6 +48,7 @@ export const subscriptions = sqliteTable("subscriptions", {
   stripeCustomerId: text("stripe_customer_id"),
   stripeSubscriptionId: text("stripe_subscription_id"),
   plan: text("plan", { enum: ["free", "pro", "team"] }).notNull().default("free"),
+  billingInterval: text("billing_interval", { enum: ["monthly", "annual"] }).default("monthly"),
   status: text("status", { enum: ["active", "canceled", "past_due"] }).notNull(),
   currentPeriodEnd: integer("current_period_end", { mode: "number" }),
   createdAt: integer("created_at", { mode: "number" }).notNull(),

@@ -58,6 +58,13 @@ export default function SettingsPage() {
   });
   const [expandedPrompt, setExpandedPrompt] = useState<string | null>(null);
   const [savingPrompt, setSavingPrompt] = useState<string | null>(null);
+  const [billing, setBilling] = useState<{
+    plan: string;
+    billingInterval: string | null;
+    status: string | null;
+    currentPeriodEnd: number | null;
+  } | null>(null);
+  const [switchingInterval, setSwitchingInterval] = useState(false);
 
   useEffect(() => {
     const match = document.cookie.match(/(?:^|; )dev-role=([^;]*)/);
@@ -73,9 +80,11 @@ export default function SettingsPage() {
   }, []);
 
   useEffect(() => {
-    fetch("/api/settings")
-      .then((res) => res.json())
-      .then((data: Settings) => {
+    Promise.all([
+      fetch("/api/settings").then((res) => res.json()),
+      fetch("/api/billing/subscription").then((res) => res.ok ? res.json() : null),
+    ])
+      .then(([data, billingData]: [Settings, { plan: string; billingInterval: string | null; status: string | null; currentPeriodEnd: number | null } | null]) => {
         if (data.apiKey) {
           setHasExistingKey(true);
           setApiKey(data.apiKey);
@@ -96,6 +105,9 @@ export default function SettingsPage() {
           prompt_alternatives: data.prompt_alternatives ?? "",
           prompt_prd: data.prompt_prd ?? "",
         });
+        if (billingData) {
+          setBilling(billingData);
+        }
       })
       .catch(() => {
         // Use defaults
@@ -238,6 +250,30 @@ export default function SettingsPage() {
     },
     [customSubtypes, saveCustomSubtypes],
   );
+
+  const handleSwitchInterval = useCallback(async () => {
+    if (!billing || !billing.billingInterval) return;
+    const newInterval = billing.billingInterval === "monthly" ? "annual" : "monthly";
+    setSwitchingInterval(true);
+    try {
+      const res = await fetch("/api/billing/manage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "switch_interval", interval: newInterval }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setBilling((prev) => prev ? { ...prev, billingInterval: newInterval } : prev);
+        showToast("success", data.message);
+      } else {
+        showToast("error", data.error || "Failed to switch billing interval");
+      }
+    } catch {
+      showToast("error", "Failed to switch billing interval");
+    } finally {
+      setSwitchingInterval(false);
+    }
+  }, [billing, showToast]);
 
   const promptDefaults: Record<string, string> = {
     prompt_chat: DEFAULT_CHAT_PROMPT,
@@ -493,6 +529,79 @@ export default function SettingsPage() {
                 ))}
               </div>
             </section>
+
+            {/* Billing Section */}
+            {billing && billing.plan !== "free" && (
+              <section className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-6">
+                <h2 className="mb-4 text-lg font-semibold text-[var(--card-foreground)]">
+                  Billing
+                </h2>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-[var(--muted-foreground)]">Current Plan</span>
+                    <span className="text-sm font-medium text-[var(--foreground)] capitalize">{billing.plan}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-[var(--muted-foreground)]">Billing Interval</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-[var(--foreground)] capitalize">
+                        {billing.billingInterval}
+                      </span>
+                      {billing.billingInterval === "monthly" && (
+                        <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                          Save ~21% with annual
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {billing.currentPeriodEnd && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-[var(--muted-foreground)]">Next Billing Date</span>
+                      <span className="text-sm font-medium text-[var(--foreground)]">
+                        {new Date(billing.currentPeriodEnd).toLocaleDateString()}
+                      </span>
+                    </div>
+                  )}
+                  {billing.status && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-[var(--muted-foreground)]">Status</span>
+                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                        billing.status === "active"
+                          ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                          : billing.status === "past_due"
+                            ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
+                            : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                      }`}>
+                        {billing.status === "past_due" ? "Past Due" : billing.status}
+                      </span>
+                    </div>
+                  )}
+                  <div className="border-t border-[var(--border)] pt-3">
+                    <button
+                      onClick={handleSwitchInterval}
+                      disabled={switchingInterval}
+                      className="rounded-md border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--muted)] disabled:opacity-50"
+                    >
+                      {switchingInterval
+                        ? "Switching..."
+                        : billing.billingInterval === "monthly"
+                          ? "Switch to Annual Billing (Save ~21%)"
+                          : "Switch to Monthly Billing"}
+                    </button>
+                    {billing.billingInterval === "monthly" && (
+                      <p className="mt-2 text-xs text-[var(--muted-foreground)]">
+                        Switching to annual billing will prorate the charge.
+                      </p>
+                    )}
+                    {billing.billingInterval === "annual" && (
+                      <p className="mt-2 text-xs text-[var(--muted-foreground)]">
+                        Switching to monthly billing takes effect at the end of your current annual period.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </section>
+            )}
 
             {/* View As Role Section */}
             <section className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-6">

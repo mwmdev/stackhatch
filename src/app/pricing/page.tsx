@@ -93,27 +93,34 @@ export default function PricingPage() {
           </p>
 
           {/* Billing Toggle */}
-          <div className="inline-flex items-center bg-[var(--muted)] p-1 rounded-lg">
-            <button
-              onClick={() => setBillingInterval('monthly')}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                billingInterval === 'monthly'
-                  ? 'bg-[var(--background)] text-[var(--foreground)] shadow-sm'
-                  : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
-              }`}
-            >
-              Monthly
-            </button>
-            <button
-              onClick={() => setBillingInterval('annual')}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                billingInterval === 'annual'
-                  ? 'bg-[var(--background)] text-[var(--foreground)] shadow-sm'
-                  : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
-              }`}
-            >
-              Annual
-            </button>
+          <div className="inline-flex items-center gap-3">
+            <div className="inline-flex items-center bg-[var(--muted)] p-1 rounded-lg">
+              <button
+                onClick={() => setBillingInterval('monthly')}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  billingInterval === 'monthly'
+                    ? 'bg-[var(--background)] text-[var(--foreground)] shadow-sm'
+                    : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
+                }`}
+              >
+                Monthly
+              </button>
+              <button
+                onClick={() => setBillingInterval('annual')}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  billingInterval === 'annual'
+                    ? 'bg-[var(--background)] text-[var(--foreground)] shadow-sm'
+                    : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
+                }`}
+              >
+                Annual
+              </button>
+            </div>
+            {billingInterval === 'annual' && (
+              <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                Save ~21%
+              </span>
+            )}
           </div>
         </div>
 
@@ -155,6 +162,12 @@ export default function PricingPage() {
                   )}
                 </div>
 
+                {billingInterval === 'annual' && plan.annualPrice && (
+                  <p className="text-sm text-[var(--muted-foreground)]">
+                    ${plan.annualPrice * 12}/year
+                  </p>
+                )}
+
                 {plan.teamSize && (
                   <p className="text-sm text-[var(--muted-foreground)]">
                     Up to {plan.teamSize}
@@ -162,9 +175,9 @@ export default function PricingPage() {
                 )}
 
                 {getAnnualSavings(plan) && (
-                  <p className="text-sm text-green-600 dark:text-green-400 font-medium">
+                  <span className="inline-block rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700 dark:bg-green-900/30 dark:text-green-400">
                     {getAnnualSavings(plan)}
-                  </p>
+                  </span>
                 )}
               </div>
 
@@ -210,11 +223,15 @@ export default function PricingPage() {
           <div className="flex justify-center gap-8 text-sm">
             <div>
               <span className="font-medium text-[var(--foreground)]">Up to 5 users:</span>
-              <span className="text-[var(--muted-foreground)] ml-2">$39/month</span>
+              <span className="text-[var(--muted-foreground)] ml-2">
+                {billingInterval === 'annual' ? '$33/mo ($396/yr)' : '$39/month'}
+              </span>
             </div>
             <div>
               <span className="font-medium text-[var(--foreground)]">Up to 15 users:</span>
-              <span className="text-[var(--muted-foreground)] ml-2">$79/month</span>
+              <span className="text-[var(--muted-foreground)] ml-2">
+                {billingInterval === 'annual' ? '$66/mo ($792/yr)' : '$79/month'}
+              </span>
             </div>
             <div>
               <span className="font-medium text-[var(--foreground)]">15+ users:</span>
