@@ -50,3 +50,29 @@ after each iteration and it's included in prompts for context.
   - `Promise.all` for parallel fetching of settings + billing data in the settings page useEffect
 ---
 
+## 2026-03-06 - stackhatch-6ms.10
+- Implemented US-010: Email invite system for teams
+- Created `POST /api/teams/[id]/invites` — send invite with unique token, 7-day expiry, seat limit enforcement
+- Created `GET /api/teams/[id]/invites` — list pending invites (owner only)
+- Created `DELETE /api/teams/[id]/invites/[inviteId]` — revoke pending invite
+- Created `GET /api/invites/[token]` — fetch invite details (no auth required for viewing)
+- Created `POST /api/invites/[token]` — accept invite, adds user to team_members
+- Created `DELETE /api/teams/[id]/members/[userId]` — remove member (owner only, owner can't be removed)
+- Created `GET /api/teams/[id]` — get team details with members (any member)
+- Created `/invite/[token]` page with accept/decline UI and auth check
+- Created `/team/[id]` management page with members list, invite form, pending invites, remove member
+- **Files changed:**
+  - `src/app/api/teams/[id]/route.ts` (new)
+  - `src/app/api/teams/[id]/invites/route.ts` (new)
+  - `src/app/api/teams/[id]/invites/[inviteId]/route.ts` (new)
+  - `src/app/api/teams/[id]/members/[userId]/route.ts` (new)
+  - `src/app/api/invites/[token]/route.ts` (new)
+  - `src/app/invite/[token]/page.tsx` (new)
+  - `src/app/team/[id]/page.tsx` (new)
+- **Learnings:**
+  - Seat limits count both existing members AND pending invites to prevent over-inviting
+  - Invite token API (GET) is intentionally unauthenticated so the invite page can load for non-users, while accept (POST) requires auth
+  - `randomBytes(32).toString("hex")` from Node crypto generates secure invite tokens
+  - Use `next/image` Image component instead of `<img>` to avoid the `@next/next/no-img-element` lint warning
+---
+
