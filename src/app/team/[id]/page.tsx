@@ -44,6 +44,9 @@ export default function TeamPage() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviting, setInviting] = useState(false);
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [editingName, setEditingName] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [renaming, setRenaming] = useState(false);
 
   const showToast = useCallback((type: "success" | "error", message: string) => {
     setToast({ type, message });
@@ -145,6 +148,34 @@ export default function TeamPage() {
     }
   }
 
+  async function handleRename(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newName.trim() || newName.trim() === team?.name) {
+      setEditingName(false);
+      return;
+    }
+
+    setRenaming(true);
+    try {
+      const res = await fetch(`/api/teams/${teamId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newName.trim() }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        showToast("error", data.error || "Failed to rename team");
+      } else {
+        setTeam((prev) => prev ? { ...prev, name: newName.trim() } : prev);
+        showToast("success", "Team renamed");
+      }
+    } catch {
+      showToast("error", "Failed to rename team");
+    }
+    setRenaming(false);
+    setEditingName(false);
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
@@ -205,7 +236,50 @@ export default function TeamPage() {
         {/* Team Header */}
         <div className="mb-8">
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold">{team.name}</h1>
+            {editingName ? (
+              <form onSubmit={handleRename} className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  autoFocus
+                  className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-1 text-2xl font-bold focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") setEditingName(false);
+                  }}
+                />
+                <button
+                  type="submit"
+                  disabled={renaming}
+                  className="rounded-lg bg-[var(--color-client)] px-3 py-1 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                >
+                  {renaming ? "Saving..." : "Save"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditingName(false)}
+                  className="rounded-lg px-3 py-1 text-sm text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
+                >
+                  Cancel
+                </button>
+              </form>
+            ) : (
+              <>
+                <h1 className="text-2xl font-bold">{team.name}</h1>
+                {team.isOwner && (
+                  <button
+                    onClick={() => {
+                      setNewName(team.name);
+                      setEditingName(true);
+                    }}
+                    className="rounded px-2 py-1 text-xs text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
+                    title="Rename team"
+                  >
+                    Rename
+                  </button>
+                )}
+              </>
+            )}
             <span className="rounded-full bg-[var(--muted)] px-3 py-0.5 text-xs font-medium text-[var(--muted-foreground)]">
               {team.plan === "team5" ? "Team (5)" : "Team (15)"}
             </span>

@@ -3,10 +3,10 @@
   "sessionId": "0f73ab6a-5673-4c9d-9dbd-661c8aed267c",
   "status": "running",
   "startedAt": "2026-03-06T16:43:49.073Z",
-  "updatedAt": "2026-03-06T17:21:05.612Z",
-  "currentIteration": 8,
+  "updatedAt": "2026-03-06T17:23:57.368Z",
+  "currentIteration": 9,
   "maxIterations": 50,
-  "tasksCompleted": 8,
+  "tasksCompleted": 9,
   "isPaused": false,
   "agentPlugin": "claude",
   "model": "opus",
@@ -84,8 +84,8 @@
       {
         "id": "stackhatch-6ms.8",
         "title": "US-008: Add billing management to settings",
-        "status": "open",
-        "completedInSession": false
+        "status": "completed",
+        "completedInSession": true
       },
       {
         "id": "stackhatch-6ms.9",
@@ -187,6 +187,16 @@
       "durationMs": 438276,
       "startedAt": "2026-03-06T17:09:52.303Z",
       "endedAt": "2026-03-06T17:17:10.579Z"
+    },
+    {
+      "iteration": 9,
+      "status": "completed",
+      "taskId": "stackhatch-6ms.8",
+      "taskTitle": "US-008: Add billing management to settings",
+      "taskCompleted": true,
+      "durationMs": 232475,
+      "startedAt": "2026-03-06T17:17:12.822Z",
+      "endedAt": "2026-03-06T17:21:05.297Z"
     }
   ],
   "skippedTaskIds": [],

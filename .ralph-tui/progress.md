@@ -173,6 +173,25 @@ after each iteration and it's included in prompts for context.
   - Using two variants (inline/modal) for UpgradePrompt covers both in-context hints (chat sidebar, settings) and blocking prompts (project creation, export)
 ---
 
+## 2026-03-06 - stackhatch-6ms.9
+- Implemented US-009: Add teams database and creation flow
+- Created `POST /api/teams` — validates paid user, creates Stripe checkout session for team plan (team5/team15), returns checkout URL
+- Created `GET /api/teams` — lists all teams where user is a member via inner join on teamMembers
+- Added `PATCH /api/teams/[id]` — owner-only team rename with Zod validation
+- Added inline rename UI to team management page: "Rename" button → inline form with save/cancel, Escape key support
+- Team creation triggers Stripe checkout; actual team record is created in `create-subscription` after payment succeeds
+- Only authenticated paid users can create teams (free-user role gets 403)
+- GET /api/teams/[id] and team management page already existed from US-010
+- **Files changed:**
+  - `src/app/api/teams/route.ts` (new — POST + GET)
+  - `src/app/api/teams/[id]/route.ts` (added PATCH handler)
+  - `src/app/team/[id]/page.tsx` (added rename UI)
+- **Learnings:**
+  - Team creation is a two-step flow: POST /api/teams creates Stripe checkout session, then create-subscription creates the actual team record after payment confirmation
+  - The create-checkout and create-subscription routes already handle teamName in metadata, so POST /api/teams reuses the same Stripe checkout pattern
+  - Dynamic imports (`await import("@/db/schema")`) work in route handlers for accessing schema tables not in the top-level import
+---
+
 ## 2026-03-06 - stackhatch-6ms.8
 - Implemented US-008: Add billing management to settings
 - Created `POST /api/billing/cancel` — cancel subscription at period end or reactivate a canceled subscription

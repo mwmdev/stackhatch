@@ -4,6 +4,11 @@ import { teams, teamMembers, users } from "@/db/schema";
 import { runMigrations } from "@/db/migrate";
 import { eq, and } from "drizzle-orm";
 import { getAuthenticatedUserId } from "@/lib/auth";
+import { z } from "zod";
+
+const renameTeamSchema = z.object({
+  name: z.string().min(1).max(100),
+});
 
 // GET /api/teams/[id] - Get team details with members
 export async function GET(
@@ -70,6 +75,65 @@ export async function GET(
     console.error("GET /api/teams/[id] error:", error);
     return NextResponse.json(
       { error: "Failed to fetch team" },
+      { status: 500 }
+    );
+  }
+}
+
+// PATCH /api/teams/[id] - Rename team (owner only)
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const userId = await getAuthenticatedUserId();
+    if (!userId) {
+      return NextResponse.json(
+        { error: "Authentication required" },
+        { status: 401 }
+      );
+    }
+
+    const body = await request.json();
+    const parsed = renameTeamSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.issues[0].message },
+        { status: 400 }
+      );
+    }
+
+    const teamId = params.id;
+    const db = getDb();
+    runMigrations(db);
+
+    const team = db
+      .select()
+      .from(teams)
+      .where(eq(teams.id, teamId))
+      .get();
+
+    if (!team) {
+      return NextResponse.json({ error: "Team not found" }, { status: 404 });
+    }
+
+    if (team.ownerId !== userId) {
+      return NextResponse.json(
+        { error: "Only the team owner can rename the team" },
+        { status: 403 }
+      );
+    }
+
+    db.update(teams)
+      .set({ name: parsed.data.name })
+      .where(eq(teams.id, teamId))
+      .run();
+
+    return NextResponse.json({ success: true, name: parsed.data.name });
+  } catch (error) {
+    console.error("PATCH /api/teams/[id] error:", error);
+    return NextResponse.json(
+      { error: "Failed to rename team" },
       { status: 500 }
     );
   }
