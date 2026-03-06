@@ -104,6 +104,9 @@ export default function ProjectPage() {
   const [prdLoading, setPrdLoading] = useState(false);
   const [saveTemplateModalOpen, setSaveTemplateModalOpen] = useState(false);
   const [templateSaving, setTemplateSaving] = useState(false);
+  const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
+  const [activeCommentNodeId, setActiveCommentNodeId] = useState<string | null>(null);
+  const [commentsPanelOpenTrigger, setCommentsPanelOpenTrigger] = useState(0);
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<StackNodeData>(
     [],
   );
@@ -180,6 +183,20 @@ export default function ProjectPage() {
     [setRfNodes, setRfEdges],
   );
 
+  const handleAddComment = useCallback((id: string) => {
+    setActiveCommentNodeId(id);
+    setCommentsPanelOpenTrigger((t) => t + 1);
+  }, []);
+
+  const handleCommentBadgeClick = useCallback((id: string) => {
+    setActiveCommentNodeId(id);
+    setCommentsPanelOpenTrigger((t) => t + 1);
+  }, []);
+
+  const handleCommentCountsChange = useCallback((counts: Record<string, number>) => {
+    setCommentCounts(counts);
+  }, []);
+
   // --- Debounced save ---
 
   const debouncedSave = useCallback(
@@ -241,13 +258,27 @@ export default function ProjectPage() {
         data: {
           ...n.data,
           customSubtypes,
+          commentCount: commentCounts[n.id] ?? 0,
           onLockToggle: handleLockToggle,
           onDelete: handleNodeDelete,
+          onAddComment: handleAddComment,
+          onCommentBadgeClick: handleCommentBadgeClick,
         },
       }));
     },
-    [handleLockToggle, handleNodeDelete, customSubtypes],
+    [handleLockToggle, handleNodeDelete, handleAddComment, handleCommentBadgeClick, customSubtypes, commentCounts],
   );
+
+  // Update comment counts on existing nodes when they change
+  useEffect(() => {
+    setRfNodes((nds) =>
+      nds.map((n) => {
+        const count = commentCounts[n.id] ?? 0;
+        if (n.data.commentCount === count) return n;
+        return { ...n, data: { ...n.data, commentCount: count } };
+      }),
+    );
+  }, [commentCounts, setRfNodes]);
 
   // --- React Flow event handlers ---
 
@@ -424,6 +455,8 @@ export default function ProjectPage() {
           customSubtypes,
           onLockToggle: handleLockToggle,
           onDelete: handleNodeDelete,
+          onAddComment: handleAddComment,
+          onCommentBadgeClick: handleCommentBadgeClick,
         },
       };
 
@@ -442,7 +475,7 @@ export default function ProjectPage() {
       });
       setSelectedNode(newStackNode);
     },
-    [handleLockToggle, handleNodeDelete, setRfNodes, customSubtypes],
+    [handleLockToggle, handleNodeDelete, handleAddComment, handleCommentBadgeClick, setRfNodes, customSubtypes],
   );
 
   // --- Detail panel update ---
@@ -728,6 +761,8 @@ export default function ProjectPage() {
               customSubtypes,
               onLockToggle: handleLockToggle,
               onDelete: handleNodeDelete,
+              onAddComment: handleAddComment,
+              onCommentBadgeClick: handleCommentBadgeClick,
             },
           }));
           const edges = toReactFlowEdges(stored.edges);
@@ -761,6 +796,15 @@ export default function ProjectPage() {
     [project?.canvasState],
   );
   const nodeCount = project?.canvasState?.nodes?.length ?? 0;
+
+  // Map nodeId → name for comment labels
+  const nodeNames = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const n of project?.canvasState?.nodes ?? []) {
+      map[n.id] = n.name;
+    }
+    return map;
+  }, [project?.canvasState?.nodes]);
 
   if (loading) {
     return (
@@ -987,6 +1031,11 @@ export default function ProjectPage() {
           <CommentsPanel
             projectId={projectId}
             isTeamProject={!!project.teamId}
+            nodeNames={nodeNames}
+            activeNodeId={activeCommentNodeId}
+            onClearNodeFilter={() => setActiveCommentNodeId(null)}
+            onCommentCountsChange={handleCommentCountsChange}
+            openTrigger={commentsPanelOpenTrigger}
           />
 
           {/* Connection Type Selector popover */}

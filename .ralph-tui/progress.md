@@ -118,3 +118,20 @@ after each iteration and it's included in prompts for context.
   - `group` + `group-hover:inline` Tailwind pattern works well for showing delete buttons only on hover
 ---
 
+## 2026-03-06 - stackhatch-6ms.13
+- Implemented US-013: Node-anchored comments on canvas
+- Added "Add Comment" option to node right-click context menu in StackNode
+- Added comment count badge (blue circle) on nodes with comments, clickable to filter
+- Enhanced CommentsPanel with node filtering, "on [Node Name]" labels, and orphaned comment indicators
+- Wired project page to track comment counts per node and pass them to node data
+- Node deletion preserves comments — they show as "on deleted node" in the general panel
+- **Files changed:**
+  - `src/components/canvas/StackNode.tsx` (context menu + badge + new data props)
+  - `src/components/comments/CommentsPanel.tsx` (node filtering, labels, counts reporting)
+  - `src/app/project/[id]/page.tsx` (comment counts state, callbacks, nodeNames map, CommentsPanel props)
+- **Learnings:**
+  - Use an incrementing counter (`openTrigger`) instead of a boolean for "force open" patterns — React batches boolean toggles within the same render
+  - Comment counts can be derived in CommentsPanel and reported up via callback, avoiding an extra API call
+  - Orphaned comments need no DB changes — just check if nodeId exists in the current nodeNames map at render time
+---
+

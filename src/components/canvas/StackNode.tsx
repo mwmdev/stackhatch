@@ -32,9 +32,12 @@ export interface StackNodeData {
   reasoning: string;
   locked: boolean;
   customSubtypes?: CustomSubtypesMap;
+  commentCount?: number;
   onLockToggle?: (id: string, locked: boolean) => void;
   onDelete?: (id: string) => void;
   onClick?: (id: string) => void;
+  onAddComment?: (id: string) => void;
+  onCommentBadgeClick?: (id: string) => void;
 }
 
 interface ContextMenuState {
@@ -113,6 +116,21 @@ function StackNodeComponent({ id, data, selected }: NodeProps<StackNodeData>) {
         </div>
       )}
 
+      {/* Comment count badge */}
+      {(data.commentCount ?? 0) > 0 && (
+        <button
+          className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--color-client)] px-1 text-[10px] font-bold text-white shadow-sm hover:opacity-80"
+          onClick={(e) => {
+            e.stopPropagation();
+            data.onCommentBadgeClick?.(id);
+          }}
+          title={`${data.commentCount} comment${data.commentCount !== 1 ? "s" : ""}`}
+          data-testid="comment-badge"
+        >
+          {data.commentCount}
+        </button>
+      )}
+
       {/* Node content */}
       <div className="px-3 py-2.5">
         {/* Header: icon + name */}
@@ -184,6 +202,18 @@ function StackNodeComponent({ id, data, selected }: NodeProps<StackNodeData>) {
               <icons.Lock size={14} />
             )}
             {data.locked ? "Unlock" : "Lock"}
+          </button>
+          <button
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--card-foreground)] hover:bg-[var(--muted)]"
+            onClick={(e) => {
+              e.stopPropagation();
+              data.onAddComment?.(id);
+              setContextMenu((prev) => ({ ...prev, visible: false }));
+            }}
+            data-testid="context-menu-add-comment"
+          >
+            <icons.MessageSquare size={14} />
+            Add Comment
           </button>
           <button
             className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-red-500 hover:bg-[var(--muted)]"
