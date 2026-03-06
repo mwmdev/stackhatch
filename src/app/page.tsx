@@ -10,6 +10,8 @@ interface ProjectSummary {
   id: string;
   name: string;
   description: string | null;
+  teamId: string | null;
+  teamName: string | null;
   createdAt: number;
   updatedAt: number;
 }
@@ -560,9 +562,16 @@ export default function Dashboard() {
                       className="block w-full text-left"
                       data-testid={`project-card-${project.id}`}
                     >
-                      <h3 className="font-medium text-[var(--card-foreground)]">
-                        {project.name}
-                      </h3>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-medium text-[var(--card-foreground)]">
+                          {project.name}
+                        </h3>
+                        {project.teamName && (
+                          <span className="inline-flex items-center rounded-full bg-[var(--color-services)]/15 px-2 py-0.5 text-[10px] font-medium text-[var(--color-services)]">
+                            {project.teamName}
+                          </span>
+                        )}
+                      </div>
                       {project.description && (
                         <p className="mt-1 line-clamp-2 text-sm text-[var(--muted-foreground)]">
                           {project.description}

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/db";
-import { projects } from "@/db/schema";
+import { projects, teamMembers } from "@/db/schema";
 import { runMigrations } from "@/db/migrate";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
@@ -16,15 +16,34 @@ const updateProjectSchema = z
   .strict();
 
 /**
- * Verify that a project belongs to the authenticated user
- * Returns the project if it exists and belongs to the user, null otherwise
+ * Verify that a user can access a project (owner or team member).
+ * Returns the project if accessible, null otherwise.
  */
-async function verifyProjectOwnership(db: any, projectId: string, userId: string) {
-  return db
+function verifyProjectAccess(db: ReturnType<typeof getDb>, projectId: string, userId: string) {
+  const project = db
     .select()
     .from(projects)
-    .where(and(eq(projects.id, projectId), eq(projects.userId, userId)))
+    .where(eq(projects.id, projectId))
     .get();
+
+  if (!project) return null;
+
+  // Owner always has access
+  if (project.userId === userId) return project;
+
+  // Team member has access to team projects
+  if (project.teamId) {
+    const membership = db
+      .select()
+      .from(teamMembers)
+      .where(
+        and(eq(teamMembers.teamId, project.teamId), eq(teamMembers.userId, userId)),
+      )
+      .get();
+    if (membership) return project;
+  }
+
+  return null;
 }
 
 export async function GET(
@@ -44,7 +63,7 @@ export async function GET(
   const db = getDb();
   runMigrations(db);
 
-  const project = await verifyProjectOwnership(db, id, userId);
+  const project = verifyProjectAccess(db, id, userId);
 
   if (!project) {
     return NextResponse.json({ error: "Project not found" }, { status: 404 });
@@ -100,7 +119,7 @@ export async function PATCH(
   const db = getDb();
   runMigrations(db);
 
-  const existing = await verifyProjectOwnership(db, id, userId);
+  const existing = verifyProjectAccess(db, id, userId);
 
   if (!existing) {
     return NextResponse.json({ error: "Project not found" }, { status: 404 });
@@ -108,10 +127,10 @@ export async function PATCH(
 
   db.update(projects)
     .set({ ...parsed.data, updatedAt: Date.now() })
-    .where(and(eq(projects.id, id), eq(projects.userId, userId)))
+    .where(eq(projects.id, id))
     .run();
 
-  const updated = await verifyProjectOwnership(db, id, userId);
+  const updated = verifyProjectAccess(db, id, userId);
 
   return NextResponse.json({
     ...updated,
@@ -138,13 +157,18 @@ export async function DELETE(
   const db = getDb();
   runMigrations(db);
 
-  const existing = await verifyProjectOwnership(db, id, userId);
+  // Only the project owner can delete
+  const existing = db
+    .select()
+    .from(projects)
+    .where(and(eq(projects.id, id), eq(projects.userId, userId)))
+    .get();
 
   if (!existing) {
     return NextResponse.json({ error: "Project not found" }, { status: 404 });
   }
 
-  db.delete(projects).where(and(eq(projects.id, id), eq(projects.userId, userId))).run();
+  db.delete(projects).where(eq(projects.id, id)).run();
 
   return NextResponse.json({ success: true });
 }

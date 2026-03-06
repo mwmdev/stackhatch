@@ -50,6 +50,26 @@ after each iteration and it's included in prompts for context.
   - `Promise.all` for parallel fetching of settings + billing data in the settings page useEffect
 ---
 
+## 2026-03-06 - stackhatch-6ms.11
+- Implemented US-011: Shared project access within teams
+- Created `GET /api/teams/[id]/projects` endpoint to list team projects (membership-gated)
+- Updated `POST /api/projects` to accept optional `teamId` with team membership verification
+- Replaced `verifyProjectOwnership` with `verifyProjectAccess` in project `[id]` routes — checks owner OR team membership
+- Team members can GET and PATCH any project belonging to their team; DELETE remains owner-only
+- Updated `GET /api/projects` to return both personal projects and team projects via `or()` + `inArray()` with left join on teams for team name
+- Added team name badge to project cards on dashboard (colored pill with team name)
+- **Files changed:**
+  - `src/app/api/teams/[id]/projects/route.ts` (new)
+  - `src/app/api/projects/route.ts` (teamId support in POST, team projects in GET with team name join)
+  - `src/app/api/projects/[id]/route.ts` (verifyProjectAccess replaces verifyProjectOwnership)
+  - `src/app/page.tsx` (team badge on project cards)
+- **Learnings:**
+  - `or()` with `inArray()` is the clean way to combine "owned by user OR belongs to user's teams" in a single Drizzle query
+  - Left join on teams table to get team name avoids a separate API call for team metadata on the project list
+  - `verifyProjectAccess` checks project existence first, then owner, then team membership — avoids redundant queries
+  - DELETE should remain owner-only even for team projects to prevent accidental deletion by team members
+---
+
 ## 2026-03-06 - stackhatch-6ms.10
 - Implemented US-010: Email invite system for teams
 - Created `POST /api/teams/[id]/invites` — send invite with unique token, 7-day expiry, seat limit enforcement
