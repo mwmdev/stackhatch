@@ -54,6 +54,7 @@ interface Project {
   description: string | null;
   repoUrl: string | null;
   canvasState: StackArchitecture | null;
+  teamId: string | null;
   createdAt: number;
   updatedAt: number;
 }
@@ -100,6 +101,8 @@ export default function ProjectPage() {
   const [alternatives, setAlternatives] = useState<Record<string, AlternativeNode[]>>({});
   const [altLoading, setAltLoading] = useState(false);
   const [prdLoading, setPrdLoading] = useState(false);
+  const [saveTemplateModalOpen, setSaveTemplateModalOpen] = useState(false);
+  const [templateSaving, setTemplateSaving] = useState(false);
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<StackNodeData>(
     [],
   );
@@ -547,6 +550,51 @@ export default function ProjectPage() {
     [selectedNode, handleNodeUpdate],
   );
 
+  // --- Save as template ---
+
+  const handleSaveAsTemplate = useCallback(async (templateName: string, templateDescription?: string) => {
+    if (!project?.teamId) return;
+
+    setTemplateSaving(true);
+    try {
+      // Get current canvas state
+      const stackNodes = fromReactFlowNodes(rfNodes);
+      const stackEdges = fromReactFlowEdges(rfEdges);
+      const positions: Record<string, { x: number; y: number }> = {};
+      for (const node of rfNodes) {
+        positions[node.id] = node.position;
+      }
+      const canvasState = {
+        nodes: stackNodes,
+        edges: stackEdges,
+        positions,
+      };
+
+      const res = await fetch(`/api/teams/${project.teamId}/templates`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: templateName,
+          description: templateDescription,
+          canvasState: JSON.stringify(canvasState),
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        setToast(data.error || "Failed to save template");
+        return;
+      }
+
+      setToast("Template saved successfully!");
+      setSaveTemplateModalOpen(false);
+    } catch {
+      setToast("Failed to save template");
+    } finally {
+      setTemplateSaving(false);
+    }
+  }, [project?.teamId, rfNodes, rfEdges]);
+
   // --- Re-layout ---
 
   const handleRelayout = useCallback(() => {
@@ -783,6 +831,15 @@ export default function ProjectPage() {
                 {prdLoading ? "Generating..." : "PRD"}
               </button>
             )}
+            {nodeCount > 0 && project?.teamId && (
+              <button
+                onClick={() => setSaveTemplateModalOpen(true)}
+                className="rounded border border-[var(--border)] px-2 py-1 text-xs text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
+                title="Save current canvas as team template"
+              >
+                Save as Template
+              </button>
+            )}
             {nodeCount > 0 && (
               <span className="text-xs text-[var(--muted-foreground)]">
                 {nodeCount} node{nodeCount !== 1 ? "s" : ""}
@@ -946,6 +1003,68 @@ export default function ProjectPage() {
             onSuggestAlternatives={handleSuggestAlternatives}
             onSwapAlternative={handleSwapAlternative}
           />
+
+          {/* Save Template Modal */}
+          {saveTemplateModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+              <div className="w-96 rounded-lg bg-[var(--card)] p-6 shadow-xl">
+                <h3 className="mb-4 text-lg font-semibold">Save as Template</h3>
+                <form onSubmit={(e) => {
+                  e.preventDefault();
+                  const formData = new FormData(e.currentTarget);
+                  const name = formData.get('name') as string;
+                  const description = formData.get('description') as string;
+                  if (name.trim()) {
+                    handleSaveAsTemplate(name.trim(), description.trim() || undefined);
+                  }
+                }}>
+                  <div className="mb-4">
+                    <label htmlFor="template-name" className="mb-2 block text-sm font-medium">
+                      Template Name *
+                    </label>
+                    <input
+                      id="template-name"
+                      name="name"
+                      type="text"
+                      required
+                      className="w-full rounded border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
+                      placeholder="e.g., Microservices API Template"
+                      autoFocus
+                    />
+                  </div>
+                  <div className="mb-4">
+                    <label htmlFor="template-description" className="mb-2 block text-sm font-medium">
+                      Description
+                    </label>
+                    <textarea
+                      id="template-description"
+                      name="description"
+                      rows={3}
+                      className="w-full rounded border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
+                      placeholder="Describe when to use this template..."
+                    />
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSaveTemplateModalOpen(false)}
+                      disabled={templateSaving}
+                      className="rounded border border-[var(--border)] px-4 py-2 text-sm hover:bg-[var(--muted)] disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={templateSaving}
+                      className="rounded bg-[var(--color-client)] px-4 py-2 text-sm text-white hover:opacity-90 disabled:opacity-50"
+                    >
+                      {templateSaving ? "Saving..." : "Save Template"}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
 
           {/* Toast notification */}
           {toast && (

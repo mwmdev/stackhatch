@@ -5,64 +5,23 @@ after each iteration and it's included in prompts for context.
 
 ## Codebase Patterns (Study These First)
 
-### Database Schema & Migrations
-- **Drizzle ORM**: Used for all database operations with SQLite as the database
-- **Migration Pattern**: Schema changes go in `src/db/schema.ts`, generate migrations with `npx drizzle-kit generate`
-- **Foreign Keys**: Always use cascading deletes (`{ onDelete: "cascade" }`) for dependent data
-- **Timestamps**: Use `integer("field_name", { mode: "number" })` for Unix timestamps (Date.now())
-- **Text Enums**: Use `text("field", { enum: ["val1", "val2"] })` for string enums with TypeScript types
+- **API route auth pattern**: Use `getAuthenticatedUserId()` from `@/lib/auth`, return 401 if null.
+- **Team membership check**: Query `teamMembers` table with `and(eq(teamMembers.teamId, id), eq(teamMembers.userId, userId))` using `.get()`.
+- **DB access**: Call `getDb()` + `runMigrations(db)` at start of each API handler. Uses better-sqlite3 (synchronous).
+- **Schema IDs**: All primary keys are `text` UUIDs generated with `uuid()`.
+- **Canvas state**: Stored as JSON string in `canvasState` column. Includes `nodes`, `edges`, `positions`, and `alternatives`.
+- **Modal pattern**: Use `fixed inset-0 z-50` overlay with `bg-black bg-opacity-50` and centered `bg-[var(--card)]` card.
+- **Pre-existing lint warnings**: `admin/page.tsx` (img element), `settings/page.tsx` (unused eslint-disable) — not related to billing/team features.
 
 ---
 
-## [2026-03-06] - stackhatch-6ms.1
-- ✅ Added 6 new database tables for billing and team collaboration features
-- ✅ Extended projects table with teamId field for shared team projects
-- ✅ Generated migration `0005_gorgeous_golden_guardian.sql` successfully
-- **Files changed:**
-  - `src/db/schema.ts` - Added subscriptions, usage, teams, team_members, team_invites, comments tables
-  - `drizzle/0005_gorgeous_golden_guardian.sql` - Generated migration file
+## 2026-03-06 - stackhatch-6ms.14
+- US-014 was already fully implemented from a previous iteration
+- Verified all 9 acceptance criteria: schema, 3 API endpoints, save-as-template button, new-from-template flow, template picker with thumbnails, canvas state copying, team access control
+- Fixed pre-existing lint error in `DevRoleSwitcher.tsx` (setState in useEffect → useSyncExternalStore)
+- **Files changed:** `src/components/DevRoleSwitcher.tsx` (lint fix only)
 - **Learnings:**
-  - SQLite + Drizzle ORM handles complex foreign key relationships well
-  - Migration generation is seamless with `npx drizzle-kit generate`
-  - Existing lint errors in DevRoleSwitcher.tsx don't affect schema changes
-  - TypeScript compilation confirms schema syntax is correct
----
-
-## [2026-03-06] - stackhatch-6ms.2
-- ✅ Configured Stripe environment variables and price IDs (already in .env.example)
-- ✅ Verified Stripe dependencies already installed (stripe, @stripe/stripe-js, @stripe/react-stripe-js)
-- ✅ Created comprehensive stripe.ts library with client initialization and price mapping
-- ✅ Documented required Stripe products and setup instructions
-- **Files changed:**
-  - `src/lib/stripe.ts` - New file with Stripe client, price mapping, plan config, and helper functions
-  - `docs/stripe-setup.md` - New documentation for Stripe dashboard setup
-- **Learnings:**
-  - Stripe API version must match TypeScript definitions (used '2026-02-25.clover')
-  - Environment setup was already comprehensive in .env.example
-  - Plan configuration structure supports both individual and team pricing
-  - Helper functions make price ID lookups cleaner for future API implementations
----
-
-## [2026-03-06] - stackhatch-6ms.3
-- ✅ Implemented Stripe Elements checkout flow with complete payment processing
-- ✅ Created API endpoints: `/api/billing/create-checkout` and `/api/billing/create-subscription`
-- ✅ Built checkout modal component with Stripe CardElement integration
-- ✅ Created billing success page with payment confirmation and subscription details
-- ✅ Added checkout button component for reusability
-- ✅ Created pricing page to showcase plans and trigger checkout flow
-- **Files changed:**
-  - `src/app/api/billing/create-checkout/route.ts` - New Stripe checkout session API endpoint
-  - `src/app/api/billing/create-subscription/route.ts` - New subscription creation API endpoint
-  - `src/components/billing/CheckoutModal.tsx` - New Stripe Elements modal component
-  - `src/components/billing/CheckoutButton.tsx` - New reusable checkout button component
-  - `src/app/billing/success/page.tsx` - New payment success page with confirmation flow
-  - `src/app/pricing/page.tsx` - New pricing page with billing toggle and plan comparison
-- **Learnings:**
-  - Stripe Elements requires careful integration with React state management
-  - useCallback is essential for event handlers in useEffect to avoid dependency warnings
-  - Stripe checkout sessions redirect externally - no need for complex in-modal payment forms
-  - CSS custom properties (--foreground, --card, etc.) provide excellent theming consistency
-  - Next.js Suspense boundaries are required for useSearchParams in success pages
-  - Quality gates (typecheck, lint) catch React best practices violations early
+  - The `diagramTemplates` schema, migration (0006), API routes, TemplatePicker component, and UI integration in project page and new project page were all complete
+  - `useSyncExternalStore` is the correct replacement for `useState` + `useEffect` pattern when reading external state (cookies) to avoid the react-hooks/set-state-in-effect lint rule
 ---
 

@@ -11,6 +11,7 @@ const createProjectSchema = z.object({
   name: z.string().min(1, "Name is required"),
   description: z.string().optional(),
   repoUrl: z.string().optional(),
+  canvasState: z.string().optional(), // JSON string for template-based projects
 });
 
 export async function POST(request: NextRequest) {
@@ -41,8 +42,9 @@ export async function POST(request: NextRequest) {
       name: parsed.data.name,
       description: parsed.data.description ?? null,
       repoUrl: parsed.data.repoUrl ?? null,
-      canvasState: null,
+      canvasState: parsed.data.canvasState ?? null,
       userId,
+      teamId: null, // TODO: Set teamId when creating team projects from templates
       createdAt: now,
       updatedAt: now,
     };

@@ -115,3 +115,17 @@ export const comments = sqliteTable("comments", {
   createdAt: integer("created_at", { mode: "number" }).notNull(),
   updatedAt: integer("updated_at", { mode: "number" }).notNull(),
 });
+
+export const diagramTemplates = sqliteTable("diagram_templates", {
+  id: text("id").primaryKey(),
+  teamId: text("team_id")
+    .notNull()
+    .references(() => teams.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description"),
+  canvasState: text("canvas_state").notNull(), // JSON
+  createdBy: text("created_by")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  createdAt: integer("created_at", { mode: "number" }).notNull(),
+});

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useSyncExternalStore } from "react";
 
 const ROLES = ["admin", "paid-user", "free-user"] as const;
 
@@ -9,12 +9,17 @@ function getCookie(name: string): string | null {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
-export default function DevRoleSwitcher() {
-  const [role, setRole] = useState("admin");
+function getDevRole() {
+  return getCookie("dev-role") || "admin";
+}
 
-  useEffect(() => {
-    setRole(getCookie("dev-role") || "admin");
-  }, []);
+function subscribeToDevRole(_cb: () => void) {
+  return () => {};
+}
+
+export default function DevRoleSwitcher() {
+  const initialRole = useSyncExternalStore(subscribeToDevRole, getDevRole, () => "admin");
+  const [role, setRole] = useState(initialRole);
 
   function handleChange(newRole: string) {
     document.cookie = `dev-role=${newRole};path=/;max-age=31536000`;

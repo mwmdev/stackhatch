@@ -1,14 +1,15 @@
 {
   "version": 1,
-  "sessionId": "480a932a-c9a4-4749-9ea7-6bce26f5a8a4",
+  "sessionId": "0f73ab6a-5673-4c9d-9dbd-661c8aed267c",
   "status": "running",
-  "startedAt": "2026-03-06T16:24:18.976Z",
-  "updatedAt": "2026-03-06T16:36:57.526Z",
-  "currentIteration": 2,
+  "startedAt": "2026-03-06T16:43:49.073Z",
+  "updatedAt": "2026-03-06T16:46:06.052Z",
+  "currentIteration": 0,
   "maxIterations": 50,
-  "tasksCompleted": 2,
+  "tasksCompleted": 0,
   "isPaused": false,
   "agentPlugin": "claude",
+  "model": "opus",
   "trackerState": {
     "plugin": "beads-bv",
     "epicId": "stackhatch-6ms",
@@ -18,18 +19,18 @@
         "id": "stackhatch-6ms.1",
         "title": "US-001: Add subscription and usage database schema",
         "status": "completed",
-        "completedInSession": true
+        "completedInSession": false
       },
       {
         "id": "stackhatch-6ms.2",
         "title": "US-002: Configure Stripe products and environment setup",
         "status": "completed",
-        "completedInSession": true
+        "completedInSession": false
       },
       {
         "id": "stackhatch-6ms.3",
         "title": "US-003: Implement Stripe Elements checkout flow",
-        "status": "open",
+        "status": "completed",
         "completedInSession": false
       },
       {
@@ -106,28 +107,7 @@
       }
     ]
   },
-  "iterations": [
-    {
-      "iteration": 1,
-      "status": "completed",
-      "taskId": "stackhatch-6ms.1",
-      "taskTitle": "US-001: Add subscription and usage database schema",
-      "taskCompleted": true,
-      "durationMs": 201339,
-      "startedAt": "2026-03-06T16:24:37.914Z",
-      "endedAt": "2026-03-06T16:27:59.253Z"
-    },
-    {
-      "iteration": 2,
-      "status": "completed",
-      "taskId": "stackhatch-6ms.2",
-      "taskTitle": "US-002: Configure Stripe products and environment setup",
-      "taskCompleted": true,
-      "durationMs": 148782,
-      "startedAt": "2026-03-06T16:28:01.933Z",
-      "endedAt": "2026-03-06T16:30:30.715Z"
-    }
-  ],
+  "iterations": [],
   "skippedTaskIds": [],
   "cwd": "/home/mike/cloud/apps/mwm/stackhatch",
   "activeTaskIds": [],
