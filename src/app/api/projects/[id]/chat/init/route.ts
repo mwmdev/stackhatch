@@ -4,7 +4,8 @@ import { messages, projects } from "@/db/schema";
 import { runMigrations } from "@/db/migrate";
 import { eq, asc, and } from "drizzle-orm";
 import { streamChat } from "@/lib/ai/stream-chat";
-import { getAuthenticatedUser, requireRole } from "@/lib/auth";
+import { getAuthenticatedUser } from "@/lib/auth";
+import { incrementMessages } from "@/lib/usage";
 
 export async function POST(
   _request: NextRequest,
@@ -19,8 +20,6 @@ export async function POST(
       headers: { "Content-Type": "application/json" },
     });
   }
-  const roleErr = requireRole(user.role, ["admin", "paid-user"]);
-  if (roleErr) return roleErr;
   const userId = user.userId;
 
   const db = getDb();
@@ -55,6 +54,25 @@ export async function POST(
         headers: { "Content-Type": "application/json" },
       },
     );
+  }
+
+  // Enforce usage limits for free users
+  if (user.role === "free-user") {
+    const result = incrementMessages(userId);
+    if (!result.allowed) {
+      return new Response(
+        JSON.stringify({
+          error: `Monthly message limit reached (${result.limit})`,
+          limit: result.limit,
+          used: result.used,
+          upgradeUrl: "/pricing",
+        }),
+        {
+          status: 429,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+    }
   }
 
   return streamChat(db, id, null);

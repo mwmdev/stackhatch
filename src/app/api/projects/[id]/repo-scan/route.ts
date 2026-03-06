@@ -6,7 +6,8 @@ import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 import { analyzeRepo, formatRepoAnalysis } from "@/lib/github-analyzer";
 import { streamChat, sseEvent, SSE_HEADERS } from "@/lib/ai/stream-chat";
-import { getAuthenticatedUser, requireRole } from "@/lib/auth";
+import { getAuthenticatedUser } from "@/lib/auth";
+import { incrementScans } from "@/lib/usage";
 
 const scanSchema = z.object({
   repoUrl: z.string().min(1, "Repository URL is required"),
@@ -25,8 +26,6 @@ export async function POST(
       headers: { "Content-Type": "application/json" },
     });
   }
-  const roleErr = requireRole(user.role, ["admin", "paid-user"]);
-  if (roleErr) return roleErr;
   const userId = user.userId;
 
   const db = getDb();
@@ -65,6 +64,27 @@ export async function POST(
 
   const { repoUrl } = parsed.data;
 
+  // Enforce usage limits for free users
+  let scansRemaining: number | null = null;
+  if (user.role === "free-user") {
+    const result = incrementScans(userId);
+    if (!result.allowed) {
+      return new Response(
+        JSON.stringify({
+          error: `Monthly scan limit reached (${result.limit})`,
+          limit: result.limit,
+          used: result.used,
+          upgradeUrl: "/pricing",
+        }),
+        {
+          status: 429,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+    }
+    scansRemaining = result.limit - result.used;
+  }
+
   // Save repoUrl and clear canvas state for fresh architecture
   db.update(projects)
     .set({ repoUrl, canvasState: null, updatedAt: Date.now() })
@@ -86,5 +106,9 @@ export async function POST(
   }
 
   const initMessage = formatRepoAnalysis(analysis);
-  return streamChat(db, id, null, initMessage);
+  const response = streamChat(db, id, null, initMessage);
+  if (scansRemaining !== null) {
+    response.headers.set("X-Usage-Remaining", String(scansRemaining));
+  }
+  return response;
 }

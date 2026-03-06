@@ -234,3 +234,25 @@ after each iteration and it's included in prompts for context.
   - Next.js App Router provides raw body via `request.text()` which works directly with `stripe.webhooks.constructEvent()` — no special body parsing config needed
 ---
 
+## 2026-03-06 - stackhatch-6ms.5
+- Implemented US-005: Usage tracking and limit enforcement
+- Created `src/lib/usage.ts` with `getUsage`, `incrementMessages`, `incrementScans`, `resetUsage` functions
+  - Auto-creates usage record if none exists, auto-resets if period expired
+  - Returns `{ allowed, used, limit }` for enforcement decisions
+- Updated `POST /api/projects/[id]/chat` — removed `requireRole` gate, added usage enforcement for free users (20 messages/mo), `X-Usage-Remaining` header
+- Updated `POST /api/projects/[id]/chat/init` — same treatment (counts as a message)
+- Updated `POST /api/projects/[id]/repo-scan` — removed `requireRole` gate, added scan enforcement (2 scans/mo), `X-Usage-Remaining` header
+- Project limit enforcement (2 projects) was already implemented in US-007
+- Usage reset on billing period already handled in webhook handler (US-004)
+- 429 responses include `{ error, limit, used, upgradeUrl }` per FR-4
+- **Files changed:**
+  - `src/lib/usage.ts` (new)
+  - `src/app/api/projects/[id]/chat/route.ts` (usage enforcement)
+  - `src/app/api/projects/[id]/chat/init/route.ts` (usage enforcement)
+  - `src/app/api/projects/[id]/repo-scan/route.ts` (usage enforcement)
+- **Learnings:**
+  - `streamChat` returns `Response` (not `Promise<Response>`) — no `await` needed, but headers can still be set on the response before returning
+  - Usage enforcement should happen before the processing call (not after) to avoid wasted API calls
+  - The `requireRole` gate was blocking free users entirely from chat/repo-scan; removing it and adding usage-based enforcement is the correct approach
+---
+

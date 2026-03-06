@@ -5,7 +5,8 @@ import { runMigrations } from "@/db/migrate";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 import { streamChat } from "@/lib/ai/stream-chat";
-import { getAuthenticatedUser, requireRole } from "@/lib/auth";
+import { getAuthenticatedUser } from "@/lib/auth";
+import { incrementMessages } from "@/lib/usage";
 
 const chatSchema = z.object({
   message: z.string().min(1),
@@ -24,8 +25,6 @@ export async function POST(
       headers: { "Content-Type": "application/json" },
     });
   }
-  const roleErr = requireRole(user.role, ["admin", "paid-user"]);
-  if (roleErr) return roleErr;
   const userId = user.userId;
 
   const db = getDb();
@@ -53,5 +52,30 @@ export async function POST(
     );
   }
 
-  return streamChat(db, id, parsed.data.message);
+  // Enforce usage limits for free users
+  let usageRemaining: number | null = null;
+  if (user.role === "free-user") {
+    const result = incrementMessages(userId);
+    if (!result.allowed) {
+      return new Response(
+        JSON.stringify({
+          error: `Monthly message limit reached (${result.limit})`,
+          limit: result.limit,
+          used: result.used,
+          upgradeUrl: "/pricing",
+        }),
+        {
+          status: 429,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+    }
+    usageRemaining = result.limit - result.used;
+  }
+
+  const response = streamChat(db, id, parsed.data.message);
+  if (usageRemaining !== null) {
+    response.headers.set("X-Usage-Remaining", String(usageRemaining));
+  }
+  return response;
 }
