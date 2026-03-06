@@ -4,8 +4,9 @@ import { projects, teamMembers, teams } from "@/db/schema";
 import { runMigrations } from "@/db/migrate";
 import { v4 as uuid } from "uuid";
 import { z } from "zod";
-import { desc, eq, and, or, inArray } from "drizzle-orm";
-import { getAuthenticatedUserId } from "@/lib/auth";
+import { desc, eq, and, or, inArray, count } from "drizzle-orm";
+import { getAuthenticatedUser, getAuthenticatedUserId } from "@/lib/auth";
+import { PLAN_CONFIG } from "@/lib/stripe";
 
 const createProjectSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -17,13 +18,14 @@ const createProjectSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    const userId = await getAuthenticatedUserId();
-    if (!userId) {
+    const user = await getAuthenticatedUser();
+    if (!user) {
       return NextResponse.json(
         { error: "Authentication required" },
         { status: 401 },
       );
     }
+    const userId = user.userId;
 
     const body = await request.json();
     const parsed = createProjectSchema.safeParse(body);
@@ -36,6 +38,27 @@ export async function POST(request: NextRequest) {
 
     const db = getDb();
     runMigrations(db);
+
+    // Enforce project limit for free users
+    if (user.role === "free-user") {
+      const [{ total }] = db
+        .select({ total: count() })
+        .from(projects)
+        .where(eq(projects.userId, userId))
+        .all();
+      const limit = PLAN_CONFIG.free.features.projects;
+      if (total >= limit) {
+        return NextResponse.json(
+          {
+            error: `Free plan is limited to ${limit} projects`,
+            upgradeRequired: true,
+            limit,
+            used: total,
+          },
+          { status: 403 },
+        );
+      }
+    }
 
     // If teamId is provided, verify user is a team member
     if (parsed.data.teamId) {

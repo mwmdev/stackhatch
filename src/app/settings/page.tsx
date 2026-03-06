@@ -8,6 +8,7 @@ import { categoryOrder, nodeConfig } from "@/lib/node-config";
 import type { CustomSubtypesMap, CustomSubtypeEntry } from "@/lib/custom-subtypes";
 import type { NodeCategory } from "@/types/stack";
 import { DEFAULT_CHAT_PROMPT, DEFAULT_ALTERNATIVES_PROMPT, DEFAULT_PRD_PROMPT } from "@/lib/ai/default-prompts";
+import UpgradePrompt from "@/components/UpgradePrompt";
 
 const VALID_MODELS = [
   { id: "claude-sonnet-4-20250514", name: "Sonnet" },
@@ -480,6 +481,21 @@ export default function SettingsPage() {
               <p className="mb-3 text-sm text-[var(--muted-foreground)]">
                 Select which Claude model to use for architecture generation.
               </p>
+              {viewAsRole === "free-user" ? (
+                <div className="space-y-3">
+                  <div className="flex gap-2">
+                    <select
+                      value="claude-sonnet-4-20250514"
+                      disabled
+                      className="flex-1 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm opacity-75"
+                      aria-label="Claude Model"
+                    >
+                      <option>Sonnet (claude-sonnet-4-20250514)</option>
+                    </select>
+                  </div>
+                  <UpgradePrompt feature="use Opus and Haiku models" />
+                </div>
+              ) : (
               <div className="flex gap-2">
                 <select
                   value={model}
@@ -501,6 +517,7 @@ export default function SettingsPage() {
                   {saving ? "Saving..." : "Save"}
                 </button>
               </div>
+              )}
             </section>
 
             {/* Theme Section */}
@@ -636,6 +653,9 @@ export default function SettingsPage() {
               <p className="mb-4 text-sm text-[var(--muted-foreground)]">
                 Add custom subtypes to existing node categories. Built-in subtypes are always available.
               </p>
+              {viewAsRole === "free-user" ? (
+                <UpgradePrompt feature="add custom node subtypes" />
+              ) : (
               <div className="space-y-5">
                 {categoryOrder.map((category) => {
                   const config = nodeConfig[category];
@@ -732,6 +752,7 @@ export default function SettingsPage() {
                   );
                 })}
               </div>
+              )}
             </section>
             {/* AI Prompts Section — Admin Only */}
             {viewAsRole === "admin" && (

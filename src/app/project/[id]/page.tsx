@@ -48,6 +48,7 @@ import { getSubtypeConfig } from "@/lib/node-config";
 import { applyDagreLayout } from "@/lib/layout";
 import { mergeArchitecture } from "@/lib/merge-architecture";
 import { parseCustomSubtypes, type CustomSubtypesMap } from "@/lib/custom-subtypes";
+import UpgradePrompt from "@/components/UpgradePrompt";
 
 interface Project {
   id: string;
@@ -107,6 +108,7 @@ export default function ProjectPage() {
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
   const [activeCommentNodeId, setActiveCommentNodeId] = useState<string | null>(null);
   const [commentsPanelOpenTrigger, setCommentsPanelOpenTrigger] = useState(0);
+  const [upgradeFeature, setUpgradeFeature] = useState<string | null>(null);
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<StackNodeData>(
     [],
   );
@@ -394,7 +396,7 @@ export default function ProjectPage() {
         method: "POST",
       });
       if (res.status === 403) {
-        setToast("AI features require a paid plan. Please upgrade to export PRD.");
+        setUpgradeFeature("export PRD");
         return;
       }
       if (!res.ok) {
@@ -531,7 +533,7 @@ export default function ProjectPage() {
         }),
       });
       if (res.status === 403) {
-        setToast("AI features require a paid plan. Please upgrade to use alternatives.");
+        setUpgradeFeature("use alternatives");
         return;
       }
       if (!res.ok) return;
@@ -864,6 +866,7 @@ export default function ProjectPage() {
                 rfInstanceRef={rfInstanceRef}
                 projectName={project.name}
                 onError={setToast}
+                onUpgradeRequired={setUpgradeFeature}
               />
             )}
             {nodeCount > 0 && (
@@ -1120,6 +1123,15 @@ export default function ProjectPage() {
                 </form>
               </div>
             </div>
+          )}
+
+          {/* Upgrade Prompt */}
+          {upgradeFeature && (
+            <UpgradePrompt
+              feature={upgradeFeature}
+              variant="modal"
+              onDismiss={() => setUpgradeFeature(null)}
+            />
           )}
 
           {/* Toast notification */}

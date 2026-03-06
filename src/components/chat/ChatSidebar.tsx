@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
+import UpgradePrompt from "@/components/UpgradePrompt";
 
 function stripStackTags(text: string): string {
   return text
@@ -40,6 +41,7 @@ export default function ChatSidebar({
   const [streaming, setStreaming] = useState(false);
   const [streamText, setStreamText] = useState("");
   const [error, setError] = useState("");
+  const [upgradeFeature, setUpgradeFeature] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -171,7 +173,7 @@ export default function ChatSidebar({
         method: "POST",
       });
       if (res.status === 403) {
-        setError("AI features require a paid plan. Please upgrade to access chat.");
+        setUpgradeFeature("access AI chat");
         setStreaming(false);
         return;
       }
@@ -194,7 +196,7 @@ export default function ChatSidebar({
         body: JSON.stringify({ repoUrl }),
       });
       if (res.status === 403) {
-        setError("AI features require a paid plan. Please upgrade to access repo scanning.");
+        setUpgradeFeature("access repo scanning");
         setStreaming(false);
         return;
       }
@@ -239,7 +241,7 @@ export default function ChatSidebar({
         body: JSON.stringify({ message: text }),
       });
       if (res.status === 403) {
-        setError("AI features require a paid plan. Please upgrade to continue chatting.");
+        setUpgradeFeature("continue chatting");
         setStreaming(false);
         return;
       }
@@ -358,7 +360,16 @@ export default function ChatSidebar({
           </div>
         )}
 
-        {error && (
+        {upgradeFeature && (
+          <div className="mb-4">
+            <UpgradePrompt
+              feature={upgradeFeature}
+              onDismiss={() => setUpgradeFeature(null)}
+            />
+          </div>
+        )}
+
+        {error && !upgradeFeature && (
           <div className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-950 dark:text-red-400">
             {error}
           </div>

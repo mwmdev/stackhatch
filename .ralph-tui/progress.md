@@ -148,3 +148,28 @@ after each iteration and it's included in prompts for context.
   - Team plans can be stored as "team", "team5", or "team15" in the DB — isCurrentPlan checks all variants
 ---
 
+## 2026-03-06 - stackhatch-6ms.7
+- Implemented US-007: Add upgrade prompts at all feature gates
+- Created reusable `UpgradePrompt` component with inline (banner) and modal variants, amber-themed, with link to `/pricing`
+- Added project count enforcement: `POST /api/projects` now checks free users against 2-project limit, returns 403 with `upgradeRequired: true`
+- Replaced 3 plain-text upgrade messages in ChatSidebar (chat init, repo scan, send message) with inline UpgradePrompt banners
+- Replaced 2 toast-based upgrade messages on project page (PRD export, alternatives) with UpgradePrompt modal
+- Updated ExportDropdown with `onUpgradeRequired` callback to show upgrade modal instead of toast for free users
+- Gated model selection in settings: free users see Sonnet-only (disabled select) with inline upgrade prompt
+- Gated custom subtypes section in settings: free users see inline upgrade prompt instead of the add-subtype forms
+- Dashboard shows upgrade modal when free user tries to create 3rd project
+- **Files changed:**
+  - `src/components/UpgradePrompt.tsx` (new — reusable component)
+  - `src/components/chat/ChatSidebar.tsx` (upgrade prompt state + inline banner)
+  - `src/components/canvas/ExportDropdown.tsx` (onUpgradeRequired prop)
+  - `src/app/project/[id]/page.tsx` (upgrade modal for export/alternatives)
+  - `src/app/page.tsx` (upgrade modal for project limit)
+  - `src/app/settings/page.tsx` (model + subtypes gating)
+  - `src/app/api/projects/route.ts` (project count enforcement)
+- **Learnings:**
+  - Drizzle's `count()` function from `drizzle-orm` works with `.all()` returning `[{ total }]` for SQLite
+  - React Compiler's `preserve-manual-memoization` lint rule requires all deps used in `useCallback` to be in the dependency array — adding `onUpgradeRequired` fixed the lint error
+  - The `viewAsRole` state in settings already tracks the current role via cookie, making it easy to gate UI sections without additional API calls
+  - Using two variants (inline/modal) for UpgradePrompt covers both in-context hints (chat sidebar, settings) and blocking prompts (project creation, export)
+---
+

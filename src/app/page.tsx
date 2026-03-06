@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ThemeToggle from "@/components/ThemeToggle";
 import UserAvatar from "@/components/UserAvatar";
+import UpgradePrompt from "@/components/UpgradePrompt";
 
 interface ProjectSummary {
   id: string;
@@ -85,6 +86,7 @@ export default function Dashboard() {
   const [repoUrl, setRepoUrl] = useState("");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
+  const [upgradePrompt, setUpgradePrompt] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -120,6 +122,10 @@ export default function Dashboard() {
       });
       if (!res.ok) {
         const data = await res.json();
+        if (data.upgradeRequired) {
+          setUpgradePrompt(data.error || "create more projects");
+          return;
+        }
         setError(data.error || "Failed to create project");
         return;
       }
@@ -635,6 +641,15 @@ export default function Dashboard() {
           </div>
         </div>
       </footer>
+
+      {/* Upgrade Prompt Modal */}
+      {upgradePrompt && (
+        <UpgradePrompt
+          feature={upgradePrompt}
+          variant="modal"
+          onDismiss={() => setUpgradePrompt(null)}
+        />
+      )}
 
       {/* Delete Confirmation Modal */}
       {deleteTarget && (

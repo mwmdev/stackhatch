@@ -11,6 +11,7 @@ interface ExportDropdownProps {
   rfInstanceRef: RefObject<ReactFlowInstance | null>;
   projectName: string;
   onError: (message: string) => void;
+  onUpgradeRequired?: (feature: string) => void;
 }
 
 function getUserRole(): string {
@@ -18,7 +19,7 @@ function getUserRole(): string {
   return match ? decodeURIComponent(match[1]) : "admin";
 }
 
-export default function ExportDropdown({ rfInstanceRef, projectName, onError }: ExportDropdownProps) {
+export default function ExportDropdown({ rfInstanceRef, projectName, onError, onUpgradeRequired }: ExportDropdownProps) {
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -38,7 +39,11 @@ export default function ExportDropdown({ rfInstanceRef, projectName, onError }: 
 
     const role = getUserRole();
     if (role === "free-user") {
-      onError("AI features require a paid plan. Please upgrade to export diagrams.");
+      if (onUpgradeRequired) {
+        onUpgradeRequired("export diagrams");
+      } else {
+        onError("Upgrade to a paid plan to export diagrams.");
+      }
       return;
     }
 
@@ -78,7 +83,7 @@ export default function ExportDropdown({ rfInstanceRef, projectName, onError }: 
     } catch {
       onError(`Failed to export as ${format.toUpperCase()}`);
     }
-  }, [rfInstanceRef, projectName, onError]);
+  }, [rfInstanceRef, projectName, onError, onUpgradeRequired]);
 
   return (
     <div ref={dropdownRef} className="relative">
