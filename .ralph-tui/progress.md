@@ -12,6 +12,7 @@ after each iteration and it's included in prompts for context.
 - **Canvas state**: Stored as JSON string in `canvasState` column. Includes `nodes`, `edges`, `positions`, and `alternatives`.
 - **Modal pattern**: Use `fixed inset-0 z-50` overlay with `bg-black bg-opacity-50` and centered `bg-[var(--card)]` card.
 - **Pre-existing lint warnings**: `admin/page.tsx` (img element), `settings/page.tsx` (unused eslint-disable) — not related to billing/team features.
+- **Stripe API `2026-02-25.clover`**: `current_period_end` is on `SubscriptionItem` (not `Subscription`); invoice subscription ref is at `invoice.parent.subscription_details.subscription` (not `invoice.subscription`).
 
 ---
 
@@ -215,5 +216,21 @@ after each iteration and it's included in prompts for context.
   - Zod's `discriminatedUnion` cleanly handles multiple action types in a single endpoint — each branch gets type-safe access to its specific fields
   - Stripe's `cancel_at_period_end: true/false` is the right way to handle cancel/reactivate — keeps subscription active until period end
   - Stripe billing portal covers both payment method updates and invoice history — avoids building custom Stripe Elements forms for card updates
+---
+
+## 2026-03-06 - stackhatch-6ms.4
+- Implemented US-004: Stripe webhook handler
+- Created `POST /api/webhooks/stripe` endpoint with signature verification using `STRIPE_WEBHOOK_SECRET`
+- Handles `customer.subscription.created` and `customer.subscription.updated` — upserts subscription record, derives plan/interval from price ID with metadata fallback
+- Handles `customer.subscription.deleted` — marks subscription canceled, reverts user role to free-user
+- Handles `invoice.payment_failed` — updates subscription status to past_due
+- Handles `invoice.paid` — updates subscription status to active, updates user role to paid-user, resets usage counters
+- Webhook endpoint has no auth middleware (uses Stripe signature verification instead)
+- **Files changed:**
+  - `src/app/api/webhooks/stripe/route.ts` (new)
+- **Learnings:**
+  - Stripe API `2026-02-25.clover` moved `current_period_end` from `Subscription` to `SubscriptionItem` — access via `sub.items.data[0].current_period_end`
+  - Stripe API `2026-02-25.clover` moved invoice subscription reference to `invoice.parent.subscription_details.subscription` (was `invoice.subscription`)
+  - Next.js App Router provides raw body via `request.text()` which works directly with `stripe.webhooks.constructEvent()` — no special body parsing config needed
 ---
 
