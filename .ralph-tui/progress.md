@@ -96,3 +96,25 @@ after each iteration and it's included in prompts for context.
   - Use `next/image` Image component instead of `<img>` to avoid the `@next/next/no-img-element` lint warning
 ---
 
+## 2026-03-06 - stackhatch-6ms.12
+- Implemented US-012: General project comments
+- Created `POST /api/projects/[id]/comments` — add comment with team membership verification
+- Created `GET /api/projects/[id]/comments` — list comments ordered chronologically with author info (name, avatar)
+- Created `DELETE /api/projects/[id]/comments/[commentId]` — delete by comment author or team owner
+- Created `CommentsPanel` component — collapsible panel anchored bottom-right of canvas area
+  - Shows author avatar, name, relative timestamp
+  - Inline delete on hover (group-hover pattern)
+  - New comment input with submit button at bottom
+  - Auto-scrolls to latest comment
+- Comments only available on team projects (teamId check + team membership verification)
+- **Files changed:**
+  - `src/app/api/projects/[id]/comments/route.ts` (new — GET + POST)
+  - `src/app/api/projects/[id]/comments/[commentId]/route.ts` (new — DELETE)
+  - `src/components/comments/CommentsPanel.tsx` (new)
+  - `src/app/project/[id]/page.tsx` (added CommentsPanel import and usage)
+- **Learnings:**
+  - `verifyCommentAccess` pattern: check project exists → check teamId is set → check team membership — reusable for any team-only feature
+  - Use `Promise<{ id: string }>` for params type in Next.js 15 dynamic routes (not bare `{ id: string }`)
+  - `group` + `group-hover:inline` Tailwind pattern works well for showing delete buttons only on hover
+---
+

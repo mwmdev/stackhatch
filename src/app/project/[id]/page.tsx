@@ -28,6 +28,7 @@ import StackEdgeComponent, {
 } from "@/components/canvas/StackEdge";
 import EdgeLegend from "@/components/canvas/EdgeLegend";
 import ExportDropdown from "@/components/canvas/ExportDropdown";
+import CommentsPanel from "@/components/comments/CommentsPanel";
 import UserAvatar from "@/components/UserAvatar";
 import {
   toReactFlowNodes,
@@ -981,6 +982,12 @@ export default function ProjectPage() {
 
           {/* Edge Legend */}
           <EdgeLegend />
+
+          {/* Comments Panel */}
+          <CommentsPanel
+            projectId={projectId}
+            isTeamProject={!!project.teamId}
+          />
 
           {/* Connection Type Selector popover */}
           {pendingConnection && (
