@@ -36,6 +36,13 @@
       "when": 1772216778515,
       "tag": "0004_chunky_psylocke",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1772814367777,
+      "tag": "0005_gorgeous_golden_guardian",
+      "breakpoints": true
     }
   ]
 }

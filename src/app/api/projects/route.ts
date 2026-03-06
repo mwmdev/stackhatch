@@ -85,7 +85,8 @@ export async function GET() {
       .all();
 
     return NextResponse.json(userProjects);
-  } catch {
+  } catch (error) {
+    console.error("GET /api/projects error:", error);
     return NextResponse.json(
       { error: "Failed to fetch projects" },
       { status: 500 },

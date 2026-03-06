@@ -99,6 +99,7 @@ export default function ProjectPage() {
   const [scanUrlInput, setScanUrlInput] = useState("");
   const [alternatives, setAlternatives] = useState<Record<string, AlternativeNode[]>>({});
   const [altLoading, setAltLoading] = useState(false);
+  const [prdLoading, setPrdLoading] = useState(false);
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<StackNodeData>(
     [],
   );
@@ -347,6 +348,39 @@ export default function ProjectPage() {
       })),
     [rfEdges, handleEdgeLabelChange],
   );
+
+  // --- Export PRD ---
+
+  const handleExportPrd = useCallback(async () => {
+    if (!project) return;
+    setPrdLoading(true);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/export-prd`, {
+        method: "POST",
+      });
+      if (res.status === 403) {
+        setToast("AI features require a paid plan. Please upgrade to export PRD.");
+        return;
+      }
+      if (!res.ok) {
+        const data = await res.json();
+        setToast(data.error || "Failed to generate PRD");
+        return;
+      }
+      const { prd, projectName } = await res.json();
+      const blob = new Blob([prd], { type: "text/markdown" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.download = `${projectName}-prd.md`;
+      link.href = url;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      setToast("Failed to generate PRD");
+    } finally {
+      setPrdLoading(false);
+    }
+  }, [project, projectId]);
 
   // --- Add node ---
 
@@ -738,6 +772,16 @@ export default function ProjectPage() {
                 projectName={project.name}
                 onError={setToast}
               />
+            )}
+            {nodeCount > 0 && (
+              <button
+                onClick={handleExportPrd}
+                disabled={prdLoading}
+                className="rounded border border-[var(--border)] px-2 py-1 text-xs text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)] disabled:opacity-50"
+                title="Generate PRD from architecture"
+              >
+                {prdLoading ? "Generating..." : "PRD"}
+              </button>
             )}
             {nodeCount > 0 && (
               <span className="text-xs text-[var(--muted-foreground)]">

@@ -1,127 +1,114 @@
 {
   "version": 1,
-  "sessionId": "4f0d275b-6cc9-4fab-986e-cd5f38fbe954",
+  "sessionId": "480a932a-c9a4-4749-9ea7-6bce26f5a8a4",
   "status": "running",
-  "startedAt": "2026-02-27T12:10:56.215Z",
-  "updatedAt": "2026-02-27T12:36:11.519Z",
-  "currentIteration": 6,
+  "startedAt": "2026-03-06T16:24:18.976Z",
+  "updatedAt": "2026-03-06T16:27:59.613Z",
+  "currentIteration": 0,
   "maxIterations": 50,
-  "tasksCompleted": 6,
+  "tasksCompleted": 0,
   "isPaused": false,
   "agentPlugin": "claude",
   "trackerState": {
     "plugin": "beads-bv",
-    "epicId": "shastack-uh7",
-    "totalTasks": 7,
+    "epicId": "stackhatch-6ms",
+    "totalTasks": 15,
     "tasks": [
       {
-        "id": "shastack-uh7.1",
-        "title": "US-001: Install and configure NextAuth.js with GitHub provider",
-        "status": "completed",
-        "completedInSession": true
+        "id": "stackhatch-6ms.1",
+        "title": "US-001: Add subscription and usage database schema",
+        "status": "open",
+        "completedInSession": false
       },
       {
-        "id": "shastack-uh7.2",
-        "title": "US-002: Add users table and persist GitHub identity on login",
-        "status": "completed",
-        "completedInSession": true
+        "id": "stackhatch-6ms.2",
+        "title": "US-002: Configure Stripe products and environment setup",
+        "status": "open",
+        "completedInSession": false
       },
       {
-        "id": "shastack-uh7.3",
-        "title": "US-003: Add userId to projects table and scope queries",
-        "status": "completed",
-        "completedInSession": true
+        "id": "stackhatch-6ms.3",
+        "title": "US-003: Implement Stripe Elements checkout flow",
+        "status": "open",
+        "completedInSession": false
       },
       {
-        "id": "shastack-uh7.4",
-        "title": "US-004: Create middleware to protect all routes",
-        "status": "completed",
-        "completedInSession": true
+        "id": "stackhatch-6ms.14",
+        "title": "US-014: Implement team diagram library",
+        "status": "open",
+        "completedInSession": false
       },
       {
-        "id": "shastack-uh7.5",
-        "title": "US-005: Create login page",
-        "status": "completed",
-        "completedInSession": true
+        "id": "stackhatch-6ms.15",
+        "title": "US-015: Add annual billing toggle and plan switching",
+        "status": "open",
+        "completedInSession": false
       },
       {
-        "id": "shastack-uh7.6",
-        "title": "US-006: Add user avatar and logout dropdown to toolbar",
-        "status": "completed",
-        "completedInSession": true
+        "id": "stackhatch-6ms.10",
+        "title": "US-010: Implement email invite system for teams",
+        "status": "open",
+        "completedInSession": false
       },
       {
-        "id": "shastack-uh7.7",
-        "title": "US-007: Wrap app with NextAuth SessionProvider",
+        "id": "stackhatch-6ms.11",
+        "title": "US-011: Implement shared project access within teams",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "stackhatch-6ms.12",
+        "title": "US-012: Implement general project comments",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "stackhatch-6ms.13",
+        "title": "US-013: Implement node-anchored comments on canvas",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "stackhatch-6ms.6",
+        "title": "US-006: Build pricing page",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "stackhatch-6ms.7",
+        "title": "US-007: Add upgrade prompts at feature gates",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "stackhatch-6ms.8",
+        "title": "US-008: Add billing management to settings",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "stackhatch-6ms.9",
+        "title": "US-009: Add teams database and creation flow",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "stackhatch-6ms.4",
+        "title": "US-004: Implement Stripe webhook handler",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "stackhatch-6ms.5",
+        "title": "US-005: Implement usage tracking and limit enforcement",
         "status": "open",
         "completedInSession": false
       }
     ]
   },
-  "iterations": [
-    {
-      "iteration": 1,
-      "status": "completed",
-      "taskId": "shastack-uh7.1",
-      "taskTitle": "US-001: Install and configure NextAuth.js with GitHub provider",
-      "taskCompleted": true,
-      "durationMs": 205315,
-      "startedAt": "2026-02-27T12:10:59.526Z",
-      "endedAt": "2026-02-27T12:14:24.841Z"
-    },
-    {
-      "iteration": 2,
-      "status": "completed",
-      "taskId": "shastack-uh7.2",
-      "taskTitle": "US-002: Add users table and persist GitHub identity on login",
-      "taskCompleted": true,
-      "durationMs": 156801,
-      "startedAt": "2026-02-27T12:14:26.402Z",
-      "endedAt": "2026-02-27T12:17:03.203Z"
-    },
-    {
-      "iteration": 3,
-      "status": "completed",
-      "taskId": "shastack-uh7.3",
-      "taskTitle": "US-003: Add userId to projects table and scope queries",
-      "taskCompleted": true,
-      "durationMs": 447803,
-      "startedAt": "2026-02-27T12:17:04.733Z",
-      "endedAt": "2026-02-27T12:24:32.536Z"
-    },
-    {
-      "iteration": 4,
-      "status": "completed",
-      "taskId": "shastack-uh7.4",
-      "taskTitle": "US-004: Create middleware to protect all routes",
-      "taskCompleted": true,
-      "durationMs": 209151,
-      "startedAt": "2026-02-27T12:24:34.098Z",
-      "endedAt": "2026-02-27T12:28:03.249Z"
-    },
-    {
-      "iteration": 5,
-      "status": "completed",
-      "taskId": "shastack-uh7.5",
-      "taskTitle": "US-005: Create login page",
-      "taskCompleted": true,
-      "durationMs": 113797,
-      "startedAt": "2026-02-27T12:28:04.820Z",
-      "endedAt": "2026-02-27T12:29:58.617Z"
-    },
-    {
-      "iteration": 6,
-      "status": "completed",
-      "taskId": "shastack-uh7.6",
-      "taskTitle": "US-006: Add user avatar and logout dropdown to toolbar",
-      "taskCompleted": true,
-      "durationMs": 296466,
-      "startedAt": "2026-02-27T12:30:00.160Z",
-      "endedAt": "2026-02-27T12:34:56.626Z"
-    }
-  ],
+  "iterations": [],
   "skippedTaskIds": [],
-  "cwd": "/home/mike/cloud/apps/mwm/shastack",
+  "cwd": "/home/mike/cloud/apps/mwm/stackhatch",
   "activeTaskIds": [],
   "subagentPanelVisible": false
 }

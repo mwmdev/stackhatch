@@ -57,6 +57,39 @@ body {
   );
 }
 
+.hero-glow-lg {
+  background: radial-gradient(
+    ellipse 900px 500px at 50% 0%,
+    color-mix(in srgb, var(--color-client) 14%, transparent),
+    color-mix(in srgb, var(--color-services) 6%, transparent) 50%,
+    transparent 80%
+  );
+}
+
+/* Gradient text */
+.gradient-text {
+  background: linear-gradient(135deg, var(--color-client), var(--color-services));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Navbar blur */
+.nav-blur {
+  background-color: color-mix(in srgb, var(--background) 80%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+/* Product preview frame */
+.product-frame {
+  background: var(--card);
+  border: 1px solid color-mix(in srgb, var(--foreground) 8%, transparent);
+  box-shadow:
+    0 25px 50px -12px rgba(0, 0, 0, 0.25),
+    0 0 80px -20px color-mix(in srgb, var(--color-client) 10%, transparent);
+}
+
 /* Entry card hover */
 .entry-card {
   transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
@@ -65,6 +98,17 @@ body {
 .entry-card:hover {
   border-color: color-mix(in srgb, var(--color-client) 25%, var(--border));
   box-shadow: 0 8px 24px -4px color-mix(in srgb, var(--color-client) 10%, transparent);
+  transform: translateY(-2px);
+}
+
+/* Feature card hover */
+.feature-card {
+  transition: border-color 0.3s, box-shadow 0.3s, transform 0.3s;
+}
+
+.feature-card:hover {
+  border-color: color-mix(in srgb, var(--color-client) 20%, var(--border));
+  box-shadow: 0 0 30px -8px color-mix(in srgb, var(--color-client) 10%, transparent);
   transform: translateY(-2px);
 }
 
@@ -82,4 +126,14 @@ body {
 
 .animate-fade-in-up {
   animation: fadeInUp 0.5s ease-out both;
+}
+
+/* Gentle float */
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
 }

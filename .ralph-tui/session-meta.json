@@ -1,14 +1,14 @@
 {
-  "id": "4f0d275b-6cc9-4fab-986e-cd5f38fbe954",
+  "id": "480a932a-c9a4-4749-9ea7-6bce26f5a8a4",
   "status": "running",
-  "startedAt": "2026-02-27T12:10:55.735Z",
-  "updatedAt": "2026-02-27T12:34:57.142Z",
+  "startedAt": "2026-03-06T16:24:17.875Z",
+  "updatedAt": "2026-03-06T16:24:17.875Z",
   "agentPlugin": "claude",
   "trackerPlugin": "beads-bv",
-  "epicId": "shastack-uh7",
-  "currentIteration": 6,
+  "epicId": "stackhatch-6ms",
+  "currentIteration": 0,
   "maxIterations": 50,
   "totalTasks": 0,
-  "tasksCompleted": 6,
-  "cwd": "/home/mike/cloud/apps/mwm/shastack"
+  "tasksCompleted": 0,
+  "cwd": "/home/mike/cloud/apps/mwm/stackhatch"
 }
