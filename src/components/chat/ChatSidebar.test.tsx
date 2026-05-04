@@ -81,7 +81,7 @@ describe("ChatSidebar", () => {
     expect(screen.queryByText("Architecture Assistant")).not.toBeInTheDocument();
   });
 
-  it("renders open state with collapse control when defaultOpen is true", async () => {
+  it("renders open state without a built-in collapse control", async () => {
     global.fetch = mockFetch({
       "/messages": emptyMessagesResponse,
       "/chat/init": () => createSSEResponse([{ type: "done" }]),
@@ -89,27 +89,23 @@ describe("ChatSidebar", () => {
 
     render(<ChatSidebar projectId="p1" defaultOpen={true} />);
     expect(screen.queryByText("Architecture Assistant")).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Collapse chat")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Collapse chat")).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Waiting for AI...")).toBeInTheDocument();
   });
 
-  it("toggles between collapsed and expanded", async () => {
+  it("opens from the collapsed trigger", async () => {
     global.fetch = mockFetch({
       "/messages": messagesWithHistory,
     });
 
-    render(<ChatSidebar projectId="p1" defaultOpen={true} />);
+    render(<ChatSidebar projectId="p1" defaultOpen={false} />);
 
-    // Initially open
-    expect(screen.getByLabelText("Collapse chat")).toBeInTheDocument();
-    expect(screen.queryByText("Architecture Assistant")).not.toBeInTheDocument();
-
-    // Collapse
-    fireEvent.click(screen.getByLabelText("Collapse chat"));
     expect(screen.getByLabelText("Open chat")).toBeInTheDocument();
 
-    // Expand
     fireEvent.click(screen.getByLabelText("Open chat"));
-    expect(screen.getByLabelText("Collapse chat")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Open chat")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Collapse chat")).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Waiting for AI...")).toBeInTheDocument();
   });
 
   it("supports controlled open state without the collapsed fixed trigger", () => {
@@ -127,8 +123,8 @@ describe("ChatSidebar", () => {
       />
     );
 
-    fireEvent.click(screen.getByLabelText("Collapse chat"));
-    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(screen.queryByLabelText("Collapse chat")).not.toBeInTheDocument();
+    expect(onOpenChange).not.toHaveBeenCalled();
 
     rerender(
       <ChatSidebar

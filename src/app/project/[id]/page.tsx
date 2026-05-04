@@ -837,7 +837,23 @@ export default function ProjectPage() {
 
   return (
     <div className="flex h-screen flex-col bg-[var(--background)] text-[var(--foreground)] md:flex-row">
+      <button
+        onClick={() => setChatOpen((value) => !value)}
+        className="fixed left-4 top-2 z-50 flex h-11 w-11 items-center justify-center rounded-md text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]/30"
+        title={chatOpen ? "Hide chat sidebar" : "Show chat sidebar"}
+        aria-label={chatOpen ? "Hide chat sidebar" : "Show chat sidebar"}
+        aria-pressed={chatOpen}
+        aria-controls="editor-chat-sidebar"
+      >
+        {chatOpen ? (
+          <PanelLeftClose className="h-[18px] w-[18px]" />
+        ) : (
+          <MessageSquareText className="h-[18px] w-[18px]" />
+        )}
+      </button>
+
       <div
+        id="editor-chat-sidebar"
         className={`flex-shrink-0 overflow-hidden transition-[height,width] duration-200 ease-out motion-reduce:transition-none ${
           chatOpen ? "h-[45vh] md:h-auto md:w-[400px]" : "h-0 md:h-auto md:w-0"
         }`}
@@ -858,20 +874,11 @@ export default function ProjectPage() {
       {/* Canvas Area */}
       <div className="flex flex-1 flex-col">
         {/* Toolbar */}
-        <div className="flex flex-wrap items-center gap-3 border-b border-[var(--border)] px-4 py-2">
-          <button
-            onClick={() => setChatOpen((value) => !value)}
-            className="flex h-11 w-11 items-center justify-center rounded-md text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
-            title={chatOpen ? "Hide chat sidebar" : "Show chat sidebar"}
-            aria-label={chatOpen ? "Hide chat sidebar" : "Show chat sidebar"}
-            aria-pressed={chatOpen}
-          >
-            {chatOpen ? (
-              <PanelLeftClose className="h-[18px] w-[18px]" />
-            ) : (
-              <MessageSquareText className="h-[18px] w-[18px]" />
-            )}
-          </button>
+        <div
+          className={`flex flex-wrap items-center gap-3 border-b border-[var(--border)] px-4 py-2 ${
+            chatOpen ? "" : "pl-16"
+          }`}
+        >
           <h1 className="text-lg font-semibold">{project.name}</h1>
           <div className="ml-auto flex items-center gap-2">
             <AddNodeDropdown onAddNode={handleAddNode} customSubtypes={customSubtypes} />

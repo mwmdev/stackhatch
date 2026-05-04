@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
-import { MessageSquareText, PanelLeftClose, SendHorizontal } from "lucide-react";
+import { MessageSquareText, SendHorizontal } from "lucide-react";
 import UpgradePrompt from "@/components/UpgradePrompt";
 
 function stripStackTags(text: string): string {
@@ -379,21 +379,13 @@ export default function ChatSidebar({
 
   return (
     <div className="flex h-[45vh] w-full flex-shrink-0 flex-col border-b border-[var(--border)] bg-[var(--background)] md:h-full md:w-[400px] md:border-b-0 md:border-r">
-      <div className="flex min-h-12 items-center justify-between border-b border-[var(--border)] px-3">
+      <div className="flex min-h-12 items-center border-b border-[var(--border)] py-2 pl-16 pr-3">
         <div className="flex items-center gap-2">
           <span className="flex h-8 w-8 items-center justify-center rounded-md bg-[var(--muted)] text-[var(--muted-foreground)]">
             <MessageSquareText className="h-4 w-4" />
           </span>
           <span className="text-xs font-medium text-[var(--muted-foreground)]">{statusLabel}</span>
         </div>
-        <button
-          onClick={() => setSidebarOpen(false)}
-          className="flex h-9 w-9 items-center justify-center rounded-md text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]/30"
-          aria-label="Collapse chat"
-          title="Collapse chat"
-        >
-          <PanelLeftClose className="h-5 w-5" />
-        </button>
       </div>
 
       {/* Messages */}

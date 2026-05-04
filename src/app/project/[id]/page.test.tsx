@@ -403,15 +403,16 @@ describe("ProjectPage", () => {
       expect(screen.getByTestId("chat-sidebar")).toHaveAttribute("data-open", "false");
 
       fireEvent.click(screen.getByLabelText("Show chat sidebar"));
-      expect(screen.getByLabelText("Hide chat sidebar")).toBeInTheDocument();
+      const hideToggle = screen.getByLabelText("Hide chat sidebar");
+      expect(hideToggle).toHaveClass("fixed", "left-4", "top-2");
       expect(screen.getByTestId("chat-sidebar")).toHaveAttribute("data-open", "true");
 
-      fireEvent.click(screen.getByLabelText("Hide chat sidebar"));
+      fireEvent.click(hideToggle);
       expect(screen.getByLabelText("Show chat sidebar")).toBeInTheDocument();
       expect(screen.getByTestId("chat-sidebar")).toHaveAttribute("data-open", "false");
     });
 
-    it("places chat sidebar toggle at the top-left before the project title", async () => {
+    it("keeps the chat toggle fixed at the same top-left position", async () => {
       mockFetchProject(projectWithNodes);
       render(<ProjectPage />);
       await waitFor(() => {
@@ -420,9 +421,13 @@ describe("ProjectPage", () => {
 
       const chatToggle = screen.getByLabelText("Show chat sidebar");
       const projectTitle = screen.getByText("Test Project");
+      expect(chatToggle).toHaveClass("fixed", "left-4", "top-2");
       expect(
         Boolean(chatToggle.compareDocumentPosition(projectTitle) & Node.DOCUMENT_POSITION_FOLLOWING)
       ).toBe(true);
+
+      fireEvent.click(chatToggle);
+      expect(screen.getByLabelText("Hide chat sidebar")).toBe(chatToggle);
     });
 
     it("shows Re-layout button when nodes exist", async () => {

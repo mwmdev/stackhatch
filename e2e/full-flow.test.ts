@@ -20,7 +20,7 @@ test.describe("Full E2E Interview-to-Canvas Flow", () => {
     await expect(page.locator("h1")).toHaveText("Real-Time Chat App");
 
     // 3. Verify chat sidebar is open (new project has no canvas)
-    await expect(page.locator('button[aria-label="Collapse chat"]')).toBeVisible();
+    await expect(page.locator('button[aria-label="Hide chat sidebar"]')).toBeVisible();
 
     // 4. Verify AI sends first interview message
     await expect(
@@ -307,22 +307,22 @@ test.describe("Full E2E Interview-to-Canvas Flow", () => {
     await createProjectAndNavigate(page, "Sidebar Toggle Test");
 
     // Sidebar should be open by default for new projects
-    await expect(page.locator('button[aria-label="Collapse chat"]')).toBeVisible();
+    await expect(page.locator('button[aria-label="Hide chat sidebar"]')).toBeVisible();
 
     // Collapse the sidebar
-    await page.click('button[aria-label="Collapse chat"]');
+    await page.click('button[aria-label="Hide chat sidebar"]');
 
     // Sidebar controls should be hidden and toolbar control should offer to reopen it
-    await expect(page.locator('button[aria-label="Collapse chat"]')).not.toBeVisible();
+    await expect(page.locator('button[aria-label="Hide chat sidebar"]')).not.toBeVisible();
 
-    // Open chat button should be visible in the editor toolbar
+    // Open chat button should remain visible at the editor's top-left
     await expect(page.locator('button[aria-label="Show chat sidebar"]')).toBeVisible();
 
     // Expand again
     await page.click('button[aria-label="Show chat sidebar"]');
 
     // Sidebar should be visible again
-    await expect(page.locator('button[aria-label="Collapse chat"]')).toBeVisible();
+    await expect(page.locator('button[aria-label="Hide chat sidebar"]')).toBeVisible();
   });
 
   test("markdown rendering in AI responses", async ({ page }) => {
