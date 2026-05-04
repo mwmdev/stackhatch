@@ -430,15 +430,16 @@ describe("ProjectPage", () => {
       expect(screen.getByLabelText("Hide chat sidebar")).toBe(chatToggle);
     });
 
-    it("shows Re-layout button when nodes exist", async () => {
+    it("does not render the removed Re-layout button when nodes exist", async () => {
       mockFetchProject(projectWithNodes);
       render(<ProjectPage />);
       await waitFor(() => {
-        expect(screen.getByText("Re-layout")).toBeInTheDocument();
+        expect(screen.getByTestId("react-flow-controls")).toBeInTheDocument();
       });
+      expect(screen.queryByText("Re-layout")).not.toBeInTheDocument();
     });
 
-    it("hides Re-layout button when no nodes", async () => {
+    it("does not render the removed Re-layout button when no nodes exist", async () => {
       mockFetchProject(emptyProject);
       render(<ProjectPage />);
       await waitFor(() => {
@@ -451,7 +452,7 @@ describe("ProjectPage", () => {
       mockFetchProject(projectWithNodes);
       render(<ProjectPage />);
       await waitFor(() => {
-        expect(screen.getByText("Re-layout")).toBeInTheDocument();
+        expect(screen.getByText(/2 node/)).toBeInTheDocument();
       });
       // Use getAllByText since the mock canvas also renders node info
       const nodeCountEl = screen.getByText(/2 node/);
@@ -470,7 +471,7 @@ describe("ProjectPage", () => {
       mockFetchProject(projectWithNodes);
       render(<ProjectPage />);
       await waitFor(() => {
-        expect(screen.getByText("Re-layout")).toBeInTheDocument();
+        expect(screen.getByText(/2 node/)).toBeInTheDocument();
       });
       expect(screen.queryByText("PRD")).not.toBeInTheDocument();
     });
@@ -564,7 +565,7 @@ describe("ProjectPage", () => {
       mockFetchProject(projectWithNodes);
       render(<ProjectPage />);
       await waitFor(() => {
-        expect(screen.getByText("Re-layout")).toBeInTheDocument();
+        expect(screen.getByTestId("react-flow-canvas")).toHaveAttribute("data-node-count", "2");
       });
       expect(screen.queryByText("No architecture yet")).not.toBeInTheDocument();
     });
@@ -623,7 +624,7 @@ describe("ProjectPage", () => {
 
       // Wait for initial load
       await waitFor(() => {
-        expect(screen.getByText("Re-layout")).toBeInTheDocument();
+        expect(screen.getByTestId("react-flow-canvas")).toHaveAttribute("data-node-count", "2");
       });
 
       // Verify initial state

@@ -648,22 +648,6 @@ export default function ProjectPage() {
     [project?.teamId, rfNodes, rfEdges]
   );
 
-  // --- Re-layout ---
-
-  const handleRelayout = useCallback(() => {
-    const canvas = projectRef.current?.canvasState;
-    if (!canvas) return;
-    const positions = applyDagreLayout(canvas.nodes, canvas.edges);
-    const posMap = new Map(positions.map((p) => [p.id, p.position]));
-    setRfNodes((nds) =>
-      nds.map((n) => ({
-        ...n,
-        position: posMap.get(n.id) ?? n.position,
-      }))
-    );
-    setTimeout(() => rfInstanceRef.current?.fitView({ padding: 0.2, duration: 300 }), 100);
-  }, [setRfNodes]);
-
   // --- AI architecture handler ---
 
   const handleArchitecture = useCallback(
@@ -882,15 +866,6 @@ export default function ProjectPage() {
           <h1 className="text-lg font-semibold">{project.name}</h1>
           <div className="ml-auto flex items-center gap-2">
             <AddNodeDropdown onAddNode={handleAddNode} customSubtypes={customSubtypes} />
-            {nodeCount > 0 && (
-              <button
-                onClick={handleRelayout}
-                className="min-h-11 rounded border border-[var(--border)] px-3 py-2 text-xs text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
-                title="Re-layout nodes"
-              >
-                Re-layout
-              </button>
-            )}
             {nodeCount > 0 && (
               <ExportDropdown
                 rfInstanceRef={rfInstanceRef}
