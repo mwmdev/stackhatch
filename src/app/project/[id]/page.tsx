@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { Download, MessageSquareText, PanelLeftClose, RefreshCw } from "lucide-react";
+import { MessageSquareText, PanelLeftClose, RefreshCw, Sparkles } from "lucide-react";
 import ReactFlow, {
   Background,
   Controls,
@@ -877,10 +877,10 @@ export default function ProjectPage() {
                 onClick={handleExportPrd}
                 disabled={prdLoading}
                 className="flex min-h-11 items-center gap-2 rounded border border-[var(--border)] px-3 py-2 text-xs font-medium text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]/30 disabled:opacity-50"
-                title="Download PRD from architecture"
-                aria-label="Download PRD from architecture"
+                title="Generate PRD from architecture"
+                aria-label="Generate PRD from architecture"
               >
-                <Download className="h-[14px] w-[14px]" aria-hidden="true" />
+                <Sparkles className="h-[14px] w-[14px]" aria-hidden="true" />
                 <span>{prdLoading ? "Generating..." : "PRD"}</span>
               </button>
             )}

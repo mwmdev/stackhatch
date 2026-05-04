@@ -503,9 +503,9 @@ describe("ProjectPage", () => {
       await waitFor(() => {
         expect(screen.getByText("PRD")).toBeInTheDocument();
       });
-      const prdButton = screen.getByLabelText("Download PRD from architecture");
-      expect(prdButton.querySelector("svg")).toBeInTheDocument();
-      expect(prdButton).toHaveAttribute("title", "Download PRD from architecture");
+      const prdButton = screen.getByLabelText("Generate PRD from architecture");
+      expect(prdButton.querySelector(".lucide-sparkles")).toBeInTheDocument();
+      expect(prdButton).toHaveAttribute("title", "Generate PRD from architecture");
     });
 
     it("shows PRD export for admin users", async () => {
