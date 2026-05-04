@@ -3,9 +3,24 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import {
+  AlertCircle,
+  ArrowRight,
+  CheckCircle2,
+  FileText,
+  FolderPlus,
+  GitBranch,
+  LayoutDashboard,
+  RefreshCw,
+  Settings,
+  ShieldCheck,
+  Trash2,
+  Users,
+} from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import UserAvatar from "@/components/UserAvatar";
 import UpgradePrompt from "@/components/UpgradePrompt";
+import { PLAN_CONFIG, type PublicPlanKey } from "@/lib/plan-config";
 
 interface ProjectSummary {
   id: string;
@@ -21,6 +36,21 @@ interface CurrentUser {
   role?: string;
 }
 
+interface SettingsSummary {
+  hasAnthropicKey?: boolean;
+  hasServerAnthropicKey?: boolean;
+  hasUserAnthropicKey?: boolean;
+}
+
+interface BillingSummary {
+  plan?: string;
+  billingInterval?: string | null;
+  status?: string | null;
+  currentPeriodEnd?: number | null;
+}
+
+const ACCEPTED_REQUIREMENT_FILES = [".md", ".txt"];
+
 function formatDate(timestamp: number): string {
   return new Date(timestamp).toLocaleDateString(undefined, {
     month: "short",
@@ -29,105 +59,27 @@ function formatDate(timestamp: number): string {
   });
 }
 
-const MOCK_NODES = [
-  { name: "React Frontend", tech: "Next.js", color: "var(--color-client)" },
-  { name: "API Gateway", tech: "Express", color: "var(--color-api)" },
-  { name: "Auth Service", tech: "Auth0", color: "var(--color-services)" },
-  { name: "PostgreSQL", tech: "Neon", color: "var(--color-data)" },
-  { name: "Redis Cache", tech: "Upstash", color: "var(--color-data)" },
-  { name: "Object Store", tech: "AWS S3", color: "var(--color-infrastructure)" },
-];
+function normalizePlan(plan: string | null | undefined): PublicPlanKey {
+  if (plan === "starter") return "starter";
+  if (plan === "pro" || plan === "team") return "pro";
+  return "free";
+}
 
-const FEATURES = [
-  {
-    icon: (
-      <svg
-        width="22"
-        height="22"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <polyline points="16 18 22 12 16 6" />
-        <polyline points="8 6 2 12 8 18" />
-      </svg>
-    ),
-    title: "Reverse-engineer any repo",
-    description:
-      "Drop in a public GitHub URL. AI scans the codebase and maps every component, service, and connection into an interactive diagram.",
-    color: "var(--color-client)",
-  },
-  {
-    icon: (
-      <svg
-        width="22"
-        height="22"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-      </svg>
-    ),
-    title: "AI architecture assistant",
-    description:
-      "Chat with an assistant that understands your requirements. Describe what you need, and watch the diagram build itself in real-time.",
-    color: "var(--color-services)",
-  },
-  {
-    icon: (
-      <svg
-        width="22"
-        height="22"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <polyline points="17 1 21 5 17 9" />
-        <path d="M3 11V9a4 4 0 0 1 4-4h14" />
-        <polyline points="7 23 3 19 7 15" />
-        <path d="M21 13v2a4 4 0 0 1-4 4H3" />
-      </svg>
-    ),
-    title: "Smart alternatives",
-    description:
-      "Click any node to explore alternatives. AI suggests better technologies with reasoning — swap PostgreSQL for MongoDB, Express for Fastify.",
-    color: "var(--color-api)",
-  },
-];
+function getProjectLimitLabel(plan: PublicPlanKey) {
+  const limit = PLAN_CONFIG[plan].features.projects;
+  return limit === "unlimited" ? "Unlimited" : String(limit);
+}
 
-const STEPS = [
-  {
-    num: "1",
-    title: "Choose your starting point",
-    description: "Paste a GitHub URL, upload a PRD, or start with a blank canvas.",
-  },
-  {
-    num: "2",
-    title: "AI generates architecture",
-    description:
-      "Claude analyzes your input and creates a visual diagram with components and connections.",
-  },
-  {
-    num: "3",
-    title: "Explore and iterate",
-    description: "Edit nodes, compare alternatives, and refine your design through conversation.",
-  },
-];
+function isAcceptedRequirementsFile(file: File) {
+  const name = file.name.toLowerCase();
+  return ACCEPTED_REQUIREMENT_FILES.some((extension) => name.endsWith(extension));
+}
 
 export default function Dashboard() {
   const router = useRouter();
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [projectsError, setProjectsError] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<ProjectSummary | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [repoUrl, setRepoUrl] = useState("");
@@ -135,26 +87,54 @@ export default function Dashboard() {
   const [error, setError] = useState("");
   const [upgradePrompt, setUpgradePrompt] = useState<string | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [settings, setSettings] = useState<SettingsSummary | null>(null);
+  const [billing, setBilling] = useState<BillingSummary | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    fetch("/api/projects")
-      .then((res) => res.json())
-      .then((data) => setProjects(data))
-      .catch(() => setProjects([]))
-      .finally(() => setLoading(false));
+  const loadProjects = useCallback(async () => {
+    setLoading(true);
+    setProjectsError("");
+    try {
+      const res = await fetch("/api/projects");
+      if (!res.ok) {
+        setProjects([]);
+        setProjectsError("Projects could not be loaded. Try again before creating a new one.");
+        return;
+      }
+      setProjects(await res.json());
+    } catch {
+      setProjects([]);
+      setProjectsError("Projects could not be loaded. Check your connection and try again.");
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
+    loadProjects();
+  }, [loadProjects]);
+
+  useEffect(() => {
     let cancelled = false;
-    fetch("/api/me")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: CurrentUser | null) => {
-        if (!cancelled) setCurrentUserRole(data?.role ?? null);
-      })
-      .catch(() => {
-        if (!cancelled) setCurrentUserRole(null);
-      });
+
+    Promise.allSettled([
+      fetch("/api/me").then((res) => (res.ok ? res.json() : null)),
+      fetch("/api/settings").then((res) => (res.ok ? res.json() : null)),
+      fetch("/api/billing/subscription").then((res) => (res.ok ? res.json() : null)),
+    ]).then(([userResult, settingsResult, billingResult]) => {
+      if (cancelled) return;
+
+      if (userResult.status === "fulfilled") {
+        setCurrentUserRole((userResult.value as CurrentUser | null)?.role ?? null);
+      }
+      if (settingsResult.status === "fulfilled") {
+        setSettings(settingsResult.value as SettingsSummary | null);
+      }
+      if (billingResult.status === "fulfilled") {
+        setBilling(billingResult.value as BillingSummary | null);
+      }
+    });
+
     return () => {
       cancelled = true;
     };
@@ -169,11 +149,12 @@ export default function Dashboard() {
         const match = opts.repoUrl.match(/github\.com\/[^/]+\/([^/]+)/);
         name = match ? match[1].replace(/\.git$/, "") : "Imported Project";
       } else if (opts?.description) {
-        const firstLine = opts.description.split("\n").find((l) => l.trim());
+        const firstLine = opts.description.split("\n").find((line) => line.trim());
         if (firstLine) {
           name = firstLine.replace(/^#\s*/, "").trim().slice(0, 80) || name;
         }
       }
+
       const res = await fetch("/api/projects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -210,14 +191,25 @@ export default function Dashboard() {
 
   function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
+    e.target.value = "";
     if (!file) return;
+
+    if (!isAcceptedRequirementsFile(file)) {
+      setError("Upload a Markdown or text requirements file.");
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = () => {
-      const text = reader.result as string;
+      const text = String(reader.result || "").trim();
+      if (!text) {
+        setError("The requirements file is empty.");
+        return;
+      }
       createProject({ description: text });
     };
+    reader.onerror = () => setError("The requirements file could not be read.");
     reader.readAsText(file);
-    e.target.value = "";
   }
 
   const handleDelete = useCallback(async () => {
@@ -228,7 +220,7 @@ export default function Dashboard() {
         method: "DELETE",
       });
       if (res.ok) {
-        setProjects((prev) => prev.filter((p) => p.id !== deleteTarget.id));
+        setProjects((prev) => prev.filter((project) => project.id !== deleteTarget.id));
       }
     } finally {
       setDeleting(false);
@@ -236,19 +228,53 @@ export default function Dashboard() {
     }
   }, [deleteTarget]);
 
-  function scrollTo(id: string) {
-    document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
-  }
-
   const isAdmin = currentUserRole === "admin";
+  const activePlan = normalizePlan(billing?.plan);
+  const activePlanConfig = PLAN_CONFIG[activePlan];
+  const projectLimit = activePlanConfig.features.projects;
+  const hasAiAccess = Boolean(settings?.hasAnthropicKey || settings?.hasServerAnthropicKey);
+  const activationItems = [
+    {
+      label: "AI access ready",
+      complete: hasAiAccess,
+      detail: hasAiAccess ? "Claude is configured for architecture work." : "Add BYOK or upgrade.",
+      href: "/settings",
+    },
+    {
+      label: "First project created",
+      complete: projects.length > 0,
+      detail:
+        projects.length > 0
+          ? `${projects.length} project${projects.length === 1 ? "" : "s"}`
+          : "Start with a repo, PRD, or blank canvas.",
+      href: "#start",
+    },
+    {
+      label: "Shareable handoff path",
+      complete: activePlan !== "free",
+      detail:
+        activePlan === "free"
+          ? "Upgrade for PNG/SVG exports."
+          : "Exports and collaboration are unlocked.",
+      href: "/pricing",
+    },
+  ];
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
-      {/* Navbar */}
       <nav className="nav-blur sticky top-0 z-40 border-b border-[var(--border)]">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
-          <span className="text-lg font-bold tracking-tight">StackHatch</span>
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3">
+          <Link href="/app" className="flex items-center gap-2 text-lg font-bold tracking-tight">
+            <LayoutDashboard className="h-5 w-5 text-[var(--color-client)]" />
+            StackHatch
+          </Link>
           <div className="flex items-center gap-1">
+            <Link
+              href="/pricing"
+              className="hidden rounded-md px-3 py-2 text-sm font-medium text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)] sm:inline-flex"
+            >
+              Pricing
+            </Link>
             <ThemeToggle />
             {isAdmin && (
               <Link
@@ -257,21 +283,7 @@ export default function Dashboard() {
                 title="Admin"
                 aria-label="Admin"
               >
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                  <circle cx="9" cy="7" r="4" />
-                  <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                </svg>
+                <Users className="h-[18px] w-[18px]" />
               </Link>
             )}
             <Link
@@ -280,549 +292,272 @@ export default function Dashboard() {
               title="Settings"
               aria-label="Settings"
             >
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <circle cx="12" cy="12" r="3" />
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-              </svg>
+              <Settings className="h-[18px] w-[18px]" />
             </Link>
             <UserAvatar />
           </div>
         </div>
       </nav>
 
-      <main>
-        {/* ===== HERO ===== */}
-        <section className="relative overflow-hidden">
-          <div className="hero-grid absolute inset-0" aria-hidden="true" />
-          <div className="hero-glow-lg absolute inset-0" aria-hidden="true" />
-
-          <div className="relative mx-auto max-w-6xl px-6 pb-8 pt-20 text-center sm:pt-28">
-            <h1 className="text-4xl font-bold leading-[1.1] tracking-tighter sm:text-5xl lg:text-6xl">
-              Understand any codebase.
-              <br />
-              <span className="gradient-text">Visualize its architecture.</span>
-            </h1>
-            <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-[var(--muted-foreground)]">
-              Paste a GitHub repo, upload requirements, or describe your idea. AI generates
-              interactive architecture diagrams in seconds.
-            </p>
-            <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
-              <button
-                onClick={() => scrollTo("get-started")}
-                className="min-h-11 rounded-full bg-[var(--color-client)] px-7 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[var(--color-client-hover)]"
-                style={{
-                  boxShadow:
-                    "0 4px 24px -4px color-mix(in srgb, var(--color-client) 40%, transparent)",
-                }}
-              >
-                Get started
-              </button>
-              <button
-                onClick={() => scrollTo("how-it-works")}
-                className="min-h-11 rounded-full border border-[var(--border)] px-7 py-2.5 text-sm font-medium text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]"
-              >
-                How it works
-              </button>
-            </div>
-            <p className="mt-4 text-xs text-[var(--muted-foreground)] opacity-60">
-              Powered by Claude &middot; Server-configured AI
-            </p>
-          </div>
-        </section>
-
-        {/* ===== PRODUCT PREVIEW ===== */}
-        <section className="relative px-6 pb-20 pt-4">
-          <div className="mx-auto max-w-4xl">
-            <div className="product-frame animate-float overflow-hidden rounded-xl">
-              {/* Window bar */}
-              <div className="flex items-center gap-2 border-b border-[var(--border)] px-4 py-2.5">
-                <span className="h-3 w-3 rounded-full bg-[#FF5F57]" />
-                <span className="h-3 w-3 rounded-full bg-[#FEBC2E]" />
-                <span className="h-3 w-3 rounded-full bg-[#28C840]" />
-                <span className="ml-3 text-xs text-[var(--muted-foreground)]">
-                  StackHatch — my-saas-app
-                </span>
-              </div>
-              {/* Content: chat + canvas */}
-              <div className="flex min-h-[240px] sm:min-h-[300px]">
-                {/* Mini chat sidebar */}
-                <div className="hidden w-[28%] flex-shrink-0 flex-col border-r border-[var(--border)] md:flex">
-                  <div className="border-b border-[var(--border)] px-3 py-2">
-                    <span className="text-[10px] font-semibold text-[var(--muted-foreground)]">
-                      Architecture Assistant
-                    </span>
-                  </div>
-                  <div className="flex-1 space-y-2.5 p-3">
-                    <div className="ml-auto max-w-[90%] rounded-lg bg-[var(--color-client)] px-2.5 py-1.5 text-[10px] leading-snug text-white">
-                      Analyze my e-commerce app
-                    </div>
-                    <div className="max-w-[90%] rounded-lg bg-[var(--muted)] px-2.5 py-1.5 text-[10px] leading-snug text-[var(--foreground)]">
-                      I&apos;ve identified 6 core components in your architecture...
-                    </div>
-                  </div>
-                  <div className="border-t border-[var(--border)] p-2">
-                    <div className="rounded-md border border-[var(--border)] bg-[var(--background)] px-2 py-1.5 text-[9px] text-[var(--muted-foreground)]">
-                      Describe your application...
-                    </div>
-                  </div>
-                </div>
-                {/* Mini canvas */}
-                <div className="relative flex flex-1 items-center justify-center p-4 sm:p-8">
-                  {/* Subtle connection lines */}
-                  <svg
-                    className="pointer-events-none absolute inset-0 h-full w-full"
-                    aria-hidden="true"
-                  >
-                    <line
-                      x1="17%"
-                      y1="46%"
-                      x2="50%"
-                      y2="46%"
-                      stroke="var(--border)"
-                      strokeWidth="1"
-                      strokeDasharray="4 3"
-                    />
-                    <line
-                      x1="50%"
-                      y1="46%"
-                      x2="83%"
-                      y2="46%"
-                      stroke="var(--border)"
-                      strokeWidth="1"
-                      strokeDasharray="4 3"
-                    />
-                    <line
-                      x1="17%"
-                      y1="46%"
-                      x2="17%"
-                      y2="68%"
-                      stroke="var(--border)"
-                      strokeWidth="1"
-                      strokeDasharray="4 3"
-                    />
-                    <line
-                      x1="50%"
-                      y1="46%"
-                      x2="50%"
-                      y2="68%"
-                      stroke="var(--border)"
-                      strokeWidth="1"
-                      strokeDasharray="4 3"
-                    />
-                    <line
-                      x1="83%"
-                      y1="46%"
-                      x2="83%"
-                      y2="68%"
-                      stroke="var(--border)"
-                      strokeWidth="1"
-                      strokeDasharray="4 3"
-                    />
-                  </svg>
-                  <div className="relative grid w-full max-w-md grid-cols-3 gap-3 sm:gap-4">
-                    {MOCK_NODES.map((node) => (
-                      <div
-                        key={node.name}
-                        className="rounded-md border bg-[var(--card)] px-2.5 py-2"
-                        style={{ borderColor: node.color }}
-                      >
-                        <div className="flex items-center gap-1.5 text-[10px] font-medium text-[var(--card-foreground)] sm:text-xs">
-                          <span
-                            className="h-2 w-2 rounded-full"
-                            style={{ backgroundColor: node.color }}
-                          />
-                          <span>{node.name}</span>
-                        </div>
-                        <div className="text-[9px] text-[var(--muted-foreground)] sm:text-[10px]">
-                          {node.tech}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ===== GET STARTED ===== */}
-        <section id="get-started" className="border-t border-[var(--border)] py-20">
-          <div className="mx-auto max-w-5xl px-6">
-            <div className="mb-10 text-center">
-              <p className="text-xs font-semibold uppercase tracking-widest text-[var(--color-client)]">
-                Get started
-              </p>
-              <h2 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">
-                Three ways to begin
-              </h2>
-            </div>
-
-            <div className="mx-auto grid max-w-4xl grid-cols-1 gap-5 md:grid-cols-3">
-              {/* Analyze Repo */}
-              <div className="entry-card animate-fade-in-up flex flex-col rounded-xl border border-[var(--border)] bg-[var(--card)] p-6">
-                <div
-                  className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg text-[var(--color-client)]"
-                  style={{
-                    backgroundColor: "color-mix(in srgb, var(--color-client) 12%, transparent)",
-                  }}
-                >
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <polyline points="16 18 22 12 16 6" />
-                    <polyline points="8 6 2 12 8 18" />
-                  </svg>
-                </div>
-                <h3 className="font-semibold text-[var(--card-foreground)]">
-                  Analyze a Repository
-                </h3>
-                <p className="mt-1 flex-1 text-sm text-[var(--muted-foreground)]">
-                  Reverse-engineer architecture from a public GitHub repo
+      <main className="mx-auto grid max-w-7xl gap-8 px-6 py-8 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="min-w-0 space-y-8">
+          <section className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-6">
+            <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-center">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-[var(--color-client)]">
+                  Architecture workspace
                 </p>
-                <form onSubmit={handleRepoSubmit} className="mt-4 space-y-2">
-                  <input
-                    type="url"
-                    value={repoUrl}
-                    onChange={(e) => setRepoUrl(e.target.value)}
-                    placeholder="https://github.com/owner/repo"
-                    disabled={creating}
-                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)] disabled:opacity-50"
-                  />
-                  <button
-                    type="submit"
-                    disabled={creating || !repoUrl.trim()}
-                    className="w-full rounded-lg bg-[var(--color-client)] py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
-                  >
-                    {creating ? "Creating..." : "Analyze"}
-                  </button>
-                </form>
-              </div>
-
-              {/* Upload PRD */}
-              <div
-                className="entry-card animate-fade-in-up flex flex-col rounded-xl border border-[var(--border)] bg-[var(--card)] p-6"
-                style={{ animationDelay: "80ms" }}
-              >
-                <div
-                  className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg text-[var(--color-services)]"
-                  style={{
-                    backgroundColor: "color-mix(in srgb, var(--color-services) 12%, transparent)",
-                  }}
-                >
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                    <polyline points="14 2 14 8 20 8" />
-                    <line x1="16" y1="13" x2="8" y2="13" />
-                    <line x1="16" y1="17" x2="8" y2="17" />
-                  </svg>
-                </div>
-                <h3 className="font-semibold text-[var(--card-foreground)]">Upload a PRD</h3>
-                <p className="mt-1 flex-1 text-sm text-[var(--muted-foreground)]">
-                  Generate architecture from your requirements document
+                <h1 className="mt-2 max-w-3xl text-3xl font-bold tracking-tight md:text-4xl">
+                  Turn a repo or product brief into a decision-ready architecture map.
+                </h1>
+                <p className="mt-4 max-w-2xl text-sm leading-6 text-[var(--muted-foreground)]">
+                  The fastest path to value is a real input: a public GitHub repo, a short PRD, or a
+                  blank project for the architecture assistant.
                 </p>
-                <div className="mt-4">
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={creating}
-                    className="w-full rounded-lg border border-dashed border-[var(--border)] py-2 text-sm font-medium text-[var(--foreground)] hover:border-[var(--color-services)] hover:bg-[var(--muted)] disabled:opacity-50"
-                  >
-                    Choose file...
-                  </button>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".md,.txt,.pdf,.doc,.docx"
-                    onChange={handleFileUpload}
-                    className="hidden"
-                  />
-                  <p className="mt-1.5 text-center text-xs text-[var(--muted-foreground)]">
-                    .md, .txt, .pdf, .docx
-                  </p>
-                </div>
               </div>
-
-              {/* Start from Scratch */}
-              <div
-                className="entry-card animate-fade-in-up flex flex-col rounded-xl border border-[var(--border)] bg-[var(--card)] p-6"
-                style={{ animationDelay: "160ms" }}
-              >
-                <div
-                  className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg text-[var(--color-api)]"
-                  style={{
-                    backgroundColor: "color-mix(in srgb, var(--color-api) 12%, transparent)",
-                  }}
-                >
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <rect x="3" y="3" width="18" height="18" rx="2" />
-                    <line x1="12" y1="8" x2="12" y2="16" />
-                    <line x1="8" y1="12" x2="16" y2="12" />
-                  </svg>
-                </div>
-                <h3 className="font-semibold text-[var(--card-foreground)]">Start Fresh</h3>
-                <p className="mt-1 flex-1 text-sm text-[var(--muted-foreground)]">
-                  Begin with a blank canvas and let AI guide your design
+              <div className="rounded-lg border border-[var(--border)] bg-[var(--background)] p-4">
+                <div className="text-sm font-semibold">{activePlanConfig.name}</div>
+                <p className="mt-1 text-xs text-[var(--muted-foreground)]">
+                  {projects.length}/{getProjectLimitLabel(activePlan)} projects used
                 </p>
-                <div className="mt-4">
-                  <button
-                    onClick={() => createProject()}
-                    disabled={creating}
-                    className="w-full rounded-lg border border-[var(--border)] py-2 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--muted)] disabled:opacity-50"
+                {projectLimit !== "unlimited" && projects.length >= projectLimit && (
+                  <Link
+                    href="/pricing"
+                    className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-md bg-[var(--color-client)] px-3 py-2 text-sm font-semibold text-white hover:bg-[var(--color-client-hover)]"
                   >
-                    Start from scratch
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {error && <p className="mt-4 text-center text-sm text-red-500">{error}</p>}
-          </div>
-        </section>
-
-        {/* ===== FEATURES ===== */}
-        <section id="features" className="border-t border-[var(--border)] py-20">
-          <div className="mx-auto max-w-6xl px-6">
-            <div className="mb-12 text-center">
-              <p className="text-xs font-semibold uppercase tracking-widest text-[var(--color-services)]">
-                Capabilities
-              </p>
-              <h2 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">
-                Built for engineers who ship
-              </h2>
-            </div>
-
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-              {FEATURES.map((f, i) => (
-                <div
-                  key={f.title}
-                  className="feature-card animate-fade-in-up rounded-xl border border-[var(--border)] bg-[var(--card)] p-6"
-                  style={{ animationDelay: `${i * 80}ms` }}
-                >
-                  <div
-                    className="mb-4 flex h-11 w-11 items-center justify-center rounded-lg"
-                    style={{
-                      color: f.color,
-                      backgroundColor: `color-mix(in srgb, ${f.color} 12%, transparent)`,
-                    }}
-                  >
-                    {f.icon}
-                  </div>
-                  <h3 className="text-lg font-semibold text-[var(--card-foreground)]">{f.title}</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-[var(--muted-foreground)]">
-                    {f.description}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* ===== HOW IT WORKS ===== */}
-        <section id="how-it-works" className="border-t border-[var(--border)] py-20">
-          <div className="mx-auto max-w-5xl px-6">
-            <div className="mb-12 text-center">
-              <p className="text-xs font-semibold uppercase tracking-widest text-[var(--color-api)]">
-                How it works
-              </p>
-              <h2 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">
-                From zero to architecture in three steps
-              </h2>
-            </div>
-
-            <div className="relative grid grid-cols-1 gap-8 md:grid-cols-3 md:gap-6">
-              {/* Connecting line (desktop only) */}
-              <div
-                className="absolute left-[17%] right-[17%] top-[28px] hidden h-px md:block"
-                style={{
-                  background:
-                    "linear-gradient(90deg, var(--color-client), var(--color-services), var(--color-api))",
-                  opacity: 0.3,
-                }}
-                aria-hidden="true"
-              />
-
-              {STEPS.map((step, i) => (
-                <div key={step.num} className="relative text-center">
-                  <div
-                    className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full border-2 text-xl font-bold"
-                    style={{
-                      borderColor: [
-                        "var(--color-client)",
-                        "var(--color-services)",
-                        "var(--color-api)",
-                      ][i],
-                      color: ["var(--color-client)", "var(--color-services)", "var(--color-api)"][
-                        i
-                      ],
-                      backgroundColor: "var(--background)",
-                    }}
-                  >
-                    {step.num}
-                  </div>
-                  <h3 className="font-semibold text-[var(--foreground)]">{step.title}</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-[var(--muted-foreground)]">
-                    {step.description}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* ===== RECENT PROJECTS ===== */}
-        {loading ? (
-          <section className="border-t border-[var(--border)]">
-            <div className="mx-auto max-w-5xl px-6 py-10">
-              <div className="py-8 text-center text-[var(--muted-foreground)]">
-                Loading projects...
+                    Upgrade plan
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                )}
               </div>
             </div>
           </section>
-        ) : (
-          projects.length > 0 && (
-            <section className="border-t border-[var(--border)] py-16">
-              <div className="mx-auto max-w-5xl px-6">
-                <h2 className="mb-6 text-xs font-semibold uppercase tracking-widest text-[var(--muted-foreground)]">
-                  Recent projects
-                </h2>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {projects.map((project) => (
-                    <div
-                      key={project.id}
-                      className="group relative rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 transition-all duration-200 hover:shadow-md"
-                    >
-                      <button
-                        onClick={() => router.push(`/project/${project.id}`)}
-                        className="block w-full text-left"
-                        data-testid={`project-card-${project.id}`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-medium text-[var(--card-foreground)]">
-                            {project.name}
-                          </h3>
-                          {project.teamName && (
-                            <span className="inline-flex items-center rounded-full bg-[var(--color-services)]/15 px-2 py-0.5 text-[10px] font-medium text-[var(--color-services)]">
-                              {project.teamName}
-                            </span>
-                          )}
-                        </div>
-                        {project.description && (
-                          <p className="mt-1 line-clamp-2 text-sm text-[var(--muted-foreground)]">
-                            {project.description}
-                          </p>
-                        )}
-                        <p className="mt-3 text-xs text-[var(--muted-foreground)]">
-                          Updated {formatDate(project.updatedAt)}
-                        </p>
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDeleteTarget(project);
-                        }}
-                        className="absolute right-3 top-3 flex h-11 w-11 items-center justify-center rounded-md text-[var(--muted-foreground)] hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30"
-                        title="Delete project"
-                        aria-label={`Delete ${project.name}`}
-                      >
-                        <svg
-                          width="14"
-                          height="14"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <polyline points="3 6 5 6 21 6" />
-                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                        </svg>
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </section>
-          )
-        )}
 
-        {/* ===== FINAL CTA ===== */}
-        <section className="relative overflow-hidden border-t border-[var(--border)] py-24">
-          <div className="hero-glow-lg absolute inset-0" aria-hidden="true" />
-          <div className="relative mx-auto max-w-2xl px-6 text-center">
-            <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
-              Ready to map your architecture?
-            </h2>
-            <p className="mt-4 text-[var(--muted-foreground)]">
-              Stop drawing boxes by hand. Let AI do the heavy lifting.
-            </p>
-            <button
-              onClick={() => scrollTo("get-started")}
-              className="mt-8 min-h-11 rounded-full bg-[var(--color-client)] px-8 py-3 text-sm font-medium text-white transition-colors hover:bg-[var(--color-client-hover)]"
-              style={{
-                boxShadow:
-                  "0 4px 24px -4px color-mix(in srgb, var(--color-client) 40%, transparent)",
-              }}
+          <section id="start" className="grid gap-4 md:grid-cols-3">
+            <form
+              onSubmit={handleRepoSubmit}
+              className="flex min-w-0 flex-col rounded-lg border border-[var(--border)] bg-[var(--card)] p-5"
             >
-              Get started free
-            </button>
-          </div>
-        </section>
+              <GitBranch className="h-5 w-5 text-[var(--color-client)]" />
+              <h2 className="mt-3 font-semibold">Analyze a repository</h2>
+              <p className="mt-1 flex-1 text-sm leading-6 text-[var(--muted-foreground)]">
+                Use a public GitHub URL to create the first architecture map.
+              </p>
+              <input
+                type="url"
+                value={repoUrl}
+                onChange={(e) => setRepoUrl(e.target.value)}
+                placeholder="https://github.com/owner/repo"
+                disabled={creating}
+                className="mt-4 w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)] disabled:opacity-50"
+              />
+              <button
+                type="submit"
+                disabled={creating || !repoUrl.trim()}
+                className="mt-3 min-h-11 rounded-md bg-[var(--color-client)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--color-client-hover)] disabled:opacity-50"
+              >
+                {creating ? "Creating..." : "Analyze"}
+              </button>
+            </form>
+
+            <div className="flex min-w-0 flex-col rounded-lg border border-[var(--border)] bg-[var(--card)] p-5">
+              <FileText className="h-5 w-5 text-[var(--color-services)]" />
+              <h2 className="mt-3 font-semibold">Upload requirements</h2>
+              <p className="mt-1 flex-1 text-sm leading-6 text-[var(--muted-foreground)]">
+                Start from a Markdown or text PRD and refine the generated architecture.
+              </p>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={creating}
+                className="mt-4 min-h-11 rounded-md border border-dashed border-[var(--border)] px-4 py-2 text-sm font-semibold hover:border-[var(--color-services)] hover:bg-[var(--muted)] disabled:opacity-50"
+              >
+                Choose file...
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".md,.txt,text/markdown,text/plain"
+                onChange={handleFileUpload}
+                className="hidden"
+              />
+              <p className="mt-2 text-xs text-[var(--muted-foreground)]">.md or .txt</p>
+            </div>
+
+            <div className="flex min-w-0 flex-col rounded-lg border border-[var(--border)] bg-[var(--card)] p-5">
+              <FolderPlus className="h-5 w-5 text-[var(--color-api)]" />
+              <h2 className="mt-3 font-semibold">Start fresh</h2>
+              <p className="mt-1 flex-1 text-sm leading-6 text-[var(--muted-foreground)]">
+                Open a blank canvas when the architecture is still forming.
+              </p>
+              <button
+                onClick={() => createProject()}
+                disabled={creating}
+                className="mt-4 min-h-11 rounded-md border border-[var(--border)] px-4 py-2 text-sm font-semibold hover:bg-[var(--muted)] disabled:opacity-50"
+              >
+                Start from scratch
+              </button>
+            </div>
+          </section>
+
+          {error && (
+            <div
+              className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-200"
+              role="alert"
+            >
+              <AlertCircle className="mt-0.5 h-4 w-4 flex-none" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          <section className="rounded-lg border border-[var(--border)] bg-[var(--card)]">
+            <div className="flex flex-col gap-3 border-b border-[var(--border)] p-5 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="font-semibold">Recent projects</h2>
+                <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+                  Continue from the latest architecture decision.
+                </p>
+              </div>
+              {projectsError && (
+                <button
+                  onClick={loadProjects}
+                  className="inline-flex min-h-10 items-center gap-2 rounded-md border border-[var(--border)] px-3 py-2 text-sm font-semibold hover:bg-[var(--muted)]"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Retry
+                </button>
+              )}
+            </div>
+
+            {loading ? (
+              <div className="p-8 text-center text-[var(--muted-foreground)]">
+                Loading projects...
+              </div>
+            ) : projectsError ? (
+              <div className="p-8 text-center text-sm text-[var(--muted-foreground)]">
+                {projectsError}
+              </div>
+            ) : projects.length === 0 ? (
+              <div className="p-8 text-center text-sm text-[var(--muted-foreground)]">
+                No projects yet. Use one of the start options above to create the first map.
+              </div>
+            ) : (
+              <div className="grid gap-4 p-5 sm:grid-cols-2 xl:grid-cols-3">
+                {projects.map((project) => (
+                  <div
+                    key={project.id}
+                    className="group relative min-w-0 rounded-lg border border-[var(--border)] bg-[var(--background)] p-4 transition-shadow hover:shadow-md"
+                  >
+                    <button
+                      onClick={() => router.push(`/project/${project.id}`)}
+                      className="block w-full min-w-0 text-left"
+                      data-testid={`project-card-${project.id}`}
+                    >
+                      <div className="flex min-w-0 items-center gap-2 pr-10">
+                        <h3 className="min-w-0 truncate font-medium text-[var(--card-foreground)]">
+                          {project.name}
+                        </h3>
+                        {project.teamName && (
+                          <span className="inline-flex max-w-28 flex-none truncate rounded-full bg-[var(--color-services)]/15 px-2 py-0.5 text-[10px] font-medium text-[var(--color-services)]">
+                            {project.teamName}
+                          </span>
+                        )}
+                      </div>
+                      {project.description && (
+                        <p className="mt-2 line-clamp-2 text-sm leading-6 text-[var(--muted-foreground)]">
+                          {project.description}
+                        </p>
+                      )}
+                      <p className="mt-3 text-xs text-[var(--muted-foreground)]">
+                        Updated {formatDate(project.updatedAt)}
+                      </p>
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleteTarget(project);
+                      }}
+                      className="absolute right-3 top-3 flex h-11 w-11 items-center justify-center rounded-md text-[var(--muted-foreground)] hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30"
+                      title="Delete project"
+                      aria-label={`Delete ${project.name}`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
+
+        <aside className="space-y-5">
+          <section className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-5">
+            <h2 className="font-semibold">Activation</h2>
+            <div className="mt-4 space-y-3">
+              {activationItems.map((item) => (
+                <Link
+                  key={item.label}
+                  href={item.href}
+                  className="flex min-w-0 gap-3 rounded-md p-2 hover:bg-[var(--muted)]"
+                >
+                  {item.complete ? (
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 flex-none text-green-600" />
+                  ) : (
+                    <AlertCircle className="mt-0.5 h-4 w-4 flex-none text-amber-600" />
+                  )}
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium">{item.label}</span>
+                    <span className="block text-xs leading-5 text-[var(--muted-foreground)]">
+                      {item.detail}
+                    </span>
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-5">
+            <div className="flex items-start gap-3">
+              <ShieldCheck className="mt-0.5 h-5 w-5 flex-none text-[var(--color-api)]" />
+              <div>
+                <h2 className="font-semibold">Launch basics</h2>
+                <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
+                  Billing, BYOK, team access, comments, and admin support tools are available. Keep
+                  the first session focused on one real architecture artifact.
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 grid gap-2 text-sm">
+              <Link href="/settings" className="hover:text-[var(--color-client)]">
+                Account and AI settings
+              </Link>
+              <Link href="/pricing" className="hover:text-[var(--color-client)]">
+                Plans and limits
+              </Link>
+              <Link href="/support" className="hover:text-[var(--color-client)]">
+                Support and launch guide
+              </Link>
+            </div>
+          </section>
+        </aside>
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-[var(--border)] py-8">
-        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-6 sm:flex-row">
-          <span className="text-sm text-[var(--muted-foreground)]">
-            StackHatch &middot; Built with Next.js &amp; Claude
-          </span>
-          <div className="flex items-center gap-6 text-sm text-[var(--muted-foreground)]">
-            <Link href="/settings" className="hover:text-[var(--foreground)]">
-              Settings
+      <footer className="border-t border-[var(--border)] py-6">
+        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-6 text-sm text-[var(--muted-foreground)] sm:flex-row sm:items-center sm:justify-between">
+          <span>StackHatch</span>
+          <div className="flex flex-wrap gap-5">
+            <Link href="/support" className="hover:text-[var(--foreground)]">
+              Support
             </Link>
-            {isAdmin && (
-              <Link href="/admin" className="hover:text-[var(--foreground)]">
-                Admin
-              </Link>
-            )}
+            <Link href="/privacy" className="hover:text-[var(--foreground)]">
+              Privacy
+            </Link>
+            <Link href="/terms" className="hover:text-[var(--foreground)]">
+              Terms
+            </Link>
           </div>
         </div>
       </footer>
 
-      {/* Upgrade Prompt Modal */}
       {upgradePrompt && (
         <UpgradePrompt
           feature={upgradePrompt}
@@ -831,7 +566,6 @@ export default function Dashboard() {
         />
       )}
 
-      {/* Delete Confirmation Modal */}
       {deleteTarget && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"

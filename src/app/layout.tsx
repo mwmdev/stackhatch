@@ -6,8 +6,9 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "StackHatch",
-  description: "AI-powered architecture design tool",
+  title: "StackHatch - Architecture Maps for Product Teams",
+  description:
+    "Turn repositories and product briefs into architecture diagrams, tradeoff notes, and shareable engineering handoffs.",
 };
 
 export default function RootLayout({

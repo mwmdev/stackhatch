@@ -18,6 +18,21 @@ const CAPABILITIES = [
   "Export diagrams and PRDs for investor, customer, and engineering review",
 ];
 
+const LAUNCH_SIGNALS = [
+  {
+    label: "Customer wedge",
+    value: "solo founders, freelance builders, and small devtool teams",
+  },
+  {
+    label: "Activation",
+    value: "first useful architecture map from a real repo or PRD",
+  },
+  {
+    label: "Expansion",
+    value: "exports, comments, templates, and team workspaces",
+  },
+];
+
 export default function LandingPage() {
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
@@ -131,8 +146,8 @@ export default function LandingPage() {
                 <div className="flex items-start gap-3">
                   <Network className="mt-0.5 h-5 w-5 flex-none text-[var(--color-client)]" />
                   <p className="text-sm leading-6 text-[var(--muted-foreground)]">
-                    Your auth service is coupled to the API layer. Consider isolating token
-                    exchange before adding team workspaces.
+                    Your auth service is coupled to the API layer. Consider isolating token exchange
+                    before adding team workspaces.
                   </p>
                 </div>
               </div>
@@ -165,6 +180,37 @@ export default function LandingPage() {
         </section>
 
         <section className="border-t border-[var(--border)] py-14">
+          <div className="mx-auto grid max-w-6xl gap-8 px-6 lg:grid-cols-[minmax(0,1fr)_420px]">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-wide text-[var(--color-api)]">
+                Launch focus
+              </p>
+              <h2 className="mt-3 text-3xl font-bold tracking-tight">
+                Built for teams that need architecture decisions before the roadmap hardens.
+              </h2>
+              <p className="mt-4 max-w-2xl text-sm leading-6 text-[var(--muted-foreground)]">
+                StackHatch starts narrow: technical founders and small product teams who need to
+                explain system choices quickly, avoid expensive rewrites, and hand a clear plan to
+                collaborators.
+              </p>
+            </div>
+            <div className="grid gap-3">
+              {LAUNCH_SIGNALS.map((signal) => (
+                <div
+                  key={signal.label}
+                  className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-4"
+                >
+                  <div className="text-sm font-semibold">{signal.label}</div>
+                  <p className="mt-1 text-sm leading-6 text-[var(--muted-foreground)]">
+                    {signal.value}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="border-t border-[var(--border)] py-14">
           <div className="mx-auto flex max-w-6xl flex-col gap-5 px-6 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-2xl font-bold tracking-tight">Ready to map your stack?</h2>
@@ -183,6 +229,23 @@ export default function LandingPage() {
           </div>
         </section>
       </main>
+
+      <footer className="border-t border-[var(--border)] py-6">
+        <div className="mx-auto flex max-w-6xl flex-col gap-3 px-6 text-sm text-[var(--muted-foreground)] sm:flex-row sm:items-center sm:justify-between">
+          <span>StackHatch</span>
+          <div className="flex flex-wrap gap-5">
+            <Link href="/support" className="hover:text-[var(--foreground)]">
+              Support
+            </Link>
+            <Link href="/privacy" className="hover:text-[var(--foreground)]">
+              Privacy
+            </Link>
+            <Link href="/terms" className="hover:text-[var(--foreground)]">
+              Terms
+            </Link>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

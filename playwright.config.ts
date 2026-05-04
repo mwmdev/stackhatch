@@ -1,6 +1,11 @@
 import { defineConfig, devices } from "@playwright/test";
+import { existsSync } from "node:fs";
 
 const port = Number(process.env.PLAYWRIGHT_TEST_PORT) || 3099;
+const nixChromium = "/run/current-system/sw/bin/chromium";
+const chromiumExecutable =
+  process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ||
+  (existsSync(nixChromium) ? nixChromium : undefined);
 
 export default defineConfig({
   testDir: "./e2e",
@@ -19,7 +24,7 @@ export default defineConfig({
       use: {
         ...devices["Desktop Chrome"],
         launchOptions: {
-          executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
+          executablePath: chromiumExecutable,
         },
       },
     },
