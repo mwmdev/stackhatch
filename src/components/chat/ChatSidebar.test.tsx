@@ -217,7 +217,7 @@ describe("ChatSidebar", () => {
       expect(screen.getByText("A chat application")).toBeInTheDocument();
     });
 
-    const textarea = screen.getByPlaceholderText("Describe your application...");
+    const textarea = screen.getByPlaceholderText("Message...");
     fireEvent.change(textarea, { target: { value: "I need WebSocket support" } });
     fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
 
@@ -245,7 +245,7 @@ describe("ChatSidebar", () => {
       expect(screen.getByText("A chat application")).toBeInTheDocument();
     });
 
-    const textarea = screen.getByPlaceholderText("Describe your application...");
+    const textarea = screen.getByPlaceholderText("Message...");
     fireEvent.change(textarea, { target: { value: "Hello" } });
     fireEvent.keyDown(textarea, { key: "Enter", shiftKey: true });
 
@@ -289,9 +289,7 @@ describe("ChatSidebar", () => {
       expect(screen.getByText("A chat application")).toBeInTheDocument();
     });
 
-    const textarea = screen.getByPlaceholderText(
-      "Describe your application..."
-    ) as HTMLTextAreaElement;
+    const textarea = screen.getByPlaceholderText("Message...") as HTMLTextAreaElement;
     fireEvent.change(textarea, { target: { value: "Test message" } });
     fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
 

@@ -361,6 +361,7 @@ export default function ChatSidebar({
   }
 
   const showApiKeyForm = Boolean(error && !upgradeFeature && isMissingApiKeyError(error));
+  const statusLabel = streaming ? "Thinking" : initialized ? "Ready" : "Starting";
 
   if (!open) {
     if (!showCollapsedButton) return null;
@@ -378,11 +379,16 @@ export default function ChatSidebar({
 
   return (
     <div className="flex h-[45vh] w-full flex-shrink-0 flex-col border-b border-[var(--border)] bg-[var(--background)] md:h-full md:w-[400px] md:border-b-0 md:border-r">
-      {/* Header */}
-      <div className="flex items-center justify-end border-b border-[var(--border)] px-3 py-2">
+      <div className="flex min-h-12 items-center justify-between border-b border-[var(--border)] px-3">
+        <div className="flex items-center gap-2">
+          <span className="flex h-8 w-8 items-center justify-center rounded-md bg-[var(--muted)] text-[var(--muted-foreground)]">
+            <MessageSquareText className="h-4 w-4" />
+          </span>
+          <span className="text-xs font-medium text-[var(--muted-foreground)]">{statusLabel}</span>
+        </div>
         <button
           onClick={() => setSidebarOpen(false)}
-          className="flex h-9 w-9 items-center justify-center rounded-md text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
+          className="flex h-9 w-9 items-center justify-center rounded-md text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]/30"
           aria-label="Collapse chat"
           title="Collapse chat"
         >
@@ -392,119 +398,121 @@ export default function ChatSidebar({
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-4">
-        {messages.map((msg) => (
-          <div key={msg.id} className={`mb-4 ${msg.role === "user" ? "text-right" : "text-left"}`}>
-            <div
-              className={`inline-block max-w-[85%] rounded-lg px-3 py-2 text-sm ${
-                msg.role === "user"
-                  ? "bg-[var(--color-client)] text-white"
-                  : "bg-[var(--muted)] text-[var(--foreground)]"
-              }`}
-            >
-              {msg.role === "assistant" ? (
+        <div className="space-y-3">
+          {messages.map((msg) => (
+            <div key={msg.id} className={msg.role === "user" ? "text-right" : "text-left"}>
+              <div
+                className={`inline-block max-w-[88%] px-3 py-2 text-sm leading-5 shadow-sm ${
+                  msg.role === "user"
+                    ? "rounded-2xl rounded-br-md bg-[var(--color-client)] text-white"
+                    : "rounded-2xl rounded-bl-md border border-[var(--border)] bg-[var(--card)] text-[var(--foreground)]"
+                }`}
+              >
+                {msg.role === "assistant" ? (
+                  <div className="prose prose-sm max-w-none dark:prose-invert [&_p]:m-0 [&_p]:mb-2 [&_p:last-child]:mb-0">
+                    <ReactMarkdown>{stripStackTags(msg.content)}</ReactMarkdown>
+                  </div>
+                ) : (
+                  <span>{msg.content}</span>
+                )}
+              </div>
+            </div>
+          ))}
+
+          {/* Streaming response */}
+          {streaming && streamText && (
+            <div className="text-left">
+              <div className="inline-block max-w-[88%] rounded-2xl rounded-bl-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm leading-5 text-[var(--foreground)] shadow-sm">
                 <div className="prose prose-sm max-w-none dark:prose-invert [&_p]:m-0 [&_p]:mb-2 [&_p:last-child]:mb-0">
-                  <ReactMarkdown>{stripStackTags(msg.content)}</ReactMarkdown>
+                  <ReactMarkdown>{stripStackTags(streamText)}</ReactMarkdown>
                 </div>
-              ) : (
-                <span>{msg.content}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Typing indicator */}
+          {streaming && !streamText && (
+            <div className="text-left">
+              <div className="inline-block rounded-2xl rounded-bl-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 shadow-sm">
+                <div className="flex space-x-1" data-testid="typing-indicator">
+                  <span className="inline-block h-2 w-2 rounded-full bg-[var(--muted-foreground)] motion-safe:animate-bounce [animation-delay:0ms]" />
+                  <span className="inline-block h-2 w-2 rounded-full bg-[var(--muted-foreground)] motion-safe:animate-bounce [animation-delay:150ms]" />
+                  <span className="inline-block h-2 w-2 rounded-full bg-[var(--muted-foreground)] motion-safe:animate-bounce [animation-delay:300ms]" />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {upgradeFeature && (
+            <div>
+              <UpgradePrompt feature={upgradeFeature} onDismiss={() => setUpgradeFeature(null)} />
+            </div>
+          )}
+
+          {showApiKeyForm && (
+            <form
+              onSubmit={saveApiKeyInline}
+              className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm dark:border-red-900/60 dark:bg-red-950"
+            >
+              <p className="font-medium text-red-700 dark:text-red-300">{error}</p>
+              <div className="mt-3 flex flex-col gap-2">
+                <label
+                  className="text-xs font-semibold uppercase tracking-wide text-red-700 dark:text-red-300"
+                  htmlFor="chat-anthropic-api-key"
+                >
+                  Anthropic API key
+                </label>
+                <input
+                  id="chat-anthropic-api-key"
+                  type="password"
+                  value={apiKeyInput}
+                  onChange={(e) => setApiKeyInput(e.target.value)}
+                  placeholder="sk-ant-..."
+                  autoComplete="off"
+                  disabled={savingApiKey}
+                  className="min-h-10 rounded-md border border-red-200 bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)] disabled:opacity-50 dark:border-red-900/70"
+                />
+                <button
+                  type="submit"
+                  disabled={savingApiKey || !apiKeyInput.trim()}
+                  className="min-h-10 rounded-md bg-[var(--color-client)] px-3 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
+                >
+                  {savingApiKey ? "Saving..." : "Save and retry"}
+                </button>
+              </div>
+              {apiKeySaveError && (
+                <p className="mt-2 text-xs text-red-700 dark:text-red-300">{apiKeySaveError}</p>
               )}
+            </form>
+          )}
+
+          {error && !upgradeFeature && !showApiKeyForm && (
+            <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-950 dark:text-red-400">
+              {error}
             </div>
-          </div>
-        ))}
-
-        {/* Streaming response */}
-        {streaming && streamText && (
-          <div className="mb-4 text-left">
-            <div className="inline-block max-w-[85%] rounded-lg bg-[var(--muted)] px-3 py-2 text-sm text-[var(--foreground)]">
-              <div className="prose prose-sm max-w-none dark:prose-invert [&_p]:m-0 [&_p]:mb-2 [&_p:last-child]:mb-0">
-                <ReactMarkdown>{stripStackTags(streamText)}</ReactMarkdown>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Typing indicator */}
-        {streaming && !streamText && (
-          <div className="mb-4 text-left">
-            <div className="inline-block rounded-lg bg-[var(--muted)] px-3 py-2">
-              <div className="flex space-x-1" data-testid="typing-indicator">
-                <span className="inline-block h-2 w-2 rounded-full bg-[var(--muted-foreground)] motion-safe:animate-bounce [animation-delay:0ms]" />
-                <span className="inline-block h-2 w-2 rounded-full bg-[var(--muted-foreground)] motion-safe:animate-bounce [animation-delay:150ms]" />
-                <span className="inline-block h-2 w-2 rounded-full bg-[var(--muted-foreground)] motion-safe:animate-bounce [animation-delay:300ms]" />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {upgradeFeature && (
-          <div className="mb-4">
-            <UpgradePrompt feature={upgradeFeature} onDismiss={() => setUpgradeFeature(null)} />
-          </div>
-        )}
-
-        {showApiKeyForm && (
-          <form
-            onSubmit={saveApiKeyInline}
-            className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm dark:border-red-900/60 dark:bg-red-950"
-          >
-            <p className="font-medium text-red-700 dark:text-red-300">{error}</p>
-            <div className="mt-3 flex flex-col gap-2">
-              <label
-                className="text-xs font-semibold uppercase tracking-wide text-red-700 dark:text-red-300"
-                htmlFor="chat-anthropic-api-key"
-              >
-                Anthropic API key
-              </label>
-              <input
-                id="chat-anthropic-api-key"
-                type="password"
-                value={apiKeyInput}
-                onChange={(e) => setApiKeyInput(e.target.value)}
-                placeholder="sk-ant-..."
-                autoComplete="off"
-                disabled={savingApiKey}
-                className="min-h-10 rounded-md border border-red-200 bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)] disabled:opacity-50 dark:border-red-900/70"
-              />
-              <button
-                type="submit"
-                disabled={savingApiKey || !apiKeyInput.trim()}
-                className="min-h-10 rounded-md bg-[var(--color-client)] px-3 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
-              >
-                {savingApiKey ? "Saving..." : "Save and retry"}
-              </button>
-            </div>
-            {apiKeySaveError && (
-              <p className="mt-2 text-xs text-red-700 dark:text-red-300">{apiKeySaveError}</p>
-            )}
-          </form>
-        )}
-
-        {error && !upgradeFeature && !showApiKeyForm && (
-          <div className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-950 dark:text-red-400">
-            {error}
-          </div>
-        )}
+          )}
+        </div>
 
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input */}
-      <div className="border-t border-[var(--border)] bg-[var(--card)]/60 p-3">
-        <div className="flex items-end gap-2 rounded-xl border border-[var(--border)] bg-[var(--background)] p-2 shadow-sm transition-colors focus-within:border-[var(--color-client)] focus-within:ring-2 focus-within:ring-[var(--color-client)]/20">
+      <div className="border-t border-[var(--border)] bg-[var(--card)] p-3">
+        <div className="flex items-end gap-2 rounded-lg border border-[var(--border)] bg-[var(--background)] p-2 transition-colors focus-within:border-[var(--color-client)] focus-within:ring-2 focus-within:ring-[var(--color-client)]/20">
           <textarea
             ref={textareaRef}
             value={input}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            placeholder={initialized ? "Describe your application..." : "Waiting for AI..."}
+            placeholder={initialized ? "Message..." : "Waiting for AI..."}
             disabled={streaming || !initialized}
             rows={1}
             className="max-h-[120px] min-h-10 flex-1 resize-none bg-transparent px-2 py-2 text-sm leading-5 text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
           />
           <button
+            type="button"
             onClick={sendMessage}
             disabled={streaming || !input.trim()}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--color-client)] text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-[var(--color-client)] text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
             aria-label="Send message"
           >
             <SendHorizontal className="h-[18px] w-[18px]" />

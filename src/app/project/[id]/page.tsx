@@ -837,18 +837,23 @@ export default function ProjectPage() {
 
   return (
     <div className="flex h-screen flex-col bg-[var(--background)] text-[var(--foreground)] md:flex-row">
-      {/* Chat Sidebar - open by default for new projects (no canvas) */}
-      <ChatSidebar
-        projectId={projectId}
-        repoUrl={project.repoUrl}
-        defaultOpen={!hasCanvas}
-        open={chatOpen}
-        onOpenChange={setChatOpen}
-        showCollapsedButton={false}
-        scanTrigger={scanTrigger}
-        onArchitecture={handleArchitecture}
-        onStreaming={setChatStreaming}
-      />
+      <div
+        className={`flex-shrink-0 overflow-hidden transition-[height,width] duration-200 ease-out motion-reduce:transition-none ${
+          chatOpen ? "h-[45vh] md:h-auto md:w-[400px]" : "h-0 md:h-auto md:w-0"
+        }`}
+      >
+        <ChatSidebar
+          projectId={projectId}
+          repoUrl={project.repoUrl}
+          defaultOpen={!hasCanvas}
+          open={chatOpen}
+          onOpenChange={setChatOpen}
+          showCollapsedButton={false}
+          scanTrigger={scanTrigger}
+          onArchitecture={handleArchitecture}
+          onStreaming={setChatStreaming}
+        />
+      </div>
 
       {/* Canvas Area */}
       <div className="flex flex-1 flex-col">
