@@ -220,7 +220,7 @@ test.describe("Full E2E Interview-to-Canvas Flow", () => {
     ).toBeVisible({ timeout: 10000 });
 
     // Verify all messages visible and in order
-    const allMessages = page.locator('[class*="rounded-lg"][class*="px-3"]');
+    const allMessages = page.locator('[data-testid^="chat-message-"]');
     const count = await allMessages.count();
     // Should have: init AI message + 2 user messages + 2 AI responses = 5
     expect(count).toBeGreaterThanOrEqual(5);

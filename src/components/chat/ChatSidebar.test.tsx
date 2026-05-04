@@ -155,7 +155,7 @@ describe("ChatSidebar", () => {
     expect(screen.getByText(/Real-time/)).toBeInTheDocument();
   });
 
-  it("renders user messages with right alignment", async () => {
+  it("renders user messages as readable transcript entries", async () => {
     global.fetch = mockFetch({
       "/messages": messagesWithHistory,
     });
@@ -166,13 +166,14 @@ describe("ChatSidebar", () => {
       expect(screen.getByText("A chat application")).toBeInTheDocument();
     });
 
-    // User message parent should have text-right class
     const userMsg = screen.getByText("A chat application");
-    const userBubble = userMsg.closest("[class*='text-right']");
-    expect(userBubble).toBeInTheDocument();
+    const userEntry = screen.getByTestId("chat-message-user");
+    expect(userEntry).toContainElement(userMsg);
+    expect(userEntry).toHaveTextContent("You");
+    expect(userMsg.closest("[class*='text-right']")).not.toBeInTheDocument();
   });
 
-  it("renders assistant messages with left alignment", async () => {
+  it("renders assistant messages as readable transcript entries", async () => {
     global.fetch = mockFetch({
       "/messages": messagesWithHistory,
     });
@@ -184,8 +185,9 @@ describe("ChatSidebar", () => {
     });
 
     const assistantMsg = screen.getByText("Welcome! What are you building?");
-    const assistantBubble = assistantMsg.closest("[class*='text-left']");
-    expect(assistantBubble).toBeInTheDocument();
+    const assistantEntries = screen.getAllByTestId("chat-message-assistant");
+    expect(assistantEntries[0]).toContainElement(assistantMsg);
+    expect(assistantEntries[0]).toHaveTextContent("StackHatch");
   });
 
   it("renders markdown in assistant messages", async () => {

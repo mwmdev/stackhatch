@@ -400,16 +400,29 @@ export default function ChatSidebar({
       <div className="flex-1 overflow-y-auto px-4 py-4">
         <div className="space-y-3">
           {messages.map((msg) => (
-            <div key={msg.id} className={msg.role === "user" ? "text-right" : "text-left"}>
+            <div
+              key={msg.id}
+              data-testid={`chat-message-${msg.role}`}
+              className="border-b border-[var(--border)] pb-4 last:border-b-0"
+            >
+              <div className="mb-1.5 flex items-center gap-2">
+                <span
+                  className={`text-[0.6875rem] font-semibold uppercase tracking-[0.08em] ${
+                    msg.role === "user"
+                      ? "text-[var(--color-client)]"
+                      : "text-[var(--muted-foreground)]"
+                  }`}
+                >
+                  {msg.role === "user" ? "You" : "StackHatch"}
+                </span>
+              </div>
               <div
-                className={`inline-block max-w-[88%] px-3 py-2 text-sm leading-5 shadow-sm ${
-                  msg.role === "user"
-                    ? "rounded-2xl rounded-br-md bg-[var(--color-client)] text-white"
-                    : "rounded-2xl rounded-bl-md border border-[var(--border)] bg-[var(--card)] text-[var(--foreground)]"
+                className={`max-w-[72ch] text-[0.9375rem] leading-7 text-[var(--foreground)] ${
+                  msg.role === "user" ? "whitespace-pre-wrap" : ""
                 }`}
               >
                 {msg.role === "assistant" ? (
-                  <div className="prose prose-sm max-w-none dark:prose-invert [&_p]:m-0 [&_p]:mb-2 [&_p:last-child]:mb-0">
+                  <div className="prose prose-sm max-w-none dark:prose-invert [&_li]:my-1 [&_ol]:my-3 [&_p]:m-0 [&_p+p]:mt-3 [&_ul]:my-3">
                     <ReactMarkdown>{stripStackTags(msg.content)}</ReactMarkdown>
                   </div>
                 ) : (
@@ -421,19 +434,30 @@ export default function ChatSidebar({
 
           {/* Streaming response */}
           {streaming && streamText && (
-            <div className="text-left">
-              <div className="inline-block max-w-[88%] rounded-2xl rounded-bl-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm leading-5 text-[var(--foreground)] shadow-sm">
-                <div className="prose prose-sm max-w-none dark:prose-invert [&_p]:m-0 [&_p]:mb-2 [&_p:last-child]:mb-0">
-                  <ReactMarkdown>{stripStackTags(streamText)}</ReactMarkdown>
-                </div>
+            <div
+              data-testid="chat-message-assistant-streaming"
+              className="border-b border-[var(--border)] pb-4 last:border-b-0"
+            >
+              <div className="mb-1.5 flex items-center gap-2">
+                <span className="text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
+                  StackHatch
+                </span>
+              </div>
+              <div className="prose prose-sm max-w-[72ch] text-[0.9375rem] leading-7 dark:prose-invert [&_li]:my-1 [&_ol]:my-3 [&_p]:m-0 [&_p+p]:mt-3 [&_ul]:my-3">
+                <ReactMarkdown>{stripStackTags(streamText)}</ReactMarkdown>
               </div>
             </div>
           )}
 
           {/* Typing indicator */}
           {streaming && !streamText && (
-            <div className="text-left">
-              <div className="inline-block rounded-2xl rounded-bl-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 shadow-sm">
+            <div className="border-b border-[var(--border)] pb-4 last:border-b-0">
+              <div className="mb-2 flex items-center gap-2">
+                <span className="text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
+                  StackHatch
+                </span>
+              </div>
+              <div className="flex min-h-7 items-center">
                 <div className="flex space-x-1" data-testid="typing-indicator">
                   <span className="inline-block h-2 w-2 rounded-full bg-[var(--muted-foreground)] motion-safe:animate-bounce [animation-delay:0ms]" />
                   <span className="inline-block h-2 w-2 rounded-full bg-[var(--muted-foreground)] motion-safe:animate-bounce [animation-delay:150ms]" />
