@@ -33,3 +33,6 @@ coverage/
 
 # bv (beads viewer)
 .bv/
+
+# ralph-tui
+.ralph-tui/
