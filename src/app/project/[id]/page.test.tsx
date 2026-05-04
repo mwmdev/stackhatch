@@ -32,7 +32,7 @@ vi.mock("reactflow", () => {
         ...(props.className ? { className: props.className } : {}),
         ...(props.style ? { style: props.style } : {}),
       },
-      children,
+      children
     );
   }
 
@@ -97,13 +97,7 @@ vi.mock("next-auth/react", () => ({
 
 // Mock child components to keep tests focused
 vi.mock("@/components/chat/ChatSidebar", () => ({
-  default: ({
-    projectId,
-    defaultOpen,
-  }: {
-    projectId: string;
-    defaultOpen: boolean;
-  }) => (
+  default: ({ projectId, defaultOpen }: { projectId: string; defaultOpen: boolean }) => (
     <div
       data-testid="chat-sidebar"
       data-project-id={projectId}
@@ -115,23 +109,26 @@ vi.mock("@/components/chat/ChatSidebar", () => ({
 }));
 
 vi.mock("@/components/canvas/NodeDetailPanel", () => ({
-  default: ({ node }: { node: unknown }) => (
-    <div data-testid="node-detail-panel" data-has-node={String(!!node)}>
+  default: ({
+    node,
+    onSuggestAlternatives,
+  }: {
+    node: unknown;
+    onSuggestAlternatives?: () => void;
+  }) => (
+    <div
+      data-testid="node-detail-panel"
+      data-has-node={String(!!node)}
+      data-can-suggest-alternatives={String(!!onSuggestAlternatives)}
+    >
       Detail Panel
     </div>
   ),
 }));
 
 vi.mock("@/components/canvas/AddNodeDropdown", () => ({
-  default: ({
-    onAddNode,
-  }: {
-    onAddNode: (cat: string, sub: string) => void;
-  }) => (
-    <button
-      data-testid="add-node-button"
-      onClick={() => onAddNode("data", "sql-db")}
-    >
+  default: ({ onAddNode }: { onAddNode: (cat: string, sub: string) => void }) => (
+    <button data-testid="add-node-button" onClick={() => onAddNode("data", "sql-db")}>
       Add Node
     </button>
   ),
@@ -216,45 +213,69 @@ const projectWithPositions = {
   },
 };
 
-function mockFetchProject(project: unknown) {
-  global.fetch = vi.fn(
-    (input: RequestInfo | URL, _options?: RequestInit) => {
-      const url = String(input);
-      if (url.includes("/api/projects/test-project-id/messages")) {
+function mockFetchProject(
+  project: unknown,
+  options: {
+    settings?: Record<string, unknown>;
+    billing?: Record<string, unknown>;
+  } = {}
+) {
+  global.fetch = vi.fn((input: RequestInfo | URL, _options?: RequestInit) => {
+    const url = String(input);
+    if (url === "/api/settings") {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(options.settings ?? { role: "free-user", isAdmin: false }),
+      } as Response);
+    }
+    if (url === "/api/billing/subscription") {
+      return Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve(
+            options.billing ?? {
+              plan: "free",
+              status: null,
+              billingInterval: null,
+              currentPeriodEnd: null,
+            }
+          ),
+      } as Response);
+    }
+    if (url.includes("/api/projects/test-project-id/messages")) {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve([]),
+      } as Response);
+    }
+    if (url.includes("/api/projects/test-project-id")) {
+      if ((_options as RequestInit)?.method === "PATCH") {
         return Promise.resolve({
           ok: true,
-          json: () => Promise.resolve([]),
-        } as Response);
-      }
-      if (url.includes("/api/projects/test-project-id")) {
-        if ((_options as RequestInit)?.method === "PATCH") {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({}),
-          } as Response);
-        }
-        return Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve(project),
+          json: () => Promise.resolve({}),
         } as Response);
       }
       return Promise.resolve({
         ok: true,
-        json: () => Promise.resolve({}),
+        json: () => Promise.resolve(project),
       } as Response);
-    },
-  ) as unknown as typeof global.fetch;
+    }
+    return Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve({}),
+    } as Response);
+  }) as unknown as typeof global.fetch;
 }
 
 function mockFetchNotFound() {
   global.fetch = vi.fn(() =>
-    Promise.resolve({ ok: false, status: 404 } as Response),
+    Promise.resolve({ ok: false, status: 404 } as Response)
   ) as unknown as typeof global.fetch;
 }
 
 function mockFetchError() {
   global.fetch = vi.fn(() =>
-    Promise.reject(new Error("Network error")),
+    Promise.reject(new Error("Network error"))
   ) as unknown as typeof global.fetch;
 }
 
@@ -313,9 +334,7 @@ describe("ProjectPage", () => {
       await waitFor(() => {
         expect(screen.getByText("No architecture yet")).toBeInTheDocument();
       });
-      expect(
-        screen.getByText("Start a conversation or add nodes manually"),
-      ).toBeInTheDocument();
+      expect(screen.getByText("Start a conversation or add nodes manually")).toBeInTheDocument();
     });
 
     it("opens chat sidebar by default for new projects", async () => {
@@ -388,6 +407,37 @@ describe("ProjectPage", () => {
         expect(screen.getByText("Test Project")).toBeInTheDocument();
       });
     });
+
+    it("hides PRD export for free users", async () => {
+      mockFetchProject(projectWithNodes);
+      render(<ProjectPage />);
+      await waitFor(() => {
+        expect(screen.getByText("Re-layout")).toBeInTheDocument();
+      });
+      expect(screen.queryByText("PRD")).not.toBeInTheDocument();
+    });
+
+    it("shows PRD export for active pro users", async () => {
+      mockFetchProject(projectWithNodes, {
+        settings: { role: "paid-user", isAdmin: false },
+        billing: { plan: "pro", status: "active" },
+      });
+      render(<ProjectPage />);
+      await waitFor(() => {
+        expect(screen.getByText("PRD")).toBeInTheDocument();
+      });
+    });
+
+    it("shows PRD export for admin users", async () => {
+      mockFetchProject(projectWithNodes, {
+        settings: { role: "admin", isAdmin: true },
+        billing: { plan: "free", status: null },
+      });
+      render(<ProjectPage />);
+      await waitFor(() => {
+        expect(screen.getByText("PRD")).toBeInTheDocument();
+      });
+    });
   });
 
   describe("canvas with existing state", () => {
@@ -427,15 +477,37 @@ describe("ProjectPage", () => {
       });
     });
 
+    it("hides alternatives for free users", async () => {
+      mockFetchProject(projectWithNodes);
+      render(<ProjectPage />);
+      await waitFor(() => {
+        expect(screen.getByTestId("node-detail-panel")).toHaveAttribute(
+          "data-can-suggest-alternatives",
+          "false"
+        );
+      });
+    });
+
+    it("enables alternatives for paid users", async () => {
+      mockFetchProject(projectWithNodes, {
+        settings: { role: "paid-user", isAdmin: false },
+      });
+      render(<ProjectPage />);
+      await waitFor(() => {
+        expect(screen.getByTestId("node-detail-panel")).toHaveAttribute(
+          "data-can-suggest-alternatives",
+          "true"
+        );
+      });
+    });
+
     it("hides empty state when nodes exist", async () => {
       mockFetchProject(projectWithNodes);
       render(<ProjectPage />);
       await waitFor(() => {
         expect(screen.getByText("Re-layout")).toBeInTheDocument();
       });
-      expect(
-        screen.queryByText("No architecture yet"),
-      ).not.toBeInTheDocument();
+      expect(screen.queryByText("No architecture yet")).not.toBeInTheDocument();
     });
   });
 
@@ -444,9 +516,7 @@ describe("ProjectPage", () => {
       mockFetchProject(emptyProject);
       render(<ProjectPage />);
       await waitFor(() => {
-        expect(
-          screen.getByTestId("react-flow-background"),
-        ).toBeInTheDocument();
+        expect(screen.getByTestId("react-flow-background")).toBeInTheDocument();
       });
     });
 
@@ -454,9 +524,7 @@ describe("ProjectPage", () => {
       mockFetchProject(emptyProject);
       render(<ProjectPage />);
       await waitFor(() => {
-        expect(
-          screen.getByTestId("react-flow-controls"),
-        ).toBeInTheDocument();
+        expect(screen.getByTestId("react-flow-controls")).toBeInTheDocument();
       });
     });
 
@@ -499,14 +567,8 @@ describe("ProjectPage", () => {
       });
 
       // Verify initial state
-      expect(screen.getByTestId("react-flow-canvas")).toHaveAttribute(
-        "data-node-count",
-        "2",
-      );
-      expect(screen.getByTestId("node-detail-panel")).toHaveAttribute(
-        "data-has-node",
-        "false",
-      );
+      expect(screen.getByTestId("react-flow-canvas")).toHaveAttribute("data-node-count", "2");
+      expect(screen.getByTestId("node-detail-panel")).toHaveAttribute("data-has-node", "false");
 
       // Click add node button
       await act(async () => {
@@ -515,17 +577,11 @@ describe("ProjectPage", () => {
 
       // Node count should increase
       await waitFor(() => {
-        expect(screen.getByTestId("react-flow-canvas")).toHaveAttribute(
-          "data-node-count",
-          "3",
-        );
+        expect(screen.getByTestId("react-flow-canvas")).toHaveAttribute("data-node-count", "3");
       });
 
       // Detail panel should open for new node
-      expect(screen.getByTestId("node-detail-panel")).toHaveAttribute(
-        "data-has-node",
-        "true",
-      );
+      expect(screen.getByTestId("node-detail-panel")).toHaveAttribute("data-has-node", "true");
     });
   });
 });

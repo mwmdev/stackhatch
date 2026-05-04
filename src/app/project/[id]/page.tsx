@@ -63,6 +63,17 @@ interface PendingConnection {
   position: { x: number; y: number };
 }
 
+interface SettingsResponse {
+  role?: string;
+  isAdmin?: boolean;
+  customSubtypes?: string;
+}
+
+interface BillingResponse {
+  plan?: string;
+  status?: string | null;
+}
+
 /** Stored canvasState extends StackArchitecture with persisted positions */
 interface StoredCanvasState extends StackArchitecture {
   positions?: Record<string, { x: number; y: number }>;
@@ -104,6 +115,9 @@ export default function ProjectPage() {
   const [activeCommentNodeId, setActiveCommentNodeId] = useState<string | null>(null);
   const [commentsPanelOpenTrigger, setCommentsPanelOpenTrigger] = useState(0);
   const [upgradeFeature, setUpgradeFeature] = useState<string | null>(null);
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [billingPlan, setBillingPlan] = useState("free");
+  const [billingStatus, setBillingStatus] = useState<string | null>(null);
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<StackNodeData>([]);
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<StackEdgeData>([]);
   const rfInstanceRef = useRef<ReactFlowInstance | null>(null);
@@ -721,11 +735,19 @@ export default function ProjectPage() {
   useEffect(() => {
     async function loadProject() {
       try {
-        // Fetch custom subtypes in parallel
+        // Fetch effective user capabilities in parallel. These endpoints use impersonation-aware auth.
         fetch("/api/settings")
           .then((r) => r.json())
-          .then((s) => {
+          .then((s: SettingsResponse) => {
+            setCurrentUserRole(s.role ?? null);
             if (s.customSubtypes) setCustomSubtypes(parseCustomSubtypes(s.customSubtypes));
+          })
+          .catch(() => {});
+        fetch("/api/billing/subscription")
+          .then((r) => (r.ok ? r.json() : null))
+          .then((s: BillingResponse | null) => {
+            setBillingPlan(s?.plan ?? "free");
+            setBillingStatus(s?.status ?? null);
           })
           .catch(() => {});
         const res = await fetch(`/api/projects/${projectId}`);
@@ -793,6 +815,10 @@ export default function ProjectPage() {
     [project?.canvasState]
   );
   const nodeCount = project?.canvasState?.nodes?.length ?? 0;
+  const isAdmin = currentUserRole === "admin";
+  const canUseAlternatives = isAdmin || currentUserRole === "paid-user";
+  const canExportPrd =
+    isAdmin || ((billingPlan === "pro" || billingPlan === "team") && billingStatus === "active");
 
   // Map nodeId → name for comment labels
   const nodeNames = useMemo(() => {
@@ -863,7 +889,7 @@ export default function ProjectPage() {
                 onError={setToast}
               />
             )}
-            {nodeCount > 0 && (
+            {nodeCount > 0 && canExportPrd && (
               <button
                 onClick={handleExportPrd}
                 disabled={prdLoading}
@@ -1046,8 +1072,8 @@ export default function ProjectPage() {
             customSubtypes={customSubtypes}
             alternatives={selectedNode ? alternatives[selectedNode.id] : undefined}
             alternativesLoading={altLoading}
-            onSuggestAlternatives={handleSuggestAlternatives}
-            onSwapAlternative={handleSwapAlternative}
+            onSuggestAlternatives={canUseAlternatives ? handleSuggestAlternatives : undefined}
+            onSwapAlternative={canUseAlternatives ? handleSwapAlternative : undefined}
           />
 
           {/* Save Template Modal */}

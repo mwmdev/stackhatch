@@ -17,6 +17,10 @@ interface ProjectSummary {
   updatedAt: number;
 }
 
+interface CurrentUser {
+  role?: string;
+}
+
 function formatDate(timestamp: number): string {
   return new Date(timestamp).toLocaleDateString(undefined, {
     month: "short",
@@ -130,6 +134,7 @@ export default function Dashboard() {
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
   const [upgradePrompt, setUpgradePrompt] = useState<string | null>(null);
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -138,6 +143,21 @@ export default function Dashboard() {
       .then((data) => setProjects(data))
       .catch(() => setProjects([]))
       .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/me")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: CurrentUser | null) => {
+        if (!cancelled) setCurrentUserRole(data?.role ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setCurrentUserRole(null);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   async function createProject(opts?: { repoUrl?: string; description?: string }) {
@@ -220,6 +240,8 @@ export default function Dashboard() {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
   }
 
+  const isAdmin = currentUserRole === "admin";
+
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
       {/* Navbar */}
@@ -228,28 +250,30 @@ export default function Dashboard() {
           <span className="text-lg font-bold tracking-tight">StackHatch</span>
           <div className="flex items-center gap-1">
             <ThemeToggle />
-            <Link
-              href="/admin"
-              className="flex h-11 w-11 items-center justify-center rounded-md text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
-              title="Admin"
-              aria-label="Admin"
-            >
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+            {isAdmin && (
+              <Link
+                href="/admin"
+                className="flex h-11 w-11 items-center justify-center rounded-md text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
+                title="Admin"
+                aria-label="Admin"
               >
-                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                <circle cx="9" cy="7" r="4" />
-                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-              </svg>
-            </Link>
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                </svg>
+              </Link>
+            )}
             <Link
               href="/settings"
               className="flex h-11 w-11 items-center justify-center rounded-md text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
@@ -789,9 +813,11 @@ export default function Dashboard() {
             <Link href="/settings" className="hover:text-[var(--foreground)]">
               Settings
             </Link>
-            <Link href="/admin" className="hover:text-[var(--foreground)]">
-              Admin
-            </Link>
+            {isAdmin && (
+              <Link href="/admin" className="hover:text-[var(--foreground)]">
+                Admin
+              </Link>
+            )}
           </div>
         </div>
       </footer>

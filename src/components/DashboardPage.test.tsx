@@ -50,6 +50,12 @@ const mockProjects = [
 function mockFetch(projects: typeof mockProjects) {
   global.fetch = vi.fn((input: RequestInfo | URL, options?: RequestInit) => {
     const url = typeof input === "string" ? input : input.toString();
+    if (url === "/api/me") {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ role: "free-user" }),
+      });
+    }
     if (url === "/api/projects") {
       return Promise.resolve({
         ok: true,
@@ -100,6 +106,9 @@ describe("Dashboard", () => {
           ok: true,
           json: () => Promise.resolve({ id: "new-1", name: "my-repo" }),
         });
+      }
+      if (url === "/api/me") {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ role: "free-user" }) });
       }
       if (url === "/api/projects") {
         return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
@@ -187,6 +196,37 @@ describe("Dashboard", () => {
 
     const settingsLink = screen.getByLabelText("Settings");
     expect(settingsLink).toHaveAttribute("href", "/settings");
+  });
+
+  it("hides admin link for free users", async () => {
+    mockFetch([]);
+    render(<Dashboard />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Start from scratch")).toBeInTheDocument();
+    });
+
+    expect(screen.queryByLabelText("Admin")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Admin" })).not.toBeInTheDocument();
+  });
+
+  it("renders admin link for admin users", async () => {
+    global.fetch = vi.fn((input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url === "/api/me") {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ role: "admin" }) });
+      }
+      if (url === "/api/projects") {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+      }
+      return Promise.resolve({ ok: false, json: () => Promise.resolve({}) });
+    }) as unknown as typeof global.fetch;
+
+    render(<Dashboard />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Admin")).toHaveAttribute("href", "/admin");
+    });
   });
 
   it("renders theme toggle button", async () => {
