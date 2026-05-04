@@ -79,6 +79,11 @@ vi.mock("reactflow", () => {
 // Mock CSS import
 vi.mock("reactflow/dist/style.css", () => ({}));
 
+// Mock next-themes
+vi.mock("next-themes", () => ({
+  useTheme: () => ({ theme: "light", setTheme: vi.fn() }),
+}));
+
 // Mock next-auth/react
 vi.mock("next-auth/react", () => ({
   useSession: () => ({
@@ -369,6 +374,14 @@ describe("ProjectPage", () => {
       render(<ProjectPage />);
       await waitFor(() => {
         expect(screen.getByTestId("add-node-button")).toBeInTheDocument();
+      });
+    });
+
+    it("shows theme switcher", async () => {
+      mockFetchProject(emptyProject);
+      render(<ProjectPage />);
+      await waitFor(() => {
+        expect(screen.getByLabelText("Theme: light")).toBeInTheDocument();
       });
     });
 

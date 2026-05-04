@@ -26,6 +26,7 @@ import EdgeLegend from "@/components/canvas/EdgeLegend";
 import ExportDropdown from "@/components/canvas/ExportDropdown";
 import CommentsPanel from "@/components/comments/CommentsPanel";
 import UserAvatar from "@/components/UserAvatar";
+import ThemeToggle from "@/components/ThemeToggle";
 import {
   toReactFlowNodes,
   toReactFlowEdges,
@@ -962,6 +963,7 @@ export default function ProjectPage() {
                 )}
               </>
             )}
+            <ThemeToggle />
             <UserAvatar />
           </div>
         </div>
