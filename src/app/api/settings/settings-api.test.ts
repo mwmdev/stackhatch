@@ -15,6 +15,24 @@ function createTestDb() {
       key TEXT PRIMARY KEY NOT NULL,
       value TEXT NOT NULL
     );
+    CREATE TABLE user_settings (
+      user_id TEXT PRIMARY KEY NOT NULL,
+      anthropic_api_key TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+    CREATE TABLE subscriptions (
+      id TEXT PRIMARY KEY NOT NULL,
+      user_id TEXT NOT NULL,
+      stripe_customer_id TEXT,
+      stripe_subscription_id TEXT,
+      plan TEXT DEFAULT 'free' NOT NULL,
+      billing_interval TEXT DEFAULT 'monthly',
+      status TEXT NOT NULL,
+      current_period_end INTEGER,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
   `);
   return drizzle(sqlite, { schema });
 }
@@ -134,15 +152,18 @@ describe("GET /api/settings", () => {
 });
 
 describe("PATCH /api/settings", () => {
-  it("rejects API key writes", async () => {
+  it("saves BYOK API key without returning it", async () => {
     const req = makeRequest({
       method: "PATCH",
-      body: { apiKey: "sk-ant-new-key" },
+      body: { apiKey: "sk-ant-new-key-1234567890" },
     });
 
     const res = await settingsRoute.PATCH(req as never);
-    expect(res.status).toBe(400);
-    expect(testDb.select().from(settings).all()).toHaveLength(0);
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.apiKey).toBeUndefined();
+    expect(data.hasUserAnthropicKey).toBe(true);
   });
 
   it("saves admin model setting", async () => {

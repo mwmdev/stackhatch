@@ -2,7 +2,7 @@ import { getDb } from "@/db";
 import { usage } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { createId } from "@/lib/id";
-import { PLAN_CONFIG } from "@/lib/stripe";
+import { getActivePlan, isUnlimited, PLAN_CONFIG, type PublicPlanKey } from "@/lib/plans";
 
 const PERIOD_MS = 30 * 24 * 60 * 60 * 1000; // ~30 days
 
@@ -51,38 +51,60 @@ export function getUsage(userId: string) {
   return getOrCreateUsage(db, userId);
 }
 
-export function incrementMessages(userId: string): {
+export function getUsageLimit(plan: PublicPlanKey, metric: "messages" | "scans") {
+  const features = PLAN_CONFIG[plan].features;
+  return metric === "messages" ? features.messagesPerMonth : features.scansPerMonth;
+}
+
+export function incrementMessages(
+  userId: string,
+  role: "admin" | "free-user" | "paid-user" = "free-user"
+): {
   allowed: boolean;
   used: number;
-  limit: number;
+  limit: number | "unlimited" | "byok";
+  plan: PublicPlanKey;
 } {
   const db = getDb();
+  const plan = getActivePlan(db, userId, role);
+  const limit = getUsageLimit(plan, "messages");
+  if (limit === "byok" || isUnlimited(limit)) {
+    return { allowed: true, used: 0, limit, plan };
+  }
+
   const record = getOrCreateUsage(db, userId);
-  const limit = PLAN_CONFIG.free.features.messagesPerMonth;
 
   if (record.messageCount >= limit) {
-    return { allowed: false, used: record.messageCount, limit };
+    return { allowed: false, used: record.messageCount, limit, plan };
   }
 
   const newCount = record.messageCount + 1;
   db.update(usage).set({ messageCount: newCount }).where(eq(usage.id, record.id)).run();
 
-  return { allowed: true, used: newCount, limit };
+  return { allowed: true, used: newCount, limit, plan };
 }
 
-export function incrementScans(userId: string): { allowed: boolean; used: number; limit: number } {
+export function incrementScans(
+  userId: string,
+  role: "admin" | "free-user" | "paid-user" = "free-user"
+): { allowed: boolean; used: number; limit: number | "unlimited" | "byok"; plan: PublicPlanKey } {
   const db = getDb();
+  const plan = getActivePlan(db, userId, role);
+  const limit = getUsageLimit(plan, "scans");
+  if (limit === "byok" || isUnlimited(limit)) {
+    return { allowed: true, used: 0, limit, plan };
+  }
+
   const record = getOrCreateUsage(db, userId);
-  const limit = PLAN_CONFIG.free.features.scansPerMonth;
 
   if (record.scanCount >= limit) {
-    return { allowed: false, used: record.scanCount, limit };
+    return { allowed: false, used: record.scanCount, limit, plan };
   }
 
   const newCount = record.scanCount + 1;
   db.update(usage).set({ scanCount: newCount }).where(eq(usage.id, record.id)).run();
 
-  return { allowed: true, used: newCount, limit };
+  return { allowed: true, used: newCount, limit, plan };
 }
 
 export function resetUsage(userId: string) {

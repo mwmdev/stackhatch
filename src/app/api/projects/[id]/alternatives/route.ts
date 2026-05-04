@@ -56,10 +56,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   runMigrations(db);
 
   const settingsMap = getSettings(db);
-  const apiKey = getApiKey();
+  const apiKey = getApiKey(db, user.userId, user.role);
   if (!apiKey) {
     return NextResponse.json(
-      { error: "AI is not configured on this server.", code: "AI_NOT_CONFIGURED" },
+      {
+        error: "Add your Anthropic API key in Settings, or upgrade for hosted AI.",
+        code: "AI_NOT_CONFIGURED",
+        upgradeUrl: "/pricing",
+      },
       { status: 503 }
     );
   }

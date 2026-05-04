@@ -41,6 +41,15 @@ export const settings = sqliteTable("settings", {
   value: text("value").notNull(),
 });
 
+export const userSettings = sqliteTable("user_settings", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  anthropicApiKey: text("anthropic_api_key"),
+  createdAt: integer("created_at", { mode: "number" }).notNull(),
+  updatedAt: integer("updated_at", { mode: "number" }).notNull(),
+});
+
 // Billing and subscription tables
 export const subscriptions = sqliteTable("subscriptions", {
   id: text("id").primaryKey(),
@@ -49,7 +58,7 @@ export const subscriptions = sqliteTable("subscriptions", {
     .references(() => users.id, { onDelete: "cascade" }),
   stripeCustomerId: text("stripe_customer_id"),
   stripeSubscriptionId: text("stripe_subscription_id"),
-  plan: text("plan", { enum: ["free", "pro", "team"] })
+  plan: text("plan", { enum: ["free", "starter", "pro", "team"] })
     .notNull()
     .default("free"),
   billingInterval: text("billing_interval", { enum: ["monthly", "annual"] }).default("monthly"),

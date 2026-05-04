@@ -64,6 +64,13 @@
       "when": 1777902000000,
       "tag": "0008_secure_auth_data",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1777914273196,
+      "tag": "0009_spotty_magdalene",
+      "breakpoints": true
     }
   ]
 }

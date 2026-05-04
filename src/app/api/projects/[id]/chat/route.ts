@@ -54,8 +54,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   // Enforce usage limits for free users
   let usageRemaining: number | null = null;
-  if (user.role === "free-user") {
-    const result = incrementMessages(userId);
+  if (user.role !== "admin") {
+    const result = incrementMessages(userId, user.role);
     if (!result.allowed) {
       return new Response(
         JSON.stringify({
@@ -70,10 +70,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         }
       );
     }
-    usageRemaining = result.limit - result.used;
+    usageRemaining = typeof result.limit === "number" ? result.limit - result.used : null;
   }
 
-  const response = streamChat(db, id, parsed.data.message);
+  const response = streamChat(db, id, parsed.data.message, undefined, user);
   if (usageRemaining !== null) {
     response.headers.set("X-Usage-Remaining", String(usageRemaining));
   }

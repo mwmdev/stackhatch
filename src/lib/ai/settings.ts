@@ -1,5 +1,8 @@
 import type { AppDatabase } from "@/db";
-import { settings } from "@/db/schema";
+import { settings, userSettings, type UserRole } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { decryptSecret } from "@/lib/secrets";
+import { getActivePlan } from "@/lib/plans";
 
 export function getSettings(db: AppDatabase) {
   const rows = db.select().from(settings).all();
@@ -10,8 +13,26 @@ export function getSettings(db: AppDatabase) {
   return map;
 }
 
-export function getApiKey(): string | null {
-  return process.env.ANTHROPIC_API_KEY || null;
+export function getUserAnthropicKey(db: AppDatabase, userId: string): string | null {
+  const row = db
+    .select({ anthropicApiKey: userSettings.anthropicApiKey })
+    .from(userSettings)
+    .where(eq(userSettings.userId, userId))
+    .get();
+
+  if (!row?.anthropicApiKey) return null;
+  return decryptSecret(row.anthropicApiKey);
+}
+
+export function getApiKey(db?: AppDatabase, userId?: string, role?: UserRole): string | null {
+  if (!db || !userId || !role) return process.env.ANTHROPIC_API_KEY || null;
+
+  const plan = getActivePlan(db, userId, role);
+  if (plan === "free") {
+    return getUserAnthropicKey(db, userId);
+  }
+
+  return process.env.ANTHROPIC_API_KEY || getUserAnthropicKey(db, userId);
 }
 
 export function getModel(settingsMap: Record<string, string>): string {

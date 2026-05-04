@@ -60,8 +60,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   // Enforce usage limits for free users
   let scansRemaining: number | null = null;
-  if (user.role === "free-user") {
-    const result = incrementScans(userId);
+  if (user.role !== "admin") {
+    const result = incrementScans(userId, user.role);
     if (!result.allowed) {
       return new Response(
         JSON.stringify({
@@ -76,7 +76,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         }
       );
     }
-    scansRemaining = result.limit - result.used;
+    scansRemaining = typeof result.limit === "number" ? result.limit - result.used : null;
   }
 
   // Analyze the repo
@@ -99,7 +99,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   });
 
   const initMessage = formatRepoAnalysis(analysis);
-  const response = streamChat(db, id, null, initMessage);
+  const response = streamChat(db, id, null, initMessage, user);
   if (scansRemaining !== null) {
     response.headers.set("X-Usage-Remaining", String(scansRemaining));
   }

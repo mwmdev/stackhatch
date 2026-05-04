@@ -5,7 +5,7 @@ import { runMigrations } from "@/db/migrate";
 import { z } from "zod";
 import { desc, eq, and, or, inArray, count } from "drizzle-orm";
 import { getAuthenticatedUser, getAuthenticatedUserId } from "@/lib/auth";
-import { PLAN_CONFIG } from "@/lib/stripe";
+import { getActivePlan, isUnlimited, PLAN_CONFIG } from "@/lib/plans";
 import { createId } from "@/lib/id";
 
 const createProjectSchema = z.object({
@@ -38,21 +38,22 @@ export async function POST(request: NextRequest) {
     const db = getDb();
     runMigrations(db);
 
-    // Enforce project limit for free users
-    if (user.role === "free-user") {
+    const plan = getActivePlan(db, userId, user.role);
+    const projectLimit = PLAN_CONFIG[plan].features.projects;
+    if (!isUnlimited(projectLimit)) {
       const [{ total }] = db
         .select({ total: count() })
         .from(projects)
         .where(eq(projects.userId, userId))
         .all();
-      const limit = PLAN_CONFIG.free.features.projects;
-      if (total >= limit) {
+      if (total >= projectLimit) {
         return NextResponse.json(
           {
-            error: `Free plan is limited to ${limit} projects`,
+            error: `${PLAN_CONFIG[plan].name} is limited to ${projectLimit} projects`,
             upgradeRequired: true,
-            limit,
+            limit: projectLimit,
             used: total,
+            upgradeUrl: "/pricing",
           },
           { status: 403 }
         );

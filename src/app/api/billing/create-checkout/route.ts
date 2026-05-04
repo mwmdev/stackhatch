@@ -8,8 +8,8 @@ import { getAuthenticatedUserId } from "@/lib/auth";
 import { getStripe, getPriceId } from "@/lib/stripe";
 
 const createCheckoutSchema = z.object({
-  plan: z.enum(['pro', 'team5', 'team15']),
-  interval: z.enum(['monthly', 'annual']),
+  plan: z.enum(["starter", "pro", "team5", "team15"]),
+  interval: z.enum(["monthly", "annual"]),
   teamName: z.string().optional(), // Only for team plans
 });
 
@@ -17,19 +17,13 @@ export async function POST(request: NextRequest) {
   try {
     const userId = await getAuthenticatedUserId();
     if (!userId) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 },
-      );
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
     }
 
     const body = await request.json();
     const parsed = createCheckoutSchema.safeParse(body);
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues[0].message },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
     }
 
     const { plan, interval, teamName } = parsed.data;
@@ -40,10 +34,7 @@ export async function POST(request: NextRequest) {
     // Get or create Stripe customer
     const user = db.select().from(users).where(eq(users.id, userId)).get();
     if (!user) {
-      return NextResponse.json(
-        { error: "User not found" },
-        { status: 404 },
-      );
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
     const existingSubscription = db
@@ -73,8 +64,8 @@ export async function POST(request: NextRequest) {
     // Create checkout session
     const session = await getStripe().checkout.sessions.create({
       customer: customerId,
-      payment_method_types: ['card'],
-      mode: 'subscription',
+      payment_method_types: ["card"],
+      mode: "subscription",
       line_items: [
         {
           price: priceId,
@@ -103,12 +94,8 @@ export async function POST(request: NextRequest) {
       checkoutUrl: session.url,
       sessionId: session.id,
     });
-
   } catch (error) {
     console.error("Checkout creation error:", error);
-    return NextResponse.json(
-      { error: "Failed to create checkout session" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Failed to create checkout session" }, { status: 500 });
   }
 }

@@ -30,6 +30,8 @@ const PROMPT_DEFAULTS: Record<string, string> = {
 
 interface Settings {
   hasAnthropicKey?: boolean;
+  hasServerAnthropicKey?: boolean;
+  hasUserAnthropicKey?: boolean;
   role?: string;
   isAdmin?: boolean;
   model?: string;
@@ -46,6 +48,10 @@ export default function SettingsPage() {
 
   const [loading, setLoading] = useState(true);
   const [hasAnthropicKey, setHasAnthropicKey] = useState(false);
+  const [hasServerAnthropicKey, setHasServerAnthropicKey] = useState(false);
+  const [hasUserAnthropicKey, setHasUserAnthropicKey] = useState(false);
+  const [apiKey, setApiKey] = useState("");
+  const [savingApiKey, setSavingApiKey] = useState(false);
   const [currentRole, setCurrentRole] = useState("free-user");
   const [isAdmin, setIsAdmin] = useState(false);
   const [model, setModel] = useState("claude-sonnet-4-20250514");
@@ -95,6 +101,8 @@ export default function SettingsPage() {
           } | null,
         ]) => {
           setHasAnthropicKey(Boolean(data.hasAnthropicKey));
+          setHasServerAnthropicKey(Boolean(data.hasServerAnthropicKey));
+          setHasUserAnthropicKey(Boolean(data.hasUserAnthropicKey));
           setCurrentRole(data.role ?? "free-user");
           setIsAdmin(Boolean(data.isAdmin));
           if (data.model) {
@@ -150,6 +158,61 @@ export default function SettingsPage() {
       setSaving(false);
     }
   }, [model, showToast]);
+
+  const handleSaveApiKey = useCallback(async () => {
+    const trimmed = apiKey.trim();
+    if (!trimmed) {
+      showToast("error", "Enter an Anthropic API key first");
+      return;
+    }
+
+    setSavingApiKey(true);
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apiKey: trimmed }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setApiKey("");
+        setHasAnthropicKey(Boolean(data.hasAnthropicKey));
+        setHasServerAnthropicKey(Boolean(data.hasServerAnthropicKey));
+        setHasUserAnthropicKey(Boolean(data.hasUserAnthropicKey));
+        showToast("success", "BYOK key saved");
+      } else {
+        showToast("error", data.error || "Failed to save API key");
+      }
+    } catch {
+      showToast("error", "Failed to save API key");
+    } finally {
+      setSavingApiKey(false);
+    }
+  }, [apiKey, showToast]);
+
+  const handleClearApiKey = useCallback(async () => {
+    setSavingApiKey(true);
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clearApiKey: true }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setHasAnthropicKey(Boolean(data.hasAnthropicKey));
+        setHasServerAnthropicKey(Boolean(data.hasServerAnthropicKey));
+        setHasUserAnthropicKey(Boolean(data.hasUserAnthropicKey));
+        showToast("success", "BYOK key removed");
+      } else {
+        showToast("error", data.error || "Failed to remove API key");
+      }
+    } catch {
+      showToast("error", "Failed to remove API key");
+    } finally {
+      setSavingApiKey(false);
+    }
+  }, [showToast]);
 
   const handleThemeChange = useCallback(
     async (newTheme: string) => {
@@ -451,9 +514,57 @@ export default function SettingsPage() {
                 )}
               </div>
               <p className="text-sm text-[var(--muted-foreground)]">
-                AI generation uses the server-side ANTHROPIC_API_KEY environment variable. Keys are
-                never returned to the browser or edited here.
+                Free accounts use your own Anthropic key. Paid plans include hosted AI usage. Keys
+                are encrypted at rest and are never returned to the browser.
               </p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-md border border-[var(--border)] bg-[var(--background)] p-3">
+                  <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted-foreground)]">
+                    Your BYOK key
+                  </p>
+                  <p className="mt-1 text-sm font-medium text-[var(--foreground)]">
+                    {hasUserAnthropicKey ? "Saved" : "Not saved"}
+                  </p>
+                </div>
+                <div className="rounded-md border border-[var(--border)] bg-[var(--background)] p-3">
+                  <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted-foreground)]">
+                    Hosted AI
+                  </p>
+                  <p className="mt-1 text-sm font-medium text-[var(--foreground)]">
+                    {hasServerAnthropicKey ? "Configured" : "Unavailable"}
+                  </p>
+                </div>
+              </div>
+              <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                <label className="sr-only" htmlFor="anthropic-api-key">
+                  API Key
+                </label>
+                <input
+                  id="anthropic-api-key"
+                  type="password"
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  placeholder="sk-ant-..."
+                  autoComplete="off"
+                  className="min-h-11 flex-1 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
+                />
+                <button
+                  onClick={handleSaveApiKey}
+                  disabled={savingApiKey || !apiKey.trim()}
+                  className="min-h-11 rounded-md bg-[var(--color-client)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+                >
+                  {savingApiKey ? "Saving..." : "Save key"}
+                </button>
+                {hasUserAnthropicKey && (
+                  <button
+                    onClick={handleClearApiKey}
+                    disabled={savingApiKey}
+                    className="min-h-11 rounded-md border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--muted)] disabled:opacity-50"
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
             </section>
 
             {/* Model Section */}
@@ -692,12 +803,10 @@ export default function SettingsPage() {
                       </h3>
                       <div className="space-y-2">
                         {[
-                          { key: "pro", label: "Pro", price: "$19/mo" },
-                          { key: "team5", label: "Team (5 users)", price: "$39/mo" },
-                          { key: "team15", label: "Team (15 users)", price: "$79/mo" },
+                          { key: "starter", label: "Builder", price: "$6/mo" },
+                          { key: "pro", label: "Studio", price: "$14/mo" },
                         ].map((p) => {
-                          const isCurrent =
-                            billing.plan === (p.key.startsWith("team") ? "team" : p.key);
+                          const isCurrent = billing.plan === p.key;
                           return (
                             <button
                               key={p.key}

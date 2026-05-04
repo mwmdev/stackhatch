@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import CheckoutModal from "./CheckoutModal";
+import type { CheckoutPlanKey, BillingInterval } from "@/lib/plan-config";
 
 interface CheckoutButtonProps {
-  plan: 'pro' | 'team5' | 'team15';
-  interval: 'monthly' | 'annual';
+  plan: CheckoutPlanKey;
+  interval: BillingInterval;
   teamName?: string;
   children: React.ReactNode;
   className?: string;
@@ -18,7 +19,7 @@ export default function CheckoutButton({
   teamName,
   children,
   className = "",
-  disabled = false
+  disabled = false,
 }: CheckoutButtonProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -33,7 +34,7 @@ export default function CheckoutButton({
       <button
         onClick={handleClick}
         disabled={disabled}
-        className={`${className} ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+        className={`${className} ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
       >
         {children}
       </button>

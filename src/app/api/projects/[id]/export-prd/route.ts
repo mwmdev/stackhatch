@@ -8,6 +8,7 @@ import { buildCanvasContext } from "@/lib/ai/context-builder";
 import type { StackArchitecture } from "@/types/stack";
 import { getAuthenticatedUser, requireRole } from "@/lib/auth";
 import { getAccessibleProject } from "@/lib/project-access";
+import { getActivePlan } from "@/lib/plans";
 
 export async function POST(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -21,6 +22,18 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
 
   const db = getDb();
   runMigrations(db);
+
+  const plan = getActivePlan(db, user.userId, user.role);
+  if (plan !== "pro") {
+    return NextResponse.json(
+      {
+        error: "Studio plan required for PRD export",
+        upgradeRequired: true,
+        upgradeUrl: "/pricing",
+      },
+      { status: 403 }
+    );
+  }
 
   const project = getAccessibleProject(db, id, user.userId);
 
@@ -50,10 +63,14 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
   }
 
   const settingsMap = getSettings(db);
-  const apiKey = getApiKey();
+  const apiKey = getApiKey(db, user.userId, user.role);
   if (!apiKey) {
     return NextResponse.json(
-      { error: "AI is not configured on this server.", code: "AI_NOT_CONFIGURED" },
+      {
+        error: "AI is not configured on this server.",
+        code: "AI_NOT_CONFIGURED",
+        upgradeUrl: "/pricing",
+      },
       { status: 503 }
     );
   }

@@ -68,18 +68,20 @@ function handleSubscriptionChange(db: ReturnType<typeof getDb>, sub: Stripe.Subs
   }
 
   const priceId = sub.items.data[0]?.price?.id;
-  let plan: "pro" | "team" = "pro";
+  let plan: "starter" | "pro" | "team" = "starter";
   let interval: "monthly" | "annual" = "monthly";
 
   if (priceId) {
     try {
       const planInfo = getPlanByPriceId(priceId);
-      plan = planInfo.plan.startsWith("team") ? "team" : "pro";
+      plan = planInfo.plan.startsWith("team") ? "team" : (planInfo.plan as "starter" | "pro");
       interval = planInfo.interval;
     } catch {
       // Fall back to metadata
       const metaPlan = sub.metadata?.plan;
       if (metaPlan?.startsWith("team")) plan = "team";
+      else if (metaPlan === "pro") plan = "pro";
+      else plan = "starter";
       interval = (sub.metadata?.interval as "monthly" | "annual") || "monthly";
     }
   }

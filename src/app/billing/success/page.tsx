@@ -4,30 +4,31 @@ import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Check, Loader2, AlertCircle } from "lucide-react";
 import Link from "next/link";
+import { getPlanLabel } from "@/lib/plan-config";
 
 function SuccessPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
+  const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [error, setError] = useState<string>("");
   const [subscriptionDetails, setSubscriptionDetails] = useState<any>(null);
 
   useEffect(() => {
-    const sessionId = searchParams.get('session_id');
+    const sessionId = searchParams.get("session_id");
 
     if (!sessionId) {
-      setStatus('error');
-      setError('No session ID found. Please try again.');
+      setStatus("error");
+      setError("No session ID found. Please try again.");
       return;
     }
 
     // Process the successful payment
     const processPayment = async () => {
       try {
-        const response = await fetch('/api/billing/create-subscription', {
-          method: 'POST',
+        const response = await fetch("/api/billing/create-subscription", {
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({
             sessionId,
@@ -37,22 +38,22 @@ function SuccessPageContent() {
         const data = await response.json();
 
         if (!response.ok) {
-          throw new Error(data.error || 'Failed to process payment');
+          throw new Error(data.error || "Failed to process payment");
         }
 
         setSubscriptionDetails(data.subscription);
-        setStatus('success');
+        setStatus("success");
       } catch (err) {
-        console.error('Payment processing error:', err);
-        setStatus('error');
-        setError(err instanceof Error ? err.message : 'Failed to process payment');
+        console.error("Payment processing error:", err);
+        setStatus("error");
+        setError(err instanceof Error ? err.message : "Failed to process payment");
       }
     };
 
     processPayment();
   }, [searchParams]);
 
-  if (status === 'loading') {
+  if (status === "loading") {
     return (
       <div className="min-h-screen bg-[var(--background)] flex items-center justify-center">
         <div className="text-center space-y-4">
@@ -68,17 +69,13 @@ function SuccessPageContent() {
     );
   }
 
-  if (status === 'error') {
+  if (status === "error") {
     return (
       <div className="min-h-screen bg-[var(--background)] flex items-center justify-center p-4">
         <div className="max-w-md w-full bg-[var(--card)] rounded-lg shadow-lg p-6 text-center space-y-4">
           <AlertCircle className="w-12 h-12 mx-auto text-red-500" />
-          <h1 className="text-2xl font-semibold text-[var(--foreground)]">
-            Payment Error
-          </h1>
-          <p className="text-[var(--muted-foreground)]">
-            {error}
-          </p>
+          <h1 className="text-2xl font-semibold text-[var(--foreground)]">Payment Error</h1>
+          <p className="text-[var(--muted-foreground)]">{error}</p>
           <div className="flex gap-3 justify-center">
             <Link
               href="/pricing"
@@ -98,6 +95,8 @@ function SuccessPageContent() {
     );
   }
 
+  const planName = getPlanLabel(subscriptionDetails?.plan);
+
   return (
     <div className="min-h-screen bg-[var(--background)] flex items-center justify-center p-4">
       <div className="max-w-md w-full bg-[var(--card)] rounded-lg shadow-lg p-6 text-center space-y-4">
@@ -106,11 +105,12 @@ function SuccessPageContent() {
         </div>
 
         <h1 className="text-2xl font-semibold text-[var(--foreground)]">
-          Welcome to StackHatch {subscriptionDetails?.plan === 'pro' ? 'Pro' : 'Team'}!
+          Welcome to StackHatch {planName}!
         </h1>
 
         <p className="text-[var(--muted-foreground)]">
-          Your subscription has been activated successfully. You now have access to all {subscriptionDetails?.plan === 'pro' ? 'Pro' : 'Team'} features.
+          Your subscription has been activated successfully. You now have access to {planName}
+          features.
         </p>
 
         {subscriptionDetails && (
@@ -118,7 +118,7 @@ function SuccessPageContent() {
             <div className="flex justify-between">
               <span className="text-[var(--muted-foreground)]">Plan:</span>
               <span className="font-medium text-[var(--foreground)]">
-                {subscriptionDetails.plan === 'pro' ? 'Pro' : 'Team'}
+                {getPlanLabel(subscriptionDetails.plan)}
               </span>
             </div>
             <div className="flex justify-between">
@@ -157,11 +157,13 @@ function SuccessPageContent() {
 
 export default function SuccessPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-[var(--background)] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[var(--background)] flex items-center justify-center">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+        </div>
+      }
+    >
       <SuccessPageContent />
     </Suspense>
   );

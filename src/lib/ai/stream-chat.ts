@@ -11,6 +11,7 @@ import { getSettings, getApiKey, getModel, getPrompt } from "@/lib/ai/settings";
 import { DEFAULT_CHAT_PROMPT } from "@/lib/ai/default-prompts";
 import type { ChatMessage } from "@/types/chat";
 import type { StackArchitecture } from "@/types/stack";
+import type { AuthenticatedUser } from "@/lib/auth";
 
 export function sseEvent(data: object): string {
   return `data: ${JSON.stringify(data)}\n\n`;
@@ -64,16 +65,20 @@ export function streamChat(
   db: AppDatabase,
   projectId: string,
   userMessage: string | null,
-  initMessage?: string
+  initMessage?: string,
+  user?: AuthenticatedUser
 ): Response {
   const settingsMap = getSettings(db);
-  const apiKey = getApiKey();
+  const apiKey = getApiKey(db, user?.userId, user?.role);
   if (!apiKey) {
     return new Response(
       sseEvent({
         type: "error",
         code: "AI_NOT_CONFIGURED",
-        content: "AI is not configured on this server.",
+        content:
+          user?.role === "free-user"
+            ? "Add your Anthropic API key in Settings, or upgrade for hosted AI."
+            : "AI is not configured on this server.",
       }),
       { headers: SSE_HEADERS, status: 503 }
     );

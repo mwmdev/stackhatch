@@ -7,10 +7,7 @@ import { streamChat } from "@/lib/ai/stream-chat";
 import { getAuthenticatedUser } from "@/lib/auth";
 import { incrementMessages } from "@/lib/usage";
 
-export async function POST(
-  _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function POST(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
   const user = await getAuthenticatedUser();
@@ -47,18 +44,15 @@ export async function POST(
     .all();
 
   if (existing.length > 0) {
-    return new Response(
-      JSON.stringify({ error: "Chat already initialized" }),
-      {
-        status: 400,
-        headers: { "Content-Type": "application/json" },
-      },
-    );
+    return new Response(JSON.stringify({ error: "Chat already initialized" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 
   // Enforce usage limits for free users
-  if (user.role === "free-user") {
-    const result = incrementMessages(userId);
+  if (user.role !== "admin") {
+    const result = incrementMessages(userId, user.role);
     if (!result.allowed) {
       return new Response(
         JSON.stringify({
@@ -70,10 +64,10 @@ export async function POST(
         {
           status: 429,
           headers: { "Content-Type": "application/json" },
-        },
+        }
       );
     }
   }
 
-  return streamChat(db, id, null);
+  return streamChat(db, id, null, undefined, user);
 }

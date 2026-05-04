@@ -1,52 +1,49 @@
 # StackHatch Monetization Plan
 
-Paid tiers use a server-managed Anthropic key. Users buy access to the tool; the deployment owner pays and manages AI usage centrally.
+StackHatch uses a three-tier SaaS ladder built for developer adoption:
+
+- **Free BYOK**: useful enough to trust the product, with the user's own Anthropic key.
+- **Builder — $6/mo**: hosted AI and practical solo-developer limits.
+- **Studio — $14/mo**: team-ready architecture workflow with collaboration and richer exports.
 
 ## Tiers
 
-### Free
+| Feature            | Free BYOK          | Builder — $6/mo        | Studio — $14/mo              |
+| ------------------ | ------------------ | ---------------------- | ---------------------------- |
+| AI billing         | User Anthropic key | Hosted Claude included | Hosted Claude included       |
+| Projects           | 2                  | 10                     | Unlimited                    |
+| Chat messages      | BYOK               | 500/month              | 2,500/month                  |
+| Repo scans         | 2/month            | 25/month               | 150/month                    |
+| Models             | Sonnet             | Sonnet                 | Sonnet, Opus, Haiku          |
+| Exports            | JSON               | PNG, SVG, JSON         | PNG, SVG, JSON, Markdown/PRD |
+| Alternatives       | No                 | Yes                    | Yes                          |
+| Custom subtypes    | No                 | No                     | Yes                          |
+| Team workspaces    | No                 | No                     | Yes                          |
+| Comments/templates | No                 | No                     | Yes                          |
 
-| Feature         | Limit       |
-| --------------- | ----------- |
-| Projects        | 2           |
-| Chat messages   | 20/month    |
-| Repo scans      | 2/month     |
-| Canvas          | Full        |
-| Custom subtypes | No          |
-| Model           | Sonnet only |
-| Export          | No          |
+Annual billing gives two months free:
 
-### Pro — $19/mo
+- Builder: $5/mo billed annually ($60/year)
+- Studio: $11/mo billed annually ($132/year)
 
-| Feature                 | Limit                    |
-| ----------------------- | ------------------------ |
-| Projects                | Unlimited                |
-| Chat messages           | Unlimited                |
-| Repo scans              | Unlimited                |
-| Canvas                  | Full                     |
-| Custom subtypes         | Yes                      |
-| Model                   | All                      |
-| Export                  | PNG, SVG, JSON, Markdown |
-| Architecture versioning | Yes                      |
+## Conversion Strategy
 
-## Pricing Rationale
+Free BYOK avoids a dead trial. Developers can evaluate StackHatch on real projects without the app owner paying AI costs. The first natural upgrade is convenience: hosted AI, more projects, more scans, and export formats.
 
-- Centralized AI cost control
-- Low enough for individual developers
-- High enough to cover shared AI usage and Stripe fees
+Builder is priced as an impulse-friendly developer tool subscription. It targets solo founders, freelancers, and engineers who need architecture artifacts repeatedly but are not yet collaborating with a team.
+
+Studio is the startup tier. It unlocks the features that make architecture diagrams useful inside a company: comments, team workspaces, reusable templates, PRD export, custom subtypes, and access to stronger models.
 
 ## Natural Upgrade Triggers
 
-Users hit one of these walls naturally:
+1. **No BYOK key**: free users can add a key or upgrade for hosted AI.
+2. **3rd project**: free users outgrow evaluation.
+3. **Export moment**: Builder unlocks image exports when a diagram is ready to share.
+4. **Team handoff**: Studio unlocks comments, templates, and Markdown/PRD output.
+5. **Model depth**: Studio exposes Opus for more demanding architecture decisions.
 
-1. **3rd project** — "I need more than 2"
-2. **21st message** — mid-conversation cutoff is painful
-3. **Export** — they built something great and can't get it out
-4. **Opus** — they want better architecture suggestions
+## Operational Notes
 
-## What to Build
-
-1. **Auth** — OAuth with GitHub (target audience is developers)
-2. **Usage counters** — project count, monthly message/scan tallies
-3. **Export** — ReactFlow's `toImage()` + JSON serialization
-4. **Stripe Checkout** — single plan, monthly billing
+- User-provided Anthropic keys are encrypted before storage and never returned to the browser.
+- Paid plans rely on Stripe webhooks as the subscription source of truth.
+- Keep API responses for gated features actionable with `{ error, upgradeRequired, upgradeUrl }`.

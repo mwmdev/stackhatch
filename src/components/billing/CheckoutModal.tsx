@@ -2,17 +2,19 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CreditCard, Loader2, X } from "lucide-react";
+import type { CheckoutPlanKey, BillingInterval } from "@/lib/plan-config";
 
 interface CheckoutModalProps {
   isOpen: boolean;
   onClose: () => void;
-  plan: "pro" | "team5" | "team15";
-  interval: "monthly" | "annual";
+  plan: CheckoutPlanKey;
+  interval: BillingInterval;
   teamName?: string;
 }
 
 function planLabel(plan: CheckoutModalProps["plan"]) {
-  if (plan === "pro") return "Pro";
+  if (plan === "starter") return "Builder";
+  if (plan === "pro") return "Studio";
   if (plan === "team5") return "Team (5 users)";
   return "Team (15 users)";
 }

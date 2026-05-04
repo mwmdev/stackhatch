@@ -14,7 +14,7 @@ const manageSchema = z.discriminatedUnion("action", [
   }),
   z.object({
     action: z.literal("change_plan"),
-    plan: z.enum(["pro", "team5", "team15"]),
+    plan: z.enum(["starter", "pro"]),
   }),
 ]);
 
@@ -22,19 +22,13 @@ export async function POST(request: NextRequest) {
   try {
     const userId = await getAuthenticatedUserId();
     if (!userId) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 },
-      );
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
     }
 
     const body = await request.json();
     const parsed = manageSchema.safeParse(body);
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues[0].message },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
     }
 
     const db = getDb();
@@ -47,30 +41,21 @@ export async function POST(request: NextRequest) {
       .get();
 
     if (!subscription || !subscription.stripeSubscriptionId) {
-      return NextResponse.json(
-        { error: "No active subscription found" },
-        { status: 404 },
-      );
+      return NextResponse.json({ error: "No active subscription found" }, { status: 404 });
     }
 
     // Get the Stripe subscription to find the current item
     const stripeSubscription = await getStripe().subscriptions.retrieve(
-      subscription.stripeSubscriptionId,
+      subscription.stripeSubscriptionId
     );
 
     if (stripeSubscription.status !== "active") {
-      return NextResponse.json(
-        { error: "Subscription is not active" },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: "Subscription is not active" }, { status: 400 });
     }
 
     const currentItem = stripeSubscription.items.data[0];
     if (!currentItem) {
-      return NextResponse.json(
-        { error: "No subscription items found" },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: "No subscription items found" }, { status: 400 });
     }
 
     const { action } = parsed.data;
@@ -79,15 +64,13 @@ export async function POST(request: NextRequest) {
       const { interval } = parsed.data;
 
       if (subscription.billingInterval === interval) {
-        return NextResponse.json(
-          { error: `Already on ${interval} billing` },
-          { status: 400 },
-        );
+        return NextResponse.json({ error: `Already on ${interval} billing` }, { status: 400 });
       }
 
       // Determine current plan key from price ID
-      const currentPlan = subscription.plan as "pro" | "team";
-      let planKey: "pro" | "team5" | "team15" = "pro";
+      const currentPlan = subscription.plan as "starter" | "pro" | "team";
+      let planKey: "starter" | "pro" | "team5" | "team15" =
+        currentPlan === "starter" ? "starter" : "pro";
       if (currentPlan === "team") {
         const currentPriceId = currentItem.price.id;
         const team5MonthlyPrice = getPriceId("team5", "monthly");
@@ -133,7 +116,7 @@ export async function POST(request: NextRequest) {
       const { plan: newPlanKey } = parsed.data;
       const interval = (subscription.billingInterval || "monthly") as "monthly" | "annual";
       const newPriceId = getPriceId(newPlanKey, interval);
-      const newPlanName = newPlanKey.startsWith("team") ? "team" : newPlanKey;
+      const newPlanName = newPlanKey;
 
       await getStripe().subscriptions.update(subscription.stripeSubscriptionId, {
         items: [{ id: currentItem.id, price: newPriceId }],
@@ -141,7 +124,7 @@ export async function POST(request: NextRequest) {
       });
 
       db.update(subscriptions)
-        .set({ plan: newPlanName as "pro" | "team", updatedAt: Date.now() })
+        .set({ plan: newPlanName, updatedAt: Date.now() })
         .where(eq(subscriptions.id, subscription.id))
         .run();
 
@@ -153,9 +136,6 @@ export async function POST(request: NextRequest) {
     }
   } catch (error) {
     console.error("Billing manage error:", error);
-    return NextResponse.json(
-      { error: "Failed to update billing" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Failed to update billing" }, { status: 500 });
   }
 }

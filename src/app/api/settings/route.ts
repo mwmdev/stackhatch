@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/db";
-import { settings } from "@/db/schema";
+import { settings, userSettings } from "@/db/schema";
 import { runMigrations } from "@/db/migrate";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { getAuthenticatedUser, requireRole } from "@/lib/auth";
+import { encryptSecret } from "@/lib/secrets";
+import { getActivePlan } from "@/lib/plans";
 
 const VALID_MODELS = [
   "claude-sonnet-4-20250514",
@@ -33,7 +35,8 @@ const ADMIN_KEYS = new Set([
 
 const updateSettingsSchema = z
   .object({
-    apiKey: z.never().optional(),
+    apiKey: z.string().min(20).max(300).optional(),
+    clearApiKey: z.boolean().optional(),
     model: z.enum(VALID_MODELS).optional(),
     theme: z.enum(VALID_THEMES).optional(),
     customSubtypes: z.string().optional(),
@@ -73,9 +76,21 @@ export async function GET() {
       delete result.customSubtypes;
     }
 
+    const userConfig = db
+      .select({ anthropicApiKey: userSettings.anthropicApiKey })
+      .from(userSettings)
+      .where(eq(userSettings.userId, user.userId))
+      .get();
+    const activePlan = getActivePlan(db, user.userId, user.role);
+    const canUseHostedAi = activePlan !== "free";
+
     return NextResponse.json({
       ...result,
-      hasAnthropicKey: Boolean(process.env.ANTHROPIC_API_KEY),
+      hasAnthropicKey: Boolean(
+        userConfig?.anthropicApiKey || (canUseHostedAi && process.env.ANTHROPIC_API_KEY)
+      ),
+      hasServerAnthropicKey: Boolean(process.env.ANTHROPIC_API_KEY),
+      hasUserAnthropicKey: Boolean(userConfig?.anthropicApiKey),
       role: user.role,
       isAdmin: user.role === "admin",
     });
@@ -103,6 +118,13 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
     }
 
+    if (parsed.data.apiKey && parsed.data.clearApiKey) {
+      return NextResponse.json(
+        { error: "Provide apiKey or clearApiKey, not both" },
+        { status: 400 }
+      );
+    }
+
     if (Object.keys(parsed.data).some((key) => ADMIN_KEYS.has(key))) {
       const roleErr = requireRole(user.role, ["admin"]);
       if (roleErr) return roleErr;
@@ -116,9 +138,37 @@ export async function PATCH(request: NextRequest) {
     runMigrations(db);
     db.delete(settings).where(eq(settings.key, "apiKey")).run();
 
+    const now = Date.now();
+    if (parsed.data.clearApiKey) {
+      db.delete(userSettings).where(eq(userSettings.userId, user.userId)).run();
+    } else if (parsed.data.apiKey) {
+      const existing = db
+        .select({ userId: userSettings.userId })
+        .from(userSettings)
+        .where(eq(userSettings.userId, user.userId))
+        .get();
+      const encrypted = encryptSecret(parsed.data.apiKey);
+      if (existing) {
+        db.update(userSettings)
+          .set({ anthropicApiKey: encrypted, updatedAt: now })
+          .where(eq(userSettings.userId, user.userId))
+          .run();
+      } else {
+        db.insert(userSettings)
+          .values({
+            userId: user.userId,
+            anthropicApiKey: encrypted,
+            createdAt: now,
+            updatedAt: now,
+          })
+          .run();
+      }
+    }
+
     // Upsert each setting
     for (const [key, value] of Object.entries(parsed.data)) {
-      if (value === undefined) continue;
+      if (key === "apiKey" || key === "clearApiKey") continue;
+      if (typeof value !== "string") continue;
       const existing = db.select().from(settings).where(eq(settings.key, key)).get();
 
       if (existing) {
@@ -149,9 +199,21 @@ export async function PATCH(request: NextRequest) {
       delete result.customSubtypes;
     }
 
+    const userConfig = db
+      .select({ anthropicApiKey: userSettings.anthropicApiKey })
+      .from(userSettings)
+      .where(eq(userSettings.userId, user.userId))
+      .get();
+    const activePlan = getActivePlan(db, user.userId, user.role);
+    const canUseHostedAi = activePlan !== "free";
+
     return NextResponse.json({
       ...result,
-      hasAnthropicKey: Boolean(process.env.ANTHROPIC_API_KEY),
+      hasAnthropicKey: Boolean(
+        userConfig?.anthropicApiKey || (canUseHostedAi && process.env.ANTHROPIC_API_KEY)
+      ),
+      hasServerAnthropicKey: Boolean(process.env.ANTHROPIC_API_KEY),
+      hasUserAnthropicKey: Boolean(userConfig?.anthropicApiKey),
       role: user.role,
       isAdmin: user.role === "admin",
     });

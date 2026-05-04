@@ -1,4 +1,5 @@
 import Stripe from "stripe";
+import { PLAN_CONFIG, type BillingInterval, type CheckoutPlanKey } from "@/lib/plan-config";
 
 // Server-side Stripe client (lazy to avoid crash when key is missing)
 let _stripe: Stripe | null = null;
@@ -13,93 +14,24 @@ export function getStripe() {
 
 // Price ID mapping for subscription plans
 export const STRIPE_PRICES = {
-  PRO_MONTHLY: process.env.STRIPE_PRICE_PRO_MONTHLY!,
-  PRO_ANNUAL: process.env.STRIPE_PRICE_PRO_ANNUAL!,
+  STARTER_MONTHLY:
+    process.env.STRIPE_PRICE_STARTER_MONTHLY ?? process.env.STRIPE_PRICE_PRO_MONTHLY!,
+  STARTER_ANNUAL: process.env.STRIPE_PRICE_STARTER_ANNUAL ?? process.env.STRIPE_PRICE_PRO_ANNUAL!,
+  PRO_MONTHLY: process.env.STRIPE_PRICE_STUDIO_MONTHLY ?? process.env.STRIPE_PRICE_TEAM5_MONTHLY!,
+  PRO_ANNUAL: process.env.STRIPE_PRICE_STUDIO_ANNUAL ?? process.env.STRIPE_PRICE_TEAM5_ANNUAL!,
   TEAM5_MONTHLY: process.env.STRIPE_PRICE_TEAM5_MONTHLY!,
   TEAM5_ANNUAL: process.env.STRIPE_PRICE_TEAM5_ANNUAL!,
   TEAM15_MONTHLY: process.env.STRIPE_PRICE_TEAM15_MONTHLY!,
   TEAM15_ANNUAL: process.env.STRIPE_PRICE_TEAM15_ANNUAL!,
 } as const;
 
-// Type definitions for plan types
-export type PlanType = "free" | "pro" | "team";
-export type BillingInterval = "monthly" | "annual";
-
-// Plan configuration with pricing and features
-export const PLAN_CONFIG = {
-  free: {
-    name: "Free",
-    monthlyPrice: 0,
-    features: {
-      projects: 2,
-      messagesPerMonth: 20,
-      scansPerMonth: 2,
-      models: ["sonnet"],
-      exports: [],
-      customSubtypes: false,
-      versioning: false,
-    },
-  },
-  pro: {
-    name: "Pro",
-    monthlyPrice: 19,
-    annualPrice: 15, // $180/year
-    priceIds: {
-      monthly: STRIPE_PRICES.PRO_MONTHLY,
-      annual: STRIPE_PRICES.PRO_ANNUAL,
-    },
-    features: {
-      projects: "unlimited",
-      messagesPerMonth: "unlimited",
-      scansPerMonth: "unlimited",
-      models: ["sonnet", "opus", "haiku"],
-      exports: ["png", "svg", "json", "md"],
-      customSubtypes: true,
-      versioning: true,
-    },
-  },
-  team: {
-    name: "Team",
-    plans: {
-      team5: {
-        name: "Team (5 users)",
-        monthlyPrice: 39,
-        annualPrice: 33, // $396/year
-        maxUsers: 5,
-        priceIds: {
-          monthly: STRIPE_PRICES.TEAM5_MONTHLY,
-          annual: STRIPE_PRICES.TEAM5_ANNUAL,
-        },
-      },
-      team15: {
-        name: "Team (15 users)",
-        monthlyPrice: 79,
-        annualPrice: 66, // $792/year
-        maxUsers: 15,
-        priceIds: {
-          monthly: STRIPE_PRICES.TEAM15_MONTHLY,
-          annual: STRIPE_PRICES.TEAM15_ANNUAL,
-        },
-      },
-    },
-    features: {
-      projects: "unlimited",
-      messagesPerMonth: "unlimited",
-      scansPerMonth: "unlimited",
-      models: ["sonnet", "opus", "haiku"],
-      exports: ["png", "svg", "json", "md", "pdf"],
-      customSubtypes: true,
-      versioning: true,
-      sharedWorkspaces: true,
-      teamDiagramLibrary: true,
-      commenting: true,
-      sso: true,
-    },
-  },
-} as const;
+export { PLAN_CONFIG };
 
 // Helper function to get price ID for a given plan and interval
-export function getPriceId(plan: "pro" | "team5" | "team15", interval: BillingInterval): string {
+export function getPriceId(plan: CheckoutPlanKey, interval: BillingInterval): string {
+  if (plan === "starter") {
+    return interval === "monthly" ? STRIPE_PRICES.STARTER_MONTHLY : STRIPE_PRICES.STARTER_ANNUAL;
+  }
   if (plan === "pro") {
     return interval === "monthly" ? STRIPE_PRICES.PRO_MONTHLY : STRIPE_PRICES.PRO_ANNUAL;
   }
@@ -115,6 +47,18 @@ export function getPriceId(plan: "pro" | "team5" | "team15", interval: BillingIn
 // Helper function to get plan details by price ID
 export function getPlanByPriceId(priceId: string) {
   const plans = [
+    {
+      key: "starter-monthly",
+      plan: "starter",
+      interval: "monthly" as const,
+      priceId: STRIPE_PRICES.STARTER_MONTHLY,
+    },
+    {
+      key: "starter-annual",
+      plan: "starter",
+      interval: "annual" as const,
+      priceId: STRIPE_PRICES.STARTER_ANNUAL,
+    },
     {
       key: "pro-monthly",
       plan: "pro",

@@ -70,7 +70,7 @@ describe("SettingsPage", () => {
     await waitFor(() => {
       expect(screen.getByTestId("key-status-set")).toBeInTheDocument();
     });
-    expect(screen.queryByLabelText("API Key")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("API Key")).toBeInTheDocument();
   });
 
   it("loads and displays current model selection", async () => {

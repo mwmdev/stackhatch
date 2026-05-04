@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
     }
 
     const metadata = session.metadata || {};
-    const plan = metadata.plan as "pro" | "team5" | "team15";
+    const plan = metadata.plan as "starter" | "pro" | "team5" | "team15";
     const interval = metadata.interval as "monthly" | "annual";
     const teamName = metadata.teamName;
 
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
       userId,
       stripeCustomerId: session.customer as string,
       stripeSubscriptionId: stripeSubscription.id,
-      plan: plan.startsWith("team") ? ("team" as const) : (plan as "pro"),
+      plan: plan.startsWith("team") ? ("team" as const) : (plan as "starter" | "pro"),
       billingInterval: interval,
       status: stripeSubscription.status === "active" ? ("active" as const) : ("past_due" as const),
       currentPeriodEnd: stripeSubscription.current_period_end * 1000, // Convert to milliseconds
