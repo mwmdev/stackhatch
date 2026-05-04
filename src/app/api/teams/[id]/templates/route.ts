@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/db";
 import { diagramTemplates, teams, teamMembers } from "@/db/schema";
 import { runMigrations } from "@/db/migrate";
-import { v4 as uuid } from "uuid";
 import { z } from "zod";
 import { desc, eq, and } from "drizzle-orm";
 import { getAuthenticatedUserId } from "@/lib/auth";
+import { createId } from "@/lib/id";
 
 const createTemplateSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -36,36 +36,23 @@ async function isTeamOwner(teamId: string, userId: string): Promise<boolean> {
 }
 
 // POST /api/teams/[id]/templates - Save current project canvas as a template
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id: teamId } = await params;
     const userId = await getAuthenticatedUserId();
     if (!userId) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
     }
-
-    const teamId = params.id;
 
     // Check if user is a team member
     if (!(await isTeamMember(teamId, userId))) {
-      return NextResponse.json(
-        { error: "Access denied" },
-        { status: 403 }
-      );
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
     const body = await request.json();
     const parsed = createTemplateSchema.safeParse(body);
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues[0].message },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
     }
 
     const db = getDb();
@@ -73,7 +60,7 @@ export async function POST(
 
     const now = Date.now();
     const template = {
-      id: uuid(),
+      id: createId(),
       teamId,
       name: parsed.data.name,
       description: parsed.data.description ?? null,
@@ -87,35 +74,22 @@ export async function POST(
     return NextResponse.json(template, { status: 201 });
   } catch (error) {
     console.error("POST /api/teams/[id]/templates error:", error);
-    return NextResponse.json(
-      { error: "Failed to create template" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to create template" }, { status: 500 });
   }
 }
 
 // GET /api/teams/[id]/templates - List team templates
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id: teamId } = await params;
     const userId = await getAuthenticatedUserId();
     if (!userId) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
     }
-
-    const teamId = params.id;
 
     // Check if user is a team member
     if (!(await isTeamMember(teamId, userId))) {
-      return NextResponse.json(
-        { error: "Access denied" },
-        { status: 403 }
-      );
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
     const db = getDb();
@@ -138,9 +112,6 @@ export async function GET(
     return NextResponse.json(templates);
   } catch (error) {
     console.error("GET /api/teams/[id]/templates error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch templates" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to fetch templates" }, { status: 500 });
   }
 }

@@ -3,11 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import * as icons from "lucide-react";
 import type { NodeCategory, NodeSubtype, StackNode, AlternativeNode } from "@/types/stack";
-import {
-  categoryOrder,
-  getCategoryConfig,
-  getSubtypesForCategory,
-} from "@/lib/node-config";
+import { categoryOrder, getCategoryConfig, getSubtypesForCategory } from "@/lib/node-config";
 import type { CustomSubtypesMap } from "@/lib/custom-subtypes";
 import AlternativesSection from "@/components/canvas/AlternativesSection";
 import { sanitizeHtml, containsHtml } from "@/lib/sanitize-html";
@@ -98,7 +94,7 @@ export default function NodeDetailPanel({
   return (
     <div
       ref={panelRef}
-      className="absolute right-0 top-0 z-20 flex h-full w-[400px] flex-col border-l border-[var(--border)] bg-[var(--background)] shadow-xl transition-transform duration-200 ease-out"
+      className="absolute inset-x-0 bottom-0 z-20 flex max-h-[70vh] w-full flex-col border-t border-[var(--border)] bg-[var(--background)] shadow-xl transition-transform duration-200 ease-out md:inset-x-auto md:right-0 md:top-0 md:h-full md:max-h-none md:w-[400px] md:border-l md:border-t-0"
       data-testid="node-detail-panel"
     >
       {/* Header */}
@@ -155,9 +151,7 @@ export default function NodeDetailPanel({
           </label>
           <select
             value={node.category}
-            onChange={(e) =>
-              handleCategoryChange(e.target.value as NodeCategory)
-            }
+            onChange={(e) => handleCategoryChange(e.target.value as NodeCategory)}
             className="w-full rounded border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
             aria-label="Category"
           >
@@ -176,9 +170,7 @@ export default function NodeDetailPanel({
           </label>
           <select
             value={node.subtype}
-            onChange={(e) =>
-              onUpdate(node.id, { subtype: e.target.value as NodeSubtype })
-            }
+            onChange={(e) => onUpdate(node.id, { subtype: e.target.value as NodeSubtype })}
             className="w-full rounded border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
             aria-label="Subtype"
           >
@@ -229,10 +221,7 @@ export default function NodeDetailPanel({
             {node.locked ? (
               <icons.Lock size={16} className="text-[var(--color-data)]" />
             ) : (
-              <icons.Unlock
-                size={16}
-                className="text-[var(--muted-foreground)]"
-              />
+              <icons.Unlock size={16} className="text-[var(--muted-foreground)]" />
             )}
             <span className="text-sm font-medium text-[var(--foreground)]">
               {node.locked ? "Locked" : "Unlocked"}
@@ -244,9 +233,7 @@ export default function NodeDetailPanel({
             aria-checked={node.locked}
             aria-label="Lock toggle"
             className={`relative h-6 w-11 rounded-full transition-colors ${
-              node.locked
-                ? "bg-[var(--color-data)]"
-                : "bg-[var(--muted-foreground)]"
+              node.locked ? "bg-[var(--color-data)]" : "bg-[var(--muted-foreground)]"
             }`}
           >
             <span

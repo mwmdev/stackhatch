@@ -1,32 +1,20 @@
 import { test, expect } from "@playwright/test";
-import {
-  createProjectAndNavigate,
-  errorSSE,
-  fulfillSSE,
-  textSSE,
-} from "./helpers/sse-mock";
+import { createProjectAndNavigate, errorSSE, fulfillSSE, textSSE } from "./helpers/sse-mock";
 
 test.describe("Error Paths", () => {
   test("shows error when API key is not configured", async ({ page }) => {
-    // Mock chat init to return the API key error
+    // Mock chat init to return the server AI configuration error
     await page.route("**/api/projects/*/chat/init", async (route) => {
-      await fulfillSSE(
-        route,
-        errorSSE("API key not configured. Please set it in Settings."),
-      );
+      await fulfillSSE(route, errorSSE("AI is not configured on this server."));
     });
 
     await createProjectAndNavigate(page, "No API Key Test");
 
     // Error message should appear in the chat
-    await expect(
-      page.getByText("API key not configured").first(),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText("AI is not configured").first()).toBeVisible({ timeout: 10000 });
   });
 
-  test("shows error when Anthropic API fails during chat", async ({
-    page,
-  }) => {
+  test("shows error when Anthropic API fails during chat", async ({ page }) => {
     // Mock init to succeed
     await page.route("**/api/projects/*/chat/init", async (route) => {
       await fulfillSSE(route, textSSE("What are you building?"));
@@ -35,19 +23,14 @@ test.describe("Error Paths", () => {
     // Mock chat to return an error
     await page.route("**/api/projects/*/chat", async (route) => {
       if (route.request().method() === "POST") {
-        await fulfillSSE(
-          route,
-          errorSSE("Rate limit exceeded. Please try again later."),
-        );
+        await fulfillSSE(route, errorSSE("Rate limit exceeded. Please try again later."));
       } else {
         await route.continue();
       }
     });
 
     await createProjectAndNavigate(page, "API Error Test");
-    await expect(
-      page.getByText("What are you building?").first(),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText("What are you building?").first()).toBeVisible({ timeout: 10000 });
 
     // Send a message
     await page.fill("textarea", "A web app");
@@ -59,9 +42,7 @@ test.describe("Error Paths", () => {
     });
   });
 
-  test("shows error for network failure during chat init", async ({
-    page,
-  }) => {
+  test("shows error for network failure during chat init", async ({ page }) => {
     // Mock chat init to abort (network error)
     await page.route("**/api/projects/*/chat/init", async (route) => {
       await route.abort("connectionrefused");
@@ -70,14 +51,12 @@ test.describe("Error Paths", () => {
     await createProjectAndNavigate(page, "Network Error Test");
 
     // Should show a connection error
-    await expect(
-      page.getByText("Failed to start conversation").first(),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText("Failed to start conversation").first()).toBeVisible({
+      timeout: 10000,
+    });
   });
 
-  test("shows error for network failure during chat message", async ({
-    page,
-  }) => {
+  test("shows error for network failure during chat message", async ({ page }) => {
     await page.route("**/api/projects/*/chat/init", async (route) => {
       await fulfillSSE(route, textSSE("What are you building?"));
     });
@@ -91,17 +70,13 @@ test.describe("Error Paths", () => {
     });
 
     await createProjectAndNavigate(page, "Chat Network Error Test");
-    await expect(
-      page.getByText("What are you building?").first(),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText("What are you building?").first()).toBeVisible({ timeout: 10000 });
 
     await page.fill("textarea", "Something");
     await page.click('button[aria-label="Send message"]');
 
     // Should show send error
-    await expect(
-      page.getByText("Failed to send message").first(),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText("Failed to send message").first()).toBeVisible({ timeout: 10000 });
   });
 
   test("input is disabled while AI is responding", async ({ page }) => {
@@ -124,9 +99,7 @@ test.describe("Error Paths", () => {
     });
 
     await createProjectAndNavigate(page, "Disabled Input Test");
-    await expect(
-      page.getByText("What are you building?").first(),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText("What are you building?").first()).toBeVisible({ timeout: 10000 });
 
     // Send a message
     await page.fill("textarea", "A web app");
@@ -148,28 +121,20 @@ test.describe("Error Paths", () => {
     });
 
     await createProjectAndNavigate(page, "Empty Message Test");
-    await expect(
-      page.getByText("What are you building?").first(),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText("What are you building?").first()).toBeVisible({ timeout: 10000 });
 
     // Send button should be disabled when input is empty
-    await expect(
-      page.locator('button[aria-label="Send message"]'),
-    ).toBeDisabled();
+    await expect(page.locator('button[aria-label="Send message"]')).toBeDisabled();
 
     // Type spaces only
     await page.fill("textarea", "   ");
-    await expect(
-      page.locator('button[aria-label="Send message"]'),
-    ).toBeDisabled();
+    await expect(page.locator('button[aria-label="Send message"]')).toBeDisabled();
   });
 
   test("project not found shows error", async ({ page }) => {
     await page.goto("/project/nonexistent-id-12345");
 
-    await expect(
-      page.getByText("Project not found").first(),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText("Project not found").first()).toBeVisible({ timeout: 10000 });
 
     // Should have a link back to dashboard
     await expect(page.getByText("Back to Dashboard")).toBeVisible();

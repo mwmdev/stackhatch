@@ -18,10 +18,7 @@ function makeData(overrides: Partial<StackNodeData> = {}): StackNodeData {
 }
 
 // Minimal NodeProps shape for testing
-function makeProps(
-  dataOverrides: Partial<StackNodeData> = {},
-  selected = false,
-) {
+function makeProps(dataOverrides: Partial<StackNodeData> = {}, selected = false) {
   return {
     id: "node-1",
     data: makeData(dataOverrides),
@@ -35,14 +32,11 @@ function makeProps(
   } as Parameters<typeof StackNodeComponent>[0];
 }
 
-function renderNode(
-  dataOverrides: Partial<StackNodeData> = {},
-  selected = false,
-) {
+function renderNode(dataOverrides: Partial<StackNodeData> = {}, selected = false) {
   return render(
     <ReactFlowProvider>
       <StackNodeComponent {...makeProps(dataOverrides, selected)} />
-    </ReactFlowProvider>,
+    </ReactFlowProvider>
   );
 }
 
@@ -138,12 +132,8 @@ describe("StackNode", () => {
     const handles = container.querySelectorAll(".react-flow__handle");
     expect(handles.length).toBe(2);
     // One target (top) and one source (bottom)
-    expect(
-      container.querySelector(".react-flow__handle-top"),
-    ).toBeInTheDocument();
-    expect(
-      container.querySelector(".react-flow__handle-bottom"),
-    ).toBeInTheDocument();
+    expect(container.querySelector(".react-flow__handle-top")).toBeInTheDocument();
+    expect(container.querySelector(".react-flow__handle-bottom")).toBeInTheDocument();
   });
 
   it("shows context menu on right-click", () => {
@@ -199,9 +189,9 @@ describe("StackNode", () => {
     expect(screen.queryByTestId("node-context-menu")).not.toBeInTheDocument();
   });
 
-  it("has left border accent matching category color", () => {
+  it("has border accent matching category color", () => {
     const { container } = renderNode({ category: "data" });
     const nodeDiv = container.querySelector(".stack-node") as HTMLElement;
-    expect(nodeDiv.style.borderLeftColor).toBe("var(--color-data)");
+    expect(nodeDiv.style.borderColor).toBe("var(--color-data)");
   });
 });

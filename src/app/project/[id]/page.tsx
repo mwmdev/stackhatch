@@ -20,12 +20,8 @@ import ChatSidebar from "@/components/chat/ChatSidebar";
 import NodeDetailPanel from "@/components/canvas/NodeDetailPanel";
 import AddNodeDropdown from "@/components/canvas/AddNodeDropdown";
 import ConnectionTypeSelector from "@/components/canvas/ConnectionTypeSelector";
-import StackNodeComponent, {
-  type StackNodeData,
-} from "@/components/canvas/StackNode";
-import StackEdgeComponent, {
-  type StackEdgeData,
-} from "@/components/canvas/StackEdge";
+import StackNodeComponent, { type StackNodeData } from "@/components/canvas/StackNode";
+import StackEdgeComponent, { type StackEdgeData } from "@/components/canvas/StackEdge";
 import EdgeLegend from "@/components/canvas/EdgeLegend";
 import ExportDropdown from "@/components/canvas/ExportDropdown";
 import CommentsPanel from "@/components/comments/CommentsPanel";
@@ -92,8 +88,7 @@ export default function ProjectPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedNode, setSelectedNode] = useState<StackNode | null>(null);
-  const [pendingConnection, setPendingConnection] =
-    useState<PendingConnection | null>(null);
+  const [pendingConnection, setPendingConnection] = useState<PendingConnection | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [customSubtypes, setCustomSubtypes] = useState<CustomSubtypesMap>({});
   const [scanTrigger, setScanTrigger] = useState(0);
@@ -109,16 +104,14 @@ export default function ProjectPage() {
   const [activeCommentNodeId, setActiveCommentNodeId] = useState<string | null>(null);
   const [commentsPanelOpenTrigger, setCommentsPanelOpenTrigger] = useState(0);
   const [upgradeFeature, setUpgradeFeature] = useState<string | null>(null);
-  const [rfNodes, setRfNodes, onNodesChange] = useNodesState<StackNodeData>(
-    [],
-  );
-  const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<StackEdgeData>(
-    [],
-  );
+  const [rfNodes, setRfNodes, onNodesChange] = useNodesState<StackNodeData>([]);
+  const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<StackEdgeData>([]);
   const rfInstanceRef = useRef<ReactFlowInstance | null>(null);
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(
-    undefined,
-  );
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const latestFlowRef = useRef<{
+    nodes: Node<StackNodeData>[];
+    edges: Edge<StackEdgeData>[];
+  }>({ nodes: [], edges: [] });
   const projectRef = useRef<Project | null>(null);
   const initializedRef = useRef(false);
   const alternativesRef = useRef<Record<string, AlternativeNode[]>>({});
@@ -139,9 +132,7 @@ export default function ProjectPage() {
   const handleLockToggle = useCallback(
     (id: string, locked: boolean) => {
       setRfNodes((nds) =>
-        nds.map((n) =>
-          n.id === id ? { ...n, data: { ...n.data, locked } } : n,
-        ),
+        nds.map((n) => (n.id === id ? { ...n, data: { ...n.data, locked } } : n))
       );
       setProject((prev) => {
         if (!prev?.canvasState) return prev;
@@ -149,40 +140,32 @@ export default function ProjectPage() {
           ...prev,
           canvasState: {
             ...prev.canvasState,
-            nodes: prev.canvasState.nodes.map((n) =>
-              n.id === id ? { ...n, locked } : n,
-            ),
+            nodes: prev.canvasState.nodes.map((n) => (n.id === id ? { ...n, locked } : n)),
           },
         };
       });
-      setSelectedNode((prev) =>
-        prev && prev.id === id ? { ...prev, locked } : prev,
-      );
+      setSelectedNode((prev) => (prev && prev.id === id ? { ...prev, locked } : prev));
     },
-    [setRfNodes],
+    [setRfNodes]
   );
 
   const handleNodeDelete = useCallback(
     (id: string) => {
       setRfNodes((nds) => nds.filter((n) => n.id !== id));
-      setRfEdges((eds) =>
-        eds.filter((e) => e.source !== id && e.target !== id),
-      );
+      setRfEdges((eds) => eds.filter((e) => e.source !== id && e.target !== id));
       setProject((prev) => {
         if (!prev?.canvasState) return prev;
         return {
           ...prev,
           canvasState: {
             nodes: prev.canvasState.nodes.filter((n) => n.id !== id),
-            edges: prev.canvasState.edges.filter(
-              (e) => e.source !== id && e.target !== id,
-            ),
+            edges: prev.canvasState.edges.filter((e) => e.source !== id && e.target !== id),
           },
         };
       });
       setSelectedNode(null);
     },
-    [setRfNodes, setRfEdges],
+    [setRfNodes, setRfEdges]
   );
 
   const handleAddComment = useCallback((id: string) => {
@@ -201,59 +184,82 @@ export default function ProjectPage() {
 
   // --- Debounced save ---
 
+  const saveCanvas = useCallback(
+    async (
+      nodes: Node<StackNodeData>[],
+      edges: Edge<StackEdgeData>[],
+      options?: { keepalive?: boolean }
+    ) => {
+      const stackNodes = fromReactFlowNodes(nodes);
+      const stackEdges = fromReactFlowEdges(edges);
+      const positions: Record<string, { x: number; y: number }> = {};
+      for (const node of nodes) {
+        positions[node.id] = node.position;
+      }
+      const stored: StoredCanvasState = {
+        nodes: stackNodes,
+        edges: stackEdges,
+        positions,
+        alternatives: alternativesRef.current,
+      };
+      const response = await fetch(`/api/projects/${projectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        keepalive: options?.keepalive,
+        body: JSON.stringify({ canvasState: JSON.stringify(stored) }),
+      });
+      if (!response.ok) {
+        throw new Error("Failed to save canvas");
+      }
+      // Keep project domain state in sync
+      setProject((prev) =>
+        prev
+          ? {
+              ...prev,
+              canvasState: { nodes: stackNodes, edges: stackEdges },
+            }
+          : prev
+      );
+    },
+    [projectId]
+  );
+
   const debouncedSave = useCallback(
     (nodes: Node<StackNodeData>[], edges: Edge<StackEdgeData>[]) => {
+      latestFlowRef.current = { nodes, edges };
       clearTimeout(saveTimerRef.current);
       saveTimerRef.current = setTimeout(() => {
-        const stackNodes = fromReactFlowNodes(nodes);
-        const stackEdges = fromReactFlowEdges(edges);
-        const positions: Record<string, { x: number; y: number }> = {};
-        for (const node of nodes) {
-          positions[node.id] = node.position;
-        }
-        const stored: StoredCanvasState = {
-          nodes: stackNodes,
-          edges: stackEdges,
-          positions,
-          alternatives: alternativesRef.current,
-        };
-        fetch(`/api/projects/${projectId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ canvasState: JSON.stringify(stored) }),
+        saveCanvas(nodes, edges).catch(() => {
+          setToast("Failed to save canvas");
         });
-        // Keep project domain state in sync
-        setProject((prev) =>
-          prev
-            ? {
-                ...prev,
-                canvasState: { nodes: stackNodes, edges: stackEdges },
-              }
-            : prev,
-        );
       }, 500);
     },
-    [projectId],
+    [saveCanvas]
   );
 
   // Trigger debounced save when React Flow state changes
   useEffect(() => {
     if (!initializedRef.current) return;
-    if (rfNodes.length === 0 && rfEdges.length === 0) return;
     debouncedSave(rfNodes, rfEdges);
   }, [rfNodes, rfEdges, debouncedSave]);
 
-  // Clean up save timer on unmount
+  // Flush a pending save on unmount so fast navigation does not drop edits.
   useEffect(() => {
-    return () => clearTimeout(saveTimerRef.current);
-  }, []);
+    return () => {
+      if (!saveTimerRef.current || !initializedRef.current) return;
+      clearTimeout(saveTimerRef.current);
+      void saveCanvas(latestFlowRef.current.nodes, latestFlowRef.current.edges, {
+        keepalive: true,
+      });
+    };
+  }, [saveCanvas]);
 
   // --- Build React Flow nodes with injected callbacks ---
 
   const buildRfNodes = useCallback(
     (
       nodes: StackNode[],
-      positions: Map<string, { x: number; y: number }>,
+      positions: Map<string, { x: number; y: number }>
     ): Node<StackNodeData>[] => {
       return toReactFlowNodes(nodes, positions).map((n) => ({
         ...n,
@@ -268,7 +274,14 @@ export default function ProjectPage() {
         },
       }));
     },
-    [handleLockToggle, handleNodeDelete, handleAddComment, handleCommentBadgeClick, customSubtypes, commentCounts],
+    [
+      handleLockToggle,
+      handleNodeDelete,
+      handleAddComment,
+      handleCommentBadgeClick,
+      customSubtypes,
+      commentCounts,
+    ]
   );
 
   // Update comment counts on existing nodes when they change
@@ -278,28 +291,25 @@ export default function ProjectPage() {
         const count = commentCounts[n.id] ?? 0;
         if (n.data.commentCount === count) return n;
         return { ...n, data: { ...n.data, commentCount: count } };
-      }),
+      })
     );
   }, [commentCounts, setRfNodes]);
 
   // --- React Flow event handlers ---
 
-  const handleNodeClick = useCallback(
-    (_event: React.MouseEvent, node: Node<StackNodeData>) => {
-      const data = node.data;
-      setSelectedNode({
-        id: node.id,
-        category: data.category,
-        subtype: data.subtype,
-        name: data.name,
-        technology: data.technology,
-        description: data.description,
-        reasoning: data.reasoning,
-        locked: data.locked,
-      });
-    },
-    [],
-  );
+  const handleNodeClick = useCallback((_event: React.MouseEvent, node: Node<StackNodeData>) => {
+    const data = node.data;
+    setSelectedNode({
+      id: node.id,
+      category: data.category,
+      subtype: data.subtype,
+      name: data.name,
+      technology: data.technology,
+      description: data.description,
+      reasoning: data.reasoning,
+      locked: data.locked,
+    });
+  }, []);
 
   const handleConnect = useCallback((connection: Connection) => {
     if (!connection.source || !connection.target) return;
@@ -345,7 +355,7 @@ export default function ProjectPage() {
       });
       setPendingConnection(null);
     },
-    [pendingConnection, setRfEdges],
+    [pendingConnection, setRfEdges]
   );
 
   const handleCancelConnection = useCallback(() => {
@@ -357,9 +367,7 @@ export default function ProjectPage() {
   const handleEdgeLabelChange = useCallback(
     (edgeId: string, newLabel: string) => {
       setRfEdges((eds) =>
-        eds.map((e) =>
-          e.id === edgeId ? { ...e, data: { ...e.data!, label: newLabel } } : e,
-        ),
+        eds.map((e) => (e.id === edgeId ? { ...e, data: { ...e.data!, label: newLabel } } : e))
       );
       setProject((prev) => {
         if (!prev?.canvasState) return prev;
@@ -368,13 +376,13 @@ export default function ProjectPage() {
           canvasState: {
             ...prev.canvasState,
             edges: prev.canvasState.edges.map((e) =>
-              e.id === edgeId ? { ...e, label: newLabel } : e,
+              e.id === edgeId ? { ...e, label: newLabel } : e
             ),
           },
         };
       });
     },
-    [setRfEdges],
+    [setRfEdges]
   );
 
   const edgesWithCallbacks = useMemo(
@@ -383,7 +391,7 @@ export default function ProjectPage() {
         ...e,
         data: { ...e.data!, onLabelChange: handleEdgeLabelChange },
       })),
-    [rfEdges, handleEdgeLabelChange],
+    [rfEdges, handleEdgeLabelChange]
   );
 
   // --- Export PRD ---
@@ -477,7 +485,14 @@ export default function ProjectPage() {
       });
       setSelectedNode(newStackNode);
     },
-    [handleLockToggle, handleNodeDelete, handleAddComment, handleCommentBadgeClick, setRfNodes, customSubtypes],
+    [
+      handleLockToggle,
+      handleNodeDelete,
+      handleAddComment,
+      handleCommentBadgeClick,
+      setRfNodes,
+      customSubtypes,
+    ]
   );
 
   // --- Detail panel update ---
@@ -485,9 +500,7 @@ export default function ProjectPage() {
   const handleNodeUpdate = useCallback(
     (id: string, updates: Partial<StackNode>) => {
       setRfNodes((nds) =>
-        nds.map((n) =>
-          n.id === id ? { ...n, data: { ...n.data, ...updates } } : n,
-        ),
+        nds.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...updates } } : n))
       );
       setProject((prev) => {
         if (!prev?.canvasState) return prev;
@@ -495,17 +508,13 @@ export default function ProjectPage() {
           ...prev,
           canvasState: {
             ...prev.canvasState,
-            nodes: prev.canvasState.nodes.map((n) =>
-              n.id === id ? { ...n, ...updates } : n,
-            ),
+            nodes: prev.canvasState.nodes.map((n) => (n.id === id ? { ...n, ...updates } : n)),
           },
         };
       });
-      setSelectedNode((prev) =>
-        prev && prev.id === id ? { ...prev, ...updates } : prev,
-      );
+      setSelectedNode((prev) => (prev && prev.id === id ? { ...prev, ...updates } : prev));
     },
-    [setRfNodes],
+    [setRfNodes]
   );
 
   const handleClosePanel = useCallback(() => {
@@ -576,60 +585,61 @@ export default function ProjectPage() {
       // Swap in alternatives list: remove the swapped-in, add the swapped-out
       setAlternatives((prev) => {
         const list = prev[node.id] ?? [];
-        const updated = list.filter(
-          (a) => a.technology !== alt.technology || a.name !== alt.name,
-        );
+        const updated = list.filter((a) => a.technology !== alt.technology || a.name !== alt.name);
         updated.push(currentAsAlt);
         return { ...prev, [node.id]: updated };
       });
     },
-    [selectedNode, handleNodeUpdate],
+    [selectedNode, handleNodeUpdate]
   );
 
   // --- Save as template ---
 
-  const handleSaveAsTemplate = useCallback(async (templateName: string, templateDescription?: string) => {
-    if (!project?.teamId) return;
+  const handleSaveAsTemplate = useCallback(
+    async (templateName: string, templateDescription?: string) => {
+      if (!project?.teamId) return;
 
-    setTemplateSaving(true);
-    try {
-      // Get current canvas state
-      const stackNodes = fromReactFlowNodes(rfNodes);
-      const stackEdges = fromReactFlowEdges(rfEdges);
-      const positions: Record<string, { x: number; y: number }> = {};
-      for (const node of rfNodes) {
-        positions[node.id] = node.position;
+      setTemplateSaving(true);
+      try {
+        // Get current canvas state
+        const stackNodes = fromReactFlowNodes(rfNodes);
+        const stackEdges = fromReactFlowEdges(rfEdges);
+        const positions: Record<string, { x: number; y: number }> = {};
+        for (const node of rfNodes) {
+          positions[node.id] = node.position;
+        }
+        const canvasState = {
+          nodes: stackNodes,
+          edges: stackEdges,
+          positions,
+        };
+
+        const res = await fetch(`/api/teams/${project.teamId}/templates`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: templateName,
+            description: templateDescription,
+            canvasState: JSON.stringify(canvasState),
+          }),
+        });
+
+        if (!res.ok) {
+          const data = await res.json();
+          setToast(data.error || "Failed to save template");
+          return;
+        }
+
+        setToast("Template saved successfully!");
+        setSaveTemplateModalOpen(false);
+      } catch {
+        setToast("Failed to save template");
+      } finally {
+        setTemplateSaving(false);
       }
-      const canvasState = {
-        nodes: stackNodes,
-        edges: stackEdges,
-        positions,
-      };
-
-      const res = await fetch(`/api/teams/${project.teamId}/templates`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: templateName,
-          description: templateDescription,
-          canvasState: JSON.stringify(canvasState),
-        }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        setToast(data.error || "Failed to save template");
-        return;
-      }
-
-      setToast("Template saved successfully!");
-      setSaveTemplateModalOpen(false);
-    } catch {
-      setToast("Failed to save template");
-    } finally {
-      setTemplateSaving(false);
-    }
-  }, [project?.teamId, rfNodes, rfEdges]);
+    },
+    [project?.teamId, rfNodes, rfEdges]
+  );
 
   // --- Re-layout ---
 
@@ -642,12 +652,9 @@ export default function ProjectPage() {
       nds.map((n) => ({
         ...n,
         position: posMap.get(n.id) ?? n.position,
-      })),
+      }))
     );
-    setTimeout(
-      () => rfInstanceRef.current?.fitView({ padding: 0.2, duration: 300 }),
-      100,
-    );
+    setTimeout(() => rfInstanceRef.current?.fitView({ padding: 0.2, duration: 300 }), 100);
   }, [setRfNodes]);
 
   // --- AI architecture handler ---
@@ -677,16 +684,12 @@ export default function ProjectPage() {
             id: n.id,
             position: n.position,
           }));
-          const result = mergeArchitecture(
-            currentCanvas,
-            incoming,
-            currentPositions,
-          );
+          const result = mergeArchitecture(currentCanvas, incoming, currentPositions);
           finalArch = result.architecture;
           const positions = applyDagreLayout(
             result.architecture.nodes,
             result.architecture.edges,
-            result.fixedPositions,
+            result.fixedPositions
           );
           posMap = new Map(positions.map((p) => [p.id, p.position]));
         }
@@ -696,20 +699,14 @@ export default function ProjectPage() {
 
         setRfNodes(newRfNodes);
         setRfEdges(newRfEdges);
-        setProject((prev) =>
-          prev ? { ...prev, canvasState: finalArch } : prev,
-        );
+        setProject((prev) => (prev ? { ...prev, canvasState: finalArch } : prev));
 
-        setTimeout(
-          () =>
-            rfInstanceRef.current?.fitView({ padding: 0.2, duration: 300 }),
-          100,
-        );
+        setTimeout(() => rfInstanceRef.current?.fitView({ padding: 0.2, duration: 300 }), 100);
       } catch {
         setToast("Failed to update canvas");
       }
     },
-    [rfNodes, buildRfNodes, setRfNodes, setRfEdges],
+    [rfNodes, buildRfNodes, setRfNodes, setRfEdges]
   );
 
   // --- MiniMap node color ---
@@ -792,10 +789,8 @@ export default function ProjectPage() {
   // --- Derived state ---
 
   const hasCanvas = useMemo(
-    () =>
-      project?.canvasState !== null &&
-      (project?.canvasState?.nodes?.length ?? 0) > 0,
-    [project?.canvasState],
+    () => project?.canvasState !== null && (project?.canvasState?.nodes?.length ?? 0) > 0,
+    [project?.canvasState]
   );
   const nodeCount = project?.canvasState?.nodes?.length ?? 0;
 
@@ -828,7 +823,7 @@ export default function ProjectPage() {
   }
 
   return (
-    <div className="flex h-screen bg-[var(--background)] text-[var(--foreground)]">
+    <div className="flex h-screen flex-col bg-[var(--background)] text-[var(--foreground)] md:flex-row">
       {/* Chat Sidebar - open by default for new projects (no canvas) */}
       <ChatSidebar
         projectId={projectId}
@@ -842,7 +837,7 @@ export default function ProjectPage() {
       {/* Canvas Area */}
       <div className="flex flex-1 flex-col">
         {/* Toolbar */}
-        <div className="flex items-center gap-3 border-b border-[var(--border)] px-4 py-2">
+        <div className="flex flex-wrap items-center gap-3 border-b border-[var(--border)] px-4 py-2">
           <Link
             href="/"
             className="mr-1 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
@@ -855,7 +850,7 @@ export default function ProjectPage() {
             {nodeCount > 0 && (
               <button
                 onClick={handleRelayout}
-                className="rounded border border-[var(--border)] px-2 py-1 text-xs text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
+                className="min-h-11 rounded border border-[var(--border)] px-3 py-2 text-xs text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
                 title="Re-layout nodes"
               >
                 Re-layout
@@ -866,14 +861,13 @@ export default function ProjectPage() {
                 rfInstanceRef={rfInstanceRef}
                 projectName={project.name}
                 onError={setToast}
-                onUpgradeRequired={setUpgradeFeature}
               />
             )}
             {nodeCount > 0 && (
               <button
                 onClick={handleExportPrd}
                 disabled={prdLoading}
-                className="rounded border border-[var(--border)] px-2 py-1 text-xs text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)] disabled:opacity-50"
+                className="min-h-11 rounded border border-[var(--border)] px-3 py-2 text-xs text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)] disabled:opacity-50"
                 title="Generate PRD from architecture"
               >
                 {prdLoading ? "Generating..." : "PRD"}
@@ -882,7 +876,7 @@ export default function ProjectPage() {
             {nodeCount > 0 && project?.teamId && (
               <button
                 onClick={() => setSaveTemplateModalOpen(true)}
-                className="rounded border border-[var(--border)] px-2 py-1 text-xs text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
+                className="min-h-11 rounded border border-[var(--border)] px-3 py-2 text-xs text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
                 title="Save current canvas as team template"
               >
                 Save as Template
@@ -896,7 +890,7 @@ export default function ProjectPage() {
             {project.repoUrl ? (
               <button
                 onClick={() => setScanTrigger((t) => t + 1)}
-                className="rounded border border-[var(--border)] px-2 py-1 text-xs text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
+                className="min-h-11 rounded border border-[var(--border)] px-3 py-2 text-xs text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
                 title={`Re-scan: ${project.repoUrl}`}
               >
                 Re-scan Repo
@@ -905,7 +899,7 @@ export default function ProjectPage() {
               <>
                 <button
                   onClick={() => setShowScanInput((v) => !v)}
-                  className="rounded border border-[var(--border)] px-2 py-1 text-xs text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
+                  className="min-h-11 rounded border border-[var(--border)] px-3 py-2 text-xs text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
                   title="Scan a GitHub repository"
                 >
                   Scan Repo
@@ -917,7 +911,7 @@ export default function ProjectPage() {
                       e.preventDefault();
                       if (!scanUrlInput.trim()) return;
                       setProject((prev) =>
-                        prev ? { ...prev, repoUrl: scanUrlInput.trim() } : prev,
+                        prev ? { ...prev, repoUrl: scanUrlInput.trim() } : prev
                       );
                       setShowScanInput(false);
                       setScanTrigger((t) => t + 1);
@@ -928,13 +922,13 @@ export default function ProjectPage() {
                       value={scanUrlInput}
                       onChange={(e) => setScanUrlInput(e.target.value)}
                       placeholder="https://github.com/owner/repo"
-                      className="w-56 rounded border border-[var(--border)] bg-[var(--background)] px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--color-client)]"
+                      className="min-h-11 w-56 rounded border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--color-client)]"
                       autoFocus
                     />
                     <button
                       type="submit"
                       disabled={!scanUrlInput.trim()}
-                      className="rounded bg-[var(--color-client)] px-2 py-1 text-xs text-white hover:opacity-90 disabled:opacity-50"
+                      className="min-h-11 rounded bg-[var(--color-client)] px-3 py-2 text-xs text-white hover:bg-[var(--color-client-hover)] disabled:opacity-50"
                     >
                       Go
                     </button>
@@ -974,10 +968,7 @@ export default function ProjectPage() {
               style={{ opacity: 0.3 }}
             />
             <Controls />
-            <MiniMap
-              nodeColor={minimapNodeColor}
-              maskColor="rgba(0, 0, 0, 0.1)"
-            />
+            <MiniMap nodeColor={minimapNodeColor} maskColor="rgba(0, 0, 0, 0.1)" />
           </ReactFlow>
 
           {/* Generating architecture overlay */}
@@ -994,9 +985,7 @@ export default function ProjectPage() {
                   <path d="M21 12a9 9 0 1 1-6.219-8.56" />
                 </svg>
                 <p className="text-lg font-medium">Generating architecture...</p>
-                <p className="mt-1 text-sm">
-                  The AI is designing your stack
-                </p>
+                <p className="mt-1 text-sm">The AI is designing your stack</p>
               </div>
             </div>
           )}
@@ -1020,9 +1009,7 @@ export default function ProjectPage() {
                   <line x1="15.5" y1="10" x2="12" y2="14" />
                 </svg>
                 <p className="text-lg font-medium">No architecture yet</p>
-                <p className="mt-1 text-sm">
-                  Start a conversation or add nodes manually
-                </p>
+                <p className="mt-1 text-sm">Start a conversation or add nodes manually</p>
               </div>
             </div>
           )}
@@ -1066,17 +1053,26 @@ export default function ProjectPage() {
           {/* Save Template Modal */}
           {saveTemplateModalOpen && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-              <div className="w-96 rounded-lg bg-[var(--card)] p-6 shadow-xl">
-                <h3 className="mb-4 text-lg font-semibold">Save as Template</h3>
-                <form onSubmit={(e) => {
-                  e.preventDefault();
-                  const formData = new FormData(e.currentTarget);
-                  const name = formData.get('name') as string;
-                  const description = formData.get('description') as string;
-                  if (name.trim()) {
-                    handleSaveAsTemplate(name.trim(), description.trim() || undefined);
-                  }
-                }}>
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="save-template-title"
+                className="mx-4 w-full max-w-sm rounded-lg bg-[var(--card)] p-6 shadow-xl"
+              >
+                <h3 id="save-template-title" className="mb-4 text-lg font-semibold">
+                  Save as Template
+                </h3>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const formData = new FormData(e.currentTarget);
+                    const name = formData.get("name") as string;
+                    const description = formData.get("description") as string;
+                    if (name.trim()) {
+                      handleSaveAsTemplate(name.trim(), description.trim() || undefined);
+                    }
+                  }}
+                >
                   <div className="mb-4">
                     <label htmlFor="template-name" className="mb-2 block text-sm font-medium">
                       Template Name *
@@ -1092,7 +1088,10 @@ export default function ProjectPage() {
                     />
                   </div>
                   <div className="mb-4">
-                    <label htmlFor="template-description" className="mb-2 block text-sm font-medium">
+                    <label
+                      htmlFor="template-description"
+                      className="mb-2 block text-sm font-medium"
+                    >
                       Description
                     </label>
                     <textarea
@@ -1108,14 +1107,14 @@ export default function ProjectPage() {
                       type="button"
                       onClick={() => setSaveTemplateModalOpen(false)}
                       disabled={templateSaving}
-                      className="rounded border border-[var(--border)] px-4 py-2 text-sm hover:bg-[var(--muted)] disabled:opacity-50"
+                      className="min-h-11 rounded border border-[var(--border)] px-4 py-2 text-sm hover:bg-[var(--muted)] disabled:opacity-50"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
                       disabled={templateSaving}
-                      className="rounded bg-[var(--color-client)] px-4 py-2 text-sm text-white hover:opacity-90 disabled:opacity-50"
+                      className="min-h-11 rounded bg-[var(--color-client)] px-4 py-2 text-sm text-white hover:bg-[var(--color-client-hover)] disabled:opacity-50"
                     >
                       {templateSaving ? "Saving..." : "Save Template"}
                     </button>

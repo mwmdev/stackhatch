@@ -113,11 +113,21 @@ export default function AdminPage() {
           <table className="w-full text-sm">
             <thead className="bg-[var(--muted)]">
               <tr>
-                <th className="px-4 py-3 text-left font-medium text-[var(--muted-foreground)]">User</th>
-                <th className="px-4 py-3 text-left font-medium text-[var(--muted-foreground)]">Email</th>
-                <th className="px-4 py-3 text-left font-medium text-[var(--muted-foreground)]">Role</th>
-                <th className="px-4 py-3 text-left font-medium text-[var(--muted-foreground)]">Joined</th>
-                <th className="px-4 py-3 text-right font-medium text-[var(--muted-foreground)]">Actions</th>
+                <th className="px-4 py-3 text-left font-medium text-[var(--muted-foreground)]">
+                  User
+                </th>
+                <th className="px-4 py-3 text-left font-medium text-[var(--muted-foreground)]">
+                  Email
+                </th>
+                <th className="px-4 py-3 text-left font-medium text-[var(--muted-foreground)]">
+                  Role
+                </th>
+                <th className="px-4 py-3 text-left font-medium text-[var(--muted-foreground)]">
+                  Joined
+                </th>
+                <th className="px-4 py-3 text-right font-medium text-[var(--muted-foreground)]">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--border)]">
@@ -125,26 +135,20 @@ export default function AdminPage() {
                 <tr key={user.id} className="bg-[var(--card)]">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
-                      {user.avatarUrl && (
-                        <img
-                          src={user.avatarUrl}
-                          alt=""
-                          className="h-6 w-6 rounded-full"
-                        />
-                      )}
+                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--color-client)] text-xs font-medium text-white">
+                        {(user.name || user.githubId).slice(0, 1).toUpperCase()}
+                      </span>
                       <span className="font-medium text-[var(--card-foreground)]">
                         {user.name || user.githubId}
                       </span>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-[var(--muted-foreground)]">
-                    {user.email || "—"}
-                  </td>
+                  <td className="px-4 py-3 text-[var(--muted-foreground)]">{user.email || "—"}</td>
                   <td className="px-4 py-3">
                     <select
                       value={user.role}
                       onChange={(e) => handleRoleChange(user.id, e.target.value)}
-                      className="rounded border border-[var(--border)] bg-[var(--background)] px-2 py-1 text-xs text-[var(--foreground)] focus:outline-none focus:ring-1 focus:ring-[var(--color-client)]"
+                      className="min-h-11 rounded border border-[var(--border)] bg-[var(--background)] px-2 py-2 text-xs text-[var(--foreground)] focus:outline-none focus:ring-1 focus:ring-[var(--color-client)]"
                     >
                       <option value="admin">Admin</option>
                       <option value="paid-user">Paid User</option>
@@ -157,7 +161,7 @@ export default function AdminPage() {
                   <td className="px-4 py-3 text-right">
                     <button
                       onClick={() => setDeleteTarget(user)}
-                      className="rounded px-2 py-1 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-950"
+                      className="min-h-11 rounded px-3 py-2 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-950"
                     >
                       Delete
                     </button>
@@ -183,29 +187,35 @@ export default function AdminPage() {
           onClick={() => !deleting && setDeleteTarget(null)}
         >
           <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-user-title"
             className="mx-4 w-full max-w-sm rounded-xl bg-[var(--card)] p-6 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-semibold text-[var(--card-foreground)]">
+            <h3
+              id="delete-user-title"
+              className="text-lg font-semibold text-[var(--card-foreground)]"
+            >
               Delete User
             </h3>
             <p className="mt-2 text-sm text-[var(--muted-foreground)]">
               Are you sure you want to delete{" "}
-              <strong>{deleteTarget.name || deleteTarget.githubId}</strong>?
-              This will also delete all their projects.
+              <strong>{deleteTarget.name || deleteTarget.githubId}</strong>? This will also delete
+              all their projects.
             </p>
             <div className="mt-4 flex justify-end gap-3">
               <button
                 onClick={() => setDeleteTarget(null)}
                 disabled={deleting}
-                className="rounded-md px-3 py-1.5 text-sm text-[var(--muted-foreground)] hover:bg-[var(--muted)]"
+                className="min-h-11 rounded-md px-3 py-2 text-sm text-[var(--muted-foreground)] hover:bg-[var(--muted)]"
               >
                 Cancel
               </button>
               <button
                 onClick={handleDelete}
                 disabled={deleting}
-                className="rounded-md bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-700 disabled:opacity-50"
+                className="min-h-11 rounded-md bg-red-600 px-3 py-2 text-sm text-white hover:bg-red-700 disabled:opacity-50"
               >
                 {deleting ? "Deleting..." : "Delete"}
               </button>

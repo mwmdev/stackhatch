@@ -1,12 +1,7 @@
 "use client";
 
 import { memo, useState, useRef, useEffect } from "react";
-import {
-  BaseEdge,
-  EdgeLabelRenderer,
-  getBezierPath,
-  MarkerType,
-} from "reactflow";
+import { BaseEdge, EdgeLabelRenderer, getBezierPath, MarkerType } from "reactflow";
 import type { EdgeProps } from "reactflow";
 import type { ConnectionType } from "@/types/stack";
 
@@ -69,12 +64,6 @@ export const edgeStyles: Record<ConnectionType, EdgeStyleConfig> = {
   },
 };
 
-function getUserRole(): string {
-  if (typeof document === "undefined") return "admin";
-  const match = document.cookie.match(/(?:^|; )dev-role=([^;]*)/);
-  return match ? decodeURIComponent(match[1]) : "admin";
-}
-
 function EdgeLabel({
   edgeId,
   label,
@@ -100,7 +89,7 @@ function EdgeLabel({
     if (editing) inputRef.current?.select();
   }, [editing]);
 
-  const canEdit = onLabelChange && getUserRole() !== "free-user";
+  const canEdit = Boolean(onLabelChange);
 
   function commit() {
     const trimmed = value.trim();

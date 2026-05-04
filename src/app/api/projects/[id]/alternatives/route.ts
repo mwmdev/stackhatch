@@ -1,15 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { eq, and } from "drizzle-orm";
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { getDb } from "@/db";
-import { projects } from "@/db/schema";
 import { runMigrations } from "@/db/migrate";
 import { getSettings, getApiKey, getModel, getPrompt } from "@/lib/ai/settings";
 import { DEFAULT_ALTERNATIVES_PROMPT } from "@/lib/ai/default-prompts";
 import { buildCanvasContext } from "@/lib/ai/context-builder";
 import type { StackArchitecture, AlternativeNode } from "@/types/stack";
 import { getAuthenticatedUser, requireRole } from "@/lib/auth";
+import { getAccessibleProject } from "@/lib/project-access";
 
 const requestSchema = z.object({
   node: z.object({
@@ -30,18 +29,12 @@ const alternativeSchema = z.object({
   subtype: z.string(),
 });
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
   const user = await getAuthenticatedUser();
   if (!user) {
-    return NextResponse.json(
-      { error: "Authentication required" },
-      { status: 401 },
-    );
+    return NextResponse.json({ error: "Authentication required" }, { status: 401 });
   }
   const roleErr = requireRole(user.role, ["admin", "paid-user"]);
   if (roleErr) return roleErr;
@@ -56,32 +49,25 @@ export async function POST(
 
   const parsed = requestSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json(
-      { error: parsed.error.issues[0].message },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
   }
 
   const db = getDb();
   runMigrations(db);
 
   const settingsMap = getSettings(db);
-  const apiKey = getApiKey(settingsMap);
+  const apiKey = getApiKey();
   if (!apiKey) {
     return NextResponse.json(
-      { error: "API key not configured. Please set it in Settings." },
-      { status: 400 },
+      { error: "AI is not configured on this server.", code: "AI_NOT_CONFIGURED" },
+      { status: 503 }
     );
   }
 
   const model = getModel(settingsMap);
 
   // Load current architecture for context and verify ownership
-  const project = db
-    .select({ canvasState: projects.canvasState })
-    .from(projects)
-    .where(and(eq(projects.id, id), eq(projects.userId, userId)))
-    .get();
+  const project = getAccessibleProject(db, id, userId);
 
   if (!project) {
     return NextResponse.json({ error: "Project not found" }, { status: 404 });
@@ -99,7 +85,11 @@ export async function POST(
 
   const { node } = parsed.data;
   const client = new Anthropic({ apiKey });
-  const alternativesPrompt = getPrompt(settingsMap, "prompt_alternatives", DEFAULT_ALTERNATIVES_PROMPT);
+  const alternativesPrompt = getPrompt(
+    settingsMap,
+    "prompt_alternatives",
+    DEFAULT_ALTERNATIVES_PROMPT
+  );
 
   try {
     const response = await client.messages.create({
@@ -114,16 +104,12 @@ export async function POST(
       ],
     });
 
-    const text =
-      response.content[0].type === "text" ? response.content[0].text : "";
+    const text = response.content[0].type === "text" ? response.content[0].text : "";
 
     // Extract JSON array from response (handle possible markdown wrapping)
     const jsonMatch = text.match(/\[[\s\S]*\]/);
     if (!jsonMatch) {
-      return NextResponse.json(
-        { error: "Failed to parse AI response" },
-        { status: 500 },
-      );
+      return NextResponse.json({ error: "Failed to parse AI response" }, { status: 500 });
     }
 
     const rawAlternatives = JSON.parse(jsonMatch[0]);

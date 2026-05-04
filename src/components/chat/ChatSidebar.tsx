@@ -61,11 +61,14 @@ export default function ChatSidebar({
 
   // Load existing messages
   useEffect(() => {
+    let cancelled = false;
+
     async function loadMessages() {
       try {
         const res = await fetch(`/api/projects/${projectId}/messages`);
         if (res.ok) {
           const data = await res.json();
+          if (cancelled) return;
           // Filter out the init instruction message from display
           const displayMessages = data.filter(
             (m: Message) =>
@@ -73,7 +76,7 @@ export default function ChatSidebar({
                 m.role === "user" &&
                 (m.content.startsWith("Begin the architecture interview") ||
                   m.content.startsWith("Analyze this GitHub repository"))
-              ),
+              )
           );
           setMessages(displayMessages);
           setInitialized(data.length > 0);
@@ -89,10 +92,14 @@ export default function ChatSidebar({
           }
         }
       } catch {
+        if (cancelled) return;
         setError("Failed to load messages");
       }
     }
     loadMessages();
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
@@ -289,7 +296,7 @@ export default function ChatSidebar({
   }
 
   return (
-    <div className="flex h-full w-[400px] flex-shrink-0 flex-col border-r border-[var(--border)] bg-[var(--background)]">
+    <div className="flex h-[45vh] w-full flex-shrink-0 flex-col border-b border-[var(--border)] bg-[var(--background)] md:h-full md:w-[400px] md:border-b-0 md:border-r">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
         <h2 className="font-semibold">Architecture Assistant</h2>
@@ -314,10 +321,7 @@ export default function ChatSidebar({
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-4">
         {messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={`mb-4 ${msg.role === "user" ? "text-right" : "text-left"}`}
-          >
+          <div key={msg.id} className={`mb-4 ${msg.role === "user" ? "text-right" : "text-left"}`}>
             <div
               className={`inline-block max-w-[85%] rounded-lg px-3 py-2 text-sm ${
                 msg.role === "user"
@@ -352,9 +356,9 @@ export default function ChatSidebar({
           <div className="mb-4 text-left">
             <div className="inline-block rounded-lg bg-[var(--muted)] px-3 py-2">
               <div className="flex space-x-1" data-testid="typing-indicator">
-                <span className="inline-block h-2 w-2 animate-bounce rounded-full bg-[var(--muted-foreground)] [animation-delay:0ms]" />
-                <span className="inline-block h-2 w-2 animate-bounce rounded-full bg-[var(--muted-foreground)] [animation-delay:150ms]" />
-                <span className="inline-block h-2 w-2 animate-bounce rounded-full bg-[var(--muted-foreground)] [animation-delay:300ms]" />
+                <span className="inline-block h-2 w-2 rounded-full bg-[var(--muted-foreground)] motion-safe:animate-bounce [animation-delay:0ms]" />
+                <span className="inline-block h-2 w-2 rounded-full bg-[var(--muted-foreground)] motion-safe:animate-bounce [animation-delay:150ms]" />
+                <span className="inline-block h-2 w-2 rounded-full bg-[var(--muted-foreground)] motion-safe:animate-bounce [animation-delay:300ms]" />
               </div>
             </div>
           </div>
@@ -362,10 +366,7 @@ export default function ChatSidebar({
 
         {upgradeFeature && (
           <div className="mb-4">
-            <UpgradePrompt
-              feature={upgradeFeature}
-              onDismiss={() => setUpgradeFeature(null)}
-            />
+            <UpgradePrompt feature={upgradeFeature} onDismiss={() => setUpgradeFeature(null)} />
           </div>
         )}
 
@@ -386,11 +387,7 @@ export default function ChatSidebar({
             value={input}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            placeholder={
-              initialized
-                ? "Describe your application..."
-                : "Waiting for AI..."
-            }
+            placeholder={initialized ? "Describe your application..." : "Waiting for AI..."}
             disabled={streaming || !initialized}
             rows={1}
             className="flex-1 resize-none rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)] disabled:opacity-50"

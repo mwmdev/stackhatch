@@ -57,6 +57,13 @@
       "when": 1772815702827,
       "tag": "0007_dapper_sue_storm",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1777902000000,
+      "tag": "0008_secure_auth_data",
+      "breakpoints": true
     }
   ]
 }

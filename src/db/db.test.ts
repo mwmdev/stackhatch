@@ -17,6 +17,7 @@ function createTestDb() {
       email TEXT,
       name TEXT,
       avatar_url TEXT,
+      role TEXT DEFAULT 'free-user' NOT NULL,
       created_at INTEGER NOT NULL
     );
     CREATE TABLE projects (
@@ -26,6 +27,7 @@ function createTestDb() {
       repo_url TEXT,
       canvas_state TEXT,
       user_id TEXT,
+      team_id TEXT,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -55,6 +57,7 @@ const testUser = {
   email: "test@example.com",
   name: "Test User",
   avatarUrl: "https://example.com/avatar.png",
+  role: "free-user" as const,
   createdAt: Date.now(),
 };
 
@@ -126,11 +129,7 @@ describe("projects", () => {
       ])
       .run();
 
-    const result = db
-      .select()
-      .from(projects)
-      .orderBy(desc(projects.updatedAt))
-      .all();
+    const result = db.select().from(projects).orderBy(desc(projects.updatedAt)).all();
 
     expect(result[0].name).toBe("New");
     expect(result[1].name).toBe("Old");
@@ -158,15 +157,17 @@ describe("messages", () => {
     db.insert(messages)
       .values([
         { id: "msg-1", projectId, role: "user" as const, content: "Hello", createdAt: now },
-        { id: "msg-2", projectId, role: "assistant" as const, content: "Hi there", createdAt: now + 1 },
+        {
+          id: "msg-2",
+          projectId,
+          role: "assistant" as const,
+          content: "Hi there",
+          createdAt: now + 1,
+        },
       ])
       .run();
 
-    const result = db
-      .select()
-      .from(messages)
-      .where(eq(messages.projectId, projectId))
-      .all();
+    const result = db.select().from(messages).where(eq(messages.projectId, projectId)).all();
 
     expect(result).toHaveLength(2);
     expect(result[0].role).toBe("user");
@@ -175,7 +176,13 @@ describe("messages", () => {
 
   it("cascade deletes messages when project is deleted", () => {
     db.insert(messages)
-      .values({ id: "msg-cascade", projectId, role: "user", content: "test", createdAt: Date.now() })
+      .values({
+        id: "msg-cascade",
+        projectId,
+        role: "user",
+        content: "test",
+        createdAt: Date.now(),
+      })
       .run();
 
     // Verify message exists
@@ -191,7 +198,13 @@ describe("messages", () => {
   it("rejects messages with invalid project reference", () => {
     expect(() => {
       db.insert(messages)
-        .values({ id: "msg-bad", projectId: "nonexistent", role: "user", content: "test", createdAt: Date.now() })
+        .values({
+          id: "msg-bad",
+          projectId: "nonexistent",
+          role: "user",
+          content: "test",
+          createdAt: Date.now(),
+        })
         .run();
     }).toThrow();
   });

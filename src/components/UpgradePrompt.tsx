@@ -24,7 +24,12 @@ export default function UpgradePrompt({
   if (variant === "modal") {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-        <div className="mx-4 w-full max-w-sm rounded-xl bg-[var(--card)] p-6 shadow-xl">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="upgrade-title"
+          className="mx-4 w-full max-w-sm rounded-xl bg-[var(--card)] p-6 shadow-xl"
+        >
           <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30">
             <svg
               width="20"
@@ -40,7 +45,7 @@ export default function UpgradePrompt({
               <path d="M2 12l10 5 10-5" />
             </svg>
           </div>
-          <h3 className="text-lg font-semibold text-[var(--card-foreground)]">
+          <h3 id="upgrade-title" className="text-lg font-semibold text-[var(--card-foreground)]">
             Upgrade Required
           </h3>
           <p className="mt-2 text-sm text-[var(--muted-foreground)]">{text}</p>
@@ -48,14 +53,14 @@ export default function UpgradePrompt({
             {onDismiss && (
               <button
                 onClick={onDismiss}
-                className="rounded-md px-3 py-1.5 text-sm text-[var(--muted-foreground)] hover:bg-[var(--muted)]"
+                className="min-h-11 rounded-md px-3 py-2 text-sm text-[var(--muted-foreground)] hover:bg-[var(--muted)]"
               >
                 Dismiss
               </button>
             )}
             <Link
               href="/pricing"
-              className="rounded-md bg-[var(--color-client)] px-4 py-1.5 text-sm font-medium text-white hover:opacity-90"
+              className="inline-flex min-h-11 items-center rounded-md bg-[var(--color-client)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--color-client-hover)]"
             >
               View Plans
             </Link>
@@ -97,7 +102,14 @@ export default function UpgradePrompt({
             className="flex-shrink-0 text-amber-500 hover:text-amber-700 dark:hover:text-amber-300"
             aria-label="Dismiss"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
               <line x1="18" y1="6" x2="6" y2="18" />
               <line x1="6" y1="6" x2="18" y2="18" />
             </svg>

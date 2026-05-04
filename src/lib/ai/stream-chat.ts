@@ -1,5 +1,5 @@
 import { eq, asc } from "drizzle-orm";
-import { v4 as uuid } from "uuid";
+import { createId } from "@/lib/id";
 import Anthropic from "@anthropic-ai/sdk";
 import type { AppDatabase } from "@/db";
 import { messages, projects } from "@/db/schema";
@@ -34,17 +34,18 @@ export function streamChat(
   db: AppDatabase,
   projectId: string,
   userMessage: string | null,
-  initMessage?: string,
+  initMessage?: string
 ): Response {
   const settingsMap = getSettings(db);
-  const apiKey = getApiKey(settingsMap);
+  const apiKey = getApiKey();
   if (!apiKey) {
     return new Response(
       sseEvent({
         type: "error",
-        content: "API key not configured. Please set it in Settings.",
+        code: "AI_NOT_CONFIGURED",
+        content: "AI is not configured on this server.",
       }),
-      { headers: SSE_HEADERS },
+      { headers: SSE_HEADERS, status: 503 }
     );
   }
 
@@ -57,7 +58,7 @@ export function streamChat(
   if (userMessage) {
     db.insert(messages)
       .values({
-        id: uuid(),
+        id: createId(),
         projectId,
         role: "user",
         content: userMessage,
@@ -104,8 +105,9 @@ export function streamChat(
 
   // For init (no user message and no history), add init instruction as user message
   if (!userMessage && history.length === 0) {
-    const initContent = initMessage
-      ?? (project?.description
+    const initContent =
+      initMessage ??
+      (project?.description
         ? `${INIT_INSTRUCTION}\n\nProject description: ${project.description}`
         : INIT_INSTRUCTION);
     anthropicMessages.push({
@@ -116,10 +118,7 @@ export function streamChat(
 
   // Ensure messages alternate properly — Anthropic requires user first
   if (anthropicMessages.length > 0 && anthropicMessages[0].role !== "user") {
-    anthropicMessages = [
-      { role: "user", content: INIT_INSTRUCTION },
-      ...anthropicMessages,
-    ];
+    anthropicMessages = [{ role: "user", content: INIT_INSTRUCTION }, ...anthropicMessages];
   }
 
   const client = new Anthropic({ apiKey });
@@ -137,15 +136,10 @@ export function streamChat(
         });
 
         for await (const event of anthropicStream) {
-          if (
-            event.type === "content_block_delta" &&
-            event.delta.type === "text_delta"
-          ) {
+          if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
             const text = event.delta.text;
             fullResponse += text;
-            controller.enqueue(
-              encoder.encode(sseEvent({ type: "text", content: text })),
-            );
+            controller.enqueue(encoder.encode(sseEvent({ type: "text", content: text })));
           }
         }
 
@@ -156,7 +150,7 @@ export function streamChat(
         const saveTimestamp = Date.now();
         db.insert(messages)
           .values({
-            id: uuid(),
+            id: createId(),
             projectId,
             role: "assistant",
             content: fullResponse,
@@ -169,7 +163,7 @@ export function streamChat(
           // Insert init instruction before the assistant message
           db.insert(messages)
             .values({
-              id: uuid(),
+              id: createId(),
               projectId,
               role: "user",
               content: initMessage ?? INIT_INSTRUCTION,
@@ -189,20 +183,15 @@ export function streamChat(
             .run();
 
           controller.enqueue(
-            encoder.encode(
-              sseEvent({ type: "architecture", content: parsed.architecture }),
-            ),
+            encoder.encode(sseEvent({ type: "architecture", content: parsed.architecture }))
           );
         }
 
         controller.enqueue(encoder.encode(sseEvent({ type: "done" })));
         controller.close();
       } catch (err) {
-        const errorMessage =
-          err instanceof Error ? err.message : "Unknown error";
-        controller.enqueue(
-          encoder.encode(sseEvent({ type: "error", content: errorMessage })),
-        );
+        const errorMessage = err instanceof Error ? err.message : "Unknown error";
+        controller.enqueue(encoder.encode(sseEvent({ type: "error", content: errorMessage })));
         controller.close();
       }
     },

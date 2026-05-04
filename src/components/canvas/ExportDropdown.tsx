@@ -11,15 +11,13 @@ interface ExportDropdownProps {
   rfInstanceRef: RefObject<ReactFlowInstance | null>;
   projectName: string;
   onError: (message: string) => void;
-  onUpgradeRequired?: (feature: string) => void;
 }
 
-function getUserRole(): string {
-  const match = document.cookie.match(/(?:^|; )dev-role=([^;]*)/);
-  return match ? decodeURIComponent(match[1]) : "admin";
-}
-
-export default function ExportDropdown({ rfInstanceRef, projectName, onError, onUpgradeRequired }: ExportDropdownProps) {
+export default function ExportDropdown({
+  rfInstanceRef,
+  projectName,
+  onError,
+}: ExportDropdownProps) {
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -34,63 +32,57 @@ export default function ExportDropdown({ rfInstanceRef, projectName, onError, on
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [open]);
 
-  const handleExport = useCallback(async (format: "png" | "svg") => {
-    setOpen(false);
+  const handleExport = useCallback(
+    async (format: "png" | "svg") => {
+      setOpen(false);
 
-    const role = getUserRole();
-    if (role === "free-user") {
-      if (onUpgradeRequired) {
-        onUpgradeRequired("export diagrams");
-      } else {
-        onError("Upgrade to a paid plan to export diagrams.");
+      const rfInstance = rfInstanceRef.current;
+      if (!rfInstance) return;
+
+      const nodes = rfInstance.getNodes();
+      if (nodes.length === 0) return;
+
+      const bounds = getNodesBounds(nodes);
+      const padding = 50;
+      const width = bounds.width + padding * 2;
+      const height = bounds.height + padding * 2;
+      const viewport = getViewportForBounds(bounds, width, height, 0.5, 2);
+
+      const viewportEl = document.querySelector(".react-flow__viewport") as HTMLElement;
+      if (!viewportEl) return;
+
+      const exportFn = format === "png" ? toPng : toSvg;
+      const ext = format === "png" ? "png" : "svg";
+
+      try {
+        const dataUrl = await exportFn(viewportEl, {
+          width,
+          height,
+          style: {
+            width: `${width}px`,
+            height: `${height}px`,
+            transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`,
+          },
+        });
+
+        const link = document.createElement("a");
+        link.download = `${projectName}.${ext}`;
+        link.href = dataUrl;
+        link.click();
+      } catch {
+        onError(`Failed to export as ${format.toUpperCase()}`);
       }
-      return;
-    }
-
-    const rfInstance = rfInstanceRef.current;
-    if (!rfInstance) return;
-
-    const nodes = rfInstance.getNodes();
-    if (nodes.length === 0) return;
-
-    const bounds = getNodesBounds(nodes);
-    const padding = 50;
-    const width = bounds.width + padding * 2;
-    const height = bounds.height + padding * 2;
-    const viewport = getViewportForBounds(bounds, width, height, 0.5, 2);
-
-    const viewportEl = document.querySelector(".react-flow__viewport") as HTMLElement;
-    if (!viewportEl) return;
-
-    const exportFn = format === "png" ? toPng : toSvg;
-    const ext = format === "png" ? "png" : "svg";
-
-    try {
-      const dataUrl = await exportFn(viewportEl, {
-        width,
-        height,
-        style: {
-          width: `${width}px`,
-          height: `${height}px`,
-          transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`,
-        },
-      });
-
-      const link = document.createElement("a");
-      link.download = `${projectName}.${ext}`;
-      link.href = dataUrl;
-      link.click();
-    } catch {
-      onError(`Failed to export as ${format.toUpperCase()}`);
-    }
-  }, [rfInstanceRef, projectName, onError, onUpgradeRequired]);
+    },
+    [rfInstanceRef, projectName, onError]
+  );
 
   return (
     <div ref={dropdownRef} className="relative">
       <button
         onClick={() => setOpen((prev) => !prev)}
-        className="rounded border border-[var(--border)] px-2 py-1 text-xs text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
+        className="flex h-11 w-11 items-center justify-center rounded border border-[var(--border)] text-xs text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
         title="Export diagram"
+        aria-label="Export diagram"
       >
         <Download size={14} />
       </button>

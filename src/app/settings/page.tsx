@@ -7,8 +7,11 @@ import { useSyncExternalStore } from "react";
 import { categoryOrder, nodeConfig } from "@/lib/node-config";
 import type { CustomSubtypesMap, CustomSubtypeEntry } from "@/lib/custom-subtypes";
 import type { NodeCategory } from "@/types/stack";
-import { DEFAULT_CHAT_PROMPT, DEFAULT_ALTERNATIVES_PROMPT, DEFAULT_PRD_PROMPT } from "@/lib/ai/default-prompts";
-import UpgradePrompt from "@/components/UpgradePrompt";
+import {
+  DEFAULT_CHAT_PROMPT,
+  DEFAULT_ALTERNATIVES_PROMPT,
+  DEFAULT_PRD_PROMPT,
+} from "@/lib/ai/default-prompts";
 
 const VALID_MODELS = [
   { id: "claude-sonnet-4-20250514", name: "Sonnet" },
@@ -19,9 +22,16 @@ const VALID_MODELS = [
 const subscribe = () => () => {};
 const getSnapshot = () => true;
 const getServerSnapshot = () => false;
+const PROMPT_DEFAULTS: Record<string, string> = {
+  prompt_chat: DEFAULT_CHAT_PROMPT,
+  prompt_alternatives: DEFAULT_ALTERNATIVES_PROMPT,
+  prompt_prd: DEFAULT_PRD_PROMPT,
+};
 
 interface Settings {
-  apiKey?: string;
+  hasAnthropicKey?: boolean;
+  role?: string;
+  isAdmin?: boolean;
   model?: string;
   theme?: string;
   customSubtypes?: string;
@@ -32,26 +42,22 @@ interface Settings {
 
 export default function SettingsPage() {
   const { theme: currentTheme, setTheme } = useTheme();
-  const mounted = useSyncExternalStore(
-    subscribe,
-    getSnapshot,
-    getServerSnapshot,
-  );
+  const mounted = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
   const [loading, setLoading] = useState(true);
-  const [apiKey, setApiKey] = useState("");
-  const [hasExistingKey, setHasExistingKey] = useState(false);
-  const [showKey, setShowKey] = useState(false);
+  const [hasAnthropicKey, setHasAnthropicKey] = useState(false);
+  const [currentRole, setCurrentRole] = useState("free-user");
+  const [isAdmin, setIsAdmin] = useState(false);
   const [model, setModel] = useState("claude-sonnet-4-20250514");
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{
     type: "success" | "error";
     message: string;
   } | null>(null);
-  const [keyError, setKeyError] = useState("");
   const [customSubtypes, setCustomSubtypes] = useState<CustomSubtypesMap>({});
-  const [viewAsRole, setViewAsRole] = useState("admin");
-  const [newSubtype, setNewSubtype] = useState<Record<NodeCategory, { slug: string; displayName: string; icon: string }>>({} as Record<NodeCategory, { slug: string; displayName: string; icon: string }>);
+  const [newSubtype, setNewSubtype] = useState<
+    Record<NodeCategory, { slug: string; displayName: string; icon: string }>
+  >({} as Record<NodeCategory, { slug: string; displayName: string; icon: string }>);
   const [prompts, setPrompts] = useState({
     prompt_chat: "",
     prompt_alternatives: "",
@@ -74,97 +80,56 @@ export default function SettingsPage() {
   const [openingPortal, setOpeningPortal] = useState(false);
 
   useEffect(() => {
-    const match = document.cookie.match(/(?:^|; )dev-role=([^;]*)/);
-    if (match) setViewAsRole(decodeURIComponent(match[1]));
-  }, []);
-
-  const handleViewAsRole = useCallback((newRole: string) => {
-    document.cookie = newRole === "admin"
-      ? "dev-role=;path=/;max-age=0"
-      : `dev-role=${newRole};path=/;max-age=31536000`;
-    setViewAsRole(newRole);
-    window.location.reload();
-  }, []);
-
-  useEffect(() => {
     Promise.all([
       fetch("/api/settings").then((res) => res.json()),
-      fetch("/api/billing/subscription").then((res) => res.ok ? res.json() : null),
+      fetch("/api/billing/subscription").then((res) => (res.ok ? res.json() : null)),
     ])
-      .then(([data, billingData]: [Settings, { plan: string; billingInterval: string | null; status: string | null; currentPeriodEnd: number | null } | null]) => {
-        if (data.apiKey) {
-          setHasExistingKey(true);
-          setApiKey(data.apiKey);
+      .then(
+        ([data, billingData]: [
+          Settings,
+          {
+            plan: string;
+            billingInterval: string | null;
+            status: string | null;
+            currentPeriodEnd: number | null;
+          } | null,
+        ]) => {
+          setHasAnthropicKey(Boolean(data.hasAnthropicKey));
+          setCurrentRole(data.role ?? "free-user");
+          setIsAdmin(Boolean(data.isAdmin));
+          if (data.model) {
+            setModel(data.model);
+          }
+          if (data.theme) {
+            setTheme(data.theme);
+          }
+          if (data.customSubtypes) {
+            try {
+              setCustomSubtypes(JSON.parse(data.customSubtypes));
+            } catch {
+              /* ignore */
+            }
+          }
+          setPrompts({
+            prompt_chat: data.prompt_chat ?? "",
+            prompt_alternatives: data.prompt_alternatives ?? "",
+            prompt_prd: data.prompt_prd ?? "",
+          });
+          if (billingData) {
+            setBilling(billingData);
+          }
         }
-        if (data.model) {
-          setModel(data.model);
-        }
-        if (data.theme) {
-          setTheme(data.theme);
-        }
-        if (data.customSubtypes) {
-          try {
-            setCustomSubtypes(JSON.parse(data.customSubtypes));
-          } catch { /* ignore */ }
-        }
-        setPrompts({
-          prompt_chat: data.prompt_chat ?? "",
-          prompt_alternatives: data.prompt_alternatives ?? "",
-          prompt_prd: data.prompt_prd ?? "",
-        });
-        if (billingData) {
-          setBilling(billingData);
-        }
-      })
+      )
       .catch(() => {
         // Use defaults
       })
       .finally(() => setLoading(false));
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [setTheme]);
 
-  const showToast = useCallback(
-    (type: "success" | "error", message: string) => {
-      setToast({ type, message });
-      setTimeout(() => setToast(null), 3000);
-    },
-    [],
-  );
-
-  const validateApiKey = useCallback((key: string): string => {
-    if (!key) return "";
-    if (!key.startsWith("sk-ant-")) {
-      return "API key must start with sk-ant-";
-    }
-    return "";
+  const showToast = useCallback((type: "success" | "error", message: string) => {
+    setToast({ type, message });
+    setTimeout(() => setToast(null), 3000);
   }, []);
-
-  const handleSaveApiKey = useCallback(async () => {
-    const error = validateApiKey(apiKey);
-    if (error) {
-      setKeyError(error);
-      return;
-    }
-    setKeyError("");
-    setSaving(true);
-    try {
-      const res = await fetch("/api/settings", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ apiKey }),
-      });
-      if (res.ok) {
-        setHasExistingKey(!!apiKey);
-        setShowKey(false);
-        showToast("success", "API key saved");
-      } else {
-        showToast("error", "Failed to save API key");
-      }
-    } catch {
-      showToast("error", "Failed to save API key");
-    } finally {
-      setSaving(false);
-    }
-  }, [apiKey, validateApiKey, showToast]);
 
   const handleSaveModel = useCallback(async () => {
     setSaving(true);
@@ -199,25 +164,28 @@ export default function SettingsPage() {
         // Theme already applied locally, DB save is best-effort
       }
     },
-    [setTheme],
+    [setTheme]
   );
 
-  const saveCustomSubtypes = useCallback(async (map: CustomSubtypesMap) => {
-    try {
-      const res = await fetch("/api/settings", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ customSubtypes: JSON.stringify(map) }),
-      });
-      if (res.ok) {
-        showToast("success", "Custom subtypes saved");
-      } else {
+  const saveCustomSubtypes = useCallback(
+    async (map: CustomSubtypesMap) => {
+      try {
+        const res = await fetch("/api/settings", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ customSubtypes: JSON.stringify(map) }),
+        });
+        if (res.ok) {
+          showToast("success", "Custom subtypes saved");
+        } else {
+          showToast("error", "Failed to save custom subtypes");
+        }
+      } catch {
         showToast("error", "Failed to save custom subtypes");
       }
-    } catch {
-      showToast("error", "Failed to save custom subtypes");
-    }
-  }, [showToast]);
+    },
+    [showToast]
+  );
 
   const handleAddSubtype = useCallback(
     (category: NodeCategory) => {
@@ -242,7 +210,7 @@ export default function SettingsPage() {
       setNewSubtype((prev) => ({ ...prev, [category]: { slug: "", displayName: "", icon: "" } }));
       saveCustomSubtypes(updated);
     },
-    [customSubtypes, newSubtype, showToast, saveCustomSubtypes],
+    [customSubtypes, newSubtype, showToast, saveCustomSubtypes]
   );
 
   const handleRemoveSubtype = useCallback(
@@ -255,7 +223,7 @@ export default function SettingsPage() {
       setCustomSubtypes(updated);
       saveCustomSubtypes(updated);
     },
-    [customSubtypes, saveCustomSubtypes],
+    [customSubtypes, saveCustomSubtypes]
   );
 
   const handleSwitchInterval = useCallback(async () => {
@@ -270,7 +238,7 @@ export default function SettingsPage() {
       });
       const data = await res.json();
       if (res.ok) {
-        setBilling((prev) => prev ? { ...prev, billingInterval: newInterval } : prev);
+        setBilling((prev) => (prev ? { ...prev, billingInterval: newInterval } : prev));
         showToast("success", data.message);
       } else {
         showToast("error", data.error || "Failed to switch billing interval");
@@ -292,7 +260,7 @@ export default function SettingsPage() {
       });
       const data = await res.json();
       if (res.ok) {
-        setBilling((prev) => prev ? { ...prev, status: "canceled" } : prev);
+        setBilling((prev) => (prev ? { ...prev, status: "canceled" } : prev));
         showToast("success", data.message);
       } else {
         showToast("error", data.error || "Failed to cancel subscription");
@@ -315,7 +283,7 @@ export default function SettingsPage() {
       });
       const data = await res.json();
       if (res.ok) {
-        setBilling((prev) => prev ? { ...prev, status: "active" } : prev);
+        setBilling((prev) => (prev ? { ...prev, status: "active" } : prev));
         showToast("success", data.message);
       } else {
         showToast("error", data.error || "Failed to reactivate subscription");
@@ -327,28 +295,31 @@ export default function SettingsPage() {
     }
   }, [showToast]);
 
-  const handleChangePlan = useCallback(async (plan: string) => {
-    setChangingPlan(true);
-    try {
-      const res = await fetch("/api/billing/manage", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "change_plan", plan }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setBilling((prev) => prev ? { ...prev, plan: data.plan } : prev);
-        showToast("success", data.message);
-        setShowChangePlan(false);
-      } else {
-        showToast("error", data.error || "Failed to change plan");
+  const handleChangePlan = useCallback(
+    async (plan: string) => {
+      setChangingPlan(true);
+      try {
+        const res = await fetch("/api/billing/manage", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "change_plan", plan }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          setBilling((prev) => (prev ? { ...prev, plan: data.plan } : prev));
+          showToast("success", data.message);
+          setShowChangePlan(false);
+        } else {
+          showToast("error", data.error || "Failed to change plan");
+        }
+      } catch {
+        showToast("error", "Failed to change plan");
+      } finally {
+        setChangingPlan(false);
       }
-    } catch {
-      showToast("error", "Failed to change plan");
-    } finally {
-      setChangingPlan(false);
-    }
-  }, [showToast]);
+    },
+    [showToast]
+  );
 
   const handleUpdatePayment = useCallback(async () => {
     setUpdatingPayment(true);
@@ -385,58 +356,53 @@ export default function SettingsPage() {
     }
   }, [showToast]);
 
-  const promptDefaults: Record<string, string> = {
-    prompt_chat: DEFAULT_CHAT_PROMPT,
-    prompt_alternatives: DEFAULT_ALTERNATIVES_PROMPT,
-    prompt_prd: DEFAULT_PRD_PROMPT,
-  };
-
-  const handleSavePrompt = useCallback(async (key: string) => {
-    setSavingPrompt(key);
-    try {
-      const value = prompts[key as keyof typeof prompts];
-      const res = await fetch("/api/settings", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ [key]: value || promptDefaults[key] }),
-      });
-      if (res.ok) {
-        showToast("success", "Prompt saved");
-      } else {
+  const handleSavePrompt = useCallback(
+    async (key: string) => {
+      setSavingPrompt(key);
+      try {
+        const value = prompts[key as keyof typeof prompts];
+        const res = await fetch("/api/settings", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ [key]: value || PROMPT_DEFAULTS[key] }),
+        });
+        if (res.ok) {
+          showToast("success", "Prompt saved");
+        } else {
+          showToast("error", "Failed to save prompt");
+        }
+      } catch {
         showToast("error", "Failed to save prompt");
+      } finally {
+        setSavingPrompt(null);
       }
-    } catch {
-      showToast("error", "Failed to save prompt");
-    } finally {
-      setSavingPrompt(null);
-    }
-  }, [prompts, showToast]); // eslint-disable-line react-hooks/exhaustive-deps
+    },
+    [prompts, showToast]
+  );
 
-  const handleResetPrompt = useCallback(async (key: string) => {
-    setSavingPrompt(key);
-    setPrompts((prev) => ({ ...prev, [key]: "" }));
-    try {
-      const res = await fetch("/api/settings", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ [key]: "" }),
-      });
-      if (res.ok) {
-        showToast("success", "Prompt reset to default");
-      } else {
+  const handleResetPrompt = useCallback(
+    async (key: string) => {
+      setSavingPrompt(key);
+      setPrompts((prev) => ({ ...prev, [key]: "" }));
+      try {
+        const res = await fetch("/api/settings", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ [key]: "" }),
+        });
+        if (res.ok) {
+          showToast("success", "Prompt reset to default");
+        } else {
+          showToast("error", "Failed to reset prompt");
+        }
+      } catch {
         showToast("error", "Failed to reset prompt");
+      } finally {
+        setSavingPrompt(null);
       }
-    } catch {
-      showToast("error", "Failed to reset prompt");
-    } finally {
-      setSavingPrompt(null);
-    }
-  }, [showToast]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const maskedKey =
-    hasExistingKey && !showKey && apiKey
-      ? `${apiKey.slice(0, 7)}${"•".repeat(Math.max(0, apiKey.length - 11))}${apiKey.slice(-4)}`
-      : apiKey;
+    },
+    [showToast]
+  );
 
   if (!mounted) return null;
 
@@ -466,23 +432,13 @@ export default function SettingsPage() {
             <section className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-6">
               <div className="mb-4 flex items-center gap-2">
                 <h2 className="text-lg font-semibold text-[var(--card-foreground)]">
-                  API Key
+                  Anthropic API Key
                 </h2>
-                {hasExistingKey ? (
+                {hasAnthropicKey ? (
                   <span
                     className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400"
                     data-testid="key-status-set"
                   >
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="3"
-                    >
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
                     Set
                   </span>
                 ) : (
@@ -490,96 +446,14 @@ export default function SettingsPage() {
                     className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-400"
                     data-testid="key-status-missing"
                   >
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="3"
-                    >
-                      <circle cx="12" cy="12" r="10" />
-                      <line x1="12" y1="8" x2="12" y2="12" />
-                      <line x1="12" y1="16" x2="12.01" y2="16" />
-                    </svg>
                     Missing
                   </span>
                 )}
               </div>
-              <p className="mb-3 text-sm text-[var(--muted-foreground)]">
-                Your Anthropic API key for AI-powered architecture generation.
+              <p className="text-sm text-[var(--muted-foreground)]">
+                AI generation uses the server-side ANTHROPIC_API_KEY environment variable. Keys are
+                never returned to the browser or edited here.
               </p>
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <input
-                    type={showKey ? "text" : "password"}
-                    value={hasExistingKey && !showKey ? maskedKey : apiKey}
-                    onChange={(e) => {
-                      setApiKey(e.target.value);
-                      setKeyError("");
-                      if (hasExistingKey && !showKey) {
-                        setShowKey(true);
-                      }
-                    }}
-                    onFocus={() => {
-                      if (hasExistingKey && !showKey) {
-                        setShowKey(true);
-                      }
-                    }}
-                    placeholder="sk-ant-..."
-                    className="w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
-                    aria-label="API Key"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowKey(!showKey)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-                    aria-label={showKey ? "Hide API key" : "Show API key"}
-                  >
-                    {showKey ? (
-                      <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                      >
-                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
-                        <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
-                        <line x1="1" y1="1" x2="23" y2="23" />
-                      </svg>
-                    ) : (
-                      <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                      >
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                        <circle cx="12" cy="12" r="3" />
-                      </svg>
-                    )}
-                  </button>
-                </div>
-                <button
-                  onClick={handleSaveApiKey}
-                  disabled={saving || !apiKey}
-                  className="rounded-md bg-[var(--color-client)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
-                >
-                  {saving ? "Saving..." : "Save"}
-                </button>
-              </div>
-              {keyError && (
-                <p
-                  className="mt-2 text-sm text-red-600 dark:text-red-400"
-                  data-testid="key-error"
-                >
-                  {keyError}
-                </p>
-              )}
             </section>
 
             {/* Model Section */}
@@ -590,50 +464,54 @@ export default function SettingsPage() {
               <p className="mb-3 text-sm text-[var(--muted-foreground)]">
                 Select which Claude model to use for architecture generation.
               </p>
-              {viewAsRole === "free-user" ? (
+              {!isAdmin ? (
                 <div className="space-y-3">
                   <div className="flex gap-2">
                     <select
-                      value="claude-sonnet-4-20250514"
+                      value={model}
                       disabled
                       className="flex-1 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm opacity-75"
                       aria-label="Claude Model"
                     >
-                      <option>Sonnet (claude-sonnet-4-20250514)</option>
+                      {VALID_MODELS.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.name} ({m.id})
+                        </option>
+                      ))}
                     </select>
                   </div>
-                  <UpgradePrompt feature="use Opus and Haiku models" />
+                  <p className="text-sm text-[var(--muted-foreground)]">
+                    Model selection is managed by an administrator. Current role: {currentRole}.
+                  </p>
                 </div>
               ) : (
-              <div className="flex gap-2">
-                <select
-                  value={model}
-                  onChange={(e) => setModel(e.target.value)}
-                  className="flex-1 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
-                  aria-label="Claude Model"
-                >
-                  {VALID_MODELS.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name} ({m.id})
-                    </option>
-                  ))}
-                </select>
-                <button
-                  onClick={handleSaveModel}
-                  disabled={saving}
-                  className="rounded-md bg-[var(--color-client)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
-                >
-                  {saving ? "Saving..." : "Save"}
-                </button>
-              </div>
+                <div className="flex gap-2">
+                  <select
+                    value={model}
+                    onChange={(e) => setModel(e.target.value)}
+                    className="flex-1 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
+                    aria-label="Claude Model"
+                  >
+                    {VALID_MODELS.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name} ({m.id})
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={handleSaveModel}
+                    disabled={saving}
+                    className="rounded-md bg-[var(--color-client)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+                  >
+                    {saving ? "Saving..." : "Save"}
+                  </button>
+                </div>
               )}
             </section>
 
             {/* Theme Section */}
             <section className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-6">
-              <h2 className="mb-4 text-lg font-semibold text-[var(--card-foreground)]">
-                Theme
-              </h2>
+              <h2 className="mb-4 text-lg font-semibold text-[var(--card-foreground)]">Theme</h2>
               <p className="mb-3 text-sm text-[var(--muted-foreground)]">
                 Choose your preferred appearance.
               </p>
@@ -665,7 +543,9 @@ export default function SettingsPage() {
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-[var(--muted-foreground)]">Current Plan</span>
-                    <span className="text-sm font-medium text-[var(--foreground)] capitalize">{billing.plan}</span>
+                    <span className="text-sm font-medium text-[var(--foreground)] capitalize">
+                      {billing.plan}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-[var(--muted-foreground)]">Billing Interval</span>
@@ -682,7 +562,9 @@ export default function SettingsPage() {
                   </div>
                   {billing.currentPeriodEnd && (
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-[var(--muted-foreground)]">Next Billing Date</span>
+                      <span className="text-sm text-[var(--muted-foreground)]">
+                        Next Billing Date
+                      </span>
                       <span className="text-sm font-medium text-[var(--foreground)]">
                         {new Date(billing.currentPeriodEnd).toLocaleDateString()}
                       </span>
@@ -691,14 +573,20 @@ export default function SettingsPage() {
                   {billing.status && (
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-[var(--muted-foreground)]">Status</span>
-                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                        billing.status === "active"
-                          ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                          : billing.status === "past_due"
-                            ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
-                            : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-                      }`}>
-                        {billing.status === "past_due" ? "Past Due" : billing.status === "canceled" ? "Cancels at period end" : billing.status}
+                      <span
+                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                          billing.status === "active"
+                            ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                            : billing.status === "past_due"
+                              ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
+                              : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                        }`}
+                      >
+                        {billing.status === "past_due"
+                          ? "Past Due"
+                          : billing.status === "canceled"
+                            ? "Cancels at period end"
+                            : billing.status}
                       </span>
                     </div>
                   )}
@@ -769,10 +657,12 @@ export default function SettingsPage() {
                         Cancel Subscription?
                       </h3>
                       <p className="mb-4 text-sm text-[var(--muted-foreground)]">
-                        Your subscription will remain active until the end of your current billing period
+                        Your subscription will remain active until the end of your current billing
+                        period
                         {billing.currentPeriodEnd && (
                           <> ({new Date(billing.currentPeriodEnd).toLocaleDateString()})</>
-                        )}. After that, you&apos;ll be downgraded to the Free plan.
+                        )}
+                        . After that, you&apos;ll be downgraded to the Free plan.
                       </p>
                       <div className="flex justify-end gap-2">
                         <button
@@ -806,7 +696,8 @@ export default function SettingsPage() {
                           { key: "team5", label: "Team (5 users)", price: "$39/mo" },
                           { key: "team15", label: "Team (15 users)", price: "$79/mo" },
                         ].map((p) => {
-                          const isCurrent = billing.plan === (p.key.startsWith("team") ? "team" : p.key);
+                          const isCurrent =
+                            billing.plan === (p.key.startsWith("team") ? "team" : p.key);
                           return (
                             <button
                               key={p.key}
@@ -827,7 +718,8 @@ export default function SettingsPage() {
                         })}
                       </div>
                       <p className="mt-3 text-xs text-[var(--muted-foreground)]">
-                        Plan changes are prorated. You&apos;ll be charged or credited the difference.
+                        Plan changes are prorated. You&apos;ll be charged or credited the
+                        difference.
                       </p>
                       <div className="mt-4 flex justify-end">
                         <button
@@ -843,142 +735,120 @@ export default function SettingsPage() {
               </section>
             )}
 
-            {/* View As Role Section */}
-            <section className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-6">
-              <h2 className="mb-4 text-lg font-semibold text-[var(--card-foreground)]">
-                View As Role
-              </h2>
-              <p className="mb-3 text-sm text-[var(--muted-foreground)]">
-                Impersonate a different role to see the interface as that user would.
-              </p>
-              <div className="flex gap-3">
-                {(["admin", "paid-user", "free-user"] as const).map((r) => (
-                  <button
-                    key={r}
-                    onClick={() => handleViewAsRole(r)}
-                    className={`rounded-md border px-4 py-2 text-sm font-medium capitalize transition-colors ${
-                      viewAsRole === r
-                        ? "border-[var(--color-client)] bg-[var(--color-client)] text-white"
-                        : "border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--muted)]"
-                    }`}
-                  >
-                    {r}
-                  </button>
-                ))}
-              </div>
-            </section>
-
             {/* Node Subtypes Section */}
             <section className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-6">
               <h2 className="mb-4 text-lg font-semibold text-[var(--card-foreground)]">
                 Node Subtypes
               </h2>
               <p className="mb-4 text-sm text-[var(--muted-foreground)]">
-                Add custom subtypes to existing node categories. Built-in subtypes are always available.
+                Add custom subtypes to existing node categories. Built-in subtypes are always
+                available.
               </p>
-              {viewAsRole === "free-user" ? (
-                <UpgradePrompt feature="add custom node subtypes" />
+              {!isAdmin ? (
+                <p className="text-sm text-[var(--muted-foreground)]">
+                  Custom subtype configuration is managed by an administrator.
+                </p>
               ) : (
-              <div className="space-y-5">
-                {categoryOrder.map((category) => {
-                  const config = nodeConfig[category];
-                  const customEntries = customSubtypes[category] ?? [];
-                  const form = newSubtype[category] ?? { slug: "", displayName: "", icon: "" };
-                  return (
-                    <div key={category} className="rounded border border-[var(--border)] p-4">
-                      <div className="mb-2 flex items-center gap-2">
-                        <span
-                          className="inline-block rounded-full px-2 py-0.5 text-xs font-medium text-white"
-                          style={{ backgroundColor: config.color }}
-                        >
-                          {config.displayName}
-                        </span>
-                      </div>
-                      {/* Built-in subtypes */}
-                      <div className="mb-2 flex flex-wrap gap-1">
-                        {Object.entries(config.subtypes).map(([slug, sc]) => (
+                <div className="space-y-5">
+                  {categoryOrder.map((category) => {
+                    const config = nodeConfig[category];
+                    const customEntries = customSubtypes[category] ?? [];
+                    const form = newSubtype[category] ?? { slug: "", displayName: "", icon: "" };
+                    return (
+                      <div key={category} className="rounded border border-[var(--border)] p-4">
+                        <div className="mb-2 flex items-center gap-2">
                           <span
-                            key={slug}
-                            className="inline-block rounded-full bg-[var(--muted)] px-2 py-0.5 text-xs text-[var(--muted-foreground)]"
+                            className="inline-block rounded-full px-2 py-0.5 text-xs font-medium text-white"
+                            style={{ backgroundColor: config.color }}
                           >
-                            {sc.displayName}
+                            {config.displayName}
                           </span>
-                        ))}
-                      </div>
-                      {/* Custom subtypes */}
-                      {customEntries.length > 0 && (
+                        </div>
+                        {/* Built-in subtypes */}
                         <div className="mb-2 flex flex-wrap gap-1">
-                          {customEntries.map((entry) => (
+                          {Object.entries(config.subtypes).map(([slug, sc]) => (
                             <span
-                              key={entry.slug}
-                              className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                              key={slug}
+                              className="inline-block rounded-full bg-[var(--muted)] px-2 py-0.5 text-xs text-[var(--muted-foreground)]"
                             >
-                              {entry.displayName}
-                              <button
-                                onClick={() => handleRemoveSubtype(category, entry.slug)}
-                                className="ml-0.5 hover:text-red-500"
-                                aria-label={`Remove ${entry.displayName}`}
-                              >
-                                &times;
-                              </button>
+                              {sc.displayName}
                             </span>
                           ))}
                         </div>
-                      )}
-                      {/* Add form */}
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          placeholder="slug"
-                          value={form.slug}
-                          onChange={(e) =>
-                            setNewSubtype((prev) => ({
-                              ...prev,
-                              [category]: { ...form, slug: e.target.value },
-                            }))
-                          }
-                          className="w-24 rounded border border-[var(--border)] bg-[var(--background)] px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--color-client)]"
-                        />
-                        <input
-                          type="text"
-                          placeholder="Display Name"
-                          value={form.displayName}
-                          onChange={(e) =>
-                            setNewSubtype((prev) => ({
-                              ...prev,
-                              [category]: { ...form, displayName: e.target.value },
-                            }))
-                          }
-                          className="flex-1 rounded border border-[var(--border)] bg-[var(--background)] px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--color-client)]"
-                        />
-                        <input
-                          type="text"
-                          placeholder="Icon"
-                          value={form.icon}
-                          onChange={(e) =>
-                            setNewSubtype((prev) => ({
-                              ...prev,
-                              [category]: { ...form, icon: e.target.value },
-                            }))
-                          }
-                          className="w-20 rounded border border-[var(--border)] bg-[var(--background)] px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--color-client)]"
-                        />
-                        <button
-                          onClick={() => handleAddSubtype(category)}
-                          disabled={!form.slug || !form.displayName}
-                          className="rounded bg-[var(--color-client)] px-2 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
-                        >
-                          Add
-                        </button>
+                        {/* Custom subtypes */}
+                        {customEntries.length > 0 && (
+                          <div className="mb-2 flex flex-wrap gap-1">
+                            {customEntries.map((entry) => (
+                              <span
+                                key={entry.slug}
+                                className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                              >
+                                {entry.displayName}
+                                <button
+                                  onClick={() => handleRemoveSubtype(category, entry.slug)}
+                                  className="ml-0.5 hover:text-red-500"
+                                  aria-label={`Remove ${entry.displayName}`}
+                                >
+                                  &times;
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {/* Add form */}
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            placeholder="slug"
+                            value={form.slug}
+                            onChange={(e) =>
+                              setNewSubtype((prev) => ({
+                                ...prev,
+                                [category]: { ...form, slug: e.target.value },
+                              }))
+                            }
+                            className="w-24 rounded border border-[var(--border)] bg-[var(--background)] px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--color-client)]"
+                          />
+                          <input
+                            type="text"
+                            placeholder="Display Name"
+                            value={form.displayName}
+                            onChange={(e) =>
+                              setNewSubtype((prev) => ({
+                                ...prev,
+                                [category]: { ...form, displayName: e.target.value },
+                              }))
+                            }
+                            className="flex-1 rounded border border-[var(--border)] bg-[var(--background)] px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--color-client)]"
+                          />
+                          <input
+                            type="text"
+                            placeholder="Icon"
+                            value={form.icon}
+                            onChange={(e) =>
+                              setNewSubtype((prev) => ({
+                                ...prev,
+                                [category]: { ...form, icon: e.target.value },
+                              }))
+                            }
+                            className="w-20 rounded border border-[var(--border)] bg-[var(--background)] px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--color-client)]"
+                          />
+                          <button
+                            onClick={() => handleAddSubtype(category)}
+                            disabled={!form.slug || !form.displayName}
+                            className="rounded bg-[var(--color-client)] px-2 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
+                          >
+                            Add
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
               )}
             </section>
             {/* AI Prompts Section — Admin Only */}
-            {viewAsRole === "admin" && (
+            {isAdmin && (
               <section className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-6">
                 <h2 className="mb-4 text-lg font-semibold text-[var(--card-foreground)]">
                   AI Prompts
@@ -987,11 +857,27 @@ export default function SettingsPage() {
                   Customize the system prompts used by AI features. Leave empty to use the default.
                 </p>
                 <div className="space-y-4">
-                  {([
-                    { key: "prompt_chat", label: "Chat Prompt", description: "System prompt for the architecture chat interview. The valid categories/subtypes section is appended automatically." },
-                    { key: "prompt_alternatives", label: "Alternatives Prompt", description: "System prompt for suggesting alternative technologies for a node." },
-                    { key: "prompt_prd", label: "PRD Export Prompt", description: "System prompt for generating Product Requirements Documents." },
-                  ] as const).map(({ key, label, description }) => (
+                  {(
+                    [
+                      {
+                        key: "prompt_chat",
+                        label: "Chat Prompt",
+                        description:
+                          "System prompt for the architecture chat interview. The valid categories/subtypes section is appended automatically.",
+                      },
+                      {
+                        key: "prompt_alternatives",
+                        label: "Alternatives Prompt",
+                        description:
+                          "System prompt for suggesting alternative technologies for a node.",
+                      },
+                      {
+                        key: "prompt_prd",
+                        label: "PRD Export Prompt",
+                        description: "System prompt for generating Product Requirements Documents.",
+                      },
+                    ] as const
+                  ).map(({ key, label, description }) => (
                     <div key={key} className="rounded border border-[var(--border)]">
                       <button
                         type="button"
@@ -1000,7 +886,9 @@ export default function SettingsPage() {
                       >
                         <div>
                           <span className="font-medium text-[var(--card-foreground)]">{label}</span>
-                          <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">{description}</p>
+                          <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">
+                            {description}
+                          </p>
                         </div>
                         <svg
                           width="16"
@@ -1017,8 +905,10 @@ export default function SettingsPage() {
                       {expandedPrompt === key && (
                         <div className="border-t border-[var(--border)] p-4">
                           <textarea
-                            value={prompts[key] || promptDefaults[key]}
-                            onChange={(e) => setPrompts((prev) => ({ ...prev, [key]: e.target.value }))}
+                            value={prompts[key] || PROMPT_DEFAULTS[key]}
+                            onChange={(e) =>
+                              setPrompts((prev) => ({ ...prev, [key]: e.target.value }))
+                            }
                             rows={12}
                             className="w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
                           />

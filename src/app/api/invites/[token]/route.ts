@@ -12,24 +12,18 @@ const SEAT_LIMITS: Record<string, number> = {
 
 // GET /api/invites/[token] - Get invite details (public, no auth required)
 export async function GET(
-  request: NextRequest,
-  { params }: { params: { token: string } }
+  _request: NextRequest,
+  { params }: { params: Promise<{ token: string }> }
 ) {
   try {
+    const { token } = await params;
     const db = getDb();
     runMigrations(db);
 
-    const invite = db
-      .select()
-      .from(teamInvites)
-      .where(eq(teamInvites.token, params.token))
-      .get();
+    const invite = db.select().from(teamInvites).where(eq(teamInvites.token, token)).get();
 
     if (!invite) {
-      return NextResponse.json(
-        { error: "Invite not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Invite not found" }, { status: 404 });
     }
 
     if (invite.status !== "pending") {
@@ -40,10 +34,7 @@ export async function GET(
     }
 
     if (Date.now() > invite.expiresAt) {
-      return NextResponse.json(
-        { error: "Invite has expired" },
-        { status: 410 }
-      );
+      return NextResponse.json({ error: "Invite has expired" }, { status: 410 });
     }
 
     // Get team info
@@ -68,19 +59,17 @@ export async function GET(
     });
   } catch (error) {
     console.error("GET /api/invites/[token] error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch invite" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to fetch invite" }, { status: 500 });
   }
 }
 
 // POST /api/invites/[token] - Accept invite
 export async function POST(
-  request: NextRequest,
-  { params }: { params: { token: string } }
+  _request: NextRequest,
+  { params }: { params: Promise<{ token: string }> }
 ) {
   try {
+    const { token } = await params;
     const userId = await getAuthenticatedUserId();
     if (!userId) {
       return NextResponse.json(
@@ -92,67 +81,39 @@ export async function POST(
     const db = getDb();
     runMigrations(db);
 
-    const invite = db
-      .select()
-      .from(teamInvites)
-      .where(eq(teamInvites.token, params.token))
-      .get();
+    const invite = db.select().from(teamInvites).where(eq(teamInvites.token, token)).get();
 
     if (!invite) {
-      return NextResponse.json(
-        { error: "Invite not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Invite not found" }, { status: 404 });
     }
 
     if (invite.status !== "pending") {
-      return NextResponse.json(
-        { error: "Invite has already been used" },
-        { status: 410 }
-      );
+      return NextResponse.json({ error: "Invite has already been used" }, { status: 410 });
     }
 
     if (Date.now() > invite.expiresAt) {
-      return NextResponse.json(
-        { error: "Invite has expired" },
-        { status: 410 }
-      );
+      return NextResponse.json({ error: "Invite has expired" }, { status: 410 });
     }
 
     // Check if user is already a member
     const existingMember = db
       .select()
       .from(teamMembers)
-      .where(
-        and(
-          eq(teamMembers.teamId, invite.teamId),
-          eq(teamMembers.userId, userId)
-        )
-      )
+      .where(and(eq(teamMembers.teamId, invite.teamId), eq(teamMembers.userId, userId)))
       .get();
 
     if (existingMember) {
       // Mark invite as accepted since user is already in the team
-      db.update(teamInvites)
-        .set({ status: "accepted" })
-        .where(eq(teamInvites.id, invite.id))
-        .run();
+      db.update(teamInvites).set({ status: "accepted" }).where(eq(teamInvites.id, invite.id)).run();
 
       return NextResponse.json({ success: true, alreadyMember: true });
     }
 
     // Verify seat limit
-    const team = db
-      .select()
-      .from(teams)
-      .where(eq(teams.id, invite.teamId))
-      .get();
+    const team = db.select().from(teams).where(eq(teams.id, invite.teamId)).get();
 
     if (!team) {
-      return NextResponse.json(
-        { error: "Team no longer exists" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Team no longer exists" }, { status: 404 });
     }
 
     const memberCount = db
@@ -163,10 +124,7 @@ export async function POST(
 
     const seatLimit = SEAT_LIMITS[team.plan] ?? 5;
     if (memberCount >= seatLimit) {
-      return NextResponse.json(
-        { error: "Team is at capacity" },
-        { status: 409 }
-      );
+      return NextResponse.json({ error: "Team is at capacity" }, { status: 409 });
     }
 
     // Add user to team and mark invite as accepted
@@ -179,10 +137,7 @@ export async function POST(
       })
       .run();
 
-    db.update(teamInvites)
-      .set({ status: "accepted" })
-      .where(eq(teamInvites.id, invite.id))
-      .run();
+    db.update(teamInvites).set({ status: "accepted" }).where(eq(teamInvites.id, invite.id)).run();
 
     return NextResponse.json({
       success: true,
@@ -191,9 +146,6 @@ export async function POST(
     });
   } catch (error) {
     console.error("POST /api/invites/[token] error:", error);
-    return NextResponse.json(
-      { error: "Failed to accept invite" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to accept invite" }, { status: 500 });
   }
 }

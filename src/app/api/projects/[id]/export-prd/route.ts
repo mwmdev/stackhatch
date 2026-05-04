@@ -1,27 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import { eq, and } from "drizzle-orm";
 import Anthropic from "@anthropic-ai/sdk";
 import { getDb } from "@/db";
-import { projects } from "@/db/schema";
 import { runMigrations } from "@/db/migrate";
 import { getSettings, getApiKey, getModel, getPrompt } from "@/lib/ai/settings";
 import { DEFAULT_PRD_PROMPT } from "@/lib/ai/default-prompts";
 import { buildCanvasContext } from "@/lib/ai/context-builder";
 import type { StackArchitecture } from "@/types/stack";
 import { getAuthenticatedUser, requireRole } from "@/lib/auth";
+import { getAccessibleProject } from "@/lib/project-access";
 
-export async function POST(
-  _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function POST(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
   const user = await getAuthenticatedUser();
   if (!user) {
-    return NextResponse.json(
-      { error: "Authentication required" },
-      { status: 401 },
-    );
+    return NextResponse.json({ error: "Authentication required" }, { status: 401 });
   }
   const roleErr = requireRole(user.role, ["admin", "paid-user"]);
   if (roleErr) return roleErr;
@@ -29,11 +22,7 @@ export async function POST(
   const db = getDb();
   runMigrations(db);
 
-  const project = db
-    .select({ name: projects.name, canvasState: projects.canvasState })
-    .from(projects)
-    .where(and(eq(projects.id, id), eq(projects.userId, user.userId)))
-    .get();
+  const project = getAccessibleProject(db, id, user.userId);
 
   if (!project) {
     return NextResponse.json({ error: "Project not found" }, { status: 404 });
@@ -42,7 +31,7 @@ export async function POST(
   if (!project.canvasState) {
     return NextResponse.json(
       { error: "No architecture to export. Add nodes to the canvas first." },
-      { status: 400 },
+      { status: 400 }
     );
   }
 
@@ -50,25 +39,22 @@ export async function POST(
   try {
     architecture = JSON.parse(project.canvasState);
   } catch {
-    return NextResponse.json(
-      { error: "Invalid canvas state" },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: "Invalid canvas state" }, { status: 400 });
   }
 
   if (!architecture.nodes || architecture.nodes.length === 0) {
     return NextResponse.json(
       { error: "No nodes in architecture. Add components first." },
-      { status: 400 },
+      { status: 400 }
     );
   }
 
   const settingsMap = getSettings(db);
-  const apiKey = getApiKey(settingsMap);
+  const apiKey = getApiKey();
   if (!apiKey) {
     return NextResponse.json(
-      { error: "API key not configured. Please set it in Settings." },
-      { status: 400 },
+      { error: "AI is not configured on this server.", code: "AI_NOT_CONFIGURED" },
+      { status: 503 }
     );
   }
 
@@ -92,8 +78,7 @@ export async function POST(
       ],
     });
 
-    const prd =
-      response.content[0].type === "text" ? response.content[0].text : "";
+    const prd = response.content[0].type === "text" ? response.content[0].text : "";
 
     return NextResponse.json({ prd, projectName: project.name });
   } catch (err) {

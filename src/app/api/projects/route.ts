@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/db";
 import { projects, teamMembers, teams } from "@/db/schema";
 import { runMigrations } from "@/db/migrate";
-import { v4 as uuid } from "uuid";
 import { z } from "zod";
 import { desc, eq, and, or, inArray, count } from "drizzle-orm";
 import { getAuthenticatedUser, getAuthenticatedUserId } from "@/lib/auth";
 import { PLAN_CONFIG } from "@/lib/stripe";
+import { createId } from "@/lib/id";
 
 const createProjectSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -20,20 +20,19 @@ export async function POST(request: NextRequest) {
   try {
     const user = await getAuthenticatedUser();
     if (!user) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 },
-      );
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
     }
     const userId = user.userId;
 
-    const body = await request.json();
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    }
     const parsed = createProjectSchema.safeParse(body);
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues[0].message },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
     }
 
     const db = getDb();
@@ -55,7 +54,7 @@ export async function POST(request: NextRequest) {
             limit,
             used: total,
           },
-          { status: 403 },
+          { status: 403 }
         );
       }
     }
@@ -65,25 +64,17 @@ export async function POST(request: NextRequest) {
       const membership = db
         .select()
         .from(teamMembers)
-        .where(
-          and(
-            eq(teamMembers.teamId, parsed.data.teamId),
-            eq(teamMembers.userId, userId),
-          ),
-        )
+        .where(and(eq(teamMembers.teamId, parsed.data.teamId), eq(teamMembers.userId, userId)))
         .get();
 
       if (!membership) {
-        return NextResponse.json(
-          { error: "You are not a member of this team" },
-          { status: 403 },
-        );
+        return NextResponse.json({ error: "You are not a member of this team" }, { status: 403 });
       }
     }
 
     const now = Date.now();
     const project = {
-      id: uuid(),
+      id: createId(),
       name: parsed.data.name,
       description: parsed.data.description ?? null,
       repoUrl: parsed.data.repoUrl ?? null,
@@ -98,10 +89,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(project, { status: 201 });
   } catch {
-    return NextResponse.json(
-      { error: "Failed to create project" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Failed to create project" }, { status: 500 });
   }
 }
 
@@ -109,10 +97,7 @@ export async function GET() {
   try {
     const userId = await getAuthenticatedUserId();
     if (!userId) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 },
-      );
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
     }
 
     const db = getDb();
@@ -152,9 +137,6 @@ export async function GET() {
     return NextResponse.json(userProjects);
   } catch (error) {
     console.error("GET /api/projects error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch projects" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Failed to fetch projects" }, { status: 500 });
   }
 }

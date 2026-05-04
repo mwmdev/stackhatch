@@ -28,6 +28,7 @@ function createTestDb(): AppDatabase {
       email TEXT,
       name TEXT,
       avatar_url TEXT,
+      role TEXT DEFAULT 'free-user' NOT NULL,
       created_at INTEGER NOT NULL
     );
     CREATE TABLE projects (
@@ -37,6 +38,7 @@ function createTestDb(): AppDatabase {
       repo_url TEXT,
       canvas_state TEXT,
       user_id TEXT,
+      team_id TEXT,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -89,10 +91,10 @@ function mockAnthropicStream(text: string) {
 
 /** Helper to read the full SSE response body as parsed events */
 async function readSSEEvents(
-  response: Response,
-): Promise<Array<{ type: string; content?: unknown }>> {
+  response: Response
+): Promise<Array<{ type: string; content?: unknown; code?: string }>> {
   const text = await response.text();
-  const events: Array<{ type: string; content?: unknown }> = [];
+  const events: Array<{ type: string; content?: unknown; code?: string }> = [];
   const lines = text.split("\n");
   for (const line of lines) {
     if (line.startsWith("data: ")) {
@@ -114,6 +116,7 @@ const testUser = {
   email: "test@example.com",
   name: "Test User",
   avatarUrl: "https://example.com/avatar.png",
+  role: "free-user" as const,
   createdAt: Date.now(),
 };
 
@@ -137,16 +140,13 @@ beforeEach(() => {
     })
     .run();
 
-  // Set API key in settings
-  db.insert(settings).values({ key: "apiKey", value: "sk-ant-test123" }).run();
+  process.env.ANTHROPIC_API_KEY = "sk-ant-test123";
 });
 
 describe("streamChat", () => {
   it("streams text response via SSE", async () => {
     const mockClient = mockAnthropicStream("Hello, world!");
-    vi.mocked(Anthropic).mockImplementation(
-      () => mockClient as unknown as Anthropic,
-    );
+    vi.mocked(Anthropic).mockImplementation(() => mockClient as unknown as Anthropic);
 
     const response = streamChat(db, projectId, "Hi there");
     const events = await readSSEEvents(response);
@@ -165,9 +165,7 @@ describe("streamChat", () => {
 
   it("persists user message to database", async () => {
     const mockClient = mockAnthropicStream("Response");
-    vi.mocked(Anthropic).mockImplementation(
-      () => mockClient as unknown as Anthropic,
-    );
+    vi.mocked(Anthropic).mockImplementation(() => mockClient as unknown as Anthropic);
 
     const response = streamChat(db, projectId, "My test message");
     await response.text(); // consume stream
@@ -186,9 +184,7 @@ describe("streamChat", () => {
 
   it("persists assistant response to database", async () => {
     const mockClient = mockAnthropicStream("AI response text");
-    vi.mocked(Anthropic).mockImplementation(
-      () => mockClient as unknown as Anthropic,
-    );
+    vi.mocked(Anthropic).mockImplementation(() => mockClient as unknown as Anthropic);
 
     const response = streamChat(db, projectId, "Hello");
     await response.text();
@@ -224,9 +220,7 @@ describe("streamChat", () => {
 
     const responseText = `Here's your architecture:\n\n<stack>\n${JSON.stringify(architecture)}\n</stack>\n\nLet me know what you think!`;
     const mockClient = mockAnthropicStream(responseText);
-    vi.mocked(Anthropic).mockImplementation(
-      () => mockClient as unknown as Anthropic,
-    );
+    vi.mocked(Anthropic).mockImplementation(() => mockClient as unknown as Anthropic);
 
     const response = streamChat(db, projectId, "Build a React app");
     const events = await readSSEEvents(response);
@@ -237,11 +231,7 @@ describe("streamChat", () => {
     expect(archEvent!.content).toEqual(architecture);
 
     // Should save to canvasState in DB
-    const project = db
-      .select()
-      .from(projects)
-      .where(eq(projects.id, projectId))
-      .get();
+    const project = db.select().from(projects).where(eq(projects.id, projectId)).get();
     expect(project!.canvasState).not.toBeNull();
     const savedArch = JSON.parse(project!.canvasState!);
     expect(savedArch.nodes).toHaveLength(1);
@@ -249,12 +239,8 @@ describe("streamChat", () => {
   });
 
   it("handles response without architecture (pure chat)", async () => {
-    const mockClient = mockAnthropicStream(
-      "What kind of app are you building?",
-    );
-    vi.mocked(Anthropic).mockImplementation(
-      () => mockClient as unknown as Anthropic,
-    );
+    const mockClient = mockAnthropicStream("What kind of app are you building?");
+    vi.mocked(Anthropic).mockImplementation(() => mockClient as unknown as Anthropic);
 
     const response = streamChat(db, projectId, "I want to build an app");
     const events = await readSSEEvents(response);
@@ -264,19 +250,11 @@ describe("streamChat", () => {
     expect(archEvent).toBeUndefined();
 
     // canvasState should still be null
-    const project = db
-      .select()
-      .from(projects)
-      .where(eq(projects.id, projectId))
-      .get();
+    const project = db.select().from(projects).where(eq(projects.id, projectId)).get();
     expect(project!.canvasState).toBeNull();
   });
 
   it("returns error when API key is not configured", async () => {
-    // Remove API key
-    db.delete(settings).where(eq(settings.key, "apiKey")).run();
-
-    // Clear env var
     const original = process.env.ANTHROPIC_API_KEY;
     delete process.env.ANTHROPIC_API_KEY;
 
@@ -286,25 +264,20 @@ describe("streamChat", () => {
 
       expect(events).toHaveLength(1);
       expect(events[0].type).toBe("error");
-      expect(events[0].content).toContain("API key not configured");
+      expect(events[0].code).toBe("AI_NOT_CONFIGURED");
+      expect(events[0].content).toContain("AI is not configured");
     } finally {
       if (original) process.env.ANTHROPIC_API_KEY = original;
     }
   });
 
-  it("falls back to env var for API key", async () => {
-    // Remove DB setting
-    db.delete(settings).where(eq(settings.key, "apiKey")).run();
-
-    // Set env var
+  it("uses env var for API key", async () => {
     const original = process.env.ANTHROPIC_API_KEY;
     process.env.ANTHROPIC_API_KEY = "sk-ant-env-key";
 
     try {
       const mockClient = mockAnthropicStream("Response");
-      vi.mocked(Anthropic).mockImplementation(
-        () => mockClient as unknown as Anthropic,
-      );
+      vi.mocked(Anthropic).mockImplementation(() => mockClient as unknown as Anthropic);
 
       const response = streamChat(db, projectId, "Hello");
       await response.text();
@@ -332,9 +305,7 @@ describe("streamChat", () => {
         }),
       },
     };
-    vi.mocked(Anthropic).mockImplementation(
-      () => mockClient as unknown as Anthropic,
-    );
+    vi.mocked(Anthropic).mockImplementation(() => mockClient as unknown as Anthropic);
 
     const response = streamChat(db, projectId, "Hello");
     const events = await readSSEEvents(response);
@@ -345,12 +316,8 @@ describe("streamChat", () => {
   });
 
   it("triggers init flow when no user message and no history", async () => {
-    const mockClient = mockAnthropicStream(
-      "Welcome! What are you building?",
-    );
-    vi.mocked(Anthropic).mockImplementation(
-      () => mockClient as unknown as Anthropic,
-    );
+    const mockClient = mockAnthropicStream("Welcome! What are you building?");
+    vi.mocked(Anthropic).mockImplementation(() => mockClient as unknown as Anthropic);
 
     const response = streamChat(db, projectId, null);
     const events = await readSSEEvents(response);
@@ -375,9 +342,7 @@ describe("streamChat", () => {
   });
 
   it("uses model from settings", async () => {
-    db.insert(settings)
-      .values({ key: "model", value: "claude-opus-4-20250514" })
-      .run();
+    db.insert(settings).values({ key: "model", value: "claude-opus-4-20250514" }).run();
 
     const mockClient = mockAnthropicStream("Response");
     const streamFn = vi.fn().mockReturnValue({
@@ -388,15 +353,13 @@ describe("streamChat", () => {
       }),
     });
     (mockClient.messages as { stream: typeof streamFn }).stream = streamFn;
-    vi.mocked(Anthropic).mockImplementation(
-      () => mockClient as unknown as Anthropic,
-    );
+    vi.mocked(Anthropic).mockImplementation(() => mockClient as unknown as Anthropic);
 
     const response = streamChat(db, projectId, "Hello");
     await response.text();
 
     expect(streamFn).toHaveBeenCalledWith(
-      expect.objectContaining({ model: "claude-opus-4-20250514" }),
+      expect.objectContaining({ model: "claude-opus-4-20250514" })
     );
   });
 
@@ -431,18 +394,14 @@ describe("streamChat", () => {
       }),
     });
     const mockClient = { messages: { stream: streamFn } };
-    vi.mocked(Anthropic).mockImplementation(
-      () => mockClient as unknown as Anthropic,
-    );
+    vi.mocked(Anthropic).mockImplementation(() => mockClient as unknown as Anthropic);
 
     const response = streamChat(db, projectId, "Add a cache layer");
     await response.text();
 
     // Verify that the messages include architecture context
     const callArgs = streamFn.mock.calls[0][0];
-    const allContent = callArgs.messages
-      .map((m: { content: string }) => m.content)
-      .join(" ");
+    const allContent = callArgs.messages.map((m: { content: string }) => m.content).join(" ");
     expect(allContent).toContain("LOCKED");
     expect(allContent).toContain("PostgreSQL");
   });
@@ -455,9 +414,7 @@ describe("streamChat", () => {
       .run();
 
     const mockClient = mockAnthropicStream("Response");
-    vi.mocked(Anthropic).mockImplementation(
-      () => mockClient as unknown as Anthropic,
-    );
+    vi.mocked(Anthropic).mockImplementation(() => mockClient as unknown as Anthropic);
 
     const response = streamChat(db, projectId, "Hello");
     const events = await readSSEEvents(response);
@@ -470,12 +427,9 @@ describe("streamChat", () => {
   });
 
   it("handles malformed <stack> JSON in AI response", async () => {
-    const responseText =
-      "Here's your architecture:\n\n<stack>\n{invalid json}\n</stack>";
+    const responseText = "Here's your architecture:\n\n<stack>\n{invalid json}\n</stack>";
     const mockClient = mockAnthropicStream(responseText);
-    vi.mocked(Anthropic).mockImplementation(
-      () => mockClient as unknown as Anthropic,
-    );
+    vi.mocked(Anthropic).mockImplementation(() => mockClient as unknown as Anthropic);
 
     const response = streamChat(db, projectId, "Build something");
     const events = await readSSEEvents(response);
@@ -484,11 +438,7 @@ describe("streamChat", () => {
     expect(events.find((e) => e.type === "architecture")).toBeUndefined();
 
     // canvasState should stay null
-    const project = db
-      .select()
-      .from(projects)
-      .where(eq(projects.id, projectId))
-      .get();
+    const project = db.select().from(projects).where(eq(projects.id, projectId)).get();
     expect(project!.canvasState).toBeNull();
 
     // Should still emit done

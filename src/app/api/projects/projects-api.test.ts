@@ -17,6 +17,7 @@ function createTestDb() {
       email TEXT,
       name TEXT,
       avatar_url TEXT,
+      role TEXT DEFAULT 'free-user' NOT NULL,
       created_at INTEGER NOT NULL
     );
     CREATE TABLE projects (
@@ -26,6 +27,7 @@ function createTestDb() {
       repo_url TEXT,
       canvas_state TEXT,
       user_id TEXT,
+      team_id TEXT,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -42,6 +44,24 @@ function createTestDb() {
       key TEXT PRIMARY KEY NOT NULL,
       value TEXT NOT NULL
     );
+    CREATE TABLE teams (
+      id TEXT PRIMARY KEY NOT NULL,
+      name TEXT NOT NULL,
+      plan TEXT NOT NULL,
+      owner_id TEXT NOT NULL,
+      stripe_subscription_id TEXT,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+    CREATE TABLE team_members (
+      team_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      role TEXT NOT NULL,
+      joined_at INTEGER NOT NULL,
+      PRIMARY KEY(team_id, user_id),
+      FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
   `);
   return drizzle(sqlite, { schema });
 }
@@ -57,25 +77,23 @@ vi.mock("@/db/migrate", () => ({
 // Mock authentication
 vi.mock("@/lib/auth", () => ({
   getAuthenticatedUserId: vi.fn(() => Promise.resolve("test-user-id")),
-  getAuthenticatedUser: vi.fn(() => Promise.resolve({
-    userId: "test-user-id",
-    name: "Test User",
-    email: "test@example.com",
-    image: null,
-  })),
+  getAuthenticatedUser: vi.fn(() =>
+    Promise.resolve({
+      userId: "test-user-id",
+      role: "admin",
+      name: "Test User",
+      email: "test@example.com",
+      image: null,
+    })
+  ),
 }));
 
 // Import routes after mocks
 const projectsRoute = await import("@/app/api/projects/route");
 const projectIdRoute = await import("@/app/api/projects/[id]/route");
-const messagesRoute = await import(
-  "@/app/api/projects/[id]/messages/route"
-);
+const messagesRoute = await import("@/app/api/projects/[id]/messages/route");
 
-function makeRequest(
-  url: string,
-  options?: { method?: string; body?: unknown },
-) {
+function makeRequest(url: string, options?: { method?: string; body?: unknown }) {
   const init: RequestInit = { method: options?.method ?? "GET" };
   if (options?.body !== undefined) {
     init.headers = { "Content-Type": "application/json" };
@@ -91,14 +109,18 @@ function makeParams(id: string) {
 beforeEach(() => {
   testDb = createTestDb();
   // Create test user
-  testDb.insert(users).values({
-    id: "test-user-id",
-    githubId: "123456789",
-    email: "test@example.com",
-    name: "Test User",
-    avatarUrl: null,
-    createdAt: Date.now(),
-  }).run();
+  testDb
+    .insert(users)
+    .values({
+      id: "test-user-id",
+      githubId: "123456789",
+      email: "test@example.com",
+      name: "Test User",
+      avatarUrl: null,
+      role: "admin",
+      createdAt: Date.now(),
+    })
+    .run();
 });
 
 describe("GET /api/projects", () => {
@@ -251,7 +273,7 @@ describe("GET /api/projects/[id]", () => {
 
     const res = await projectIdRoute.GET(
       makeRequest("/api/projects/p1") as never,
-      makeParams("p1"),
+      makeParams("p1")
     );
     expect(res.status).toBe(200);
 
@@ -276,7 +298,7 @@ describe("GET /api/projects/[id]", () => {
 
     const res = await projectIdRoute.GET(
       makeRequest("/api/projects/p1") as never,
-      makeParams("p1"),
+      makeParams("p1")
     );
     const data = await res.json();
     expect(data.canvasState).toBeNull();
@@ -285,7 +307,7 @@ describe("GET /api/projects/[id]", () => {
   it("returns 404 for nonexistent project", async () => {
     const res = await projectIdRoute.GET(
       makeRequest("/api/projects/nonexistent") as never,
-      makeParams("nonexistent"),
+      makeParams("nonexistent")
     );
     expect(res.status).toBe(404);
 
@@ -366,10 +388,7 @@ describe("PATCH /api/projects/[id]", () => {
       body: { name: "Nope" },
     });
 
-    const res = await projectIdRoute.PATCH(
-      req as never,
-      makeParams("nonexistent"),
-    );
+    const res = await projectIdRoute.PATCH(req as never, makeParams("nonexistent"));
     expect(res.status).toBe(404);
   });
 
@@ -446,7 +465,7 @@ describe("DELETE /api/projects/[id]", () => {
 
     const res = await projectIdRoute.DELETE(
       makeRequest("/api/projects/p1", { method: "DELETE" }) as never,
-      makeParams("p1"),
+      makeParams("p1")
     );
     expect(res.status).toBe(200);
 
@@ -493,7 +512,7 @@ describe("DELETE /api/projects/[id]", () => {
 
     await projectIdRoute.DELETE(
       makeRequest("/api/projects/p1", { method: "DELETE" }) as never,
-      makeParams("p1"),
+      makeParams("p1")
     );
 
     const remainingMessages = testDb.select().from(messages).all();
@@ -505,7 +524,7 @@ describe("DELETE /api/projects/[id]", () => {
       makeRequest("/api/projects/nonexistent", {
         method: "DELETE",
       }) as never,
-      makeParams("nonexistent"),
+      makeParams("nonexistent")
     );
     expect(res.status).toBe(404);
 
@@ -561,7 +580,7 @@ describe("GET /api/projects/[id]/messages", () => {
 
     const res = await messagesRoute.GET(
       makeRequest("/api/projects/p1/messages") as never,
-      makeParams("p1"),
+      makeParams("p1")
     );
     expect(res.status).toBe(200);
 
@@ -575,7 +594,7 @@ describe("GET /api/projects/[id]/messages", () => {
   it("returns empty array when no messages exist", async () => {
     const res = await messagesRoute.GET(
       makeRequest("/api/projects/p1/messages") as never,
-      makeParams("p1"),
+      makeParams("p1")
     );
     const data = await res.json();
     expect(data).toEqual([]);
@@ -584,7 +603,7 @@ describe("GET /api/projects/[id]/messages", () => {
   it("returns 404 for nonexistent project", async () => {
     const res = await messagesRoute.GET(
       makeRequest("/api/projects/nonexistent/messages") as never,
-      makeParams("nonexistent"),
+      makeParams("nonexistent")
     );
     expect(res.status).toBe(404);
 

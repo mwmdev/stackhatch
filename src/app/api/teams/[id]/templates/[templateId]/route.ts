@@ -29,27 +29,19 @@ async function isTeamOwner(teamId: string, userId: string): Promise<boolean> {
 
 // DELETE /api/teams/[id]/templates/[templateId] - Delete template (creator or team owner only)
 export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string; templateId: string } }
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string; templateId: string }> }
 ) {
   try {
+    const { id: teamId, templateId } = await params;
     const userId = await getAuthenticatedUserId();
     if (!userId) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
     }
-
-    const teamId = params.id;
-    const templateId = params.templateId;
 
     // Check if user is a team member
     if (!(await isTeamMember(teamId, userId))) {
-      return NextResponse.json(
-        { error: "Access denied" },
-        { status: 403 }
-      );
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
     const db = getDb();
@@ -63,10 +55,7 @@ export async function DELETE(
       .get();
 
     if (!template) {
-      return NextResponse.json(
-        { error: "Template not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Template not found" }, { status: 404 });
     }
 
     // Check if user is either the template creator or team owner
@@ -88,9 +77,6 @@ export async function DELETE(
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("DELETE /api/teams/[id]/templates/[templateId] error:", error);
-    return NextResponse.json(
-      { error: "Failed to delete template" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to delete template" }, { status: 500 });
   }
 }

@@ -18,8 +18,7 @@ function DynamicIcon({
   size?: number;
   className?: string;
 }) {
-  const Icon =
-    (icons as unknown as Record<string, typeof icons.Box>)[name] ?? icons.Box;
+  const Icon = (icons as unknown as Record<string, typeof icons.Box>)[name] ?? icons.Box;
   return <Icon size={size} className={className} />;
 }
 
@@ -58,14 +57,11 @@ function StackNodeComponent({ id, data, selected }: NodeProps<StackNodeData>) {
   const subtypeConfig = getSubtypeConfig(data.category, data.subtype, data.customSubtypes);
   const iconName = subtypeConfig?.icon ?? catConfig.icon;
 
-  const handleContextMenu = useCallback(
-    (e: React.MouseEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      setContextMenu({ visible: true, x: e.nativeEvent.offsetX, y: e.nativeEvent.offsetY });
-    },
-    [],
-  );
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({ visible: true, x: e.nativeEvent.offsetX, y: e.nativeEvent.offsetY });
+  }, []);
 
   const handleClick = useCallback(() => {
     data.onClick?.(id);
@@ -85,13 +81,11 @@ function StackNodeComponent({ id, data, selected }: NodeProps<StackNodeData>) {
 
   return (
     <div
-      className={`stack-node relative rounded-xl border-l-4 bg-[var(--card)] text-[var(--card-foreground)] shadow-md hover:shadow-lg ${
+      className={`stack-node relative rounded-xl border-2 bg-[var(--card)] text-[var(--card-foreground)] shadow-md hover:shadow-lg ${
         selected ? "ring-2 ring-blue-500" : ""
       } ${data.locked ? "border border-dashed border-[var(--muted-foreground)]" : ""}`}
       style={{
-        borderLeftColor: catConfig.color,
-        borderLeftWidth: "4px",
-        borderLeftStyle: "solid",
+        borderColor: catConfig.color,
         minWidth: "200px",
       }}
       onContextMenu={handleContextMenu}
@@ -108,10 +102,7 @@ function StackNodeComponent({ id, data, selected }: NodeProps<StackNodeData>) {
 
       {/* Lock indicator */}
       {data.locked && (
-        <div
-          className="absolute right-2 top-2"
-          data-testid="lock-indicator"
-        >
+        <div className="absolute right-2 top-2" data-testid="lock-indicator">
           <icons.Lock size={14} className="text-[var(--color-data)]" />
         </div>
       )}
@@ -141,9 +132,7 @@ function StackNodeComponent({ id, data, selected }: NodeProps<StackNodeData>) {
           >
             <DynamicIcon name={iconName} size={14} />
           </div>
-          <span className="text-sm font-semibold leading-tight">
-            {data.name}
-          </span>
+          <span className="text-sm font-semibold leading-tight">{data.name}</span>
         </div>
 
         {/* Technology subtitle */}
@@ -196,11 +185,7 @@ function StackNodeComponent({ id, data, selected }: NodeProps<StackNodeData>) {
             }}
             data-testid="context-menu-lock"
           >
-            {data.locked ? (
-              <icons.Unlock size={14} />
-            ) : (
-              <icons.Lock size={14} />
-            )}
+            {data.locked ? <icons.Unlock size={14} /> : <icons.Lock size={14} />}
             {data.locked ? "Unlock" : "Lock"}
           </button>
           <button

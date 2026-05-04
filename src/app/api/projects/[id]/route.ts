@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/db";
-import { projects, teamMembers } from "@/db/schema";
+import { projects } from "@/db/schema";
 import { runMigrations } from "@/db/migrate";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 import { getAuthenticatedUserId } from "@/lib/auth";
+import { getAccessibleProject } from "@/lib/project-access";
 
 const updateProjectSchema = z
   .object({
@@ -15,55 +16,27 @@ const updateProjectSchema = z
   })
   .strict();
 
-/**
- * Verify that a user can access a project (owner or team member).
- * Returns the project if accessible, null otherwise.
- */
-function verifyProjectAccess(db: ReturnType<typeof getDb>, projectId: string, userId: string) {
-  const project = db
-    .select()
-    .from(projects)
-    .where(eq(projects.id, projectId))
-    .get();
-
-  if (!project) return null;
-
-  // Owner always has access
-  if (project.userId === userId) return project;
-
-  // Team member has access to team projects
-  if (project.teamId) {
-    const membership = db
-      .select()
-      .from(teamMembers)
-      .where(
-        and(eq(teamMembers.teamId, project.teamId), eq(teamMembers.userId, userId)),
-      )
-      .get();
-    if (membership) return project;
+function parseCanvasState(value: string | null) {
+  if (!value) return null;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
   }
-
-  return null;
 }
 
-export async function GET(
-  _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
   const userId = await getAuthenticatedUserId();
   if (!userId) {
-    return NextResponse.json(
-      { error: "Authentication required" },
-      { status: 401 },
-    );
+    return NextResponse.json({ error: "Authentication required" }, { status: 401 });
   }
 
   const db = getDb();
   runMigrations(db);
 
-  const project = verifyProjectAccess(db, id, userId);
+  const project = getAccessibleProject(db, id, userId);
 
   if (!project) {
     return NextResponse.json({ error: "Project not found" }, { status: 404 });
@@ -71,55 +44,38 @@ export async function GET(
 
   return NextResponse.json({
     ...project,
-    canvasState: project.canvasState
-      ? JSON.parse(project.canvasState)
-      : null,
+    canvasState: parseCanvasState(project.canvasState),
   });
 }
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
   const userId = await getAuthenticatedUserId();
   if (!userId) {
-    return NextResponse.json(
-      { error: "Authentication required" },
-      { status: 401 },
-    );
+    return NextResponse.json({ error: "Authentication required" }, { status: 401 });
   }
 
   let body: unknown;
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json(
-      { error: "Invalid JSON body" },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
   const parsed = updateProjectSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json(
-      { error: parsed.error.issues[0].message },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
   }
 
   if (Object.keys(parsed.data).length === 0) {
-    return NextResponse.json(
-      { error: "No fields to update" },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: "No fields to update" }, { status: 400 });
   }
 
   const db = getDb();
   runMigrations(db);
 
-  const existing = verifyProjectAccess(db, id, userId);
+  const existing = getAccessibleProject(db, id, userId);
 
   if (!existing) {
     return NextResponse.json({ error: "Project not found" }, { status: 404 });
@@ -130,28 +86,23 @@ export async function PATCH(
     .where(eq(projects.id, id))
     .run();
 
-  const updated = verifyProjectAccess(db, id, userId);
+  const updated = getAccessibleProject(db, id, userId);
 
   return NextResponse.json({
     ...updated,
-    canvasState: updated!.canvasState
-      ? JSON.parse(updated!.canvasState)
-      : null,
+    canvasState: parseCanvasState(updated!.canvasState),
   });
 }
 
 export async function DELETE(
   _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
 
   const userId = await getAuthenticatedUserId();
   if (!userId) {
-    return NextResponse.json(
-      { error: "Authentication required" },
-      { status: 401 },
-    );
+    return NextResponse.json({ error: "Authentication required" }, { status: 401 });
   }
 
   const db = getDb();

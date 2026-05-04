@@ -1,49 +1,46 @@
 # StackHatch Monetization Plan
 
-Two tiers, both BYOK (Bring Your Own Key). Zero marginal cost per user — they pay Anthropic directly. We sell the tool, not the AI.
+Paid tiers use a server-managed Anthropic key. Users buy access to the tool; the deployment owner pays and manages AI usage centrally.
 
 ## Tiers
 
 ### Free
 
-| Feature | Limit |
-|---------|-------|
-| API key | **Required** |
-| Projects | 2 |
-| Chat messages | 30/month |
-| Repo scans | 2/month |
-| Canvas | Full |
-| Custom subtypes | No |
-| Model | Sonnet only |
-| Export | No |
+| Feature         | Limit       |
+| --------------- | ----------- |
+| Projects        | 2           |
+| Chat messages   | 20/month    |
+| Repo scans      | 2/month     |
+| Canvas          | Full        |
+| Custom subtypes | No          |
+| Model           | Sonnet only |
+| Export          | No          |
 
-### Pro — $9/mo
+### Pro — $19/mo
 
-| Feature | Limit |
-|---------|-------|
-| API key | Required |
-| Projects | Unlimited |
-| Chat messages | Unlimited |
-| Repo scans | Unlimited |
-| Canvas | Full |
-| Custom subtypes | Yes |
-| Model | All |
-| Export | PNG, SVG, JSON, Markdown |
-| Architecture versioning | Yes |
+| Feature                 | Limit                    |
+| ----------------------- | ------------------------ |
+| Projects                | Unlimited                |
+| Chat messages           | Unlimited                |
+| Repo scans              | Unlimited                |
+| Canvas                  | Full                     |
+| Custom subtypes         | Yes                      |
+| Model                   | All                      |
+| Export                  | PNG, SVG, JSON, Markdown |
+| Architecture versioning | Yes                      |
 
 ## Pricing Rationale
 
-- Zero marginal cost per user (they pay Anthropic directly)
-- Low enough to be an impulse buy
-- High enough to filter out non-serious users
-- Clean price point — "less than a lunch"
+- Centralized AI cost control
+- Low enough for individual developers
+- High enough to cover shared AI usage and Stripe fees
 
 ## Natural Upgrade Triggers
 
 Users hit one of these walls naturally:
 
 1. **3rd project** — "I need more than 2"
-2. **31st message** — mid-conversation cutoff is painful
+2. **21st message** — mid-conversation cutoff is painful
 3. **Export** — they built something great and can't get it out
 4. **Opus** — they want better architecture suggestions
 

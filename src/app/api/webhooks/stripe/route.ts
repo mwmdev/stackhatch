@@ -4,7 +4,7 @@ import { subscriptions, users, usage } from "@/db/schema";
 import { runMigrations } from "@/db/migrate";
 import { eq } from "drizzle-orm";
 import { getStripe, getPlanByPriceId } from "@/lib/stripe";
-import { v4 as uuid } from "uuid";
+import { createId } from "@/lib/id";
 import type Stripe from "stripe";
 
 // Stripe webhooks need the raw body for signature verification.
@@ -15,10 +15,7 @@ export async function POST(request: NextRequest) {
   const signature = request.headers.get("stripe-signature");
 
   if (!signature) {
-    return NextResponse.json(
-      { error: "Missing stripe-signature header" },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: "Missing stripe-signature header" }, { status: 400 });
   }
 
   let event: Stripe.Event;
@@ -26,14 +23,11 @@ export async function POST(request: NextRequest) {
     event = getStripe().webhooks.constructEvent(
       body,
       signature,
-      process.env.STRIPE_WEBHOOK_SECRET!,
+      process.env.STRIPE_WEBHOOK_SECRET!
     );
   } catch (err) {
     console.error("Webhook signature verification failed:", err);
-    return NextResponse.json(
-      { error: "Invalid signature" },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
   const db = getDb();
@@ -60,10 +54,7 @@ export async function POST(request: NextRequest) {
     }
   } catch (err) {
     console.error(`Webhook handler error for ${event.type}:`, err);
-    return NextResponse.json(
-      { error: "Webhook handler failed" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Webhook handler failed" }, { status: 500 });
   }
 
   return NextResponse.json({ received: true });
@@ -93,19 +84,20 @@ function handleSubscriptionChange(db: ReturnType<typeof getDb>, sub: Stripe.Subs
     }
   }
 
-  const status = sub.status === "active" ? "active" as const
-    : sub.status === "past_due" ? "past_due" as const
-    : sub.cancel_at_period_end ? "canceled" as const
-    : "active" as const;
+  const status =
+    sub.status === "active"
+      ? ("active" as const)
+      : sub.status === "past_due"
+        ? ("past_due" as const)
+        : sub.cancel_at_period_end
+          ? ("canceled" as const)
+          : ("active" as const);
 
   const now = Date.now();
-  const currentPeriodEnd = (sub.items.data[0]?.current_period_end ?? Math.floor(Date.now() / 1000)) * 1000;
+  const currentPeriodEnd =
+    (sub.items.data[0]?.current_period_end ?? Math.floor(Date.now() / 1000)) * 1000;
 
-  const existing = db
-    .select()
-    .from(subscriptions)
-    .where(eq(subscriptions.userId, userId))
-    .get();
+  const existing = db.select().from(subscriptions).where(eq(subscriptions.userId, userId)).get();
 
   if (existing) {
     db.update(subscriptions)
@@ -123,7 +115,7 @@ function handleSubscriptionChange(db: ReturnType<typeof getDb>, sub: Stripe.Subs
   } else {
     db.insert(subscriptions)
       .values({
-        id: uuid(),
+        id: createId(),
         userId,
         stripeCustomerId: sub.customer as string,
         stripeSubscriptionId: sub.id,
@@ -139,10 +131,7 @@ function handleSubscriptionChange(db: ReturnType<typeof getDb>, sub: Stripe.Subs
 
   // Update user role
   const role = status === "active" ? "paid-user" : "free-user";
-  db.update(users)
-    .set({ role })
-    .where(eq(users.id, userId))
-    .run();
+  db.update(users).set({ role }).where(eq(users.id, userId)).run();
 }
 
 function handleSubscriptionDeleted(db: ReturnType<typeof getDb>, sub: Stripe.Subscription) {
@@ -155,11 +144,7 @@ function handleSubscriptionDeleted(db: ReturnType<typeof getDb>, sub: Stripe.Sub
   const now = Date.now();
 
   // Mark subscription as canceled
-  const existing = db
-    .select()
-    .from(subscriptions)
-    .where(eq(subscriptions.userId, userId))
-    .get();
+  const existing = db.select().from(subscriptions).where(eq(subscriptions.userId, userId)).get();
 
   if (existing) {
     db.update(subscriptions)
@@ -172,10 +157,7 @@ function handleSubscriptionDeleted(db: ReturnType<typeof getDb>, sub: Stripe.Sub
   }
 
   // Revert user to free
-  db.update(users)
-    .set({ role: "free-user" })
-    .where(eq(users.id, userId))
-    .run();
+  db.update(users).set({ role: "free-user" }).where(eq(users.id, userId)).run();
 }
 
 function getInvoiceSubscriptionId(invoice: Stripe.Invoice): string | null {
@@ -231,19 +213,12 @@ function handleInvoicePaid(db: ReturnType<typeof getDb>, invoice: Stripe.Invoice
     .run();
 
   // Update user role to paid
-  db.update(users)
-    .set({ role: "paid-user" })
-    .where(eq(users.id, existing.userId))
-    .run();
+  db.update(users).set({ role: "paid-user" }).where(eq(users.id, existing.userId)).run();
 
   // Reset usage counters for the new billing period
   const periodEnd = now + 30 * 24 * 60 * 60 * 1000; // ~30 days
 
-  const existingUsage = db
-    .select()
-    .from(usage)
-    .where(eq(usage.userId, existing.userId))
-    .get();
+  const existingUsage = db.select().from(usage).where(eq(usage.userId, existing.userId)).get();
 
   if (existingUsage) {
     db.update(usage)

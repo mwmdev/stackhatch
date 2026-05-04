@@ -1,21 +1,17 @@
 import { NextRequest } from "next/server";
 import { getDb } from "@/db";
-import { projects } from "@/db/schema";
 import { runMigrations } from "@/db/migrate";
-import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 import { streamChat } from "@/lib/ai/stream-chat";
 import { getAuthenticatedUser } from "@/lib/auth";
 import { incrementMessages } from "@/lib/usage";
+import { getAccessibleProject } from "@/lib/project-access";
 
 const chatSchema = z.object({
   message: z.string().min(1),
 });
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
   const user = await getAuthenticatedUser();
@@ -30,11 +26,7 @@ export async function POST(
   const db = getDb();
   runMigrations(db);
 
-  const project = db
-    .select({ id: projects.id })
-    .from(projects)
-    .where(and(eq(projects.id, id), eq(projects.userId, userId)))
-    .get();
+  const project = getAccessibleProject(db, id, userId);
 
   if (!project) {
     return new Response(JSON.stringify({ error: "Project not found" }), {
@@ -43,13 +35,21 @@ export async function POST(
     });
   }
 
-  const body = await request.json();
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return new Response(JSON.stringify({ error: "Invalid JSON body" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
   const parsed = chatSchema.safeParse(body);
   if (!parsed.success) {
-    return new Response(
-      JSON.stringify({ error: parsed.error.issues[0].message }),
-      { status: 400, headers: { "Content-Type": "application/json" } },
-    );
+    return new Response(JSON.stringify({ error: parsed.error.issues[0].message }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 
   // Enforce usage limits for free users
@@ -67,7 +67,7 @@ export async function POST(
         {
           status: 429,
           headers: { "Content-Type": "application/json" },
-        },
+        }
       );
     }
     usageRemaining = result.limit - result.used;

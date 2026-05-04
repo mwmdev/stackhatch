@@ -11,20 +11,14 @@ const renameTeamSchema = z.object({
 });
 
 // GET /api/teams/[id] - Get team details with members
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id: teamId } = await params;
     const userId = await getAuthenticatedUserId();
     if (!userId) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
     }
 
-    const teamId = params.id;
     const db = getDb();
     runMigrations(db);
 
@@ -32,20 +26,14 @@ export async function GET(
     const membership = db
       .select()
       .from(teamMembers)
-      .where(
-        and(eq(teamMembers.teamId, teamId), eq(teamMembers.userId, userId))
-      )
+      .where(and(eq(teamMembers.teamId, teamId), eq(teamMembers.userId, userId)))
       .get();
 
     if (!membership) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
-    const team = db
-      .select()
-      .from(teams)
-      .where(eq(teams.id, teamId))
-      .get();
+    const team = db.select().from(teams).where(eq(teams.id, teamId)).get();
 
     if (!team) {
       return NextResponse.json({ error: "Team not found" }, { status: 404 });
@@ -73,45 +61,29 @@ export async function GET(
     });
   } catch (error) {
     console.error("GET /api/teams/[id] error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch team" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to fetch team" }, { status: 500 });
   }
 }
 
 // PATCH /api/teams/[id] - Rename team (owner only)
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id: teamId } = await params;
     const userId = await getAuthenticatedUserId();
     if (!userId) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
     }
 
     const body = await request.json();
     const parsed = renameTeamSchema.safeParse(body);
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues[0].message },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
     }
 
-    const teamId = params.id;
     const db = getDb();
     runMigrations(db);
 
-    const team = db
-      .select()
-      .from(teams)
-      .where(eq(teams.id, teamId))
-      .get();
+    const team = db.select().from(teams).where(eq(teams.id, teamId)).get();
 
     if (!team) {
       return NextResponse.json({ error: "Team not found" }, { status: 404 });
@@ -124,17 +96,11 @@ export async function PATCH(
       );
     }
 
-    db.update(teams)
-      .set({ name: parsed.data.name })
-      .where(eq(teams.id, teamId))
-      .run();
+    db.update(teams).set({ name: parsed.data.name }).where(eq(teams.id, teamId)).run();
 
     return NextResponse.json({ success: true, name: parsed.data.name });
   } catch (error) {
     console.error("PATCH /api/teams/[id] error:", error);
-    return NextResponse.json(
-      { error: "Failed to rename team" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to rename team" }, { status: 500 });
   }
 }

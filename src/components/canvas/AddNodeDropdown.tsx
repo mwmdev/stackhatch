@@ -15,8 +15,7 @@ function DynamicIcon({
   size?: number;
   className?: string;
 }) {
-  const Icon =
-    (icons as unknown as Record<string, typeof icons.Box>)[name] ?? icons.Box;
+  const Icon = (icons as unknown as Record<string, typeof icons.Box>)[name] ?? icons.Box;
   return <Icon size={size} className={className} />;
 }
 
@@ -27,24 +26,19 @@ export interface AddNodeDropdownProps {
 
 export default function AddNodeDropdown({ onAddNode, customSubtypes }: AddNodeDropdownProps) {
   const [open, setOpen] = useState(false);
-  const [expandedCategory, setExpandedCategory] =
-    useState<NodeCategory | null>(null);
+  const [expandedCategory, setExpandedCategory] = useState<NodeCategory | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(e.target as Node)
-      ) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setOpen(false);
         setExpandedCategory(null);
       }
     }
     if (open) {
       document.addEventListener("mousedown", handleClickOutside);
-      return () =>
-        document.removeEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
     }
   }, [open]);
 
@@ -58,7 +52,7 @@ export default function AddNodeDropdown({ onAddNode, customSubtypes }: AddNodeDr
     <div ref={dropdownRef} className="relative">
       <button
         onClick={() => setOpen((prev) => !prev)}
-        className="flex items-center gap-1.5 rounded border border-[var(--border)] px-3 py-1.5 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--muted)] transition-colors"
+        className="flex min-h-11 items-center gap-1.5 rounded border border-[var(--border)] px-3 py-2 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--muted)] transition-colors"
         aria-label="Add node"
         data-testid="add-node-button"
       >
@@ -77,9 +71,7 @@ export default function AddNodeDropdown({ onAddNode, customSubtypes }: AddNodeDr
             return (
               <div key={category}>
                 <button
-                  onClick={() =>
-                    setExpandedCategory(isExpanded ? null : category)
-                  }
+                  onClick={() => setExpandedCategory(isExpanded ? null : category)}
                   className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-[var(--muted)] transition-colors"
                   data-testid={`category-${category}`}
                 >
@@ -93,15 +85,9 @@ export default function AddNodeDropdown({ onAddNode, customSubtypes }: AddNodeDr
                     {config.displayName}
                   </span>
                   {isExpanded ? (
-                    <icons.ChevronDown
-                      size={14}
-                      className="text-[var(--muted-foreground)]"
-                    />
+                    <icons.ChevronDown size={14} className="text-[var(--muted-foreground)]" />
                   ) : (
-                    <icons.ChevronRight
-                      size={14}
-                      className="text-[var(--muted-foreground)]"
-                    />
+                    <icons.ChevronRight size={14} className="text-[var(--muted-foreground)]" />
                   )}
                 </button>
                 {isExpanded && (
@@ -110,12 +96,7 @@ export default function AddNodeDropdown({ onAddNode, customSubtypes }: AddNodeDr
                       ([subtype, subtypeConfig]) => (
                         <button
                           key={subtype}
-                          onClick={() =>
-                            handleSubtypeClick(
-                              category,
-                              subtype as NodeSubtype,
-                            )
-                          }
+                          onClick={() => handleSubtypeClick(category, subtype as NodeSubtype)}
                           className="flex w-full items-center gap-2 px-3 py-1.5 pl-11 text-sm text-[var(--foreground)] hover:bg-[var(--border)] transition-colors"
                           data-testid={`subtype-${subtype}`}
                         >
@@ -126,7 +107,7 @@ export default function AddNodeDropdown({ onAddNode, customSubtypes }: AddNodeDr
                           />
                           <span>{subtypeConfig.displayName}</span>
                         </button>
-                      ),
+                      )
                     )}
                   </div>
                 )}

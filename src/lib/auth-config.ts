@@ -1,11 +1,17 @@
 import NextAuth from "next-auth";
 import GitHubProvider from "next-auth/providers/github";
 import { getDb } from "@/db";
+import { runMigrations } from "@/db/migrate";
 import { users, type UserRole } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { v4 as uuid } from "uuid";
+import { createId } from "@/lib/id";
 
-export const { handlers: { GET, POST }, auth, signIn, signOut } = NextAuth({
+export const {
+  handlers: { GET, POST },
+  auth,
+  signIn,
+  signOut,
+} = NextAuth({
   providers: [
     GitHubProvider({
       clientId: process.env.GITHUB_CLIENT_ID!,
@@ -21,6 +27,7 @@ export const { handlers: { GET, POST }, auth, signIn, signOut } = NextAuth({
       if (account?.provider === "github" && profile?.id) {
         try {
           const db = getDb();
+          runMigrations(db);
           const githubId = String(profile.id);
 
           // Check if user already exists
@@ -35,7 +42,7 @@ export const { handlers: { GET, POST }, auth, signIn, signOut } = NextAuth({
           if (existingUser.length === 0) {
             // Create new user on first login
             await db.insert(users).values({
-              id: uuid(),
+              id: createId(),
               githubId,
               email: profile.email || null,
               name: profile.name || null,
@@ -53,10 +60,7 @@ export const { handlers: { GET, POST }, auth, signIn, signOut } = NextAuth({
             if (isAdmin && existingUser[0].role !== "admin") {
               updates.role = "admin";
             }
-            await db
-              .update(users)
-              .set(updates)
-              .where(eq(users.githubId, githubId));
+            await db.update(users).set(updates).where(eq(users.githubId, githubId));
           }
 
           return true;
@@ -77,14 +81,15 @@ export const { handlers: { GET, POST }, auth, signIn, signOut } = NextAuth({
         // Fetch the user ID from the database
         try {
           const db = getDb();
-          const user = await db
-            .select()
-            .from(users)
-            .where(eq(users.githubId, githubId))
-            .limit(1);
+          runMigrations(db);
+          const where = token.userId
+            ? eq(users.id, String(token.userId))
+            : eq(users.githubId, githubId);
+          const user = await db.select().from(users).where(where).limit(1);
 
           if (user.length > 0) {
             token.userId = user[0].id;
+            token.githubId = user[0].githubId;
             token.role = user[0].role;
           }
         } catch (error) {

@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
+import { integer, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 export type UserRole = "admin" | "free-user" | "paid-user";
 
@@ -8,7 +8,9 @@ export const users = sqliteTable("users", {
   email: text("email"),
   name: text("name"),
   avatarUrl: text("avatar_url"),
-  role: text("role", { enum: ["admin", "free-user", "paid-user"] }).notNull().default("free-user"),
+  role: text("role", { enum: ["admin", "free-user", "paid-user"] })
+    .notNull()
+    .default("free-user"),
   createdAt: integer("created_at", { mode: "number" }).notNull(),
 });
 
@@ -19,7 +21,7 @@ export const projects = sqliteTable("projects", {
   repoUrl: text("repo_url"),
   canvasState: text("canvas_state"),
   userId: text("user_id").references(() => users.id, { onDelete: "cascade" }),
-  teamId: text("team_id"), // nullable - projects can be personal or team-based
+  teamId: text("team_id").references(() => teams.id, { onDelete: "set null" }),
   createdAt: integer("created_at", { mode: "number" }).notNull(),
   updatedAt: integer("updated_at", { mode: "number" }).notNull(),
 });
@@ -47,7 +49,9 @@ export const subscriptions = sqliteTable("subscriptions", {
     .references(() => users.id, { onDelete: "cascade" }),
   stripeCustomerId: text("stripe_customer_id"),
   stripeSubscriptionId: text("stripe_subscription_id"),
-  plan: text("plan", { enum: ["free", "pro", "team"] }).notNull().default("free"),
+  plan: text("plan", { enum: ["free", "pro", "team"] })
+    .notNull()
+    .default("free"),
   billingInterval: text("billing_interval", { enum: ["monthly", "annual"] }).default("monthly"),
   status: text("status", { enum: ["active", "canceled", "past_due"] }).notNull(),
   currentPeriodEnd: integer("current_period_end", { mode: "number" }),
@@ -78,16 +82,24 @@ export const teams = sqliteTable("teams", {
   createdAt: integer("created_at", { mode: "number" }).notNull(),
 });
 
-export const teamMembers = sqliteTable("team_members", {
-  teamId: text("team_id")
-    .notNull()
-    .references(() => teams.id, { onDelete: "cascade" }),
-  userId: text("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  role: text("role", { enum: ["owner", "member"] }).notNull(),
-  joinedAt: integer("joined_at", { mode: "number" }).notNull(),
-});
+export const teamMembers = sqliteTable(
+  "team_members",
+  {
+    teamId: text("team_id")
+      .notNull()
+      .references(() => teams.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    role: text("role", { enum: ["owner", "member"] }).notNull(),
+    joinedAt: integer("joined_at", { mode: "number" }).notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.teamId, table.userId],
+    }),
+  ]
+);
 
 export const teamInvites = sqliteTable("team_invites", {
   id: text("id").primaryKey(),
@@ -100,7 +112,9 @@ export const teamInvites = sqliteTable("team_invites", {
     .references(() => users.id, { onDelete: "cascade" }),
   token: text("token").notNull().unique(),
   expiresAt: integer("expires_at", { mode: "number" }).notNull(),
-  status: text("status", { enum: ["pending", "accepted", "expired"] }).notNull().default("pending"),
+  status: text("status", { enum: ["pending", "accepted", "expired"] })
+    .notNull()
+    .default("pending"),
 });
 
 export const comments = sqliteTable("comments", {
