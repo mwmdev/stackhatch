@@ -411,6 +411,20 @@ describe("ProjectPage", () => {
       expect(screen.getByTestId("chat-sidebar")).toHaveAttribute("data-open", "false");
     });
 
+    it("places chat sidebar toggle at the top-left before the project title", async () => {
+      mockFetchProject(projectWithNodes);
+      render(<ProjectPage />);
+      await waitFor(() => {
+        expect(screen.getByLabelText("Show chat sidebar")).toBeInTheDocument();
+      });
+
+      const chatToggle = screen.getByLabelText("Show chat sidebar");
+      const projectTitle = screen.getByText("Test Project");
+      expect(
+        Boolean(chatToggle.compareDocumentPosition(projectTitle) & Node.DOCUMENT_POSITION_FOLLOWING)
+      ).toBe(true);
+    });
+
     it("shows Re-layout button when nodes exist", async () => {
       mockFetchProject(projectWithNodes);
       render(<ProjectPage />);

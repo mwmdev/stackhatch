@@ -859,27 +859,21 @@ export default function ProjectPage() {
       <div className="flex flex-1 flex-col">
         {/* Toolbar */}
         <div className="flex flex-wrap items-center gap-3 border-b border-[var(--border)] px-4 py-2">
-          <Link
-            href="/app"
-            className="mr-1 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+          <button
+            onClick={() => setChatOpen((value) => !value)}
+            className="flex h-11 w-11 items-center justify-center rounded-md text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
+            title={chatOpen ? "Hide chat sidebar" : "Show chat sidebar"}
+            aria-label={chatOpen ? "Hide chat sidebar" : "Show chat sidebar"}
+            aria-pressed={chatOpen}
           >
-            &larr;
-          </Link>
+            {chatOpen ? (
+              <PanelLeftClose className="h-[18px] w-[18px]" />
+            ) : (
+              <MessageSquareText className="h-[18px] w-[18px]" />
+            )}
+          </button>
           <h1 className="text-lg font-semibold">{project.name}</h1>
           <div className="ml-auto flex items-center gap-2">
-            <button
-              onClick={() => setChatOpen((value) => !value)}
-              className="flex h-11 w-11 items-center justify-center rounded-md text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
-              title={chatOpen ? "Hide chat sidebar" : "Show chat sidebar"}
-              aria-label={chatOpen ? "Hide chat sidebar" : "Show chat sidebar"}
-              aria-pressed={chatOpen}
-            >
-              {chatOpen ? (
-                <PanelLeftClose className="h-[18px] w-[18px]" />
-              ) : (
-                <MessageSquareText className="h-[18px] w-[18px]" />
-              )}
-            </button>
             <AddNodeDropdown onAddNode={handleAddNode} customSubtypes={customSubtypes} />
             {nodeCount > 0 && (
               <button
