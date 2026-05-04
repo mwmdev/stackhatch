@@ -448,15 +448,13 @@ describe("ProjectPage", () => {
       expect(screen.queryByText("Re-layout")).not.toBeInTheDocument();
     });
 
-    it("shows node count in toolbar", async () => {
+    it("does not show the node count in the toolbar", async () => {
       mockFetchProject(projectWithNodes);
       render(<ProjectPage />);
       await waitFor(() => {
-        expect(screen.getByText(/2 node/)).toBeInTheDocument();
+        expect(screen.getByTestId("react-flow-canvas")).toHaveAttribute("data-node-count", "2");
       });
-      // Use getAllByText since the mock canvas also renders node info
-      const nodeCountEl = screen.getByText(/2 node/);
-      expect(nodeCountEl).toBeInTheDocument();
+      expect(screen.queryByText(/2 node/)).not.toBeInTheDocument();
     });
 
     it("shows back to dashboard link", async () => {
@@ -471,7 +469,7 @@ describe("ProjectPage", () => {
       mockFetchProject(projectWithNodes);
       render(<ProjectPage />);
       await waitFor(() => {
-        expect(screen.getByText(/2 node/)).toBeInTheDocument();
+        expect(screen.getByTestId("react-flow-canvas")).toHaveAttribute("data-node-count", "2");
       });
       expect(screen.queryByText("PRD")).not.toBeInTheDocument();
     });

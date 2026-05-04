@@ -892,11 +892,6 @@ export default function ProjectPage() {
                 Save as Template
               </button>
             )}
-            {nodeCount > 0 && (
-              <span className="text-xs text-[var(--muted-foreground)]">
-                {nodeCount} node{nodeCount !== 1 ? "s" : ""}
-              </span>
-            )}
             {project.repoUrl ? (
               <button
                 onClick={() => setScanTrigger((t) => t + 1)}
