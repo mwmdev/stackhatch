@@ -279,6 +279,9 @@ describe("ChatSidebar", () => {
     await waitFor(() => {
       expect(screen.getByTestId("typing-indicator")).toBeInTheDocument();
     });
+
+    const sendButton = screen.getByLabelText("Send message");
+    expect(sendButton).toContainElement(screen.getByTestId("send-button-spinner"));
   });
 
   it("clears input after sending a message", async () => {

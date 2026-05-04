@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
-import { MessageSquareText, SendHorizontal } from "lucide-react";
+import { Loader2, MessageSquareText, SendHorizontal } from "lucide-react";
 import UpgradePrompt from "@/components/UpgradePrompt";
 
 function stripStackTags(text: string): string {
@@ -521,7 +521,14 @@ export default function ChatSidebar({
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-[var(--color-client)] text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
             aria-label="Send message"
           >
-            <SendHorizontal className="h-[18px] w-[18px]" />
+            {streaming ? (
+              <Loader2
+                className="h-[18px] w-[18px] animate-spin"
+                data-testid="send-button-spinner"
+              />
+            ) : (
+              <SendHorizontal className="h-[18px] w-[18px]" />
+            )}
           </button>
         </div>
       </div>
