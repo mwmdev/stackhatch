@@ -12,7 +12,7 @@
     "postcss": "^8.5.13"
   },
   "scripts": {
-    "dev": "next dev",
+    "dev": "STACKHATCH_DEV_AUTH=${STACKHATCH_DEV_AUTH:-1} STACKHATCH_DEV_ROLE=${STACKHATCH_DEV_ROLE:-admin} next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
