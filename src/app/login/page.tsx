@@ -2,11 +2,23 @@ import { redirect } from "next/navigation";
 import { auth, signIn } from "@/lib/auth-config";
 import ThemeToggle from "@/components/ThemeToggle";
 
-export default async function LoginPage() {
+function safeCallbackUrl(value: string | undefined) {
+  if (!value || !value.startsWith("/") || value.startsWith("//")) return "/app";
+  return value;
+}
+
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ callbackUrl?: string }>;
+}) {
+  const params = await searchParams;
+  const callbackUrl = safeCallbackUrl(params?.callbackUrl);
+
   // Check if user is already authenticated
   const session = await auth();
   if (session?.user) {
-    redirect("/");
+    redirect(callbackUrl);
   }
 
   return (
@@ -41,7 +53,7 @@ export default async function LoginPage() {
               <form
                 action={async () => {
                   "use server";
-                  await signIn("github", { redirectTo: "/" });
+                  await signIn("github", { redirectTo: callbackUrl });
                 }}
               >
                 <button

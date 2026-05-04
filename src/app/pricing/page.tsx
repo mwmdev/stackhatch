@@ -71,10 +71,10 @@ export default function PricingPage() {
             StackHatch
           </Link>
           <Link
-            href="/settings"
+            href="/login?callbackUrl=/app"
             className="rounded-md px-3 py-2 text-sm font-medium text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
           >
-            Settings
+            Sign in
           </Link>
         </div>
       </header>

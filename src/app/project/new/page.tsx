@@ -72,7 +72,7 @@ export default function NewProjectPage() {
     <main className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
       <div className="mx-auto max-w-lg px-4 py-16">
         <Link
-          href="/"
+          href="/app"
           className="mb-8 inline-block text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
         >
           &larr; Back to Dashboard
@@ -80,8 +80,7 @@ export default function NewProjectPage() {
 
         <h1 className="mb-2 text-2xl font-bold">New Project</h1>
         <p className="mb-8 text-[var(--muted-foreground)]">
-          Give your project a name and the AI will help you design its
-          architecture.
+          Give your project a name and the AI will help you design its architecture.
         </p>
 
         {/* Template section */}
@@ -101,7 +100,9 @@ export default function NewProjectPage() {
               <div>
                 <div className="font-medium text-sm">{selectedTemplate.name}</div>
                 {selectedTemplate.description && (
-                  <div className="text-xs text-[var(--muted-foreground)]">{selectedTemplate.description}</div>
+                  <div className="text-xs text-[var(--muted-foreground)]">
+                    {selectedTemplate.description}
+                  </div>
                 )}
               </div>
               <button
@@ -121,10 +122,7 @@ export default function NewProjectPage() {
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label
-              htmlFor="name"
-              className="mb-1 block text-sm font-medium"
-            >
+            <label htmlFor="name" className="mb-1 block text-sm font-medium">
               Project Name <span className="text-red-500">*</span>
             </label>
             <input
@@ -139,14 +137,8 @@ export default function NewProjectPage() {
           </div>
 
           <div>
-            <label
-              htmlFor="description"
-              className="mb-1 block text-sm font-medium"
-            >
-              Description{" "}
-              <span className="text-[var(--muted-foreground)]">
-                (optional)
-              </span>
+            <label htmlFor="description" className="mb-1 block text-sm font-medium">
+              Description <span className="text-[var(--muted-foreground)]">(optional)</span>
             </label>
             <textarea
               id="description"
@@ -159,14 +151,9 @@ export default function NewProjectPage() {
           </div>
 
           <div>
-            <label
-              htmlFor="repoUrl"
-              className="mb-1 block text-sm font-medium"
-            >
+            <label htmlFor="repoUrl" className="mb-1 block text-sm font-medium">
               GitHub Repository URL{" "}
-              <span className="text-[var(--muted-foreground)]">
-                (optional)
-              </span>
+              <span className="text-[var(--muted-foreground)]">(optional)</span>
             </label>
             <input
               id="repoUrl"

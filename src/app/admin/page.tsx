@@ -79,7 +79,7 @@ export default function AdminPage() {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-[var(--background)]">
         <p className="mb-4 text-red-500">Access denied</p>
-        <Link href="/" className="text-[var(--color-client)] hover:underline">
+        <Link href="/app" className="text-[var(--color-client)] hover:underline">
           Back to Dashboard
         </Link>
       </div>
@@ -92,7 +92,7 @@ export default function AdminPage() {
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
           <div className="flex items-center gap-3">
             <Link
-              href="/"
+              href="/app"
               className="text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
             >
               &larr; Dashboard

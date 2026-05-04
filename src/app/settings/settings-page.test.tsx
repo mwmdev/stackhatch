@@ -60,7 +60,7 @@ describe("SettingsPage", () => {
     render(<SettingsPage />);
 
     await screen.findByText("Anthropic API Key");
-    expect(screen.getByText(/Back to Dashboard/).closest("a")).toHaveAttribute("href", "/");
+    expect(screen.getByText(/Back to Dashboard/).closest("a")).toHaveAttribute("href", "/app");
   });
 
   it("shows server key status", async () => {

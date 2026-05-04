@@ -815,7 +815,7 @@ export default function ProjectPage() {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-[var(--background)]">
         <p className="mb-4 text-red-500">{error || "Project not found"}</p>
-        <Link href="/" className="text-[var(--color-client)] hover:underline">
+        <Link href="/app" className="text-[var(--color-client)] hover:underline">
           Back to Dashboard
         </Link>
       </div>
@@ -839,7 +839,7 @@ export default function ProjectPage() {
         {/* Toolbar */}
         <div className="flex flex-wrap items-center gap-3 border-b border-[var(--border)] px-4 py-2">
           <Link
-            href="/"
+            href="/app"
             className="mr-1 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
           >
             &larr;

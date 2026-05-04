@@ -166,7 +166,7 @@ export default function TeamPage() {
         const data = await res.json();
         showToast("error", data.error || "Failed to rename team");
       } else {
-        setTeam((prev) => prev ? { ...prev, name: newName.trim() } : prev);
+        setTeam((prev) => (prev ? { ...prev, name: newName.trim() } : prev));
         showToast("success", "Team renamed");
       }
     } catch {
@@ -181,7 +181,9 @@ export default function TeamPage() {
       <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
         <header className="border-b border-[var(--border)]">
           <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
-            <Link href="/" className="text-lg font-bold tracking-tight">StackHatch</Link>
+            <Link href="/app" className="text-lg font-bold tracking-tight">
+              StackHatch
+            </Link>
             <ThemeToggle />
           </div>
         </header>
@@ -197,7 +199,9 @@ export default function TeamPage() {
       <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
         <header className="border-b border-[var(--border)]">
           <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
-            <Link href="/" className="text-lg font-bold tracking-tight">StackHatch</Link>
+            <Link href="/app" className="text-lg font-bold tracking-tight">
+              StackHatch
+            </Link>
             <ThemeToggle />
           </div>
         </header>
@@ -214,7 +218,9 @@ export default function TeamPage() {
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
       <header className="border-b border-[var(--border)]">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
-          <Link href="/" className="text-lg font-bold tracking-tight">StackHatch</Link>
+          <Link href="/app" className="text-lg font-bold tracking-tight">
+            StackHatch
+          </Link>
           <ThemeToggle />
         </div>
       </header>
@@ -294,10 +300,7 @@ export default function TeamPage() {
           <h2 className="mb-4 text-lg font-semibold">Members</h2>
           <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] divide-y divide-[var(--border)]">
             {team.members.map((member) => (
-              <div
-                key={member.userId}
-                className="flex items-center justify-between px-4 py-3"
-              >
+              <div key={member.userId} className="flex items-center justify-between px-4 py-3">
                 <div className="flex items-center gap-3">
                   {member.avatarUrl ? (
                     <Image
@@ -316,15 +319,11 @@ export default function TeamPage() {
                     <div className="text-sm font-medium">
                       {member.name || "Unknown"}
                       {member.role === "owner" && (
-                        <span className="ml-2 text-xs text-[var(--muted-foreground)]">
-                          Owner
-                        </span>
+                        <span className="ml-2 text-xs text-[var(--muted-foreground)]">Owner</span>
                       )}
                     </div>
                     {member.email && (
-                      <div className="text-xs text-[var(--muted-foreground)]">
-                        {member.email}
-                      </div>
+                      <div className="text-xs text-[var(--muted-foreground)]">{member.email}</div>
                     )}
                   </div>
                 </div>
@@ -370,10 +369,7 @@ export default function TeamPage() {
                 </h3>
                 <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] divide-y divide-[var(--border)]">
                   {invites.map((invite) => (
-                    <div
-                      key={invite.id}
-                      className="flex items-center justify-between px-4 py-3"
-                    >
+                    <div key={invite.id} className="flex items-center justify-between px-4 py-3">
                       <div>
                         <div className="text-sm">{invite.email}</div>
                         <div className="text-xs text-[var(--muted-foreground)]">
@@ -396,7 +392,7 @@ export default function TeamPage() {
 
         <div className="text-center">
           <Link
-            href="/"
+            href="/app"
             className="text-sm text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
           >
             &larr; Back to Dashboard

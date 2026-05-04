@@ -81,9 +81,7 @@ export default function InvitePage() {
       <main className="flex min-h-[calc(100vh-73px)] items-center justify-center px-6">
         <div className="w-full max-w-sm">
           {state === "loading" && (
-            <div className="text-center text-[var(--muted-foreground)]">
-              Loading invite...
-            </div>
+            <div className="text-center text-[var(--muted-foreground)]">Loading invite...</div>
           )}
 
           {state === "error" && (
@@ -92,9 +90,7 @@ export default function InvitePage() {
               <h2 className="mb-2 text-lg font-semibold text-[var(--card-foreground)]">
                 Invalid Invite
               </h2>
-              <p className="mb-6 text-sm text-[var(--muted-foreground)]">
-                {error}
-              </p>
+              <p className="mb-6 text-sm text-[var(--muted-foreground)]">{error}</p>
               <Link
                 href="/"
                 className="inline-block rounded-lg bg-[var(--color-client)] px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90"
@@ -114,7 +110,7 @@ export default function InvitePage() {
                 You&apos;ve joined <strong>{invite?.team?.name}</strong>.
               </p>
               <button
-                onClick={() => router.push("/")}
+                onClick={() => router.push("/app")}
                 className="rounded-lg bg-[var(--color-client)] px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90"
               >
                 Go to Dashboard

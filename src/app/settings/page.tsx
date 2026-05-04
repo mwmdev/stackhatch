@@ -475,7 +475,7 @@ export default function SettingsPage() {
       <header className="border-b border-[var(--border)]">
         <div className="mx-auto flex max-w-2xl items-center gap-4 px-6 py-4">
           <Link
-            href="/"
+            href="/app"
             className="text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
           >
             &larr; Back to Dashboard
