@@ -344,6 +344,37 @@ describe("streamChat", () => {
     );
   });
 
+  it("normalizes unavailable model errors", async () => {
+    const modelError = Object.assign(
+      new Error(
+        '404 {"type":"error","error":{"type":"not_found_error","message":"model: claude-haiku-235-20241022"}}'
+      ),
+      { status: 404 }
+    );
+    const mockClient = {
+      messages: {
+        stream: vi.fn().mockReturnValue({
+          [Symbol.asyncIterator]: () => ({
+            async next() {
+              throw modelError;
+            },
+          }),
+        }),
+      },
+    };
+    vi.mocked(Anthropic).mockImplementation(() => mockClient as unknown as Anthropic);
+
+    const response = streamChat(db, projectId, "Hello");
+    const events = await readSSEEvents(response);
+
+    const errorEvent = events.find((e) => e.type === "error");
+    expect(errorEvent).toBeDefined();
+    expect(errorEvent!.code).toBe("AI_MODEL_UNAVAILABLE");
+    expect(errorEvent!.content).toBe(
+      "Selected AI model is unavailable. Switch models in Settings and try again."
+    );
+  });
+
   it("triggers init flow when no user message and no history", async () => {
     const mockClient = mockAnthropicStream("Welcome! What are you building?");
     vi.mocked(Anthropic).mockImplementation(() => mockClient as unknown as Anthropic);
@@ -389,6 +420,28 @@ describe("streamChat", () => {
 
     expect(streamFn).toHaveBeenCalledWith(
       expect.objectContaining({ model: "claude-opus-4-20250514" })
+    );
+  });
+
+  it("falls back to Sonnet when settings contain an unsupported model", async () => {
+    db.insert(settings).values({ key: "model", value: "claude-haiku-235-20241022" }).run();
+
+    const mockClient = mockAnthropicStream("Response");
+    const streamFn = vi.fn().mockReturnValue({
+      [Symbol.asyncIterator]: () => ({
+        async next() {
+          return { done: true, value: undefined };
+        },
+      }),
+    });
+    (mockClient.messages as { stream: typeof streamFn }).stream = streamFn;
+    vi.mocked(Anthropic).mockImplementation(() => mockClient as unknown as Anthropic);
+
+    const response = streamChat(db, projectId, "Hello");
+    await response.text();
+
+    expect(streamFn).toHaveBeenCalledWith(
+      expect.objectContaining({ model: "claude-sonnet-4-20250514" })
     );
   });
 

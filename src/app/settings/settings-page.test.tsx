@@ -92,7 +92,7 @@ describe("SettingsPage", () => {
 
     await screen.findByText("Anthropic API Key");
     fireEvent.change(screen.getByLabelText("Claude Model"), {
-      target: { value: "claude-haiku-235-20241022" },
+      target: { value: "claude-opus-4-1-20250805" },
     });
     fireEvent.click(screen.getByText("Save"));
 

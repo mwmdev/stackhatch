@@ -33,7 +33,7 @@ const FEATURE_COPY = {
   pro: [
     "2,500 AI messages per month",
     "150 repository scans per month",
-    "Opus, Sonnet, and Haiku model access",
+    "Opus 4.1, Opus 4, and Sonnet 4 model access",
     "PRD and Markdown exports",
     "Team workspaces, comments, and templates",
     "Custom node subtype system",

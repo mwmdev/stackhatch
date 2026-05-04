@@ -12,12 +12,9 @@ import {
   DEFAULT_ALTERNATIVES_PROMPT,
   DEFAULT_PRD_PROMPT,
 } from "@/lib/ai/default-prompts";
+import { AI_MODELS, DEFAULT_AI_MODEL } from "@/lib/ai/models";
 
-const VALID_MODELS = [
-  { id: "claude-sonnet-4-20250514", name: "Sonnet" },
-  { id: "claude-opus-4-20250514", name: "Opus" },
-  { id: "claude-haiku-235-20241022", name: "Haiku" },
-] as const;
+const VALID_MODELS = AI_MODELS;
 
 const subscribe = () => () => {};
 const getSnapshot = () => true;
@@ -54,7 +51,7 @@ export default function SettingsPage() {
   const [savingApiKey, setSavingApiKey] = useState(false);
   const [currentRole, setCurrentRole] = useState("free-user");
   const [isAdmin, setIsAdmin] = useState(false);
-  const [model, setModel] = useState("claude-sonnet-4-20250514");
+  const [model, setModel] = useState(DEFAULT_AI_MODEL);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{
     type: "success" | "error";

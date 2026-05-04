@@ -58,7 +58,7 @@ export const PLAN_CONFIG = {
       projects: "unlimited",
       messagesPerMonth: 2500,
       scansPerMonth: 150,
-      models: ["sonnet", "opus", "haiku"],
+      models: ["sonnet", "opus", "opus-4.1"],
       exports: ["png", "svg", "json", "md"],
       customSubtypes: true,
       alternatives: true,

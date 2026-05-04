@@ -123,12 +123,21 @@ describe("GET /api/settings", () => {
   });
 
   it("uses env var fallback for model when not in DB", async () => {
-    process.env.ANTHROPIC_MODEL = "claude-haiku-235-20241022";
+    process.env.ANTHROPIC_MODEL = "claude-opus-4-1-20250805";
 
     const res = await settingsRoute.GET();
     const data = await res.json();
 
-    expect(data.model).toBe("claude-haiku-235-20241022");
+    expect(data.model).toBe("claude-opus-4-1-20250805");
+  });
+
+  it("falls back to Sonnet when a stored model is no longer supported", async () => {
+    testDb.insert(settings).values({ key: "model", value: "claude-haiku-235-20241022" }).run();
+
+    const res = await settingsRoute.GET();
+    const data = await res.json();
+
+    expect(data.model).toBe("claude-sonnet-4-20250514");
   });
 
   it("filters admin-only fields for non-admins", async () => {
@@ -208,7 +217,7 @@ describe("PATCH /api/settings", () => {
     const req = makeRequest({
       method: "PATCH",
       body: {
-        model: "claude-haiku-235-20241022",
+        model: "claude-opus-4-1-20250805",
         theme: "light",
       },
     });
@@ -216,7 +225,7 @@ describe("PATCH /api/settings", () => {
     const res = await settingsRoute.PATCH(req as never);
     const data = await res.json();
 
-    expect(data.model).toBe("claude-haiku-235-20241022");
+    expect(data.model).toBe("claude-opus-4-1-20250805");
     expect(data.theme).toBe("light");
     expect(data.apiKey).toBeUndefined();
   });

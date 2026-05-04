@@ -7,12 +7,7 @@ import { z } from "zod";
 import { getAuthenticatedUser, requireRole } from "@/lib/auth";
 import { encryptSecret } from "@/lib/secrets";
 import { getActivePlan } from "@/lib/plans";
-
-const VALID_MODELS = [
-  "claude-sonnet-4-20250514",
-  "claude-opus-4-20250514",
-  "claude-haiku-235-20241022",
-] as const;
+import { AI_MODEL_IDS, normalizeAiModel } from "@/lib/ai/models";
 
 const VALID_THEMES = ["light", "dark", "system"] as const;
 
@@ -37,7 +32,7 @@ const updateSettingsSchema = z
   .object({
     apiKey: z.string().min(20).max(300).optional(),
     clearApiKey: z.boolean().optional(),
-    model: z.enum(VALID_MODELS).optional(),
+    model: z.enum(AI_MODEL_IDS).optional(),
     theme: z.enum(VALID_THEMES).optional(),
     customSubtypes: z.string().optional(),
     prompt_chat: z.string().optional(),
@@ -65,9 +60,7 @@ export async function GET() {
     }
 
     delete result.apiKey;
-    if (!result.model) {
-      result.model = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514";
-    }
+    result.model = normalizeAiModel(result.model || process.env.ANTHROPIC_MODEL);
 
     if (user.role !== "admin") {
       delete result.prompt_chat;
@@ -188,9 +181,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     delete result.apiKey;
-    if (!result.model) {
-      result.model = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514";
-    }
+    result.model = normalizeAiModel(result.model || process.env.ANTHROPIC_MODEL);
 
     if (user.role !== "admin") {
       delete result.prompt_chat;

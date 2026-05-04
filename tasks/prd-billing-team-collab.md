@@ -128,7 +128,7 @@ For UI stories, also include:
 - [ ] Show upgrade prompt when free user exhausts monthly chat messages (with count remaining)
 - [ ] Show upgrade prompt when free user exhausts monthly repo scans
 - [ ] Show upgrade prompt when free user tries to export (PNG/SVG/JSON/MD)
-- [ ] Show upgrade prompt when free user tries to select Opus or Haiku model
+- [ ] Show upgrade prompt when free user tries to select an Opus model
 - [ ] Show upgrade prompt when free user tries to add custom subtypes
 - [ ] Each prompt includes the specific feature being gated and a link to `/pricing`
 - [ ] Prompts are dismissible and non-intrusive (modal or inline banner, not blocking)

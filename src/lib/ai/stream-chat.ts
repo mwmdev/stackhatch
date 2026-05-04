@@ -47,6 +47,13 @@ function normalizeAIError(err: unknown): { code: string; content: string } {
     };
   }
 
+  if (status === 404 && /model:/i.test(message)) {
+    return {
+      code: "AI_MODEL_UNAVAILABLE",
+      content: "Selected AI model is unavailable. Switch models in Settings and try again.",
+    };
+  }
+
   return {
     code: "AI_REQUEST_FAILED",
     content: "AI request failed. Please try again later.",

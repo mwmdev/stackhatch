@@ -3,6 +3,7 @@ import { settings, userSettings, type UserRole } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { decryptSecret } from "@/lib/secrets";
 import { getActivePlan } from "@/lib/plans";
+import { normalizeAiModel } from "@/lib/ai/models";
 
 export function getSettings(db: AppDatabase) {
   const rows = db.select().from(settings).all();
@@ -36,7 +37,7 @@ export function getApiKey(db?: AppDatabase, userId?: string, role?: UserRole): s
 }
 
 export function getModel(settingsMap: Record<string, string>): string {
-  return settingsMap.model || process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514";
+  return normalizeAiModel(settingsMap.model || process.env.ANTHROPIC_MODEL);
 }
 
 export function getPrompt(

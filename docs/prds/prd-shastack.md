@@ -16,7 +16,7 @@ The application runs locally via Docker and is designed for eventual VPS deploym
 - Support node locking so AI re-invocations preserve user-confirmed decisions
 - Persist projects with full chat history and canvas state in SQLite
 - Run reliably in Docker for both local development and production deployment
-- Support configurable Claude model selection (Sonnet, Opus, Haiku) compatible with Claude Max subscriptions
+- Support configurable Claude model selection (Sonnet, Opus, Opus 4.1) compatible with Claude Max subscriptions
 
 ## Tasks
 
@@ -253,7 +253,7 @@ interface StackArchitecture {
 - Create settings page at `src/app/settings/page.tsx`
 - Form fields:
   - **API Key**: password-type input with show/hide toggle. Displays masked value if already set. "Save" button triggers PATCH to `/api/settings`
-  - **Model**: dropdown select with options: `claude-sonnet-4-20250514` (Sonnet), `claude-opus-4-20250514` (Opus), `claude-haiku-235-20241022` (Haiku). Shows which is currently selected from settings
+  - **Model**: dropdown select with options: `claude-sonnet-4-20250514` (Sonnet), `claude-opus-4-20250514` (Opus), `claude-opus-4-1-20250805` (Opus 4.1). Shows which is currently selected from settings
   - **Theme**: radio group for Light / Dark / System
 - "Back to Dashboard" link at the top
 - Show a status indicator: green checkmark if API key is set, red warning if missing

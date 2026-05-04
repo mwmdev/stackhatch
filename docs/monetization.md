@@ -14,7 +14,7 @@ StackHatch uses a three-tier SaaS ladder built for developer adoption:
 | Projects           | 2                  | 10                     | Unlimited                    |
 | Chat messages      | BYOK               | 500/month              | 2,500/month                  |
 | Repo scans         | 2/month            | 25/month               | 150/month                    |
-| Models             | Sonnet             | Sonnet                 | Sonnet, Opus, Haiku          |
+| Models             | Sonnet             | Sonnet                 | Sonnet 4, Opus 4, Opus 4.1   |
 | Exports            | JSON               | PNG, SVG, JSON         | PNG, SVG, JSON, Markdown/PRD |
 | Alternatives       | No                 | Yes                    | Yes                          |
 | Custom subtypes    | No                 | No                     | Yes                          |
