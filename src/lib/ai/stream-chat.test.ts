@@ -312,7 +312,36 @@ describe("streamChat", () => {
 
     const errorEvent = events.find((e) => e.type === "error");
     expect(errorEvent).toBeDefined();
-    expect(errorEvent!.content).toBe("Rate limit exceeded");
+    expect(errorEvent!.code).toBe("AI_RATE_LIMITED");
+    expect(errorEvent!.content).toBe("AI provider rate limit exceeded. Please try again later.");
+  });
+
+  it("normalizes Anthropic authentication errors", async () => {
+    const authError = new Error(
+      '401 {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"}}'
+    );
+    const mockClient = {
+      messages: {
+        stream: vi.fn().mockReturnValue({
+          [Symbol.asyncIterator]: () => ({
+            async next() {
+              throw authError;
+            },
+          }),
+        }),
+      },
+    };
+    vi.mocked(Anthropic).mockImplementation(() => mockClient as unknown as Anthropic);
+
+    const response = streamChat(db, projectId, "Hello");
+    const events = await readSSEEvents(response);
+
+    const errorEvent = events.find((e) => e.type === "error");
+    expect(errorEvent).toBeDefined();
+    expect(errorEvent!.code).toBe("AI_AUTH_FAILED");
+    expect(errorEvent!.content).toBe(
+      "AI provider authentication failed. Check ANTHROPIC_API_KEY on the server."
+    );
   });
 
   it("triggers init flow when no user message and no history", async () => {

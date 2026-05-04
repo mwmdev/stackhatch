@@ -22,6 +22,36 @@ export const SSE_HEADERS = {
   Connection: "keep-alive",
 };
 
+function getErrorStatus(err: unknown): number | null {
+  if (typeof err !== "object" || err === null) return null;
+  const status = (err as { status?: unknown }).status;
+  return typeof status === "number" ? status : null;
+}
+
+function normalizeAIError(err: unknown): { code: string; content: string } {
+  const status = getErrorStatus(err);
+  const message = err instanceof Error ? err.message : "";
+
+  if (status === 401 || /invalid x-api-key|authentication_error/i.test(message)) {
+    return {
+      code: "AI_AUTH_FAILED",
+      content: "AI provider authentication failed. Check ANTHROPIC_API_KEY on the server.",
+    };
+  }
+
+  if (status === 429 || /rate limit/i.test(message)) {
+    return {
+      code: "AI_RATE_LIMITED",
+      content: "AI provider rate limit exceeded. Please try again later.",
+    };
+  }
+
+  return {
+    code: "AI_REQUEST_FAILED",
+    content: "AI request failed. Please try again later.",
+  };
+}
+
 /**
  * Core streaming function used by both chat and chat/init routes.
  * - Saves user message (if provided) to DB
@@ -190,8 +220,8 @@ export function streamChat(
         controller.enqueue(encoder.encode(sseEvent({ type: "done" })));
         controller.close();
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : "Unknown error";
-        controller.enqueue(encoder.encode(sseEvent({ type: "error", content: errorMessage })));
+        const error = normalizeAIError(err);
+        controller.enqueue(encoder.encode(sseEvent({ type: "error", ...error })));
         controller.close();
       }
     },
