@@ -81,16 +81,22 @@ describe("ChatSidebar", () => {
     expect(screen.queryByText("Architecture Assistant")).not.toBeInTheDocument();
   });
 
-  it("renders open state without a built-in collapse control", async () => {
+  it("renders open state without title/status chrome or a built-in collapse control", async () => {
     global.fetch = mockFetch({
-      "/messages": emptyMessagesResponse,
-      "/chat/init": () => createSSEResponse([{ type: "done" }]),
+      "/messages": messagesWithHistory,
     });
 
     render(<ChatSidebar projectId="p1" defaultOpen={true} />);
+    await waitFor(() => {
+      expect(screen.getByText("Welcome! What are you building?")).toBeInTheDocument();
+    });
+
     expect(screen.queryByText("Architecture Assistant")).not.toBeInTheDocument();
+    expect(screen.queryByText("Ready")).not.toBeInTheDocument();
+    expect(screen.queryByText("Starting")).not.toBeInTheDocument();
+    expect(screen.queryByText("Thinking")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Collapse chat")).not.toBeInTheDocument();
-    expect(screen.getByPlaceholderText("Waiting for AI...")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Message...")).toBeInTheDocument();
   });
 
   it("opens from the collapsed trigger", async () => {

@@ -361,7 +361,6 @@ export default function ChatSidebar({
   }
 
   const showApiKeyForm = Boolean(error && !upgradeFeature && isMissingApiKeyError(error));
-  const statusLabel = streaming ? "Thinking" : initialized ? "Ready" : "Starting";
 
   if (!open) {
     if (!showCollapsedButton) return null;
@@ -379,17 +378,8 @@ export default function ChatSidebar({
 
   return (
     <div className="flex h-[45vh] w-full flex-shrink-0 flex-col border-b border-[var(--border)] bg-[var(--background)] md:h-full md:w-[400px] md:border-b-0 md:border-r">
-      <div className="flex min-h-12 items-center border-b border-[var(--border)] py-2 pl-16 pr-3">
-        <div className="flex items-center gap-2">
-          <span className="flex h-8 w-8 items-center justify-center rounded-md bg-[var(--muted)] text-[var(--muted-foreground)]">
-            <MessageSquareText className="h-4 w-4" />
-          </span>
-          <span className="text-xs font-medium text-[var(--muted-foreground)]">{statusLabel}</span>
-        </div>
-      </div>
-
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-4">
+      <div className="flex-1 overflow-y-auto px-4 pb-4 pt-16">
         <div className="space-y-3">
           {messages.map((msg) => (
             <div
