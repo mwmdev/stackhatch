@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor, act } from "@testing-library/react";
+import { render, screen, waitFor, act, fireEvent } from "@testing-library/react";
 
 // Mock next/navigation
 const mockPush = vi.fn();
@@ -102,13 +102,27 @@ vi.mock("next-auth/react", () => ({
 
 // Mock child components to keep tests focused
 vi.mock("@/components/chat/ChatSidebar", () => ({
-  default: ({ projectId, defaultOpen }: { projectId: string; defaultOpen: boolean }) => (
+  default: ({
+    projectId,
+    defaultOpen,
+    open,
+    onOpenChange,
+  }: {
+    projectId: string;
+    defaultOpen: boolean;
+    open?: boolean;
+    onOpenChange?: (open: boolean) => void;
+  }) => (
     <div
       data-testid="chat-sidebar"
       data-project-id={projectId}
       data-default-open={String(defaultOpen)}
+      data-open={String(open)}
     >
       Chat Sidebar
+      <button type="button" onClick={() => onOpenChange?.(!open)}>
+        Mock Chat Toggle
+      </button>
     </div>
   ),
 }));
@@ -348,6 +362,7 @@ describe("ProjectPage", () => {
       await waitFor(() => {
         const sidebar = screen.getByTestId("chat-sidebar");
         expect(sidebar).toHaveAttribute("data-default-open", "true");
+        expect(sidebar).toHaveAttribute("data-open", "true");
       });
     });
 
@@ -383,6 +398,23 @@ describe("ProjectPage", () => {
       await waitFor(() => {
         expect(screen.getByLabelText("Theme: light")).toBeInTheDocument();
       });
+    });
+
+    it("toggles chat sidebar from the toolbar", async () => {
+      mockFetchProject(projectWithNodes);
+      render(<ProjectPage />);
+      await waitFor(() => {
+        expect(screen.getByLabelText("Show chat sidebar")).toBeInTheDocument();
+      });
+      expect(screen.getByTestId("chat-sidebar")).toHaveAttribute("data-open", "false");
+
+      fireEvent.click(screen.getByLabelText("Show chat sidebar"));
+      expect(screen.getByLabelText("Hide chat sidebar")).toBeInTheDocument();
+      expect(screen.getByTestId("chat-sidebar")).toHaveAttribute("data-open", "true");
+
+      fireEvent.click(screen.getByLabelText("Hide chat sidebar"));
+      expect(screen.getByLabelText("Show chat sidebar")).toBeInTheDocument();
+      expect(screen.getByTestId("chat-sidebar")).toHaveAttribute("data-open", "false");
     });
 
     it("shows Re-layout button when nodes exist", async () => {
@@ -487,6 +519,7 @@ describe("ProjectPage", () => {
       await waitFor(() => {
         const sidebar = screen.getByTestId("chat-sidebar");
         expect(sidebar).toHaveAttribute("data-default-open", "false");
+        expect(sidebar).toHaveAttribute("data-open", "false");
       });
     });
 

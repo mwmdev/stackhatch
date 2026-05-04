@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
+import { MessageSquareText, PanelLeftClose, SendHorizontal } from "lucide-react";
 import UpgradePrompt from "@/components/UpgradePrompt";
 
 function stripStackTags(text: string): string {
@@ -22,6 +23,9 @@ interface ChatSidebarProps {
   projectId: string;
   repoUrl?: string | null;
   defaultOpen?: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  showCollapsedButton?: boolean;
   scanTrigger?: number;
   onArchitecture?: (architecture: import("@/types/stack").StackArchitecture) => void;
   onStreaming?: (streaming: boolean) => void;
@@ -37,11 +41,14 @@ export default function ChatSidebar({
   projectId,
   repoUrl,
   defaultOpen = false,
+  open: controlledOpen,
+  onOpenChange,
+  showCollapsedButton = true,
   scanTrigger = 0,
   onArchitecture,
   onStreaming,
 }: ChatSidebarProps) {
-  const [open, setOpen] = useState(defaultOpen);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(defaultOpen);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
@@ -57,6 +64,17 @@ export default function ChatSidebar({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const initCalledRef = useRef(false);
   const lastFailedMessageRef = useRef<string | null>(null);
+  const open = controlledOpen ?? uncontrolledOpen;
+
+  const setSidebarOpen = useCallback(
+    (nextOpen: boolean) => {
+      if (controlledOpen === undefined) {
+        setUncontrolledOpen(nextOpen);
+      }
+      onOpenChange?.(nextOpen);
+    },
+    [controlledOpen, onOpenChange]
+  );
 
   useEffect(() => {
     onStreaming?.(streaming);
@@ -210,7 +228,7 @@ export default function ChatSidebar({
   async function scanRepo() {
     setMessages([]);
     setStreaming(true);
-    setOpen(true);
+    setSidebarOpen(true);
     setError("");
     try {
       const res = await fetch(`/api/projects/${projectId}/repo-scan`, {
@@ -345,22 +363,15 @@ export default function ChatSidebar({
   const showApiKeyForm = Boolean(error && !upgradeFeature && isMissingApiKeyError(error));
 
   if (!open) {
+    if (!showCollapsedButton) return null;
+
     return (
       <button
-        onClick={() => setOpen(true)}
+        onClick={() => setSidebarOpen(true)}
         className="fixed left-0 top-1/2 z-10 -translate-y-1/2 rounded-r-lg bg-[var(--color-client)] px-2 py-4 text-white shadow-md hover:opacity-90"
         aria-label="Open chat"
       >
-        <svg
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-        >
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-        </svg>
+        <MessageSquareText className="h-5 w-5" />
       </button>
     );
   }
@@ -368,23 +379,14 @@ export default function ChatSidebar({
   return (
     <div className="flex h-[45vh] w-full flex-shrink-0 flex-col border-b border-[var(--border)] bg-[var(--background)] md:h-full md:w-[400px] md:border-b-0 md:border-r">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
-        <h2 className="font-semibold">Architecture Assistant</h2>
+      <div className="flex items-center justify-end border-b border-[var(--border)] px-3 py-2">
         <button
-          onClick={() => setOpen(false)}
-          className="rounded p-1 text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
+          onClick={() => setSidebarOpen(false)}
+          className="flex h-9 w-9 items-center justify-center rounded-md text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
           aria-label="Collapse chat"
+          title="Collapse chat"
         >
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-          >
-            <path d="M15 18l-6-6 6-6" />
-          </svg>
+          <PanelLeftClose className="h-5 w-5" />
         </button>
       </div>
 
@@ -487,8 +489,8 @@ export default function ChatSidebar({
       </div>
 
       {/* Input */}
-      <div className="border-t border-[var(--border)] p-4">
-        <div className="flex items-end gap-2">
+      <div className="border-t border-[var(--border)] bg-[var(--card)]/60 p-3">
+        <div className="flex items-end gap-2 rounded-xl border border-[var(--border)] bg-[var(--background)] p-2 shadow-sm transition-colors focus-within:border-[var(--color-client)] focus-within:ring-2 focus-within:ring-[var(--color-client)]/20">
           <textarea
             ref={textareaRef}
             value={input}
@@ -497,25 +499,15 @@ export default function ChatSidebar({
             placeholder={initialized ? "Describe your application..." : "Waiting for AI..."}
             disabled={streaming || !initialized}
             rows={1}
-            className="flex-1 resize-none rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)] disabled:opacity-50"
+            className="max-h-[120px] min-h-10 flex-1 resize-none bg-transparent px-2 py-2 text-sm leading-5 text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
           />
           <button
             onClick={sendMessage}
             disabled={streaming || !input.trim()}
-            className="rounded-lg bg-[var(--color-client)] p-2 text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--color-client)] text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
             aria-label="Send message"
           >
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <line x1="22" y1="2" x2="11" y2="13" />
-              <polygon points="22 2 15 22 11 13 2 9 22 2" />
-            </svg>
+            <SendHorizontal className="h-[18px] w-[18px]" />
           </button>
         </div>
       </div>

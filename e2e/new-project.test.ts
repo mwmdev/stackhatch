@@ -86,7 +86,7 @@ test.describe("New Project Flow", () => {
     await page.waitForURL(/\/project\/[a-f0-9-]+$/);
 
     // Chat sidebar should be open by default (no canvas state)
-    await expect(page.getByText("Architecture Assistant")).toBeVisible();
+    await expect(page.locator('button[aria-label="Collapse chat"]')).toBeVisible();
 
     // AI message should appear (use first() as React may render it in both stream and final state)
     await expect(page.getByText(aiMessage).first()).toBeVisible({
@@ -112,8 +112,8 @@ test.describe("New Project Flow", () => {
     await page.click('button[type="submit"]');
     await page.waitForURL(/\/project\/[a-f0-9-]+$/);
 
-    // Sidebar should be visible with the header
-    await expect(page.getByText("Architecture Assistant")).toBeVisible();
+    // Sidebar should be visible with the collapse control
+    await expect(page.locator('button[aria-label="Collapse chat"]')).toBeVisible();
 
     // Empty canvas message should be visible
     await expect(

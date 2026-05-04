@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import { MessageSquareText, PanelLeftClose } from "lucide-react";
 import ReactFlow, {
   Background,
   Controls,
@@ -105,6 +106,7 @@ export default function ProjectPage() {
   const [customSubtypes, setCustomSubtypes] = useState<CustomSubtypesMap>({});
   const [scanTrigger, setScanTrigger] = useState(0);
   const [chatStreaming, setChatStreaming] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
   const [showScanInput, setShowScanInput] = useState(false);
   const [scanUrlInput, setScanUrlInput] = useState("");
   const [alternatives, setAlternatives] = useState<Record<string, AlternativeNode[]>>({});
@@ -758,6 +760,7 @@ export default function ProjectPage() {
         }
         const data = await res.json();
         setProject(data);
+        setChatOpen(!((data.canvasState?.nodes?.length ?? 0) > 0));
 
         // Initialize React Flow state from loaded canvas
         if (data.canvasState?.nodes?.length) {
@@ -856,6 +859,9 @@ export default function ProjectPage() {
         projectId={projectId}
         repoUrl={project.repoUrl}
         defaultOpen={!hasCanvas}
+        open={chatOpen}
+        onOpenChange={setChatOpen}
+        showCollapsedButton={false}
         scanTrigger={scanTrigger}
         onArchitecture={handleArchitecture}
         onStreaming={setChatStreaming}
@@ -873,6 +879,19 @@ export default function ProjectPage() {
           </Link>
           <h1 className="text-lg font-semibold">{project.name}</h1>
           <div className="ml-auto flex items-center gap-2">
+            <button
+              onClick={() => setChatOpen((value) => !value)}
+              className="flex h-11 w-11 items-center justify-center rounded-md text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
+              title={chatOpen ? "Hide chat sidebar" : "Show chat sidebar"}
+              aria-label={chatOpen ? "Hide chat sidebar" : "Show chat sidebar"}
+              aria-pressed={chatOpen}
+            >
+              {chatOpen ? (
+                <PanelLeftClose className="h-[18px] w-[18px]" />
+              ) : (
+                <MessageSquareText className="h-[18px] w-[18px]" />
+              )}
+            </button>
             <AddNodeDropdown onAddNode={handleAddNode} customSubtypes={customSubtypes} />
             {nodeCount > 0 && (
               <button
