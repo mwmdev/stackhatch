@@ -11,9 +11,7 @@ vi.mock("react-markdown", () => ({
 Element.prototype.scrollIntoView = vi.fn();
 
 function createSSEResponse(events: Array<{ type: string; content?: string }>) {
-  const lines = events
-    .map((e) => `data: ${JSON.stringify(e)}`)
-    .join("\n\n");
+  const lines = events.map((e) => `data: ${JSON.stringify(e)}`).join("\n\n");
   const stream = new ReadableStream({
     start(controller) {
       controller.enqueue(new TextEncoder().encode(lines + "\n\n"));
@@ -32,7 +30,9 @@ function mockFetch(handlers: Record<string, () => Promise<Response> | Response>)
       if (url.includes(pattern)) {
         const method = options?.method ?? "GET";
         if (pattern.includes("chat/init") && method === "POST") return handler();
-        if (pattern.includes("/chat") && !pattern.includes("init") && method === "POST") return handler();
+        if (pattern.includes("/chat") && !pattern.includes("init") && method === "POST")
+          return handler();
+        if (pattern.includes("/api/settings") && method === "PATCH") return handler();
         if (method === "GET") return handler();
       }
     }
@@ -47,12 +47,22 @@ const messagesWithHistory = () =>
   Promise.resolve(
     new Response(
       JSON.stringify([
-        { id: "m1", role: "assistant", content: "Welcome! What are you building?", createdAt: 1000 },
+        {
+          id: "m1",
+          role: "assistant",
+          content: "Welcome! What are you building?",
+          createdAt: 1000,
+        },
         { id: "m2", role: "user", content: "A chat application", createdAt: 2000 },
-        { id: "m3", role: "assistant", content: "Great choice! **Real-time** features are interesting.", createdAt: 3000 },
+        {
+          id: "m3",
+          role: "assistant",
+          content: "Great choice! **Real-time** features are interesting.",
+          createdAt: 3000,
+        },
       ]),
-      { status: 200 },
-    ),
+      { status: 200 }
+    )
   );
 
 describe("ChatSidebar", () => {
@@ -168,10 +178,7 @@ describe("ChatSidebar", () => {
       "/messages": messagesWithHistory,
       "/chat": () => {
         chatCalled = true;
-        return createSSEResponse([
-          { type: "text", content: "Interesting!" },
-          { type: "done" },
-        ]);
+        return createSSEResponse([{ type: "text", content: "Interesting!" }, { type: "done" }]);
       },
     });
 
@@ -244,11 +251,7 @@ describe("ChatSidebar", () => {
   it("clears input after sending a message", async () => {
     global.fetch = mockFetch({
       "/messages": messagesWithHistory,
-      "/chat": () =>
-        createSSEResponse([
-          { type: "text", content: "Response" },
-          { type: "done" },
-        ]),
+      "/chat": () => createSSEResponse([{ type: "text", content: "Response" }, { type: "done" }]),
     });
 
     render(<ChatSidebar projectId="p1" defaultOpen={true} />);
@@ -257,7 +260,9 @@ describe("ChatSidebar", () => {
       expect(screen.getByText("A chat application")).toBeInTheDocument();
     });
 
-    const textarea = screen.getByPlaceholderText("Describe your application...") as HTMLTextAreaElement;
+    const textarea = screen.getByPlaceholderText(
+      "Describe your application..."
+    ) as HTMLTextAreaElement;
     fireEvent.change(textarea, { target: { value: "Test message" } });
     fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
 
@@ -290,14 +295,70 @@ describe("ChatSidebar", () => {
   it("displays error message from SSE stream", async () => {
     global.fetch = mockFetch({
       "/messages": emptyMessagesResponse,
-      "/chat/init": () =>
-        createSSEResponse([{ type: "error", content: "API key not configured" }]),
+      "/chat/init": () => createSSEResponse([{ type: "error", content: "API key not configured" }]),
     });
 
     render(<ChatSidebar projectId="p1" defaultOpen={true} />);
 
     await waitFor(() => {
       expect(screen.getByText("API key not configured")).toBeInTheDocument();
+    });
+  });
+
+  it("saves an Anthropic key inline when chat init is blocked and retries", async () => {
+    let initCalls = 0;
+    let savedBody: Record<string, unknown> | null = null;
+    global.fetch = vi.fn(async (input: RequestInfo | URL, options?: RequestInit) => {
+      const url = String(input);
+      const method = options?.method ?? "GET";
+
+      if (url.includes("/messages")) {
+        return emptyMessagesResponse();
+      }
+
+      if (url.includes("/chat/init") && method === "POST") {
+        initCalls += 1;
+        if (initCalls === 1) {
+          return createSSEResponse([
+            {
+              type: "error",
+              content: "Add your Anthropic API key in Settings, or upgrade for hosted AI.",
+            },
+          ]);
+        }
+        return createSSEResponse([
+          { type: "text", content: "Welcome back. What are you building?" },
+          { type: "done" },
+        ]);
+      }
+
+      if (url === "/api/settings" && method === "PATCH") {
+        savedBody = JSON.parse(options?.body as string);
+        return new Response(
+          JSON.stringify({
+            hasAnthropicKey: true,
+            hasUserAnthropicKey: true,
+            hasServerAnthropicKey: false,
+          }),
+          { status: 200 }
+        );
+      }
+
+      return new Response("Not found", { status: 404 });
+    }) as typeof fetch;
+
+    render(<ChatSidebar projectId="p1" defaultOpen={true} />);
+
+    const keyInput = await screen.findByLabelText("Anthropic API key");
+    fireEvent.change(keyInput, { target: { value: "sk-ant-test-inline-key-1234567890" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save and retry" }));
+
+    await waitFor(() => {
+      expect(savedBody).toEqual({ apiKey: "sk-ant-test-inline-key-1234567890" });
+      expect(initCalls).toBe(2);
+    });
+    await waitFor(() => {
+      expect(screen.getByText("Welcome back. What are you building?")).toBeInTheDocument();
     });
   });
 
@@ -343,11 +404,21 @@ describe("ChatSidebar", () => {
         Promise.resolve(
           new Response(
             JSON.stringify([
-              { id: "m1", role: "user", content: "Begin the architecture interview for a new project", createdAt: 1000 },
-              { id: "m2", role: "assistant", content: "Welcome! What are you building?", createdAt: 2000 },
+              {
+                id: "m1",
+                role: "user",
+                content: "Begin the architecture interview for a new project",
+                createdAt: 1000,
+              },
+              {
+                id: "m2",
+                role: "assistant",
+                content: "Welcome! What are you building?",
+                createdAt: 2000,
+              },
             ]),
-            { status: 200 },
-          ),
+            { status: 200 }
+          )
         ),
     });
 

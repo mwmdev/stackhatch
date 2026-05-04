@@ -27,6 +27,12 @@ interface ChatSidebarProps {
   onStreaming?: (streaming: boolean) => void;
 }
 
+type AiAction = "init" | "scan" | "message";
+
+function isMissingApiKeyError(message: string) {
+  return /anthropic api key|api key not configured/i.test(message);
+}
+
 export default function ChatSidebar({
   projectId,
   repoUrl,
@@ -42,10 +48,15 @@ export default function ChatSidebar({
   const [streamText, setStreamText] = useState("");
   const [error, setError] = useState("");
   const [upgradeFeature, setUpgradeFeature] = useState<string | null>(null);
+  const [apiKeyInput, setApiKeyInput] = useState("");
+  const [savingApiKey, setSavingApiKey] = useState(false);
+  const [apiKeySaveError, setApiKeySaveError] = useState("");
+  const [apiKeyRetryAction, setApiKeyRetryAction] = useState<AiAction | null>(null);
   const [initialized, setInitialized] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const initCalledRef = useRef(false);
+  const lastFailedMessageRef = useRef<string | null>(null);
 
   useEffect(() => {
     onStreaming?.(streaming);
@@ -111,7 +122,7 @@ export default function ChatSidebar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scanTrigger]);
 
-  async function processSSEStream(response: Response) {
+  async function processSSEStream(response: Response, action?: AiAction) {
     const reader = response.body?.getReader();
     if (!reader) return;
 
@@ -141,6 +152,9 @@ export default function ChatSidebar({
               onArchitecture?.(event.content);
             } else if (event.type === "error") {
               setError(event.content);
+              if (typeof event.content === "string" && isMissingApiKeyError(event.content)) {
+                setApiKeyRetryAction(action ?? null);
+              }
               setStreaming(false);
               return;
             } else if (event.type === "done") {
@@ -159,6 +173,8 @@ export default function ChatSidebar({
               setStreamText("");
               setStreaming(false);
               setInitialized(true);
+              setApiKeyRetryAction(null);
+              lastFailedMessageRef.current = null;
               return;
             }
           } catch {
@@ -184,7 +200,7 @@ export default function ChatSidebar({
         setStreaming(false);
         return;
       }
-      await processSSEStream(res);
+      await processSSEStream(res, "init");
     } catch {
       setError("Failed to start conversation");
       setStreaming(false);
@@ -210,31 +226,36 @@ export default function ChatSidebar({
       if (!res.ok && !res.headers.get("content-type")?.includes("text/event-stream")) {
         const data = await res.json().catch(() => ({ error: "Failed to scan repository" }));
         setError(data.error || "Failed to scan repository");
+        if (typeof data.error === "string" && isMissingApiKeyError(data.error)) {
+          setApiKeyRetryAction("scan");
+        }
         setStreaming(false);
         return;
       }
-      await processSSEStream(res);
+      await processSSEStream(res, "scan");
     } catch {
       setError("Failed to scan repository");
       setStreaming(false);
     }
   }
 
-  async function sendMessage() {
-    const text = input.trim();
+  async function sendMessageText(text: string, appendUserMessage: boolean) {
     if (!text || streaming) return;
 
-    // Add user message to UI immediately
-    const userMsg: Message = {
-      id: `user-${Date.now()}`,
-      role: "user",
-      content: text,
-      createdAt: Date.now(),
-    };
-    setMessages((prev) => [...prev, userMsg]);
+    if (appendUserMessage) {
+      const userMsg: Message = {
+        id: `user-${Date.now()}`,
+        role: "user",
+        content: text,
+        createdAt: Date.now(),
+      };
+      setMessages((prev) => [...prev, userMsg]);
+    }
     setInput("");
     setStreaming(true);
     setError("");
+    setApiKeySaveError("");
+    lastFailedMessageRef.current = text;
 
     // Reset textarea height
     if (textareaRef.current) {
@@ -252,10 +273,57 @@ export default function ChatSidebar({
         setStreaming(false);
         return;
       }
-      await processSSEStream(res);
+      await processSSEStream(res, "message");
     } catch {
       setError("Failed to send message");
       setStreaming(false);
+    }
+  }
+
+  async function sendMessage() {
+    const text = input.trim();
+    await sendMessageText(text, true);
+  }
+
+  async function saveApiKeyInline(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const trimmed = apiKeyInput.trim();
+    if (!trimmed) {
+      setApiKeySaveError("Enter an Anthropic API key first.");
+      return;
+    }
+
+    setSavingApiKey(true);
+    setApiKeySaveError("");
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apiKey: trimmed }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setApiKeySaveError(data.error || "Failed to save API key.");
+        return;
+      }
+
+      const retryAction = apiKeyRetryAction;
+      const retryMessage = lastFailedMessageRef.current;
+      setApiKeyInput("");
+      setError("");
+      setApiKeyRetryAction(null);
+
+      if (retryAction === "scan" && repoUrl) {
+        await scanRepo();
+      } else if (retryAction === "message" && retryMessage) {
+        await sendMessageText(retryMessage, false);
+      } else if (retryAction === "init") {
+        await initChat();
+      }
+    } catch {
+      setApiKeySaveError("Failed to save API key.");
+    } finally {
+      setSavingApiKey(false);
     }
   }
 
@@ -273,6 +341,8 @@ export default function ChatSidebar({
     el.style.height = "auto";
     el.style.height = Math.min(el.scrollHeight, 120) + "px";
   }
+
+  const showApiKeyForm = Boolean(error && !upgradeFeature && isMissingApiKeyError(error));
 
   if (!open) {
     return (
@@ -370,7 +440,44 @@ export default function ChatSidebar({
           </div>
         )}
 
-        {error && !upgradeFeature && (
+        {showApiKeyForm && (
+          <form
+            onSubmit={saveApiKeyInline}
+            className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm dark:border-red-900/60 dark:bg-red-950"
+          >
+            <p className="font-medium text-red-700 dark:text-red-300">{error}</p>
+            <div className="mt-3 flex flex-col gap-2">
+              <label
+                className="text-xs font-semibold uppercase tracking-wide text-red-700 dark:text-red-300"
+                htmlFor="chat-anthropic-api-key"
+              >
+                Anthropic API key
+              </label>
+              <input
+                id="chat-anthropic-api-key"
+                type="password"
+                value={apiKeyInput}
+                onChange={(e) => setApiKeyInput(e.target.value)}
+                placeholder="sk-ant-..."
+                autoComplete="off"
+                disabled={savingApiKey}
+                className="min-h-10 rounded-md border border-red-200 bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)] disabled:opacity-50 dark:border-red-900/70"
+              />
+              <button
+                type="submit"
+                disabled={savingApiKey || !apiKeyInput.trim()}
+                className="min-h-10 rounded-md bg-[var(--color-client)] px-3 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
+              >
+                {savingApiKey ? "Saving..." : "Save and retry"}
+              </button>
+            </div>
+            {apiKeySaveError && (
+              <p className="mt-2 text-xs text-red-700 dark:text-red-300">{apiKeySaveError}</p>
+            )}
+          </form>
+        )}
+
+        {error && !upgradeFeature && !showApiKeyForm && (
           <div className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-950 dark:text-red-400">
             {error}
           </div>
