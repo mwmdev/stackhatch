@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 
 interface User {
@@ -11,12 +11,21 @@ interface User {
   avatarUrl: string | null;
   role: string;
   createdAt: number;
+  isCurrent?: boolean;
 }
 
 export default function AdminPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [createForm, setCreateForm] = useState({
+    name: "",
+    email: "",
+    githubId: "",
+    role: "free-user",
+  });
+  const [creating, setCreating] = useState(false);
+  const [impersonatingUserId, setImpersonatingUserId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -32,6 +41,32 @@ export default function AdminPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  async function handleCreateUser(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setCreating(true);
+    setError("");
+
+    const res = await fetch("/api/admin/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: createForm.name.trim(),
+        email: createForm.email.trim(),
+        githubId: createForm.githubId.trim() || undefined,
+        role: createForm.role,
+      }),
+    });
+    const data = await res.json().catch(() => ({ error: "Failed to create user" }));
+
+    if (res.ok) {
+      setUsers((prev) => [...prev, data]);
+      setCreateForm({ name: "", email: "", githubId: "", role: "free-user" });
+    } else {
+      setError(data.error || "Failed to create user");
+    }
+    setCreating(false);
+  }
+
   async function handleRoleChange(userId: string, role: string) {
     const prev = users.map((u) => ({ ...u }));
     setUsers((us) => us.map((u) => (u.id === userId ? { ...u, role } : u)));
@@ -46,6 +81,25 @@ export default function AdminPage() {
       const data = await res.json().catch(() => ({ error: "Failed" }));
       setError(data.error || "Failed to update role");
     }
+  }
+
+  async function handleImpersonate(user: User) {
+    setImpersonatingUserId(user.id);
+    setError("");
+    const res = await fetch("/api/admin/impersonation", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: user.id }),
+    });
+
+    if (res.ok) {
+      window.location.href = "/app";
+      return;
+    }
+
+    const data = await res.json().catch(() => ({ error: "Failed to impersonate user" }));
+    setError(data.error || "Failed to impersonate user");
+    setImpersonatingUserId(null);
   }
 
   const handleDelete = useCallback(async () => {
@@ -109,6 +163,70 @@ export default function AdminPage() {
           </div>
         )}
 
+        <form
+          onSubmit={handleCreateUser}
+          className="mb-6 rounded-xl border border-[var(--border)] bg-[var(--card)] p-4"
+        >
+          <div className="mb-4 flex flex-col gap-1">
+            <h2 className="text-lg font-semibold text-[var(--card-foreground)]">Create user</h2>
+            <p className="text-sm text-[var(--muted-foreground)]">
+              Create a local user for QA or support. Add a GitHub ID only when you want to link it
+              to a real GitHub account.
+            </p>
+          </div>
+          <div className="grid gap-3 md:grid-cols-[1fr_1fr_180px]">
+            <label className="flex flex-col gap-1 text-sm font-medium">
+              Name
+              <input
+                value={createForm.name}
+                onChange={(e) => setCreateForm((prev) => ({ ...prev, name: e.target.value }))}
+                placeholder="Jane Customer"
+                className="min-h-11 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm font-normal text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-sm font-medium">
+              Email
+              <input
+                type="email"
+                value={createForm.email}
+                onChange={(e) => setCreateForm((prev) => ({ ...prev, email: e.target.value }))}
+                placeholder="jane@example.com"
+                className="min-h-11 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm font-normal text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-sm font-medium">
+              Role
+              <select
+                value={createForm.role}
+                onChange={(e) => setCreateForm((prev) => ({ ...prev, role: e.target.value }))}
+                className="min-h-11 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm font-normal text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
+              >
+                <option value="free-user">Free User</option>
+                <option value="paid-user">Paid User</option>
+                <option value="admin">Admin</option>
+              </select>
+            </label>
+          </div>
+          <div className="mt-3 grid gap-3 md:grid-cols-[1fr_auto]">
+            <label className="flex flex-col gap-1 text-sm font-medium">
+              GitHub ID optional
+              <input
+                value={createForm.githubId}
+                onChange={(e) => setCreateForm((prev) => ({ ...prev, githubId: e.target.value }))}
+                placeholder="Leave blank for manual user"
+                className="min-h-11 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm font-normal text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
+              />
+            </label>
+            <button
+              type="submit"
+              disabled={creating || !createForm.name.trim()}
+              className="min-h-11 self-end rounded-md bg-[var(--color-client)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+            >
+              {creating ? "Creating..." : "Create user"}
+            </button>
+          </div>
+        </form>
+
         <div className="overflow-hidden rounded-xl border border-[var(--border)]">
           <table className="w-full text-sm">
             <thead className="bg-[var(--muted)]">
@@ -159,12 +277,28 @@ export default function AdminPage() {
                     {new Date(user.createdAt).toLocaleDateString()}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <button
-                      onClick={() => setDeleteTarget(user)}
-                      className="min-h-11 rounded px-3 py-2 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-950"
-                    >
-                      Delete
-                    </button>
+                    <div className="flex justify-end gap-2">
+                      {user.isCurrent ? (
+                        <span className="inline-flex min-h-11 items-center px-3 py-2 text-xs text-[var(--muted-foreground)]">
+                          You
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => handleImpersonate(user)}
+                          disabled={impersonatingUserId === user.id}
+                          className="min-h-11 rounded px-3 py-2 text-xs text-[var(--color-client)] hover:bg-[var(--muted)] disabled:opacity-50"
+                        >
+                          {impersonatingUserId === user.id ? "Starting..." : "Impersonate"}
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setDeleteTarget(user)}
+                        disabled={user.isCurrent}
+                        className="min-h-11 rounded px-3 py-2 text-xs text-red-500 hover:bg-red-50 disabled:opacity-40 dark:hover:bg-red-950"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

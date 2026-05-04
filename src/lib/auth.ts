@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import { cookies } from "next/headers";
 import { getDb } from "@/db";
 import { runMigrations } from "@/db/migrate";
 import { users, type UserRole } from "@/db/schema";
@@ -6,6 +7,7 @@ import { auth } from "@/lib/auth-config";
 
 const DEV_USER_ID = "dev-user";
 const VALID_ROLES: UserRole[] = ["admin", "free-user", "paid-user"];
+export const IMPERSONATION_COOKIE = "stackhatch_impersonate_user";
 
 export interface AuthenticatedUser {
   userId: string;
@@ -13,6 +15,12 @@ export interface AuthenticatedUser {
   name?: string | null;
   email?: string | null;
   image?: string | null;
+  impersonatedBy?: {
+    userId: string;
+    role: UserRole;
+    name?: string | null;
+    email?: string | null;
+  };
 }
 
 function isValidRole(role: string | undefined): role is UserRole {
@@ -69,20 +77,10 @@ function getDevUser(): AuthenticatedUser {
   };
 }
 
-export async function getAuthenticatedUser(): Promise<AuthenticatedUser | null> {
-  if (isDevAuthEnabled()) {
-    return getDevUser();
-  }
-
-  const session = await auth();
-  const sessionUser = session?.user;
-  if (!sessionUser?.userId) {
-    return null;
-  }
-
+function readUser(userId: string): AuthenticatedUser | null {
   const db = getDb();
   runMigrations(db);
-  const user = db.select().from(users).where(eq(users.id, sessionUser.userId)).get();
+  const user = db.select().from(users).where(eq(users.id, userId)).get();
 
   if (!user) {
     return null;
@@ -94,6 +92,52 @@ export async function getAuthenticatedUser(): Promise<AuthenticatedUser | null> 
     name: user.name,
     email: user.email,
     image: user.avatarUrl,
+  };
+}
+
+export async function getActualAuthenticatedUser(): Promise<AuthenticatedUser | null> {
+  if (isDevAuthEnabled()) {
+    return getDevUser();
+  }
+
+  const session = await auth();
+  const sessionUser = session?.user;
+  if (!sessionUser?.userId) {
+    return null;
+  }
+
+  return readUser(sessionUser.userId);
+}
+
+export async function getAuthenticatedUser(): Promise<AuthenticatedUser | null> {
+  const actualUser = await getActualAuthenticatedUser();
+  if (!actualUser) {
+    return null;
+  }
+
+  if (actualUser.role !== "admin") {
+    return actualUser;
+  }
+
+  const cookieStore = await cookies();
+  const impersonatedUserId = cookieStore.get(IMPERSONATION_COOKIE)?.value;
+  if (!impersonatedUserId || impersonatedUserId === actualUser.userId) {
+    return actualUser;
+  }
+
+  const impersonatedUser = readUser(impersonatedUserId);
+  if (!impersonatedUser) {
+    return actualUser;
+  }
+
+  return {
+    ...impersonatedUser,
+    impersonatedBy: {
+      userId: actualUser.userId,
+      role: actualUser.role,
+      name: actualUser.name,
+      email: actualUser.email,
+    },
   };
 }
 
