@@ -7,7 +7,6 @@ import { MessageSquareText, PanelLeftClose } from "lucide-react";
 import ReactFlow, {
   Background,
   Controls,
-  MiniMap,
   useNodesState,
   useEdgesState,
   BackgroundVariant,
@@ -84,15 +83,6 @@ interface StoredCanvasState extends StackArchitecture {
 
 const nodeTypes = { stackNode: StackNodeComponent };
 const edgeTypes = { stackEdge: StackEdgeComponent };
-
-const MINIMAP_COLORS: Record<string, string> = {
-  client: "#3B82F6",
-  api: "#10B981",
-  services: "#8B5CF6",
-  data: "#F59E0B",
-  infrastructure: "#64748B",
-  external: "#F43F5E",
-};
 
 export default function ProjectPage() {
   const params = useParams();
@@ -726,13 +716,6 @@ export default function ProjectPage() {
     [rfNodes, buildRfNodes, setRfNodes, setRfEdges]
   );
 
-  // --- MiniMap node color ---
-
-  const minimapNodeColor = useCallback((node: Node) => {
-    const cat = (node.data as StackNodeData)?.category;
-    return MINIMAP_COLORS[cat] ?? "#888";
-  }, []);
-
   // --- Load project ---
 
   useEffect(() => {
@@ -1015,7 +998,6 @@ export default function ProjectPage() {
               style={{ opacity: 0.3 }}
             />
             <Controls />
-            <MiniMap nodeColor={minimapNodeColor} maskColor="rgba(0, 0, 0, 0.1)" />
           </ReactFlow>
 
           {/* Generating architecture overlay */}

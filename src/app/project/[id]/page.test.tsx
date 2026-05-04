@@ -46,18 +46,12 @@ vi.mock("reactflow", () => {
       "data-testid": "react-flow-controls",
     });
   }
-  function MiniMap() {
-    return React.createElement("div", {
-      "data-testid": "react-flow-minimap",
-    });
-  }
 
   return {
     __esModule: true,
     default: ReactFlow,
     Background,
     Controls,
-    MiniMap,
     BackgroundVariant: { Dots: "dots", Lines: "lines", Cross: "cross" },
     useNodesState: (initial: unknown[]) => {
       const [nodes, setNodes] = React.useState(initial);
@@ -574,12 +568,13 @@ describe("ProjectPage", () => {
       });
     });
 
-    it("renders MiniMap component", async () => {
+    it("does not render MiniMap component", async () => {
       mockFetchProject(emptyProject);
       render(<ProjectPage />);
       await waitFor(() => {
-        expect(screen.getByTestId("react-flow-minimap")).toBeInTheDocument();
+        expect(screen.getByTestId("react-flow-canvas")).toBeInTheDocument();
       });
+      expect(screen.queryByTestId("react-flow-minimap")).not.toBeInTheDocument();
     });
 
     it("renders EdgeLegend component", async () => {
