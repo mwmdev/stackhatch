@@ -215,6 +215,11 @@ const projectWithNodes = {
   },
 };
 
+const projectWithRepo = {
+  ...projectWithNodes,
+  repoUrl: "https://github.com/example/repo",
+};
+
 const projectWithPositions = {
   ...emptyProject,
   canvasState: {
@@ -455,6 +460,21 @@ describe("ProjectPage", () => {
         expect(screen.getByTestId("react-flow-canvas")).toHaveAttribute("data-node-count", "2");
       });
       expect(screen.queryByText(/2 node/)).not.toBeInTheDocument();
+    });
+
+    it("renders repo re-scan as an icon button with hover tooltip text", async () => {
+      mockFetchProject(projectWithRepo);
+      render(<ProjectPage />);
+      await waitFor(() => {
+        expect(screen.getByTestId("react-flow-canvas")).toHaveAttribute("data-node-count", "2");
+      });
+
+      const rescanButton = screen.getByLabelText(
+        "Re-scan repository: https://github.com/example/repo"
+      );
+      expect(rescanButton).toHaveAttribute("title", "Re-scan: https://github.com/example/repo");
+      expect(rescanButton.querySelector("svg")).toBeInTheDocument();
+      expect(screen.getByText("Re-scan Repo")).toHaveClass("opacity-0");
     });
 
     it("shows back to dashboard link", async () => {

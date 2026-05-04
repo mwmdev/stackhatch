@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { MessageSquareText, PanelLeftClose } from "lucide-react";
+import { MessageSquareText, PanelLeftClose, RefreshCw } from "lucide-react";
 import ReactFlow, {
   Background,
   Controls,
@@ -895,10 +895,14 @@ export default function ProjectPage() {
             {project.repoUrl ? (
               <button
                 onClick={() => setScanTrigger((t) => t + 1)}
-                className="min-h-11 rounded border border-[var(--border)] px-3 py-2 text-xs text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
+                className="group relative flex h-11 w-11 items-center justify-center rounded border border-[var(--border)] text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]/30"
+                aria-label={`Re-scan repository: ${project.repoUrl}`}
                 title={`Re-scan: ${project.repoUrl}`}
               >
-                Re-scan Repo
+                <RefreshCw className="h-[18px] w-[18px]" />
+                <span className="pointer-events-none absolute right-0 top-full z-50 mt-2 whitespace-nowrap rounded-md border border-[var(--border)] bg-[var(--card)] px-2 py-1 text-xs font-medium text-[var(--foreground)] opacity-0 shadow-sm transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                  Re-scan Repo
+                </span>
               </button>
             ) : (
               <>
