@@ -96,6 +96,7 @@ describe("Dashboard", () => {
 
     expect(screen.getByText("Start from scratch")).toBeInTheDocument();
     expect(screen.getByText("Analyze")).toBeInTheDocument();
+    expect(screen.getAllByText("OR")).toHaveLength(2);
   });
 
   it("does not render activation or launch basics sidebar sections", async () => {

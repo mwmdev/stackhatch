@@ -67,6 +67,16 @@ function isAcceptedRequirementsFile(file: File) {
   return ACCEPTED_REQUIREMENT_FILES.some((extension) => name.endsWith(extension));
 }
 
+function StartOptionSeparator() {
+  return (
+    <div className="flex items-center justify-center gap-3 text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
+      <span className="h-px flex-1 bg-[var(--border)] md:hidden" />
+      <span>OR</span>
+      <span className="h-px flex-1 bg-[var(--border)] md:hidden" />
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const router = useRouter();
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
@@ -293,7 +303,10 @@ export default function Dashboard() {
             </div>
           </section>
 
-          <section id="start" className="grid gap-4 md:grid-cols-3">
+          <section
+            id="start"
+            className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto_minmax(0,1fr)]"
+          >
             <form
               onSubmit={handleRepoSubmit}
               className="flex min-w-0 flex-col rounded-lg border border-[var(--border)] bg-[var(--card)] p-5"
@@ -320,6 +333,8 @@ export default function Dashboard() {
               </button>
             </form>
 
+            <StartOptionSeparator />
+
             <div className="flex min-w-0 flex-col rounded-lg border border-[var(--border)] bg-[var(--card)] p-5">
               <FileText className="h-5 w-5 text-[var(--color-services)]" />
               <h2 className="mt-3 font-semibold">Upload requirements</h2>
@@ -342,6 +357,8 @@ export default function Dashboard() {
               />
               <p className="mt-2 text-xs text-[var(--muted-foreground)]">.md or .txt</p>
             </div>
+
+            <StartOptionSeparator />
 
             <div className="flex min-w-0 flex-col rounded-lg border border-[var(--border)] bg-[var(--card)] p-5">
               <FolderPlus className="h-5 w-5 text-[var(--color-api)]" />
