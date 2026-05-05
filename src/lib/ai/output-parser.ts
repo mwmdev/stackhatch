@@ -1,26 +1,12 @@
 import { z } from "zod";
 import type { StackArchitecture } from "@/types/stack";
 
-const nodeCategories = [
-  "client",
-  "api",
-  "services",
-  "data",
-  "infrastructure",
-  "external",
-] as const;
+const nodeCategories = ["client", "api", "services", "data", "infrastructure", "external"] as const;
 const nodeCategoriesWithNotes = [...nodeCategories, "note"] as const;
 
 const noteColors = ["yellow", "mint", "peach", "sky", "lilac"] as const;
 
-const connectionTypes = [
-  "http",
-  "websocket",
-  "grpc",
-  "tcp",
-  "pub-sub",
-  "file-io",
-] as const;
+const connectionTypes = ["http", "websocket", "grpc", "tcp", "pub-sub", "file-io"] as const;
 
 function createStackNodeSchema(allowNoteNodes: boolean) {
   return z.object({
@@ -54,6 +40,23 @@ export interface ParsedAIResponse {
   architecture: StackArchitecture | null;
 }
 
+function hasValidNodeAndEdgeReferences(architecture: StackArchitecture): boolean {
+  const nodeIds = new Set<string>();
+  for (const node of architecture.nodes) {
+    if (nodeIds.has(node.id)) return false;
+    nodeIds.add(node.id);
+  }
+
+  const edgeIds = new Set<string>();
+  for (const edge of architecture.edges) {
+    if (edgeIds.has(edge.id)) return false;
+    edgeIds.add(edge.id);
+    if (!nodeIds.has(edge.source) || !nodeIds.has(edge.target)) return false;
+  }
+
+  return true;
+}
+
 /**
  * Extracts a `<stack>...</stack>` JSON block from an AI response.
  * Returns the cleaned message text and the parsed architecture (or null).
@@ -80,7 +83,7 @@ export function parseAIResponse(
     });
     const result = schema.safeParse(parsed);
 
-    if (result.success) {
+    if (result.success && hasValidNodeAndEdgeReferences(result.data)) {
       return { message: cleanedMessage, architecture: result.data };
     }
 

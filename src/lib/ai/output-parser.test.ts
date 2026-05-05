@@ -138,14 +138,7 @@ ${JSON.stringify(invalidJson)}
   });
 
   it("validates all connection types", () => {
-    const connectionTypes = [
-      "http",
-      "websocket",
-      "grpc",
-      "tcp",
-      "pub-sub",
-      "file-io",
-    ];
+    const connectionTypes = ["http", "websocket", "grpc", "tcp", "pub-sub", "file-io"];
 
     for (const connType of connectionTypes) {
       const arch = {
@@ -194,22 +187,9 @@ ${JSON.stringify(invalidJson)}
     const categorySubtypes: Record<string, string[]> = {
       client: ["web-app", "mobile-app", "desktop-app", "cli"],
       api: ["rest-api", "graphql", "grpc", "websocket-server"],
-      services: [
-        "auth",
-        "payments",
-        "notifications",
-        "search",
-        "file-processing",
-        "custom",
-      ],
+      services: ["auth", "payments", "notifications", "search", "file-processing", "custom"],
       data: ["sql-db", "nosql-db", "cache", "message-queue", "object-storage"],
-      infrastructure: [
-        "cdn",
-        "load-balancer",
-        "api-gateway",
-        "dns",
-        "reverse-proxy",
-      ],
+      infrastructure: ["cdn", "load-balancer", "api-gateway", "dns", "reverse-proxy"],
       external: ["third-party-api", "oauth-provider", "email-sms-service"],
       note: ["note"],
     };
@@ -235,10 +215,7 @@ ${JSON.stringify(invalidJson)}
         const text = `<stack>${JSON.stringify(arch)}</stack>`;
         const result = parseAIResponse(text);
 
-        expect(
-          result.architecture,
-          `${category}/${subtype} should be valid`,
-        ).not.toBeNull();
+        expect(result.architecture, `${category}/${subtype} should be valid`).not.toBeNull();
       }
     }
   });
@@ -335,6 +312,78 @@ ${JSON.stringify(invalidJson)}
           target: "a",
           connectionType: "invalid-type",
           label: "test",
+        },
+      ],
+    };
+
+    const text = `<stack>${JSON.stringify(arch)}</stack>`;
+    const result = parseAIResponse(text);
+
+    expect(result.architecture).toBeNull();
+  });
+
+  it("rejects edges that reference missing node ids", () => {
+    const arch = {
+      nodes: [
+        {
+          id: "web-client",
+          category: "client",
+          subtype: "web-app",
+          name: "Web Client",
+          technology: "Next.js 16",
+          description: "Browser UI",
+          reasoning: "Strong React framework",
+          locked: false,
+        },
+      ],
+      edges: [
+        {
+          id: "edge-1",
+          source: "Web Client",
+          target: "api-server",
+          connectionType: "http",
+          label: "Calls API",
+        },
+      ],
+    };
+
+    const text = `<stack>${JSON.stringify(arch)}</stack>`;
+    const result = parseAIResponse(text);
+
+    expect(result.architecture).toBeNull();
+  });
+
+  it("rejects duplicate node and edge ids", () => {
+    const arch = {
+      nodes: [
+        {
+          id: "api-server",
+          category: "api",
+          subtype: "rest-api",
+          name: "API Server",
+          technology: "Fastify",
+          description: "Backend API",
+          reasoning: "Fast TypeScript server",
+          locked: false,
+        },
+        {
+          id: "api-server",
+          category: "data",
+          subtype: "sql-db",
+          name: "Database",
+          technology: "PostgreSQL 16",
+          description: "Primary data store",
+          reasoning: "Reliable relational storage",
+          locked: false,
+        },
+      ],
+      edges: [
+        {
+          id: "edge-1",
+          source: "api-server",
+          target: "api-server",
+          connectionType: "tcp",
+          label: "SQL",
         },
       ],
     };
