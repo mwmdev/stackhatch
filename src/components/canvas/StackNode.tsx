@@ -110,7 +110,7 @@ function StackNodeComponent({ id, data, selected }: NodeProps<StackNodeData>) {
 
       {/* Lock indicator */}
       {data.locked && (
-        <div className="absolute right-2 top-2" data-testid="lock-indicator">
+        <div className="absolute bottom-2 right-2" data-testid="lock-indicator">
           <icons.Lock size={14} className="text-[var(--color-data)]" />
         </div>
       )}

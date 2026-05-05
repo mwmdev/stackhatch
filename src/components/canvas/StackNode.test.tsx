@@ -104,7 +104,12 @@ describe("StackNode", () => {
 
   it("shows lock indicator when locked", () => {
     renderNode({ locked: true });
-    expect(screen.getByTestId("lock-indicator")).toBeInTheDocument();
+    const lockIndicator = screen.getByTestId("lock-indicator");
+
+    expect(lockIndicator).toBeInTheDocument();
+    expect(lockIndicator.className).toContain("bottom-2");
+    expect(lockIndicator.className).toContain("right-2");
+    expect(lockIndicator.className).not.toContain("top-2");
   });
 
   it("does not show lock indicator when unlocked", () => {
