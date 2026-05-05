@@ -56,6 +56,9 @@ function StackNodeComponent({ id, data, selected }: NodeProps<StackNodeData>) {
   const catConfig = getCategoryConfig(data.category);
   const subtypeConfig = getSubtypeConfig(data.category, data.subtype, data.customSubtypes);
   const iconName = subtypeConfig?.icon ?? catConfig.icon;
+  const description = data.description.trim();
+  const tooltipId = `node-description-tooltip-${id}`;
+  const hasDescription = description.length > 0;
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -81,7 +84,7 @@ function StackNodeComponent({ id, data, selected }: NodeProps<StackNodeData>) {
 
   return (
     <div
-      className={`stack-node relative rounded-xl border-2 bg-[var(--card)] text-[var(--card-foreground)] shadow-md hover:shadow-lg ${
+      className={`stack-node group relative rounded-xl border-2 bg-[var(--card)] text-[var(--card-foreground)] shadow-md hover:shadow-lg ${
         selected ? "ring-2 ring-blue-500" : ""
       } ${data.locked ? "border border-dashed border-[var(--muted-foreground)]" : ""}`}
       style={{
@@ -90,6 +93,8 @@ function StackNodeComponent({ id, data, selected }: NodeProps<StackNodeData>) {
       }}
       onContextMenu={handleContextMenu}
       onClick={handleClick}
+      tabIndex={hasDescription ? 0 : undefined}
+      aria-describedby={hasDescription ? tooltipId : undefined}
       data-testid={`stack-node-${id}`}
     >
       {/* Target handle (top) */}
@@ -167,6 +172,26 @@ function StackNodeComponent({ id, data, selected }: NodeProps<StackNodeData>) {
         className="!h-3 !w-3 !border-2 !border-white"
         style={{ backgroundColor: catConfig.color }}
       />
+
+      {/* Description tooltip */}
+      {hasDescription && (
+        <div
+          id={tooltipId}
+          role="tooltip"
+          className="nodrag nopan pointer-events-auto absolute bottom-full left-1/2 z-50 mb-3 max-h-40 w-max max-w-80 -translate-x-1/2 overflow-auto rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-xs leading-5 text-[var(--card-foreground)] opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus:opacity-100"
+          onClick={(e) => e.stopPropagation()}
+          data-testid="node-description-tooltip"
+        >
+          {containsHtml(description) ? (
+            <div
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(description) }}
+              className="[&_a]:text-blue-500 [&_a]:underline [&_code]:rounded [&_code]:bg-[var(--muted)] [&_code]:px-1"
+            />
+          ) : (
+            description
+          )}
+        </div>
+      )}
 
       {/* Context menu */}
       {contextMenu.visible && (

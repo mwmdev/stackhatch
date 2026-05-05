@@ -47,6 +47,42 @@ describe("StackNode", () => {
     expect(screen.getByText("PostgreSQL 16")).toBeInTheDocument();
   });
 
+  it("renders description tooltip and wires aria-describedby", () => {
+    const { container } = renderNode();
+    const nodeDiv = container.querySelector(".stack-node") as HTMLElement;
+    const tooltip = screen.getByTestId("node-description-tooltip");
+
+    expect(tooltip).toHaveTextContent("Primary relational database");
+    expect(tooltip).toHaveAttribute("role", "tooltip");
+    expect(nodeDiv).toHaveAttribute("aria-describedby", tooltip.id);
+    expect(nodeDiv).toHaveAttribute("tabindex", "0");
+  });
+
+  it("does not render description tooltip for empty descriptions", () => {
+    const { container } = renderNode({ description: "   " });
+    const nodeDiv = container.querySelector(".stack-node") as HTMLElement;
+
+    expect(screen.queryByTestId("node-description-tooltip")).not.toBeInTheDocument();
+    expect(nodeDiv).not.toHaveAttribute("aria-describedby");
+    expect(nodeDiv).not.toHaveAttribute("tabindex");
+  });
+
+  it("sanitizes HTML descriptions in the tooltip", () => {
+    const { container } = renderNode({
+      description:
+        '<strong>Primary</strong> <script>alert("x")</script><a href="javascript:alert(1)">docs</a>',
+    });
+    const tooltip = screen.getByTestId("node-description-tooltip");
+
+    expect(tooltip.querySelector("strong")).toHaveTextContent("Primary");
+    expect(tooltip.querySelector("script")).not.toBeInTheDocument();
+    expect(tooltip.querySelector("a")).toHaveAttribute("href", "#");
+    expect(tooltip).toHaveTextContent("docs");
+
+    const nodeDiv = container.querySelector(".stack-node") as HTMLElement;
+    expect(nodeDiv).toHaveAttribute("aria-describedby", tooltip.id);
+  });
+
   it("renders category badge with display name", () => {
     renderNode();
     expect(screen.getByText("Data")).toBeInTheDocument();
