@@ -3,15 +3,20 @@ import { createProjectAndNavigate, errorSSE, fulfillSSE, textSSE } from "./helpe
 
 test.describe("Error Paths", () => {
   test("shows error when API key is not configured", async ({ page }) => {
-    // Mock chat init to return the server AI configuration error
+    // Mock chat init to return the BYOK configuration error
     await page.route("**/api/projects/*/chat/init", async (route) => {
-      await fulfillSSE(route, errorSSE("AI is not configured on this server."));
+      await fulfillSSE(
+        route,
+        errorSSE("Add your Anthropic API key in Settings to use StackHatch AI.")
+      );
     });
 
     await createProjectAndNavigate(page, "No API Key Test");
 
     // Error message should appear in the chat
-    await expect(page.getByText("AI is not configured").first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText("Add your Anthropic API key").first()).toBeVisible({
+      timeout: 10000,
+    });
   });
 
   test("shows error when Anthropic API fails during chat", async ({ page }) => {

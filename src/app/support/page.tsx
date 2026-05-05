@@ -10,7 +10,7 @@ const SUPPORT_PATHS = [
   {
     title: "Billing and limits",
     description:
-      "Free BYOK is for evaluation. Builder adds hosted AI and export formats. Studio adds team collaboration, templates, and richer architecture handoffs.",
+      "Every tier uses BYOK for AI. Builder adds export formats and higher limits. Studio adds team collaboration, templates, and richer architecture handoffs.",
   },
   {
     title: "Data handling",

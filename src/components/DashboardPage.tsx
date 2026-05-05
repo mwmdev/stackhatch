@@ -38,7 +38,6 @@ interface CurrentUser {
 
 interface SettingsSummary {
   hasAnthropicKey?: boolean;
-  hasServerAnthropicKey?: boolean;
   hasUserAnthropicKey?: boolean;
 }
 
@@ -232,12 +231,14 @@ export default function Dashboard() {
   const activePlan = normalizePlan(billing?.plan);
   const activePlanConfig = PLAN_CONFIG[activePlan];
   const projectLimit = activePlanConfig.features.projects;
-  const hasAiAccess = Boolean(settings?.hasAnthropicKey || settings?.hasServerAnthropicKey);
+  const hasAiAccess = Boolean(settings?.hasUserAnthropicKey || settings?.hasAnthropicKey);
   const activationItems = [
     {
       label: "AI access ready",
       complete: hasAiAccess,
-      detail: hasAiAccess ? "Claude is configured for architecture work." : "Add BYOK or upgrade.",
+      detail: hasAiAccess
+        ? "Claude is configured for architecture work."
+        : "Add your Anthropic API key.",
       href: "/settings",
     },
     {

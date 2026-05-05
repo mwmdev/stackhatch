@@ -121,7 +121,7 @@ export default function LandingPage() {
             <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-sm text-[var(--muted-foreground)]">
               <span className="inline-flex items-center gap-2">
                 <KeyRound className="h-4 w-4" />
-                Free BYOK
+                BYOK every plan
               </span>
               <span className="inline-flex items-center gap-2">
                 <GitBranch className="h-4 w-4" />
@@ -295,8 +295,8 @@ export default function LandingPage() {
             <div>
               <h2 className="text-2xl font-bold tracking-tight">Ready to map your stack?</h2>
               <p className="mt-2 text-[var(--muted-foreground)]">
-                Start free with your own Anthropic key, then upgrade when hosted AI and team
-                workflow matter.
+                Start free with your own Anthropic key, then upgrade when exports and team workflow
+                matter.
               </p>
             </div>
             <Link

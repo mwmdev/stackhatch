@@ -27,7 +27,6 @@ const PROMPT_DEFAULTS: Record<string, string> = {
 
 interface Settings {
   hasAnthropicKey?: boolean;
-  hasServerAnthropicKey?: boolean;
   hasUserAnthropicKey?: boolean;
   role?: string;
   isAdmin?: boolean;
@@ -45,7 +44,6 @@ export default function SettingsPage() {
 
   const [loading, setLoading] = useState(true);
   const [hasAnthropicKey, setHasAnthropicKey] = useState(false);
-  const [hasServerAnthropicKey, setHasServerAnthropicKey] = useState(false);
   const [hasUserAnthropicKey, setHasUserAnthropicKey] = useState(false);
   const [apiKey, setApiKey] = useState("");
   const [savingApiKey, setSavingApiKey] = useState(false);
@@ -98,7 +96,6 @@ export default function SettingsPage() {
           } | null,
         ]) => {
           setHasAnthropicKey(Boolean(data.hasAnthropicKey));
-          setHasServerAnthropicKey(Boolean(data.hasServerAnthropicKey));
           setHasUserAnthropicKey(Boolean(data.hasUserAnthropicKey));
           setCurrentRole(data.role ?? "free-user");
           setIsAdmin(Boolean(data.isAdmin));
@@ -174,7 +171,6 @@ export default function SettingsPage() {
       if (res.ok) {
         setApiKey("");
         setHasAnthropicKey(Boolean(data.hasAnthropicKey));
-        setHasServerAnthropicKey(Boolean(data.hasServerAnthropicKey));
         setHasUserAnthropicKey(Boolean(data.hasUserAnthropicKey));
         showToast("success", "BYOK key saved");
       } else {
@@ -198,7 +194,6 @@ export default function SettingsPage() {
       const data = await res.json();
       if (res.ok) {
         setHasAnthropicKey(Boolean(data.hasAnthropicKey));
-        setHasServerAnthropicKey(Boolean(data.hasServerAnthropicKey));
         setHasUserAnthropicKey(Boolean(data.hasUserAnthropicKey));
         showToast("success", "BYOK key removed");
       } else {
@@ -511,24 +506,16 @@ export default function SettingsPage() {
                 )}
               </div>
               <p className="text-sm text-[var(--muted-foreground)]">
-                Free accounts use your own Anthropic key. Paid plans include hosted AI usage. Keys
-                are encrypted at rest and are never returned to the browser.
+                Every plan uses your own Anthropic key. Keys are encrypted at rest and are never
+                returned to the browser.
               </p>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <div className="mt-4">
                 <div className="rounded-md border border-[var(--border)] bg-[var(--background)] p-3">
                   <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted-foreground)]">
                     Your BYOK key
                   </p>
                   <p className="mt-1 text-sm font-medium text-[var(--foreground)]">
                     {hasUserAnthropicKey ? "Saved" : "Not saved"}
-                  </p>
-                </div>
-                <div className="rounded-md border border-[var(--border)] bg-[var(--background)] p-3">
-                  <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted-foreground)]">
-                    Hosted AI
-                  </p>
-                  <p className="mt-1 text-sm font-medium text-[var(--foreground)]">
-                    {hasServerAnthropicKey ? "Configured" : "Unavailable"}
                   </p>
                 </div>
               </div>

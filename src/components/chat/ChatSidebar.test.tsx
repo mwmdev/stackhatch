@@ -357,7 +357,7 @@ describe("ChatSidebar", () => {
           return createSSEResponse([
             {
               type: "error",
-              content: "Add your Anthropic API key in Settings, or upgrade for hosted AI.",
+              content: "Add your Anthropic API key in Settings to use StackHatch AI.",
             },
           ]);
         }
@@ -373,7 +373,6 @@ describe("ChatSidebar", () => {
           JSON.stringify({
             hasAnthropicKey: true,
             hasUserAnthropicKey: true,
-            hasServerAnthropicKey: false,
           }),
           { status: 200 }
         );

@@ -26,9 +26,9 @@ export default function TermsPage() {
           <section>
             <h2 className="text-lg font-semibold text-[var(--foreground)]">Accounts and Billing</h2>
             <p className="mt-2">
-              Free BYOK accounts are subject to product limits. Paid plans renew through Stripe
-              unless canceled before the next billing period. Plan limits and included features are
-              shown on the pricing page.
+              All plans use bring-your-own Anthropic keys for AI. Free accounts are subject to
+              product limits. Paid plans renew through Stripe unless canceled before the next
+              billing period. Plan limits and included features are shown on the pricing page.
             </p>
           </section>
 

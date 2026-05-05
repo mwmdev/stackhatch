@@ -3,7 +3,7 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import Database from "better-sqlite3";
 import { eq, asc } from "drizzle-orm";
 import * as schema from "@/db/schema";
-import { projects, messages, settings, users } from "@/db/schema";
+import { projects, messages, settings, users, userSettings } from "@/db/schema";
 import type { AppDatabase } from "@/db";
 
 // Mock the Anthropic SDK
@@ -54,6 +54,12 @@ function createTestDb(): AppDatabase {
     CREATE TABLE settings (
       key TEXT PRIMARY KEY NOT NULL,
       value TEXT NOT NULL
+    );
+    CREATE TABLE user_settings (
+      user_id TEXT PRIMARY KEY NOT NULL,
+      anthropic_api_key TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
     );
   `);
 
@@ -265,7 +271,7 @@ describe("streamChat", () => {
       expect(events).toHaveLength(1);
       expect(events[0].type).toBe("error");
       expect(events[0].code).toBe("AI_NOT_CONFIGURED");
-      expect(events[0].content).toContain("AI is not configured");
+      expect(events[0].content).toContain("Add your Anthropic API key");
     } finally {
       if (original) process.env.ANTHROPIC_API_KEY = original;
     }
@@ -291,6 +297,52 @@ describe("streamChat", () => {
         delete process.env.ANTHROPIC_API_KEY;
       }
     }
+  });
+
+  it("uses the authenticated user's BYOK key even when a server key exists", async () => {
+    process.env.ANTHROPIC_API_KEY = "sk-ant-env-key";
+    db.insert(userSettings)
+      .values({
+        userId: testUser.id,
+        anthropicApiKey: "sk-ant-user-key",
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      })
+      .run();
+
+    const mockClient = mockAnthropicStream("Response");
+    vi.mocked(Anthropic).mockImplementation(() => mockClient as unknown as Anthropic);
+
+    const response = streamChat(db, projectId, "Hello", undefined, {
+      userId: testUser.id,
+      role: "paid-user",
+      name: testUser.name,
+      email: testUser.email,
+      image: testUser.avatarUrl,
+    });
+    await response.text();
+
+    expect(Anthropic).toHaveBeenCalledWith({ apiKey: "sk-ant-user-key" });
+  });
+
+  it("requires BYOK for authenticated paid users when only the server key exists", async () => {
+    process.env.ANTHROPIC_API_KEY = "sk-ant-env-key";
+
+    const response = streamChat(db, projectId, "Hello", undefined, {
+      userId: testUser.id,
+      role: "paid-user",
+      name: testUser.name,
+      email: testUser.email,
+      image: testUser.avatarUrl,
+    });
+    const events = await readSSEEvents(response);
+
+    expect(response.status).toBe(503);
+    expect(events).toHaveLength(1);
+    expect(events[0].type).toBe("error");
+    expect(events[0].code).toBe("AI_NOT_CONFIGURED");
+    expect(events[0].content).toContain("Add your Anthropic API key");
+    expect(Anthropic).not.toHaveBeenCalled();
   });
 
   it("handles Anthropic API errors gracefully", async () => {
@@ -340,7 +392,7 @@ describe("streamChat", () => {
     expect(errorEvent).toBeDefined();
     expect(errorEvent!.code).toBe("AI_AUTH_FAILED");
     expect(errorEvent!.content).toBe(
-      "AI provider authentication failed. Check ANTHROPIC_API_KEY on the server."
+      "AI provider authentication failed. Check your Anthropic API key in Settings."
     );
   });
 

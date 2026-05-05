@@ -23,15 +23,15 @@ const FEATURE_COPY = {
     "JSON export for handoff",
   ],
   starter: [
-    "Hosted Claude included",
+    "Bring your own Anthropic key",
     "10 active projects",
-    "500 AI messages per month",
     "25 repository scans per month",
     "PNG, SVG, and JSON exports",
     "Node alternatives and stack swaps",
   ],
   pro: [
-    "2,500 AI messages per month",
+    "Bring your own Anthropic key",
+    "Unlimited active projects",
     "150 repository scans per month",
     "Opus 4.1, Opus 4, and Sonnet 4 model access",
     "PRD and Markdown exports",
@@ -86,10 +86,10 @@ export default function PricingPage() {
               Pricing
             </p>
             <h1 className="max-w-3xl text-4xl font-bold tracking-tight md:text-5xl">
-              Start with your own key. Upgrade when StackHatch is saving real engineering time.
+              Bring your own key on every plan. Upgrade for limits, exports, and collaboration.
             </h1>
             <p className="mt-5 max-w-2xl text-lg leading-8 text-[var(--muted-foreground)]">
-              The free plan is useful by design. Paid plans add hosted AI, deeper exports,
+              Every tier uses your Anthropic account for AI. Paid plans add deeper exports,
               collaboration, and higher operational limits at prices individual developers can say
               yes to quickly.
             </p>
@@ -208,8 +208,8 @@ export default function PricingPage() {
             <div>
               <h3 className="font-semibold">Conversion trigger</h3>
               <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
-                Free users keep value through BYOK, then upgrade naturally when they need hosted AI,
-                more projects, or shareable exports.
+                Users keep AI control through BYOK, then upgrade naturally when they need more
+                projects, repository scans, or shareable exports.
               </p>
             </div>
             <div>

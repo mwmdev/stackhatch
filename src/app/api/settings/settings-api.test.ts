@@ -112,13 +112,14 @@ describe("GET /api/settings", () => {
     expect(data.theme).toBe("dark");
   });
 
-  it("reports whether the server has an Anthropic key", async () => {
+  it("does not treat the server Anthropic key as user AI access", async () => {
     process.env.ANTHROPIC_API_KEY = "sk-ant-env-key";
 
     const res = await settingsRoute.GET();
     const data = await res.json();
 
-    expect(data.hasAnthropicKey).toBe(true);
+    expect(data.hasAnthropicKey).toBe(false);
+    expect(data.hasServerAnthropicKey).toBeUndefined();
     expect(data.apiKey).toBeUndefined();
   });
 

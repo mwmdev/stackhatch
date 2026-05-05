@@ -1,6 +1,6 @@
 # Stripe Setup
 
-StackHatch sells two paid public plans: **Builder** at $6/month and **Studio** at $14/month. Free BYOK does not require Stripe.
+StackHatch sells two paid public plans: **Builder** at $6/month and **Studio** at $14/month. All tiers use BYOK for AI; Stripe unlocks paid product limits and collaboration features. Free BYOK does not require Stripe.
 
 ## Products And Prices
 

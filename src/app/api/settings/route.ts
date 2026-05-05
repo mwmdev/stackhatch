@@ -6,7 +6,6 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { getAuthenticatedUser, requireRole } from "@/lib/auth";
 import { encryptSecret } from "@/lib/secrets";
-import { getActivePlan } from "@/lib/plans";
 import { AI_MODEL_IDS, normalizeAiModel } from "@/lib/ai/models";
 
 const VALID_THEMES = ["light", "dark", "system"] as const;
@@ -74,15 +73,9 @@ export async function GET() {
       .from(userSettings)
       .where(eq(userSettings.userId, user.userId))
       .get();
-    const activePlan = getActivePlan(db, user.userId, user.role);
-    const canUseHostedAi = activePlan !== "free";
-
     return NextResponse.json({
       ...result,
-      hasAnthropicKey: Boolean(
-        userConfig?.anthropicApiKey || (canUseHostedAi && process.env.ANTHROPIC_API_KEY)
-      ),
-      hasServerAnthropicKey: Boolean(process.env.ANTHROPIC_API_KEY),
+      hasAnthropicKey: Boolean(userConfig?.anthropicApiKey),
       hasUserAnthropicKey: Boolean(userConfig?.anthropicApiKey),
       role: user.role,
       isAdmin: user.role === "admin",
@@ -195,15 +188,9 @@ export async function PATCH(request: NextRequest) {
       .from(userSettings)
       .where(eq(userSettings.userId, user.userId))
       .get();
-    const activePlan = getActivePlan(db, user.userId, user.role);
-    const canUseHostedAi = activePlan !== "free";
-
     return NextResponse.json({
       ...result,
-      hasAnthropicKey: Boolean(
-        userConfig?.anthropicApiKey || (canUseHostedAi && process.env.ANTHROPIC_API_KEY)
-      ),
-      hasServerAnthropicKey: Boolean(process.env.ANTHROPIC_API_KEY),
+      hasAnthropicKey: Boolean(userConfig?.anthropicApiKey),
       hasUserAnthropicKey: Boolean(userConfig?.anthropicApiKey),
       role: user.role,
       isAdmin: user.role === "admin",

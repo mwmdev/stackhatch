@@ -63,13 +63,14 @@ describe("SettingsPage", () => {
     expect(screen.getByText(/Back to Dashboard/).closest("a")).toHaveAttribute("href", "/app");
   });
 
-  it("shows server key status", async () => {
-    mockFetchSettings({ hasAnthropicKey: true });
+  it("shows BYOK key status", async () => {
+    mockFetchSettings({ hasAnthropicKey: true, hasUserAnthropicKey: true });
     render(<SettingsPage />);
 
     await waitFor(() => {
       expect(screen.getByTestId("key-status-set")).toBeInTheDocument();
     });
+    expect(screen.getByText("Saved")).toBeInTheDocument();
     expect(screen.getByLabelText("API Key")).toBeInTheDocument();
   });
 

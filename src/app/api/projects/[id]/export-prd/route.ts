@@ -63,13 +63,12 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
   }
 
   const settingsMap = getSettings(db);
-  const apiKey = getApiKey(db, user.userId, user.role);
+  const apiKey = getApiKey(db, user.userId);
   if (!apiKey) {
     return NextResponse.json(
       {
-        error: "AI is not configured on this server.",
+        error: "Add your Anthropic API key in Settings to export a PRD.",
         code: "AI_NOT_CONFIGURED",
-        upgradeUrl: "/pricing",
       },
       { status: 503 }
     );

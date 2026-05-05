@@ -36,7 +36,7 @@ function normalizeAIError(err: unknown): { code: string; content: string } {
   if (status === 401 || /invalid x-api-key|authentication_error/i.test(message)) {
     return {
       code: "AI_AUTH_FAILED",
-      content: "AI provider authentication failed. Check ANTHROPIC_API_KEY on the server.",
+      content: "AI provider authentication failed. Check your Anthropic API key in Settings.",
     };
   }
 
@@ -76,16 +76,13 @@ export function streamChat(
   user?: AuthenticatedUser
 ): Response {
   const settingsMap = getSettings(db);
-  const apiKey = getApiKey(db, user?.userId, user?.role);
+  const apiKey = getApiKey(db, user?.userId);
   if (!apiKey) {
     return new Response(
       sseEvent({
         type: "error",
         code: "AI_NOT_CONFIGURED",
-        content:
-          user?.role === "free-user"
-            ? "Add your Anthropic API key in Settings, or upgrade for hosted AI."
-            : "AI is not configured on this server.",
+        content: "Add your Anthropic API key in Settings to use StackHatch AI.",
       }),
       { headers: SSE_HEADERS, status: 503 }
     );

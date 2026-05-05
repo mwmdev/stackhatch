@@ -40,7 +40,7 @@ A user creates one architecture project from a public repository or short PRD, r
 
 - Public landing page with specific customer positioning and pricing paths.
 - Fast signed-in activation through repo analysis, requirements upload, or blank project.
-- BYOK evaluation path plus hosted AI paid plans.
+- BYOK AI path across free and paid plans.
 - Billing, plan limits, settings, team workspaces, comments, and admin support tools.
 - Trust surface with support, privacy, and terms pages.
 
@@ -56,11 +56,10 @@ Weekly decision-ready architecture maps created from real project inputs.
 
 ### Model
 
-Tiered SaaS pricing with a free BYOK plan and two paid plans that scale by AI convenience, usage, exports, and collaboration.
+Tiered SaaS pricing with BYOK on every plan. Paid plans scale by project limits, repository scans, exports, and collaboration.
 
 ### Conversion Triggers
 
-- Free users need hosted AI instead of managing their own key.
 - Users outgrow the free project limit.
 - Users need PNG, SVG, Markdown, or PRD exports.
 - Teams need comments, templates, and shared workspaces.
@@ -94,7 +93,7 @@ Projects become more valuable as diagrams, comments, tradeoff notes, templates, 
 
 ### Risk Signals
 
-No AI key or hosted AI plan, no first project created, project created but no follow-up chat or export, and repeated limit errors without upgrade.
+No AI key, no first project created, project created but no follow-up chat or export, and repeated limit errors without upgrade.
 
 ### Intervention Strategy
 
