@@ -27,6 +27,7 @@ interface User {
 export default function AdminPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [planDraft, setPlanDraft] = useState<PlanCatalog>(DEFAULT_PLAN_CATALOG);
+  const [activeTab, setActiveTab] = useState<"users" | "plans">("users");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [planSaving, setPlanSaving] = useState(false);
@@ -289,7 +290,7 @@ export default function AdminPage() {
             >
               &larr; Dashboard
             </Link>
-            <span className="text-lg font-bold tracking-tight">User Management</span>
+            <span className="text-lg font-bold tracking-tight">User and Plan Management</span>
           </div>
         </div>
       </header>
@@ -301,406 +302,456 @@ export default function AdminPage() {
           </div>
         )}
 
-        <section className="mb-6 rounded-xl border border-[var(--border)] bg-[var(--card)] p-4">
-          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-[var(--card-foreground)]">Plan Designer</h2>
-              <p className="text-sm text-[var(--muted-foreground)]">
-                Configure public plan copy, display prices, Stripe price IDs, and feature access.
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {planStatus && (
-                <span className="text-sm font-medium text-green-600 dark:text-green-400">
-                  {planStatus}
-                </span>
-              )}
-              <button
-                type="button"
-                onClick={() => {
-                  setPlanDraft(DEFAULT_PLAN_CATALOG);
-                  setPlanStatus("Defaults loaded, save to publish");
-                }}
-                disabled={planSaving}
-                className="min-h-11 rounded-md border border-[var(--border)] px-3 py-2 text-sm font-medium hover:bg-[var(--muted)] disabled:opacity-50"
-              >
-                Reset defaults
-              </button>
-              <button
-                type="button"
-                onClick={handleSavePlans}
-                disabled={planSaving}
-                className="min-h-11 rounded-md bg-[var(--color-client)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
-              >
-                {planSaving ? "Saving..." : "Save plans"}
-              </button>
-            </div>
-          </div>
-
-          <div className="grid gap-4 xl:grid-cols-3">
-            {PUBLIC_PLAN_KEYS.map((planKey) => {
-              const plan = planDraft[planKey];
-              const projectsUnlimited = plan.features.projects === "unlimited";
-              const scansUnlimited = plan.features.scansPerMonth === "unlimited";
-
+        <div className="mb-6 border-b border-[var(--border)]">
+          <div role="tablist" aria-label="Admin sections" className="flex gap-2">
+            {(
+              [
+                ["users", "Users"],
+                ["plans", "Plans"],
+              ] as const
+            ).map(([tab, label]) => {
+              const selected = activeTab === tab;
               return (
-                <div
-                  key={planKey}
-                  className="min-w-0 rounded-lg border border-[var(--border)] bg-[var(--background)] p-4"
+                <button
+                  key={tab}
+                  type="button"
+                  role="tab"
+                  aria-selected={selected}
+                  onClick={() => setActiveTab(tab)}
+                  className={`min-h-11 border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
+                    selected
+                      ? "border-[var(--color-client)] text-[var(--foreground)]"
+                      : "border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                  }`}
                 >
-                  <div className="mb-4 flex items-center justify-between gap-3">
-                    <div>
-                      <h3 className="font-semibold text-[var(--foreground)]">{plan.name}</h3>
-                      <p className="text-xs uppercase tracking-wide text-[var(--muted-foreground)]">
-                        {plan.key}
-                      </p>
-                    </div>
-                    <label className="flex items-center gap-2 text-xs font-medium text-[var(--muted-foreground)]">
-                      <input
-                        type="checkbox"
-                        checked={plan.featured}
-                        onChange={(e) =>
-                          updatePlan(planKey, (prev) => ({ ...prev, featured: e.target.checked }))
-                        }
-                      />
-                      Featured
-                    </label>
-                  </div>
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
-                  <div className="space-y-3">
-                    <label className="flex flex-col gap-1 text-sm font-medium">
-                      Name
-                      <input
-                        value={plan.name}
-                        onChange={(e) => setPlanText(planKey, "name", e.target.value)}
-                        className="min-h-11 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm font-normal focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
-                      />
-                    </label>
-                    <label className="flex flex-col gap-1 text-sm font-medium">
-                      Short name
-                      <input
-                        value={plan.shortName}
-                        onChange={(e) => setPlanText(planKey, "shortName", e.target.value)}
-                        className="min-h-11 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm font-normal focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
-                      />
-                    </label>
-                    <label className="flex flex-col gap-1 text-sm font-medium">
-                      Description
-                      <textarea
-                        value={plan.description}
-                        onChange={(e) => setPlanText(planKey, "description", e.target.value)}
-                        rows={3}
-                        className="rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm font-normal focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
-                      />
-                    </label>
-                    <label className="flex flex-col gap-1 text-sm font-medium">
-                      CTA
-                      <input
-                        value={plan.cta}
-                        onChange={(e) => setPlanText(planKey, "cta", e.target.value)}
-                        className="min-h-11 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm font-normal focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
-                      />
-                    </label>
-                    <label className="flex flex-col gap-1 text-sm font-medium">
-                      Marketing bullets
-                      <textarea
-                        value={plan.bullets.join("\n")}
-                        onChange={(e) => setPlanBullets(planKey, e.target.value)}
-                        rows={5}
-                        className="rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm font-normal focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
-                      />
-                    </label>
+        {activeTab === "plans" && (
+          <section className="mb-6 rounded-xl border border-[var(--border)] bg-[var(--card)] p-4">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-[var(--card-foreground)]">
+                  Plan Designer
+                </h2>
+                <p className="text-sm text-[var(--muted-foreground)]">
+                  Configure public plan copy, display prices, Stripe price IDs, and feature access.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {planStatus && (
+                  <span className="text-sm font-medium text-green-600 dark:text-green-400">
+                    {planStatus}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPlanDraft(DEFAULT_PLAN_CATALOG);
+                    setPlanStatus("Defaults loaded, save to publish");
+                  }}
+                  disabled={planSaving}
+                  className="min-h-11 rounded-md border border-[var(--border)] px-3 py-2 text-sm font-medium hover:bg-[var(--muted)] disabled:opacity-50"
+                >
+                  Reset defaults
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSavePlans}
+                  disabled={planSaving}
+                  className="min-h-11 rounded-md bg-[var(--color-client)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+                >
+                  {planSaving ? "Saving..." : "Save plans"}
+                </button>
+              </div>
+            </div>
 
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <label className="flex flex-col gap-1 text-sm font-medium">
-                        Monthly display price
+            <div className="grid gap-4 xl:grid-cols-3">
+              {PUBLIC_PLAN_KEYS.map((planKey) => {
+                const plan = planDraft[planKey];
+                const projectsUnlimited = plan.features.projects === "unlimited";
+                const scansUnlimited = plan.features.scansPerMonth === "unlimited";
+
+                return (
+                  <div
+                    key={planKey}
+                    className="min-w-0 rounded-lg border border-[var(--border)] bg-[var(--background)] p-4"
+                  >
+                    <div className="mb-4 flex items-center justify-between gap-3">
+                      <div>
+                        <h3 className="font-semibold text-[var(--foreground)]">{plan.name}</h3>
+                        <p className="text-xs uppercase tracking-wide text-[var(--muted-foreground)]">
+                          {plan.key}
+                        </p>
+                      </div>
+                      <label className="flex items-center gap-2 text-xs font-medium text-[var(--muted-foreground)]">
                         <input
-                          type="number"
-                          min="0"
-                          value={plan.billing.monthlyPrice}
-                          onChange={(e) => setPlanBilling(planKey, "monthlyPrice", e.target.value)}
-                          className="min-h-11 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm font-normal"
+                          type="checkbox"
+                          checked={plan.featured}
+                          onChange={(e) =>
+                            updatePlan(planKey, (prev) => ({ ...prev, featured: e.target.checked }))
+                          }
                         />
-                      </label>
-                      <label className="flex flex-col gap-1 text-sm font-medium">
-                        Annual monthly price
-                        <input
-                          type="number"
-                          min="0"
-                          value={plan.billing.annualPrice ?? ""}
-                          onChange={(e) => setPlanBilling(planKey, "annualPrice", e.target.value)}
-                          className="min-h-11 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm font-normal"
-                        />
+                        Featured
                       </label>
                     </div>
 
-                    {planKey !== "free" && (
-                      <div className="grid gap-3">
+                    <div className="space-y-3">
+                      <label className="flex flex-col gap-1 text-sm font-medium">
+                        Name
+                        <input
+                          value={plan.name}
+                          onChange={(e) => setPlanText(planKey, "name", e.target.value)}
+                          className="min-h-11 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm font-normal focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
+                        />
+                      </label>
+                      <label className="flex flex-col gap-1 text-sm font-medium">
+                        Short name
+                        <input
+                          value={plan.shortName}
+                          onChange={(e) => setPlanText(planKey, "shortName", e.target.value)}
+                          className="min-h-11 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm font-normal focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
+                        />
+                      </label>
+                      <label className="flex flex-col gap-1 text-sm font-medium">
+                        Description
+                        <textarea
+                          value={plan.description}
+                          onChange={(e) => setPlanText(planKey, "description", e.target.value)}
+                          rows={3}
+                          className="rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm font-normal focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
+                        />
+                      </label>
+                      <label className="flex flex-col gap-1 text-sm font-medium">
+                        CTA
+                        <input
+                          value={plan.cta}
+                          onChange={(e) => setPlanText(planKey, "cta", e.target.value)}
+                          className="min-h-11 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm font-normal focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
+                        />
+                      </label>
+                      <label className="flex flex-col gap-1 text-sm font-medium">
+                        Marketing bullets
+                        <textarea
+                          value={plan.bullets.join("\n")}
+                          onChange={(e) => setPlanBullets(planKey, e.target.value)}
+                          rows={5}
+                          className="rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm font-normal focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
+                        />
+                      </label>
+
+                      <div className="grid gap-3 sm:grid-cols-2">
                         <label className="flex flex-col gap-1 text-sm font-medium">
-                          Monthly Stripe price ID
+                          Monthly display price
                           <input
-                            value={plan.billing.monthlyStripePriceId ?? ""}
+                            type="number"
+                            min="0"
+                            value={plan.billing.monthlyPrice}
                             onChange={(e) =>
-                              setPlanBilling(planKey, "monthlyStripePriceId", e.target.value)
+                              setPlanBilling(planKey, "monthlyPrice", e.target.value)
                             }
-                            placeholder="price_..."
                             className="min-h-11 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm font-normal"
                           />
                         </label>
                         <label className="flex flex-col gap-1 text-sm font-medium">
-                          Annual Stripe price ID
+                          Annual monthly price
                           <input
-                            value={plan.billing.annualStripePriceId ?? ""}
-                            onChange={(e) =>
-                              setPlanBilling(planKey, "annualStripePriceId", e.target.value)
-                            }
-                            placeholder="price_..."
+                            type="number"
+                            min="0"
+                            value={plan.billing.annualPrice ?? ""}
+                            onChange={(e) => setPlanBilling(planKey, "annualPrice", e.target.value)}
                             className="min-h-11 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm font-normal"
                           />
                         </label>
                       </div>
-                    )}
 
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <label className="flex flex-col gap-1 text-sm font-medium">
-                        Projects
-                        <input
-                          type="number"
-                          min="0"
-                          disabled={projectsUnlimited}
-                          value={projectsUnlimited ? "" : plan.features.projects}
-                          onChange={(e) => setPlanLimit(planKey, "projects", false, e.target.value)}
-                          className="min-h-11 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm font-normal disabled:opacity-50"
-                        />
-                      </label>
-                      <label className="mt-6 flex min-h-11 items-center gap-2 text-sm font-medium">
-                        <input
-                          type="checkbox"
-                          checked={projectsUnlimited}
-                          onChange={(e) => setPlanLimit(planKey, "projects", e.target.checked)}
-                        />
-                        Unlimited
-                      </label>
-                      <label className="flex flex-col gap-1 text-sm font-medium">
-                        Scans per month
-                        <input
-                          type="number"
-                          min="0"
-                          disabled={scansUnlimited}
-                          value={scansUnlimited ? "" : plan.features.scansPerMonth}
-                          onChange={(e) =>
-                            setPlanLimit(planKey, "scansPerMonth", false, e.target.value)
-                          }
-                          className="min-h-11 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm font-normal disabled:opacity-50"
-                        />
-                      </label>
-                      <label className="mt-6 flex min-h-11 items-center gap-2 text-sm font-medium">
-                        <input
-                          type="checkbox"
-                          checked={scansUnlimited}
-                          onChange={(e) => setPlanLimit(planKey, "scansPerMonth", e.target.checked)}
-                        />
-                        Unlimited
-                      </label>
-                    </div>
+                      {planKey !== "free" && (
+                        <div className="grid gap-3">
+                          <label className="flex flex-col gap-1 text-sm font-medium">
+                            Monthly Stripe price ID
+                            <input
+                              value={plan.billing.monthlyStripePriceId ?? ""}
+                              onChange={(e) =>
+                                setPlanBilling(planKey, "monthlyStripePriceId", e.target.value)
+                              }
+                              placeholder="price_..."
+                              className="min-h-11 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm font-normal"
+                            />
+                          </label>
+                          <label className="flex flex-col gap-1 text-sm font-medium">
+                            Annual Stripe price ID
+                            <input
+                              value={plan.billing.annualStripePriceId ?? ""}
+                              onChange={(e) =>
+                                setPlanBilling(planKey, "annualStripePriceId", e.target.value)
+                              }
+                              placeholder="price_..."
+                              className="min-h-11 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm font-normal"
+                            />
+                          </label>
+                        </div>
+                      )}
 
-                    <div>
-                      <div className="mb-2 text-sm font-medium">Features</div>
-                      <div className="grid grid-cols-2 gap-2">
-                        {DIAGRAM_EXPORT_FORMATS.map((format) => (
-                          <label key={format} className="flex items-center gap-2 text-sm">
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <label className="flex flex-col gap-1 text-sm font-medium">
+                          Projects
+                          <input
+                            type="number"
+                            min="0"
+                            disabled={projectsUnlimited}
+                            value={projectsUnlimited ? "" : plan.features.projects}
+                            onChange={(e) =>
+                              setPlanLimit(planKey, "projects", false, e.target.value)
+                            }
+                            className="min-h-11 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm font-normal disabled:opacity-50"
+                          />
+                        </label>
+                        <label className="mt-6 flex min-h-11 items-center gap-2 text-sm font-medium">
+                          <input
+                            type="checkbox"
+                            checked={projectsUnlimited}
+                            onChange={(e) => setPlanLimit(planKey, "projects", e.target.checked)}
+                          />
+                          Unlimited
+                        </label>
+                        <label className="flex flex-col gap-1 text-sm font-medium">
+                          Scans per month
+                          <input
+                            type="number"
+                            min="0"
+                            disabled={scansUnlimited}
+                            value={scansUnlimited ? "" : plan.features.scansPerMonth}
+                            onChange={(e) =>
+                              setPlanLimit(planKey, "scansPerMonth", false, e.target.value)
+                            }
+                            className="min-h-11 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm font-normal disabled:opacity-50"
+                          />
+                        </label>
+                        <label className="mt-6 flex min-h-11 items-center gap-2 text-sm font-medium">
+                          <input
+                            type="checkbox"
+                            checked={scansUnlimited}
+                            onChange={(e) =>
+                              setPlanLimit(planKey, "scansPerMonth", e.target.checked)
+                            }
+                          />
+                          Unlimited
+                        </label>
+                      </div>
+
+                      <div>
+                        <div className="mb-2 text-sm font-medium">Features</div>
+                        <div className="grid grid-cols-2 gap-2">
+                          {DIAGRAM_EXPORT_FORMATS.map((format) => (
+                            <label key={format} className="flex items-center gap-2 text-sm">
+                              <input
+                                type="checkbox"
+                                checked={plan.features.exports.includes(format)}
+                                onChange={(e) => setPlanExport(planKey, format, e.target.checked)}
+                              />
+                              Diagram export: {format.toUpperCase()}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="grid gap-2 text-sm">
+                        {(
+                          [
+                            ["nodeDescriptions", "Node descriptions"],
+                            ["nodeLocking", "Node locking"],
+                            ["alternatives", "Alternatives"],
+                            ["prdExport", "PRD export"],
+                            ["customSubtypes", "Custom subtypes"],
+                            ["collaboration", "Collaboration"],
+                          ] as const
+                        ).map(([field, label]) => (
+                          <label key={field} className="flex items-center gap-2">
                             <input
                               type="checkbox"
-                              checked={plan.features.exports.includes(format)}
-                              onChange={(e) => setPlanExport(planKey, format, e.target.checked)}
+                              checked={plan.features[field]}
+                              onChange={(e) => setPlanToggle(planKey, field, e.target.checked)}
                             />
-                            Diagram export: {format.toUpperCase()}
+                            {label}
                           </label>
                         ))}
                       </div>
                     </div>
-
-                    <div className="grid gap-2 text-sm">
-                      {(
-                        [
-                          ["nodeDescriptions", "Node descriptions"],
-                          ["nodeLocking", "Node locking"],
-                          ["alternatives", "Alternatives"],
-                          ["prdExport", "PRD export"],
-                          ["customSubtypes", "Custom subtypes"],
-                          ["collaboration", "Collaboration"],
-                        ] as const
-                      ).map(([field, label]) => (
-                        <label key={field} className="flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            checked={plan.features[field]}
-                            onChange={(e) => setPlanToggle(planKey, field, e.target.checked)}
-                          />
-                          {label}
-                        </label>
-                      ))}
-                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        </section>
+                );
+              })}
+            </div>
+          </section>
+        )}
 
-        <form
-          onSubmit={handleCreateUser}
-          className="mb-6 rounded-xl border border-[var(--border)] bg-[var(--card)] p-4"
-        >
-          <div className="mb-4 flex flex-col gap-1">
-            <h2 className="text-lg font-semibold text-[var(--card-foreground)]">Create user</h2>
-            <p className="text-sm text-[var(--muted-foreground)]">
-              Create a local user for QA or support. Add a GitHub ID only when you want to link it
-              to a real GitHub account.
-            </p>
-          </div>
-          <div className="grid gap-3 md:grid-cols-[1fr_1fr_180px]">
-            <label className="flex flex-col gap-1 text-sm font-medium">
-              Name
-              <input
-                value={createForm.name}
-                onChange={(e) => setCreateForm((prev) => ({ ...prev, name: e.target.value }))}
-                placeholder="Jane Customer"
-                className="min-h-11 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm font-normal text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
-              />
-            </label>
-            <label className="flex flex-col gap-1 text-sm font-medium">
-              Email
-              <input
-                type="email"
-                value={createForm.email}
-                onChange={(e) => setCreateForm((prev) => ({ ...prev, email: e.target.value }))}
-                placeholder="jane@example.com"
-                className="min-h-11 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm font-normal text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
-              />
-            </label>
-            <label className="flex flex-col gap-1 text-sm font-medium">
-              Role
-              <select
-                value={createForm.role}
-                onChange={(e) => setCreateForm((prev) => ({ ...prev, role: e.target.value }))}
-                className="min-h-11 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm font-normal text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
-              >
-                {userRoleOptions.map((role) => (
-                  <option key={role.value} value={role.value}>
-                    {role.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-          <div className="mt-3 grid gap-3 md:grid-cols-[1fr_auto]">
-            <label className="flex flex-col gap-1 text-sm font-medium">
-              GitHub ID optional
-              <input
-                value={createForm.githubId}
-                onChange={(e) => setCreateForm((prev) => ({ ...prev, githubId: e.target.value }))}
-                placeholder="Leave blank for manual user"
-                className="min-h-11 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm font-normal text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
-              />
-            </label>
-            <button
-              type="submit"
-              disabled={creating || !createForm.name.trim()}
-              className="min-h-11 self-end rounded-md bg-[var(--color-client)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+        {activeTab === "users" && (
+          <>
+            <form
+              onSubmit={handleCreateUser}
+              className="mb-6 rounded-xl border border-[var(--border)] bg-[var(--card)] p-4"
             >
-              {creating ? "Creating..." : "Create user"}
-            </button>
-          </div>
-        </form>
-
-        <div className="overflow-hidden rounded-xl border border-[var(--border)]">
-          <table className="w-full text-sm">
-            <thead className="bg-[var(--muted)]">
-              <tr>
-                <th className="px-4 py-3 text-left font-medium text-[var(--muted-foreground)]">
-                  User
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-[var(--muted-foreground)]">
+              <div className="mb-4 flex flex-col gap-1">
+                <h2 className="text-lg font-semibold text-[var(--card-foreground)]">Create user</h2>
+                <p className="text-sm text-[var(--muted-foreground)]">
+                  Create a local user for QA or support. Add a GitHub ID only when you want to link
+                  it to a real GitHub account.
+                </p>
+              </div>
+              <div className="grid gap-3 md:grid-cols-[1fr_1fr_180px]">
+                <label className="flex flex-col gap-1 text-sm font-medium">
+                  Name
+                  <input
+                    value={createForm.name}
+                    onChange={(e) => setCreateForm((prev) => ({ ...prev, name: e.target.value }))}
+                    placeholder="Jane Customer"
+                    className="min-h-11 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm font-normal text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-sm font-medium">
                   Email
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-[var(--muted-foreground)]">
+                  <input
+                    type="email"
+                    value={createForm.email}
+                    onChange={(e) => setCreateForm((prev) => ({ ...prev, email: e.target.value }))}
+                    placeholder="jane@example.com"
+                    className="min-h-11 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm font-normal text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-sm font-medium">
                   Role
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-[var(--muted-foreground)]">
-                  Joined
-                </th>
-                <th className="px-4 py-3 text-right font-medium text-[var(--muted-foreground)]">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--border)]">
-              {users.map((user) => (
-                <tr key={user.id} className="bg-[var(--card)]">
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--color-client)] text-xs font-medium text-white">
-                        {(user.name || user.githubId).slice(0, 1).toUpperCase()}
-                      </span>
-                      <span className="font-medium text-[var(--card-foreground)]">
-                        {user.name || user.githubId}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-[var(--muted-foreground)]">{user.email || "—"}</td>
-                  <td className="px-4 py-3">
-                    <select
-                      value={user.role}
-                      onChange={(e) => handleRoleChange(user.id, e.target.value)}
-                      className="min-h-11 rounded border border-[var(--border)] bg-[var(--background)] px-2 py-2 text-xs text-[var(--foreground)] focus:outline-none focus:ring-1 focus:ring-[var(--color-client)]"
-                    >
-                      {userRoleOptions.map((role) => (
-                        <option key={role.value} value={role.value}>
-                          {role.label}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="px-4 py-3 text-[var(--muted-foreground)]">
-                    {new Date(user.createdAt).toLocaleDateString()}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex justify-end gap-2">
-                      {user.isCurrent ? (
-                        <span className="inline-flex min-h-11 items-center px-3 py-2 text-xs text-[var(--muted-foreground)]">
-                          You
-                        </span>
-                      ) : (
-                        <button
-                          onClick={() => handleImpersonate(user)}
-                          disabled={impersonatingUserId === user.id}
-                          className="min-h-11 rounded px-3 py-2 text-xs text-[var(--color-client)] hover:bg-[var(--muted)] disabled:opacity-50"
+                  <select
+                    value={createForm.role}
+                    onChange={(e) => setCreateForm((prev) => ({ ...prev, role: e.target.value }))}
+                    className="min-h-11 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm font-normal text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
+                  >
+                    {userRoleOptions.map((role) => (
+                      <option key={role.value} value={role.value}>
+                        {role.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <div className="mt-3 grid gap-3 md:grid-cols-[1fr_auto]">
+                <label className="flex flex-col gap-1 text-sm font-medium">
+                  GitHub ID optional
+                  <input
+                    value={createForm.githubId}
+                    onChange={(e) =>
+                      setCreateForm((prev) => ({ ...prev, githubId: e.target.value }))
+                    }
+                    placeholder="Leave blank for manual user"
+                    className="min-h-11 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm font-normal text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
+                  />
+                </label>
+                <button
+                  type="submit"
+                  disabled={creating || !createForm.name.trim()}
+                  className="min-h-11 self-end rounded-md bg-[var(--color-client)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+                >
+                  {creating ? "Creating..." : "Create user"}
+                </button>
+              </div>
+            </form>
+
+            <div className="overflow-hidden rounded-xl border border-[var(--border)]">
+              <table className="w-full text-sm">
+                <thead className="bg-[var(--muted)]">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-medium text-[var(--muted-foreground)]">
+                      User
+                    </th>
+                    <th className="px-4 py-3 text-left font-medium text-[var(--muted-foreground)]">
+                      Email
+                    </th>
+                    <th className="px-4 py-3 text-left font-medium text-[var(--muted-foreground)]">
+                      Role
+                    </th>
+                    <th className="px-4 py-3 text-left font-medium text-[var(--muted-foreground)]">
+                      Joined
+                    </th>
+                    <th className="px-4 py-3 text-right font-medium text-[var(--muted-foreground)]">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--border)]">
+                  {users.map((user) => (
+                    <tr key={user.id} className="bg-[var(--card)]">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--color-client)] text-xs font-medium text-white">
+                            {(user.name || user.githubId).slice(0, 1).toUpperCase()}
+                          </span>
+                          <span className="font-medium text-[var(--card-foreground)]">
+                            {user.name || user.githubId}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-[var(--muted-foreground)]">
+                        {user.email || "—"}
+                      </td>
+                      <td className="px-4 py-3">
+                        <select
+                          value={user.role}
+                          onChange={(e) => handleRoleChange(user.id, e.target.value)}
+                          className="min-h-11 rounded border border-[var(--border)] bg-[var(--background)] px-2 py-2 text-xs text-[var(--foreground)] focus:outline-none focus:ring-1 focus:ring-[var(--color-client)]"
                         >
-                          {impersonatingUserId === user.id ? "Starting..." : "Impersonate"}
-                        </button>
-                      )}
-                      <button
-                        onClick={() => setDeleteTarget(user)}
-                        disabled={user.isCurrent}
-                        className="min-h-11 rounded px-3 py-2 text-xs text-red-500 hover:bg-red-50 disabled:opacity-40 dark:hover:bg-red-950"
+                          {userRoleOptions.map((role) => (
+                            <option key={role.value} value={role.value}>
+                              {role.label}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="px-4 py-3 text-[var(--muted-foreground)]">
+                        {new Date(user.createdAt).toLocaleDateString()}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex justify-end gap-2">
+                          {user.isCurrent ? (
+                            <span className="inline-flex min-h-11 items-center px-3 py-2 text-xs text-[var(--muted-foreground)]">
+                              You
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => handleImpersonate(user)}
+                              disabled={impersonatingUserId === user.id}
+                              className="min-h-11 rounded px-3 py-2 text-xs text-[var(--color-client)] hover:bg-[var(--muted)] disabled:opacity-50"
+                            >
+                              {impersonatingUserId === user.id ? "Starting..." : "Impersonate"}
+                            </button>
+                          )}
+                          <button
+                            onClick={() => setDeleteTarget(user)}
+                            disabled={user.isCurrent}
+                            className="min-h-11 rounded px-3 py-2 text-xs text-red-500 hover:bg-red-50 disabled:opacity-40 dark:hover:bg-red-950"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {users.length === 0 && (
+                    <tr>
+                      <td
+                        colSpan={5}
+                        className="px-4 py-8 text-center text-[var(--muted-foreground)]"
                       >
-                        Delete
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {users.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-[var(--muted-foreground)]">
-                    No users found
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+                        No users found
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
       </main>
 
       {/* Delete Confirmation Modal */}
