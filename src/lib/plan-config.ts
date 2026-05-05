@@ -5,7 +5,7 @@ export type BillingInterval = "monthly" | "annual";
 export const PLAN_CONFIG = {
   free: {
     key: "free",
-    name: "Free BYOK",
+    name: "Free plan",
     shortName: "Free",
     monthlyPrice: 0,
     description: "Bring your own Anthropic key and map real projects without a paywall.",
