@@ -22,12 +22,12 @@ describe("LandingPage", () => {
     expect(screen.getByRole("link", { name: /View pricing/i })).toHaveAttribute("href", "/pricing");
   });
 
-  it("shows animated examples for the three strongest product workflows", () => {
+  it("shows real app screencasts for the three strongest product workflows", () => {
     render(<LandingPage />);
 
     expect(
       screen.getByRole("heading", {
-        name: /Three short loops from the most useful StackHatch workflows/i,
+        name: /Three short recordings of StackHatch in use/i,
       })
     ).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /Repo to architecture map/i })).toBeInTheDocument();
@@ -37,6 +37,8 @@ describe("LandingPage", () => {
     expect(
       screen.getByRole("heading", { name: /Compare alternatives and export the plan/i })
     ).toBeInTheDocument();
-    expect(screen.getAllByRole("img", { name: /Animated demo showing/i })).toHaveLength(3);
+    expect(screen.getAllByRole("img", { name: /Real StackHatch screencast showing/i })).toHaveLength(
+      3
+    );
   });
 });

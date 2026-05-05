@@ -27,7 +27,7 @@ const DEMO_FEATURES = [
       "Paste a repository URL and get a first useful map with clients, APIs, services, data stores, and export paths already connected.",
     gif: "/demos/repo-to-map.gif",
     poster: "/demos/repo-to-map-poster.png",
-    alt: "Animated demo showing StackHatch scanning a GitHub repository and generating an architecture map.",
+    alt: "Real StackHatch screencast showing a GitHub repository scan generating an architecture map.",
   },
   {
     eyebrow: "AI revision",
@@ -36,7 +36,7 @@ const DEMO_FEATURES = [
       "Ask for a concrete architecture change, keep locked nodes intact, and watch the diagram update around the choices the team already approved.",
     gif: "/demos/ai-revision.gif",
     poster: "/demos/ai-revision-poster.png",
-    alt: "Animated demo showing an AI chat request adding team billing while a locked auth node stays unchanged.",
+    alt: "Real StackHatch screencast showing an AI chat request adding team billing while a locked auth node stays unchanged.",
   },
   {
     eyebrow: "Handoff",
@@ -45,7 +45,7 @@ const DEMO_FEATURES = [
       "Open a node, review credible alternatives, swap the recommendation, then export a PRD and diagram for collaborators.",
     gif: "/demos/export-handoff.gif",
     poster: "/demos/export-handoff-poster.png",
-    alt: "Animated demo showing StackHatch comparing database alternatives and exporting a handoff package.",
+    alt: "Real StackHatch screencast showing database alternatives being swapped before opening the diagram export menu.",
   },
 ];
 
@@ -190,14 +190,14 @@ export default function LandingPage() {
           <div className="mx-auto max-w-6xl px-6">
             <div className="max-w-3xl">
               <p className="text-sm font-semibold uppercase tracking-wide text-[var(--color-services)]">
-                Animated examples
+                Real app screencasts
               </p>
               <h2 className="mt-3 text-3xl font-bold tracking-tight">
-                Three short loops from the most useful StackHatch workflows.
+                Three short recordings of StackHatch in use.
               </h2>
               <p className="mt-4 text-sm leading-6 text-[var(--muted-foreground)]">
-                Each clip focuses on the moment a builder needs to see before trusting the product:
-                analysis, controlled revision, and a clear handoff.
+                These are captured from the actual app UI: repository analysis, controlled AI
+                revision, and a decision-ready export workflow.
               </p>
             </div>
 
