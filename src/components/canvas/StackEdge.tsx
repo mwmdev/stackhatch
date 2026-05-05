@@ -4,6 +4,7 @@ import { memo, useState, useRef, useEffect } from "react";
 import { BaseEdge, EdgeLabelRenderer, getBezierPath, MarkerType } from "reactflow";
 import type { EdgeProps } from "reactflow";
 import type { ConnectionType } from "@/types/stack";
+import { useEditorDisplaySettings } from "./EditorDisplaySettings";
 
 export interface StackEdgeData {
   connectionType: ConnectionType;
@@ -164,6 +165,7 @@ function StackEdgeComponent({
   const [edgeHovered, setEdgeHovered] = useState(false);
   const [labelHovered, setLabelHovered] = useState(false);
   const [labelEditing, setLabelEditing] = useState(false);
+  const { showEdgeLabels } = useEditorDisplaySettings();
   const connectionType = data?.connectionType ?? "http";
   const connectionTypesEnabled = data?.connectionTypesEnabled ?? true;
   const style = connectionTypesEnabled
@@ -185,7 +187,7 @@ function StackEdgeComponent({
   });
 
   const strokeWidth = selected ? 3 : style.strokeWidth;
-  const labelVisible = edgeHovered || labelHovered || labelEditing;
+  const labelVisible = showEdgeLabels || edgeHovered || labelHovered || labelEditing;
 
   return (
     <>
@@ -201,7 +203,7 @@ function StackEdgeComponent({
           markerEnd={MarkerType.ArrowClosed}
         />
       </g>
-      {connectionTypesEnabled && data?.label && (
+      {connectionTypesEnabled && showEdgeLabels && data?.label && (
         <EdgeLabelRenderer>
           <EdgeLabel
             edgeId={id}

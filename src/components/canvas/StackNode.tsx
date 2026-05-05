@@ -9,6 +9,7 @@ import type { NodeCategory, NodeSubtype, NoteColor } from "@/types/stack";
 import { getCategoryConfig, getNoteColorConfig, getSubtypeConfig } from "@/lib/node-config";
 import type { CustomSubtypesMap } from "@/lib/custom-subtypes";
 import { sanitizeHtml, containsHtml } from "@/lib/sanitize-html";
+import { useEditorDisplaySettings } from "./EditorDisplaySettings";
 
 function DynamicIcon({
   name,
@@ -52,6 +53,7 @@ interface ContextMenuState {
 }
 
 function StackNodeComponent({ id, data, selected }: NodeProps<StackNodeData>) {
+  const { showNodeCategory } = useEditorDisplaySettings();
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({
     visible: false,
     x: 0,
@@ -108,8 +110,7 @@ function StackNodeComponent({ id, data, selected }: NodeProps<StackNodeData>) {
           ? {
               backgroundColor: noteColor.fill,
               color: noteColor.foreground,
-              boxShadow:
-                `0 14px 22px -18px var(--shadow-color), 0 2px 0 color-mix(in oklch, ${noteColor.border} 24%, transparent)`,
+              boxShadow: `0 14px 22px -18px var(--shadow-color), 0 2px 0 color-mix(in oklch, ${noteColor.border} 24%, transparent)`,
               transform: "rotate(-1deg)",
             }
           : {}),
@@ -134,7 +135,9 @@ function StackNodeComponent({ id, data, selected }: NodeProps<StackNodeData>) {
         <div className="absolute bottom-2 right-2" data-testid="lock-indicator">
           <icons.Lock
             size={14}
-            className={isNoteNode ? "text-[var(--color-note-foreground)]" : "text-[var(--color-data)]"}
+            className={
+              isNoteNode ? "text-[var(--color-note-foreground)]" : "text-[var(--color-data)]"
+            }
             style={isNoteNode ? { color: noteColor.foreground } : undefined}
           />
         </div>
@@ -214,14 +217,16 @@ function StackNodeComponent({ id, data, selected }: NodeProps<StackNodeData>) {
           )}
 
           {/* Category badge */}
-          <div className="mt-2">
-            <span
-              className="inline-block rounded-full px-2 py-0.5 text-[10px] font-medium"
-              style={{ backgroundColor: catConfig.fill, color: catConfig.foreground }}
-            >
-              {catConfig.displayName}
-            </span>
-          </div>
+          {showNodeCategory && (
+            <div className="mt-2">
+              <span
+                className="inline-block rounded-full px-2 py-0.5 text-[10px] font-medium"
+                style={{ backgroundColor: catConfig.fill, color: catConfig.foreground }}
+              >
+                {catConfig.displayName}
+              </span>
+            </div>
+          )}
         </div>
       )}
 

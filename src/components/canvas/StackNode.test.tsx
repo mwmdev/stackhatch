@@ -3,6 +3,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { ReactFlowProvider } from "reactflow";
 import StackNodeComponent from "./StackNode";
 import type { StackNodeData } from "./StackNode";
+import { EditorDisplaySettingsProvider } from "./EditorDisplaySettings";
 
 function makeData(overrides: Partial<StackNodeData> = {}): StackNodeData {
   return {
@@ -94,6 +95,20 @@ describe("StackNode", () => {
   it("renders category badge with display name", () => {
     renderNode();
     expect(screen.getByText("Data")).toBeInTheDocument();
+  });
+
+  it("hides category badge when node category display is disabled", () => {
+    render(
+      <EditorDisplaySettingsProvider value={{ showNodeCategory: false, showEdgeLabels: true }}>
+        <ReactFlowProvider>
+          <StackNodeComponent {...makeProps()} />
+        </ReactFlowProvider>
+      </EditorDisplaySettingsProvider>
+    );
+
+    expect(screen.getByText("PostgreSQL Database")).toBeInTheDocument();
+    expect(screen.getByText("PostgreSQL 16")).toBeInTheDocument();
+    expect(screen.queryByText("Data")).not.toBeInTheDocument();
   });
 
   it("does not show technology when empty", () => {
@@ -189,7 +204,9 @@ describe("StackNode", () => {
     expect(nodeDiv).toHaveClass("font-note");
     expect(nodeDiv.style.backgroundColor).toBe("var(--note-yellow-fill)");
     expect(screen.getByText("Decision note")).toBeInTheDocument();
-    expect(screen.getByText("Use a boring queue until traffic proves otherwise.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Use a boring queue until traffic proves otherwise.")
+    ).toBeInTheDocument();
     expect(screen.queryByText("Note")).not.toBeInTheDocument();
   });
 

@@ -24,6 +24,12 @@ import StackNodeComponent, { type StackNodeData } from "@/components/canvas/Stac
 import StackEdgeComponent, { edgeStyles, type StackEdgeData } from "@/components/canvas/StackEdge";
 import EdgeLegend from "@/components/canvas/EdgeLegend";
 import ExportDropdown from "@/components/canvas/ExportDropdown";
+import EditorDisplaySettingsDropdown from "@/components/canvas/EditorDisplaySettingsDropdown";
+import {
+  DEFAULT_EDITOR_DISPLAY_SETTINGS,
+  EditorDisplaySettingsProvider,
+  type EditorDisplaySettings,
+} from "@/components/canvas/EditorDisplaySettings";
 import CommentsPanel from "@/components/comments/CommentsPanel";
 import ThemeToggle from "@/components/ThemeToggle";
 import {
@@ -91,6 +97,7 @@ interface StoredCanvasState extends StackArchitecture {
 
 const nodeTypes = { stackNode: StackNodeComponent };
 const edgeTypes = { stackEdge: StackEdgeComponent };
+const EDITOR_DISPLAY_SETTINGS_STORAGE_KEY = "stackhatch:editor-display-settings:v1";
 
 function getDefaultConnectionLabel(type: ConnectionType) {
   return edgeStyles[type].displayName;
@@ -131,6 +138,26 @@ export default function ProjectPage() {
   const [planFeatures, setPlanFeatures] = useState<PlanFeatures>(
     DEFAULT_PLAN_CATALOG.free.features
   );
+  const [editorDisplaySettings, setEditorDisplaySettings] = useState<EditorDisplaySettings>(() => {
+    if (typeof window === "undefined") return DEFAULT_EDITOR_DISPLAY_SETTINGS;
+    try {
+      const stored = window.localStorage.getItem(EDITOR_DISPLAY_SETTINGS_STORAGE_KEY);
+      if (!stored) return DEFAULT_EDITOR_DISPLAY_SETTINGS;
+      const parsed = JSON.parse(stored) as Partial<EditorDisplaySettings>;
+      return {
+        showNodeCategory:
+          typeof parsed.showNodeCategory === "boolean"
+            ? parsed.showNodeCategory
+            : DEFAULT_EDITOR_DISPLAY_SETTINGS.showNodeCategory,
+        showEdgeLabels:
+          typeof parsed.showEdgeLabels === "boolean"
+            ? parsed.showEdgeLabels
+            : DEFAULT_EDITOR_DISPLAY_SETTINGS.showEdgeLabels,
+      };
+    } catch {
+      return DEFAULT_EDITOR_DISPLAY_SETTINGS;
+    }
+  });
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<StackNodeData>([]);
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<StackEdgeData>([]);
   const rfInstanceRef = useRef<ReactFlowInstance | null>(null);
@@ -149,6 +176,17 @@ export default function ProjectPage() {
   // Keep refs in sync for use in stable callbacks
   projectRef.current = project;
   alternativesRef.current = alternatives;
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        EDITOR_DISPLAY_SETTINGS_STORAGE_KEY,
+        JSON.stringify(editorDisplaySettings)
+      );
+    } catch {
+      // localStorage can be unavailable in restricted browser contexts.
+    }
+  }, [editorDisplaySettings]);
 
   // Auto-dismiss toast
   useEffect(() => {
@@ -947,20 +985,17 @@ export default function ProjectPage() {
     [project?.canvasState]
   );
   const nodeCount = project?.canvasState?.nodes?.length ?? 0;
-  const liveCanvasState = useMemo<StackArchitecture | null>(
-    () => {
-      if (rfNodes.length > 0 || rfEdges.length > 0) {
-        return {
-          nodes: fromReactFlowNodes(rfNodes),
-          edges: fromReactFlowEdges(rfEdges),
-        };
-      }
-      return project?.canvasState
-        ? { nodes: project.canvasState.nodes, edges: project.canvasState.edges }
-        : null;
-    },
-    [project?.canvasState, rfNodes, rfEdges]
-  );
+  const liveCanvasState = useMemo<StackArchitecture | null>(() => {
+    if (rfNodes.length > 0 || rfEdges.length > 0) {
+      return {
+        nodes: fromReactFlowNodes(rfNodes),
+        edges: fromReactFlowEdges(rfEdges),
+      };
+    }
+    return project?.canvasState
+      ? { nodes: project.canvasState.nodes, edges: project.canvasState.edges }
+      : null;
+  }, [project?.canvasState, rfNodes, rfEdges]);
   const canUseAlternatives = isAdmin || planFeatures.alternatives;
   const canExportPrd = isAdmin || planFeatures.prdExport;
   const canUseNotes = isAdmin || planFeatures.noteNodes;
@@ -1141,41 +1176,47 @@ export default function ProjectPage() {
                 )}
               </>
             )}
+            <EditorDisplaySettingsDropdown
+              value={editorDisplaySettings}
+              onChange={setEditorDisplaySettings}
+            />
             <ThemeToggle />
           </div>
         </div>
 
         {/* Canvas area */}
         <div className="relative flex-1 bg-[var(--canvas)]">
-          <ReactFlow
-            nodes={rfNodes}
-            edges={edgesWithCallbacks}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={handleConnect}
-            onNodeClick={handleNodeClick}
-            onEdgeClick={handleEdgeClick}
-            onPaneClick={handlePaneClick}
-            onInit={(instance) => {
-              rfInstanceRef.current = instance;
-            }}
-            nodeTypes={nodeTypes}
-            edgeTypes={edgeTypes}
-            fitView
-            snapToGrid
-            snapGrid={[20, 20]}
-            deleteKeyCode={null}
-            data-testid="react-flow-canvas"
-          >
-            <Background
-              variant={BackgroundVariant.Dots}
-              gap={20}
-              size={1}
-              color="var(--muted-foreground)"
-              style={{ opacity: 0.3 }}
-            />
-            <Controls />
-          </ReactFlow>
+          <EditorDisplaySettingsProvider value={editorDisplaySettings}>
+            <ReactFlow
+              nodes={rfNodes}
+              edges={edgesWithCallbacks}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              onConnect={handleConnect}
+              onNodeClick={handleNodeClick}
+              onEdgeClick={handleEdgeClick}
+              onPaneClick={handlePaneClick}
+              onInit={(instance) => {
+                rfInstanceRef.current = instance;
+              }}
+              nodeTypes={nodeTypes}
+              edgeTypes={edgeTypes}
+              fitView
+              snapToGrid
+              snapGrid={[20, 20]}
+              deleteKeyCode={null}
+              data-testid="react-flow-canvas"
+            >
+              <Background
+                variant={BackgroundVariant.Dots}
+                gap={20}
+                size={1}
+                color="var(--muted-foreground)"
+                style={{ opacity: 0.3 }}
+              />
+              <Controls />
+            </ReactFlow>
+          </EditorDisplaySettingsProvider>
 
           {/* Generating architecture overlay */}
           {chatStreaming && !hasCanvas && (

@@ -1,9 +1,10 @@
 import { describe, it, expect, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { ReactFlowProvider } from "reactflow";
 import type { ReactNode } from "react";
 import StackEdgeComponent, { edgeStyles } from "./StackEdge";
 import type { StackEdgeData } from "./StackEdge";
+import { EditorDisplaySettingsProvider } from "./EditorDisplaySettings";
 import type { ConnectionType } from "@/types/stack";
 import { Position } from "reactflow";
 
@@ -48,10 +49,6 @@ function renderEdge(dataOverrides: Partial<StackEdgeData> = {}, selected = false
 // BaseEdge renders style as inline CSS, so we check via element.style
 function getEdgePath(container: HTMLElement) {
   return container.querySelector(".react-flow__edge-path") as SVGPathElement | null;
-}
-
-function getEdgeHitArea(container: HTMLElement) {
-  return container.querySelector("g") as SVGGElement | null;
 }
 
 describe("StackEdge", () => {
@@ -144,26 +141,25 @@ describe("StackEdge", () => {
     expect(queryByTestId("edge-label-edge-1")).not.toBeInTheDocument();
   });
 
-  it("hides editable labels until the edge is hovered", () => {
-    const { container } = renderEdge({ onLabelChange: vi.fn() });
+  it("shows editable labels by default when edge labels are enabled", () => {
+    renderEdge({ onLabelChange: vi.fn() });
     const label = screen.getByTestId("edge-label-edge-1");
-
-    expect(label).toHaveClass("opacity-0", "pointer-events-none");
-
-    fireEvent.mouseEnter(getEdgeHitArea(container)!);
 
     expect(label).toHaveClass("opacity-100", "pointer-events-auto");
   });
 
-  it("hides labels again after leaving the edge", () => {
-    const { container } = renderEdge({ onLabelChange: vi.fn() });
-    const edgeHitArea = getEdgeHitArea(container)!;
-    const label = screen.getByTestId("edge-label-edge-1");
+  it("does not render labels when edge label display is disabled", () => {
+    const { queryByTestId } = render(
+      <EditorDisplaySettingsProvider value={{ showNodeCategory: true, showEdgeLabels: false }}>
+        <ReactFlowProvider>
+          <svg>
+            <StackEdgeComponent {...makeProps({ onLabelChange: vi.fn() })} />
+          </svg>
+        </ReactFlowProvider>
+      </EditorDisplaySettingsProvider>
+    );
 
-    fireEvent.mouseEnter(edgeHitArea);
-    fireEvent.mouseLeave(edgeHitArea);
-
-    expect(label).toHaveClass("opacity-0", "pointer-events-none");
+    expect(queryByTestId("edge-label-edge-1")).not.toBeInTheDocument();
   });
 
   it("has marker-end attribute for arrow direction", () => {

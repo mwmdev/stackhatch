@@ -444,6 +444,7 @@ Element.prototype.scrollIntoView = vi.fn();
 describe("ProjectPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.clear();
   });
 
   afterEach(() => {
@@ -538,6 +539,63 @@ describe("ProjectPage", () => {
       await waitFor(() => {
         expect(screen.getByLabelText("Theme: light")).toBeInTheDocument();
       });
+    });
+
+    it("shows editor display settings before the theme switcher", async () => {
+      mockFetchProject(emptyProject);
+      render(<ProjectPage />);
+      await waitFor(() => {
+        expect(screen.getByLabelText("Editor display settings")).toBeInTheDocument();
+      });
+
+      const settingsButton = screen.getByLabelText("Editor display settings");
+      const themeButton = screen.getByLabelText("Theme: light");
+      expect(settingsButton.querySelector(".lucide-settings")).toBeInTheDocument();
+      expect(
+        Boolean(
+          settingsButton.compareDocumentPosition(themeButton) & Node.DOCUMENT_POSITION_FOLLOWING
+        )
+      ).toBe(true);
+    });
+
+    it("opens editor display settings and persists toggle changes", async () => {
+      mockFetchProject(emptyProject);
+      render(<ProjectPage />);
+      await waitFor(() => {
+        expect(screen.getByLabelText("Editor display settings")).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByLabelText("Editor display settings"));
+      expect(screen.getByTestId("editor-display-settings-dropdown")).toBeInTheDocument();
+
+      const nodeCategoryToggle = screen.getByLabelText("Node category") as HTMLInputElement;
+      const edgeLabelsToggle = screen.getByLabelText("Edge labels") as HTMLInputElement;
+      expect(nodeCategoryToggle.checked).toBe(true);
+      expect(edgeLabelsToggle.checked).toBe(true);
+
+      fireEvent.click(nodeCategoryToggle);
+      await waitFor(() => {
+        expect(
+          JSON.parse(window.localStorage.getItem("stackhatch:editor-display-settings:v1") ?? "{}")
+            .showNodeCategory
+        ).toBe(false);
+      });
+    });
+
+    it("loads editor display settings from localStorage", async () => {
+      window.localStorage.setItem(
+        "stackhatch:editor-display-settings:v1",
+        JSON.stringify({ showNodeCategory: false, showEdgeLabels: false })
+      );
+      mockFetchProject(emptyProject);
+      render(<ProjectPage />);
+      await waitFor(() => {
+        expect(screen.getByLabelText("Editor display settings")).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByLabelText("Editor display settings"));
+      expect(screen.getByLabelText("Node category")).not.toBeChecked();
+      expect(screen.getByLabelText("Edge labels")).not.toBeChecked();
     });
 
     it("toggles chat sidebar from the toolbar", async () => {
