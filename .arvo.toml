@@ -1,5 +1,5 @@
 [[tools.tool]]
 name = "Dev"
-command = "npm run dev"
+command = "sh -lc 'port=3000; while lsof -iTCP:$port -sTCP:LISTEN -t >/dev/null 2>&1; do port=$((port + 1)); done; echo \"Starting StackHatch on http://localhost:$port\"; npm run dev -- --port \"$port\"'"
 auto_start = false
 keybinding = "ctrl+s"
