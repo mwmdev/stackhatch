@@ -58,6 +58,7 @@ export default function NodeDetailPanel({
   if (!node) return null;
 
   const catConfig = getCategoryConfig(node.category);
+  const isNoteNode = node.category === "note";
   const subtypes = getSubtypesForCategory(node.category, customSubtypes);
   const categoryOptions = categoryOrder.filter(
     (cat) => canUseNotes || cat !== "note" || node.category === "note"
@@ -119,76 +120,84 @@ export default function NodeDetailPanel({
       {/* Content */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
         {/* Technology */}
-        <div>
-          <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-[var(--muted-foreground)]">
-            Technology
-          </label>
-          <textarea
-            value={node.technology}
-            onChange={(e) => onUpdate(node.id, { technology: e.target.value })}
-            placeholder="e.g., PostgreSQL 16"
-            rows={2}
-            className="w-full resize-none rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
-            aria-label="Technology"
-          />
-          {containsHtml(node.technology) && (
-            <div
-              className="mt-1 rounded-md bg-[var(--muted)] px-3 py-1.5 text-sm text-[var(--foreground)] [&_a]:text-[var(--link)] [&_a]:underline"
-              dangerouslySetInnerHTML={{ __html: sanitizeHtml(node.technology) }}
+        {!isNoteNode && (
+          <div>
+            <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-[var(--muted-foreground)]">
+              Technology
+            </label>
+            <textarea
+              value={node.technology}
+              onChange={(e) => onUpdate(node.id, { technology: e.target.value })}
+              placeholder="e.g., PostgreSQL 16"
+              rows={2}
+              className="w-full resize-none rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
+              aria-label="Technology"
             />
-          )}
-        </div>
+            {containsHtml(node.technology) && (
+              <div
+                className="mt-1 rounded-md bg-[var(--muted)] px-3 py-1.5 text-sm text-[var(--foreground)] [&_a]:text-[var(--link)] [&_a]:underline"
+                dangerouslySetInnerHTML={{ __html: sanitizeHtml(node.technology) }}
+              />
+            )}
+          </div>
+        )}
 
         {/* Category */}
-        <div>
-          <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-[var(--muted-foreground)]">
-            Category
-          </label>
-          <select
-            value={node.category}
-            onChange={(e) => handleCategoryChange(e.target.value as NodeCategory)}
-            className="w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
-            aria-label="Category"
-          >
-            {categoryOptions.map((cat) => (
-              <option key={cat} value={cat}>
-                {getCategoryConfig(cat).displayName}
-              </option>
-            ))}
-          </select>
-        </div>
+        {!isNoteNode && (
+          <div>
+            <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-[var(--muted-foreground)]">
+              Category
+            </label>
+            <select
+              value={node.category}
+              onChange={(e) => handleCategoryChange(e.target.value as NodeCategory)}
+              className="w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
+              aria-label="Category"
+            >
+              {categoryOptions.map((cat) => (
+                <option key={cat} value={cat}>
+                  {getCategoryConfig(cat).displayName}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* Subtype */}
-        <div>
-          <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-[var(--muted-foreground)]">
-            Subtype
-          </label>
-          <select
-            value={node.subtype}
-            onChange={(e) => onUpdate(node.id, { subtype: e.target.value as NodeSubtype })}
-            className="w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
-            aria-label="Subtype"
-          >
-            {Object.entries(subtypes).map(([key, config]) => (
-              <option key={key} value={key}>
-                {config.displayName}
-              </option>
-            ))}
-          </select>
-        </div>
+        {!isNoteNode && (
+          <div>
+            <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-[var(--muted-foreground)]">
+              Subtype
+            </label>
+            <select
+              value={node.subtype}
+              onChange={(e) => onUpdate(node.id, { subtype: e.target.value as NodeSubtype })}
+              className="w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
+              aria-label="Subtype"
+            >
+              {Object.entries(subtypes).map(([key, config]) => (
+                <option key={key} value={key}>
+                  {config.displayName}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {showDescription && (
           <div>
             <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-[var(--muted-foreground)]">
-              Description
+              {isNoteNode ? "Note" : "Description"}
             </label>
             <textarea
               value={node.description}
               onChange={(e) => onUpdate(node.id, { description: e.target.value })}
-              placeholder="What this component does..."
-              rows={3}
-              className="w-full resize-none rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
-              aria-label="Description"
+              placeholder={isNoteNode ? "Write a note..." : "What this component does..."}
+              rows={isNoteNode ? 8 : 3}
+              className={`w-full resize-none rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)] ${
+                isNoteNode ? "font-note text-base leading-7" : ""
+              }`}
+              aria-label={isNoteNode ? "Note" : "Description"}
             />
             {containsHtml(node.description) && (
               <div
@@ -200,7 +209,7 @@ export default function NodeDetailPanel({
         )}
 
         {/* Reasoning (read-only) */}
-        {node.reasoning && (
+        {!isNoteNode && node.reasoning && (
           <div>
             <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-[var(--muted-foreground)]">
               AI Reasoning
@@ -243,7 +252,7 @@ export default function NodeDetailPanel({
         )}
 
         {/* Alternatives */}
-        {onSuggestAlternatives && onSwapAlternative && (
+        {!isNoteNode && onSuggestAlternatives && onSwapAlternative && (
           <AlternativesSection
             nodeId={node.id}
             node={node}

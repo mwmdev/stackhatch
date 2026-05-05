@@ -285,6 +285,44 @@ describe("NodeDetailPanel", () => {
     expect(screen.queryByText("AI Reasoning")).not.toBeInTheDocument();
   });
 
+  it("shows a simplified editor for note nodes", () => {
+    const onUpdate = vi.fn();
+    const onSuggestAlternatives = vi.fn();
+    const onSwapAlternative = vi.fn();
+    const node = makeNode({
+      category: "note",
+      subtype: "note",
+      name: "Release note",
+      technology: "Hidden tech",
+      description: "Remember to keep v1 boring.",
+      reasoning: "Hidden reasoning",
+    });
+
+    render(
+      <NodeDetailPanel
+        node={node}
+        onUpdate={onUpdate}
+        onDelete={vi.fn()}
+        onClose={vi.fn()}
+        onSuggestAlternatives={onSuggestAlternatives}
+        onSwapAlternative={onSwapAlternative}
+      />,
+    );
+
+    expect(screen.queryByLabelText("Technology")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Category")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Subtype")).not.toBeInTheDocument();
+    expect(screen.queryByText("AI Reasoning")).not.toBeInTheDocument();
+    expect(screen.queryByText("Alternatives")).not.toBeInTheDocument();
+
+    const noteInput = screen.getByLabelText("Note");
+    expect(noteInput).toHaveValue("Remember to keep v1 boring.");
+    fireEvent.change(noteInput, { target: { value: "Ship the smallest useful version." } });
+    expect(onUpdate).toHaveBeenCalledWith("node-1", {
+      description: "Ship the smallest useful version.",
+    });
+  });
+
   it("renders different categories with correct config", () => {
     const apiNode = makeNode({
       category: "api",
