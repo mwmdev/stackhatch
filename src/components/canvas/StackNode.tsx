@@ -58,9 +58,11 @@ function StackNodeComponent({ id, data, selected }: NodeProps<StackNodeData>) {
   const catConfig = getCategoryConfig(data.category);
   const subtypeConfig = getSubtypeConfig(data.category, data.subtype, data.customSubtypes);
   const iconName = subtypeConfig?.icon ?? catConfig.icon;
+  const isNoteNode = data.category === "note";
   const description = data.description.trim();
+  const noteText = description || data.technology.trim();
   const tooltipId = `node-description-tooltip-${id}`;
-  const hasDescription = data.showDescription !== false && description.length > 0;
+  const hasDescription = !isNoteNode && data.showDescription !== false && description.length > 0;
   const canUseNodeLocking = data.canUseNodeLocking !== false;
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
@@ -87,12 +89,25 @@ function StackNodeComponent({ id, data, selected }: NodeProps<StackNodeData>) {
 
   return (
     <div
-      className={`stack-node group relative rounded-lg border-2 bg-[var(--card)] text-[var(--card-foreground)] shadow-md shadow-[var(--shadow-color)] hover:shadow-lg ${
+      className={`stack-node group relative ${
+        isNoteNode
+          ? "rounded-[3px] border font-note shadow-lg shadow-[var(--shadow-color)]"
+          : "rounded-lg border-2 bg-[var(--card)] text-[var(--card-foreground)] shadow-md shadow-[var(--shadow-color)] hover:shadow-lg"
+      } ${
         selected ? "ring-2 ring-[var(--ring)]" : ""
       } ${data.locked ? "border border-dashed border-[var(--muted-foreground)]" : ""}`}
       style={{
         borderColor: catConfig.color,
-        minWidth: "200px",
+        minWidth: isNoteNode ? "210px" : "200px",
+        ...(isNoteNode
+          ? {
+              backgroundColor: "var(--color-note-fill)",
+              color: "var(--color-note-foreground)",
+              boxShadow:
+                "0 14px 22px -18px var(--shadow-color), 0 2px 0 color-mix(in oklch, var(--color-note) 24%, transparent)",
+              transform: "rotate(-1deg)",
+            }
+          : {}),
       }}
       onContextMenu={handleContextMenu}
       onClick={handleClick}
@@ -111,7 +126,10 @@ function StackNodeComponent({ id, data, selected }: NodeProps<StackNodeData>) {
       {/* Lock indicator */}
       {data.locked && (
         <div className="absolute bottom-2 right-2" data-testid="lock-indicator">
-          <icons.Lock size={14} className="text-[var(--color-data)]" />
+          <icons.Lock
+            size={14}
+            className={isNoteNode ? "text-[var(--color-note-foreground)]" : "text-[var(--color-data)]"}
+          />
         </div>
       )}
 
@@ -131,42 +149,71 @@ function StackNodeComponent({ id, data, selected }: NodeProps<StackNodeData>) {
       )}
 
       {/* Node content */}
-      <div className="px-3 py-2.5">
-        {/* Header: icon + name */}
-        <div className="flex items-center gap-2">
+      {isNoteNode ? (
+        <div className="px-4 pb-4 pt-3">
           <div
-            className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded"
-            style={{ backgroundColor: catConfig.fill, color: catConfig.foreground }}
-          >
-            <DynamicIcon name={iconName} size={14} />
+            className="pointer-events-none absolute right-0 top-0 h-0 w-0 border-l-[18px] border-t-[18px] border-l-transparent"
+            style={{ borderTopColor: "color-mix(in oklch, var(--color-note), var(--color-note-fill) 45%)" }}
+          />
+          <div className="flex items-start gap-2 pr-4">
+            <DynamicIcon
+              name={iconName}
+              size={17}
+              className="mt-1 shrink-0 text-[var(--color-note-foreground)]"
+            />
+            <span className="text-[18px] font-bold leading-tight">{data.name}</span>
           </div>
-          <span className="text-sm font-semibold leading-tight">{data.name}</span>
+          {noteText && (
+            <div className="mt-2 whitespace-pre-wrap text-[15px] leading-6">
+              {containsHtml(noteText) ? (
+                <span
+                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(noteText) }}
+                  className="[&_a]:text-[var(--link)] [&_a]:underline"
+                />
+              ) : (
+                noteText
+              )}
+            </div>
+          )}
         </div>
-
-        {/* Technology subtitle */}
-        {data.technology && (
-          <div className="mt-1 pl-8 text-xs text-[var(--muted-foreground)]">
-            {containsHtml(data.technology) ? (
-              <span
-                dangerouslySetInnerHTML={{ __html: sanitizeHtml(data.technology) }}
-                className="[&_a]:text-[var(--link)] [&_a]:underline"
-              />
-            ) : (
-              data.technology
-            )}
+      ) : (
+        <div className="px-3 py-2.5">
+          {/* Header: icon + name */}
+          <div className="flex items-center gap-2">
+            <div
+              className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded"
+              style={{ backgroundColor: catConfig.fill, color: catConfig.foreground }}
+            >
+              <DynamicIcon name={iconName} size={14} />
+            </div>
+            <span className="text-sm font-semibold leading-tight">{data.name}</span>
           </div>
-        )}
 
-        {/* Category badge */}
-        <div className="mt-2">
-          <span
-            className="inline-block rounded-full px-2 py-0.5 text-[10px] font-medium"
-            style={{ backgroundColor: catConfig.fill, color: catConfig.foreground }}
-          >
-            {catConfig.displayName}
-          </span>
+          {/* Technology subtitle */}
+          {data.technology && (
+            <div className="mt-1 pl-8 text-xs text-[var(--muted-foreground)]">
+              {containsHtml(data.technology) ? (
+                <span
+                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(data.technology) }}
+                  className="[&_a]:text-[var(--link)] [&_a]:underline"
+                />
+              ) : (
+                data.technology
+              )}
+            </div>
+          )}
+
+          {/* Category badge */}
+          <div className="mt-2">
+            <span
+              className="inline-block rounded-full px-2 py-0.5 text-[10px] font-medium"
+              style={{ backgroundColor: catConfig.fill, color: catConfig.foreground }}
+            >
+              {catConfig.displayName}
+            </span>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Source handle (bottom) */}
       <Handle

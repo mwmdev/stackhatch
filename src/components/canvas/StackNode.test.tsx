@@ -176,6 +176,23 @@ describe("StackNode", () => {
     expect(screen.getByText("External")).toBeInTheDocument();
   });
 
+  it("renders note nodes as post-it notes with handwritten styling", () => {
+    const { container } = renderNode({
+      category: "note",
+      subtype: "note",
+      name: "Decision note",
+      technology: "",
+      description: "Use a boring queue until traffic proves otherwise.",
+    });
+
+    const nodeDiv = container.querySelector(".stack-node") as HTMLElement;
+    expect(nodeDiv).toHaveClass("font-note");
+    expect(nodeDiv.style.backgroundColor).toBe("var(--color-note-fill)");
+    expect(screen.getByText("Decision note")).toBeInTheDocument();
+    expect(screen.getByText("Use a boring queue until traffic proves otherwise.")).toBeInTheDocument();
+    expect(screen.queryByText("Note")).not.toBeInTheDocument();
+  });
+
   it("has connection handles", () => {
     const { container } = renderNode();
     const handles = container.querySelectorAll(".react-flow__handle");

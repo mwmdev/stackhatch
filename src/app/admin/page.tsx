@@ -120,6 +120,7 @@ export default function AdminPage() {
       | "alternatives"
       | "prdExport"
       | "customSubtypes"
+      | "noteNodes"
       | "collaboration",
     value: boolean
   ) {
@@ -583,6 +584,7 @@ export default function AdminPage() {
                             ["alternatives", "Alternatives"],
                             ["prdExport", "PRD export"],
                             ["customSubtypes", "Custom subtypes"],
+                            ["noteNodes", "Note nodes"],
                             ["collaboration", "Collaboration"],
                           ] as const
                         ).map(([field, label]) => (

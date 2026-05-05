@@ -570,6 +570,10 @@ export default function ProjectPage() {
 
   const handleAddNode = useCallback(
     (category: NodeCategory, subtype: NodeSubtype) => {
+      if (category === "note" && currentUserRole !== "admin" && !planFeatures.noteNodes) {
+        setUpgradeFeature("Note nodes");
+        return;
+      }
       const subtypeConfig = getSubtypeConfig(category, subtype, customSubtypes);
       const id = crypto.randomUUID();
       const newStackNode: StackNode = {
@@ -636,6 +640,7 @@ export default function ProjectPage() {
       openNodePanel,
       planFeatures.nodeDescriptions,
       planFeatures.nodeLocking,
+      planFeatures.noteNodes,
       currentUserRole,
     ]
   );
@@ -942,6 +947,7 @@ export default function ProjectPage() {
   const nodeCount = project?.canvasState?.nodes?.length ?? 0;
   const canUseAlternatives = isAdmin || planFeatures.alternatives;
   const canExportPrd = isAdmin || planFeatures.prdExport;
+  const canUseNotes = isAdmin || planFeatures.noteNodes;
 
   // Map nodeId → name for comment labels
   const nodeNames = useMemo(() => {
@@ -1030,7 +1036,11 @@ export default function ProjectPage() {
           </Link>
           <h1 className="text-lg font-semibold">{project.name}</h1>
           <div className="ml-auto flex items-center gap-2">
-            <AddNodeDropdown onAddNode={handleAddNode} customSubtypes={customSubtypes} />
+            <AddNodeDropdown
+              onAddNode={handleAddNode}
+              customSubtypes={customSubtypes}
+              canUseNotes={canUseNotes}
+            />
             {nodeCount > 0 && (
               <ExportDropdown
                 rfInstanceRef={rfInstanceRef}
@@ -1234,6 +1244,7 @@ export default function ProjectPage() {
             alternativesLoading={altLoading}
             showDescription={planFeatures.nodeDescriptions}
             canUseNodeLocking={planFeatures.nodeLocking || isAdmin}
+            canUseNotes={canUseNotes}
             onSuggestAlternatives={canUseAlternatives ? handleSuggestAlternatives : undefined}
             onSwapAlternative={canUseAlternatives ? handleSwapAlternative : undefined}
           />

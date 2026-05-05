@@ -5,7 +5,8 @@ export type NodeCategory =
   | "services"
   | "data"
   | "infrastructure"
-  | "external";
+  | "external"
+  | "note";
 
 export type ClientSubtype = "web-app" | "mobile-app" | "desktop-app" | "cli";
 export type ApiSubtype =
@@ -36,6 +37,7 @@ export type ExternalSubtype =
   | "third-party-api"
   | "oauth-provider"
   | "email-sms-service";
+export type NoteSubtype = "note";
 
 export type BuiltInNodeSubtype =
   | ClientSubtype
@@ -43,7 +45,8 @@ export type BuiltInNodeSubtype =
   | ServicesSubtype
   | DataSubtype
   | InfraSubtype
-  | ExternalSubtype;
+  | ExternalSubtype
+  | NoteSubtype;
 
 export type NodeSubtype = BuiltInNodeSubtype | (string & {});
 

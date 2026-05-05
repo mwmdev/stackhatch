@@ -94,7 +94,9 @@ export function streamChat(
   const features = getPlanCatalog(db)[plan].features;
   const customSubtypes = parseCustomSubtypes(settingsMap.customSubtypes);
   const chatBase = getPrompt(settingsMap, "prompt_chat", DEFAULT_CHAT_PROMPT);
-  const systemPrompt = buildSystemPrompt(customSubtypes, chatBase);
+  const systemPrompt = buildSystemPrompt(customSubtypes, chatBase, {
+    includeNoteNodes: features.noteNodes,
+  });
 
   // Save user message if present
   if (userMessage) {
@@ -188,7 +190,7 @@ export function streamChat(
         }
 
         // Parse the full response for architecture
-        const parsed = parseAIResponse(fullResponse);
+        const parsed = parseAIResponse(fullResponse, { allowNoteNodes: features.noteNodes });
 
         // Save assistant message (with the full response including <stack> block)
         const saveTimestamp = Date.now();

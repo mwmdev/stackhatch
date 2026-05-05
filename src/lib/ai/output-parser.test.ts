@@ -211,6 +211,7 @@ ${JSON.stringify(invalidJson)}
         "reverse-proxy",
       ],
       external: ["third-party-api", "oauth-provider", "email-sms-service"],
+      note: ["note"],
     };
 
     for (const [category, subtypes] of Object.entries(categorySubtypes)) {
@@ -240,6 +241,29 @@ ${JSON.stringify(invalidJson)}
         ).not.toBeNull();
       }
     }
+  });
+
+  it("rejects note nodes when the feature is disabled", () => {
+    const arch = {
+      nodes: [
+        {
+          id: "note-1",
+          category: "note",
+          subtype: "note",
+          name: "Decision note",
+          technology: "",
+          description: "Keep the first release simple.",
+          reasoning: "",
+          locked: false,
+        },
+      ],
+      edges: [],
+    };
+
+    const text = `<stack>${JSON.stringify(arch)}</stack>`;
+    const result = parseAIResponse(text, { allowNoteNodes: false });
+
+    expect(result.architecture).toBeNull();
   });
 
   it("rejects invalid connection type", () => {

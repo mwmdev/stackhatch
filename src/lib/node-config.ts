@@ -103,6 +103,16 @@ export const nodeConfig: Record<NodeCategory, CategoryConfig> = {
       },
     },
   },
+  note: {
+    displayName: "Note",
+    color: "var(--color-note)",
+    fill: "var(--color-note-fill)",
+    foreground: "var(--color-note-foreground)",
+    icon: "StickyNote",
+    subtypes: {
+      note: { displayName: "Note", icon: "StickyNote" },
+    },
+  },
 };
 
 export function getCategoryConfig(category: NodeCategory): CategoryConfig {
@@ -144,4 +154,5 @@ export const categoryOrder: NodeCategory[] = [
   "data",
   "infrastructure",
   "external",
+  "note",
 ];

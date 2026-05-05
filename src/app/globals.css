@@ -56,6 +56,9 @@
   --color-external: oklch(0.42 0.13 25);
   --color-external-fill: oklch(0.42 0.13 25);
   --color-external-foreground: oklch(0.98 0.026 86);
+  --color-note: oklch(0.6 0.12 78);
+  --color-note-fill: oklch(0.91 0.12 88);
+  --color-note-foreground: oklch(0.24 0.04 65);
 
   --edge-http: oklch(0.42 0.11 205);
   --edge-websocket: oklch(0.39 0.11 145);
@@ -119,6 +122,9 @@
   --color-external: oklch(0.73 0.12 25);
   --color-external-fill: oklch(0.73 0.12 25);
   --color-external-foreground: oklch(0.2 0.025 70);
+  --color-note: oklch(0.82 0.12 82);
+  --color-note-fill: oklch(0.33 0.08 78);
+  --color-note-foreground: oklch(0.94 0.06 88);
 
   --edge-http: oklch(0.72 0.09 205);
   --edge-websocket: oklch(0.72 0.1 145);
@@ -139,6 +145,10 @@ h2,
 h3,
 .font-display {
   font-family: var(--font-display), var(--font-body), sans-serif;
+}
+
+.font-note {
+  font-family: var(--font-note), var(--font-display), cursive;
 }
 
 ::selection {

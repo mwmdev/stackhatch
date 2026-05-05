@@ -9,6 +9,7 @@ const nodeCategories = [
   "infrastructure",
   "external",
 ] as const;
+const nodeCategoriesWithNotes = [...nodeCategories, "note"] as const;
 
 const connectionTypes = [
   "http",
@@ -19,16 +20,18 @@ const connectionTypes = [
   "file-io",
 ] as const;
 
-const stackNodeSchema = z.object({
-  id: z.string().min(1),
-  category: z.enum(nodeCategories),
-  subtype: z.string().min(1),
-  name: z.string().min(1),
-  technology: z.string(),
-  description: z.string(),
-  reasoning: z.string(),
-  locked: z.boolean(),
-});
+function createStackNodeSchema(allowNoteNodes: boolean) {
+  return z.object({
+    id: z.string().min(1),
+    category: z.enum(allowNoteNodes ? nodeCategoriesWithNotes : nodeCategories),
+    subtype: z.string().min(1),
+    name: z.string().min(1),
+    technology: z.string(),
+    description: z.string(),
+    reasoning: z.string(),
+    locked: z.boolean(),
+  });
+}
 
 const stackEdgeSchema = z.object({
   id: z.string().min(1),
@@ -39,7 +42,7 @@ const stackEdgeSchema = z.object({
 });
 
 export const stackArchitectureSchema = z.object({
-  nodes: z.array(stackNodeSchema),
+  nodes: z.array(createStackNodeSchema(true)),
   edges: z.array(stackEdgeSchema),
 });
 
@@ -52,7 +55,10 @@ export interface ParsedAIResponse {
  * Extracts a `<stack>...</stack>` JSON block from an AI response.
  * Returns the cleaned message text and the parsed architecture (or null).
  */
-export function parseAIResponse(text: string): ParsedAIResponse {
+export function parseAIResponse(
+  text: string,
+  options: { allowNoteNodes?: boolean } = {}
+): ParsedAIResponse {
   const stackRegex = /<stack>\s*([\s\S]*?)\s*<\/stack>/;
   const match = stackRegex.exec(text);
 
@@ -65,7 +71,11 @@ export function parseAIResponse(text: string): ParsedAIResponse {
 
   try {
     const parsed = JSON.parse(jsonStr);
-    const result = stackArchitectureSchema.safeParse(parsed);
+    const schema = z.object({
+      nodes: z.array(createStackNodeSchema(options.allowNoteNodes ?? true)),
+      edges: z.array(stackEdgeSchema),
+    });
+    const result = schema.safeParse(parsed);
 
     if (result.success) {
       return { message: cleanedMessage, architecture: result.data };

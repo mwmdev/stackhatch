@@ -3,8 +3,9 @@ import { nodeConfig, categoryOrder } from "@/lib/node-config";
 import { getMergedSubtypes, type CustomSubtypesMap } from "@/lib/custom-subtypes";
 import { DEFAULT_CHAT_PROMPT } from "@/lib/ai/default-prompts";
 
-function buildSubtypesSection(custom?: CustomSubtypesMap): string {
+function buildSubtypesSection(custom?: CustomSubtypesMap, includeNoteNodes = true): string {
   return categoryOrder
+    .filter((cat) => includeNoteNodes || cat !== "note")
     .map((cat: NodeCategory) => {
       const merged = getMergedSubtypes(cat, custom);
       const slugs = Object.keys(merged).join(", ");
@@ -13,8 +14,12 @@ function buildSubtypesSection(custom?: CustomSubtypesMap): string {
     .join("\n");
 }
 
-export function buildSystemPrompt(custom?: CustomSubtypesMap, basePrompt?: string): string {
-  const subtypesSection = buildSubtypesSection(custom);
+export function buildSystemPrompt(
+  custom?: CustomSubtypesMap,
+  basePrompt?: string,
+  options: { includeNoteNodes?: boolean } = {}
+): string {
+  const subtypesSection = buildSubtypesSection(custom, options.includeNoteNodes ?? true);
   const base = basePrompt ?? DEFAULT_CHAT_PROMPT;
 
   return `${base}

@@ -360,6 +360,7 @@ function mockFetchProject(
       nodeLocking: true,
       connectionTypes: effectivePlan === "pro",
       customSubtypes: effectivePlan === "pro",
+      noteNodes: effectivePlan !== "free",
       alternatives: effectivePlan === "starter" || effectivePlan === "pro",
       prdExport: effectivePlan === "pro",
       collaboration: effectivePlan === "pro",

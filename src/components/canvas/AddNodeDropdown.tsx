@@ -22,12 +22,18 @@ function DynamicIcon({
 export interface AddNodeDropdownProps {
   onAddNode: (category: NodeCategory, subtype: NodeSubtype) => void;
   customSubtypes?: CustomSubtypesMap;
+  canUseNotes?: boolean;
 }
 
-export default function AddNodeDropdown({ onAddNode, customSubtypes }: AddNodeDropdownProps) {
+export default function AddNodeDropdown({
+  onAddNode,
+  customSubtypes,
+  canUseNotes = true,
+}: AddNodeDropdownProps) {
   const [open, setOpen] = useState(false);
   const [expandedCategory, setExpandedCategory] = useState<NodeCategory | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const visibleCategories = categoryOrder.filter((category) => canUseNotes || category !== "note");
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -65,7 +71,7 @@ export default function AddNodeDropdown({ onAddNode, customSubtypes }: AddNodeDr
           className="absolute left-0 top-full z-30 mt-1 w-64 rounded-lg border border-[var(--border)] bg-[var(--background)] shadow-lg"
           data-testid="add-node-dropdown"
         >
-          {categoryOrder.map((category) => {
+          {visibleCategories.map((category) => {
             const config = nodeConfig[category];
             const isExpanded = expandedCategory === category;
             return (

@@ -32,6 +32,7 @@ export interface NodeDetailPanelProps {
   alternativesLoading?: boolean;
   showDescription?: boolean;
   canUseNodeLocking?: boolean;
+  canUseNotes?: boolean;
   onSuggestAlternatives?: () => void;
   onSwapAlternative?: (alt: AlternativeNode) => void;
 }
@@ -47,6 +48,7 @@ export default function NodeDetailPanel({
   alternativesLoading,
   showDescription = true,
   canUseNodeLocking = true,
+  canUseNotes = true,
   onSuggestAlternatives,
   onSwapAlternative,
 }: NodeDetailPanelProps) {
@@ -57,6 +59,9 @@ export default function NodeDetailPanel({
 
   const catConfig = getCategoryConfig(node.category);
   const subtypes = getSubtypesForCategory(node.category, customSubtypes);
+  const categoryOptions = categoryOrder.filter(
+    (cat) => canUseNotes || cat !== "note" || node.category === "note"
+  );
 
   function handleCategoryChange(newCategory: NodeCategory) {
     const newSubtypes = getSubtypesForCategory(newCategory, customSubtypes);
@@ -145,7 +150,7 @@ export default function NodeDetailPanel({
             className="w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
             aria-label="Category"
           >
-            {categoryOrder.map((cat) => (
+            {categoryOptions.map((cat) => (
               <option key={cat} value={cat}>
                 {getCategoryConfig(cat).displayName}
               </option>

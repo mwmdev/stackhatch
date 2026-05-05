@@ -26,6 +26,12 @@ describe("PLAN_CONFIG", () => {
     expect(DEFAULT_PLAN_CATALOG.pro.features.connectionTypes).toBe(true);
   });
 
+  it("exposes note nodes as a configurable paid-plan feature", () => {
+    expect(DEFAULT_PLAN_CATALOG.free.features.noteNodes).toBe(false);
+    expect(DEFAULT_PLAN_CATALOG.starter.features.noteNodes).toBe(true);
+    expect(DEFAULT_PLAN_CATALOG.pro.features.noteNodes).toBe(true);
+  });
+
   it("merges partial catalog overrides with defaults", () => {
     const catalog = normalizePlanCatalog({
       starter: {
@@ -41,6 +47,7 @@ describe("PLAN_CONFIG", () => {
     expect(catalog.starter.features.projects).toBe(8);
     expect(catalog.starter.features.alternatives).toBe(false);
     expect(catalog.starter.features.connectionTypes).toBe(false);
+    expect(catalog.starter.features.noteNodes).toBe(true);
     expect(catalog.pro.features.connectionTypes).toBe(true);
     expect(catalog.starter.features.exports).toEqual(["png", "svg", "json"]);
     expect(catalog.free.features.projects).toBe(2);

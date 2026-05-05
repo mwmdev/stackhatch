@@ -14,6 +14,7 @@ const categoryRank: Record<NodeCategory, number> = {
   data: 3,
   infrastructure: 4,
   external: 5,
+  note: 6,
 };
 
 const NODE_WIDTH = 200;
