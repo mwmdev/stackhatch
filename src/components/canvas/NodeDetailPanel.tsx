@@ -212,7 +212,7 @@ export default function NodeDetailPanel({
         {!isNoteNode && node.reasoning && (
           <div>
             <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-[var(--muted-foreground)]">
-              AI Reasoning
+              Reasoning
             </label>
             <div className="rounded-md bg-[var(--muted)] px-3 py-2 text-sm italic text-[var(--muted-foreground)]">
               {node.reasoning}

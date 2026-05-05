@@ -298,7 +298,7 @@ describe("NodeDetailPanel", () => {
       />,
     );
 
-    expect(screen.queryByText("AI Reasoning")).not.toBeInTheDocument();
+    expect(screen.queryByText("Reasoning")).not.toBeInTheDocument();
   });
 
   it("shows a simplified editor for note nodes", () => {
@@ -328,7 +328,7 @@ describe("NodeDetailPanel", () => {
     expect(screen.queryByLabelText("Technology")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Category")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Subtype")).not.toBeInTheDocument();
-    expect(screen.queryByText("AI Reasoning")).not.toBeInTheDocument();
+    expect(screen.queryByText("Reasoning")).not.toBeInTheDocument();
     expect(screen.queryByText("Alternatives")).not.toBeInTheDocument();
 
     const noteInput = screen.getByLabelText("Note");
