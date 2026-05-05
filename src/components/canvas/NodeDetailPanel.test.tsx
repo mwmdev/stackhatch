@@ -52,6 +52,40 @@ describe("NodeDetailPanel", () => {
     expect(screen.getByText("Unlocked")).toBeInTheDocument();
   });
 
+  it("slides into view when open", () => {
+    const node = makeNode();
+    render(
+      <NodeDetailPanel
+        node={node}
+        open
+        onUpdate={vi.fn()}
+        onDelete={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+
+    const panel = screen.getByTestId("node-detail-panel");
+    expect(panel).toHaveClass("translate-y-0", "md:translate-x-0");
+    expect(panel).toHaveAttribute("aria-hidden", "false");
+  });
+
+  it("slides out of view when closed", () => {
+    const node = makeNode();
+    render(
+      <NodeDetailPanel
+        node={node}
+        open={false}
+        onUpdate={vi.fn()}
+        onDelete={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+
+    const panel = screen.getByTestId("node-detail-panel");
+    expect(panel).toHaveClass("translate-y-full", "md:translate-x-full");
+    expect(panel).toHaveAttribute("aria-hidden", "true");
+  });
+
   it("renders correct category and subtype selections", () => {
     const node = makeNode();
     render(

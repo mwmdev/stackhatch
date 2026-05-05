@@ -31,8 +31,34 @@ vi.mock("reactflow", () => {
         "data-edge-count": String((edges ?? []).length),
         ...(props.className ? { className: props.className } : {}),
         ...(props.style ? { style: props.style } : {}),
+        onClick: (event: React.MouseEvent) => {
+          if (event.target === event.currentTarget) {
+            (props.onPaneClick as (() => void) | undefined)?.();
+          }
+        },
       },
-      children
+      React.createElement(
+        React.Fragment,
+        null,
+        ...(nodes ?? []).map((node) =>
+          React.createElement(
+            "button",
+            {
+              key: (node as { id: string }).id,
+              type: "button",
+              "data-testid": `mock-flow-node-${(node as { id: string }).id}`,
+              onClick: (event: React.MouseEvent) => {
+                event.stopPropagation();
+                (props.onNodeClick as
+                  | ((event: React.MouseEvent, node: unknown) => void)
+                  | undefined)?.(event, node);
+              },
+            },
+            (node as { data?: { name?: string } }).data?.name ?? (node as { id: string }).id
+          )
+        ),
+        children
+      )
     );
   }
 
@@ -124,17 +150,21 @@ vi.mock("@/components/chat/ChatSidebar", () => ({
 vi.mock("@/components/canvas/NodeDetailPanel", () => ({
   default: ({
     node,
+    open,
     onSuggestAlternatives,
   }: {
-    node: unknown;
+    node: { id?: string; name?: string } | null;
+    open?: boolean;
     onSuggestAlternatives?: () => void;
   }) => (
     <div
       data-testid="node-detail-panel"
       data-has-node={String(!!node)}
+      data-open={String(!!open)}
+      data-node-id={node?.id ?? ""}
       data-can-suggest-alternatives={String(!!onSuggestAlternatives)}
     >
-      Detail Panel
+      Detail Panel {node?.name ?? ""}
     </div>
   ),
 }));
@@ -574,6 +604,37 @@ describe("ProjectPage", () => {
         expect(sidebar).toHaveAttribute("data-default-open", "false");
         expect(sidebar).toHaveAttribute("data-open", "false");
       });
+    });
+
+    it("opens and closes the node detail drawer when clicking the same node", async () => {
+      mockFetchProject(projectWithNodes);
+      render(<ProjectPage />);
+      await waitFor(() => {
+        expect(screen.getByTestId("mock-flow-node-n1")).toBeInTheDocument();
+      });
+
+      expect(screen.getByTestId("node-detail-panel")).toHaveAttribute("data-open", "false");
+
+      fireEvent.click(screen.getByTestId("mock-flow-node-n1"));
+      expect(screen.getByTestId("node-detail-panel")).toHaveAttribute("data-open", "true");
+      expect(screen.getByTestId("node-detail-panel")).toHaveAttribute("data-node-id", "n1");
+
+      fireEvent.click(screen.getByTestId("mock-flow-node-n1"));
+      expect(screen.getByTestId("node-detail-panel")).toHaveAttribute("data-open", "false");
+    });
+
+    it("closes the node detail drawer when clicking the canvas background", async () => {
+      mockFetchProject(projectWithNodes);
+      render(<ProjectPage />);
+      await waitFor(() => {
+        expect(screen.getByTestId("mock-flow-node-n1")).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId("mock-flow-node-n1"));
+      expect(screen.getByTestId("node-detail-panel")).toHaveAttribute("data-open", "true");
+
+      fireEvent.click(screen.getByTestId("react-flow-canvas"));
+      expect(screen.getByTestId("node-detail-panel")).toHaveAttribute("data-open", "false");
     });
 
     it("hides alternatives for free users", async () => {

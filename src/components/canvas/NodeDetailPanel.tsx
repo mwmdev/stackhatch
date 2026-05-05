@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import * as icons from "lucide-react";
 import type { NodeCategory, NodeSubtype, StackNode, AlternativeNode } from "@/types/stack";
 import { categoryOrder, getCategoryConfig, getSubtypesForCategory } from "@/lib/node-config";
@@ -23,6 +23,7 @@ function DynamicIcon({
 
 export interface NodeDetailPanelProps {
   node: StackNode | null;
+  open?: boolean;
   onUpdate: (id: string, updates: Partial<StackNode>) => void;
   onDelete: (id: string) => void;
   onClose: () => void;
@@ -35,6 +36,7 @@ export interface NodeDetailPanelProps {
 
 export default function NodeDetailPanel({
   node,
+  open = !!node,
   onUpdate,
   onDelete,
   onClose,
@@ -44,28 +46,8 @@ export default function NodeDetailPanel({
   onSuggestAlternatives,
   onSwapAlternative,
 }: NodeDetailPanelProps) {
-  const panelRef = useRef<HTMLDivElement>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const confirmDelete = confirmDeleteId === node?.id;
-
-  // Close on outside click
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
-        onClose();
-      }
-    }
-    if (node) {
-      // Delay listener to prevent the click that opened the panel from immediately closing it
-      const timer = setTimeout(() => {
-        document.addEventListener("mousedown", handleClickOutside);
-      }, 0);
-      return () => {
-        clearTimeout(timer);
-        document.removeEventListener("mousedown", handleClickOutside);
-      };
-    }
-  }, [node, onClose]);
 
   if (!node) return null;
 
@@ -93,8 +75,12 @@ export default function NodeDetailPanel({
 
   return (
     <div
-      ref={panelRef}
-      className="absolute inset-x-0 bottom-0 z-20 flex max-h-[70vh] w-full flex-col border-t border-[var(--border)] bg-[var(--background)] shadow-xl transition-transform duration-200 ease-out md:inset-x-auto md:right-0 md:top-0 md:h-full md:max-h-none md:w-[400px] md:border-l md:border-t-0"
+      className={`absolute inset-x-0 bottom-0 z-20 flex max-h-[70vh] w-full flex-col border-t border-[var(--border)] bg-[var(--background)] shadow-xl transition-transform duration-200 ease-out motion-reduce:transition-none md:inset-x-auto md:right-0 md:top-0 md:h-full md:max-h-none md:w-[400px] md:border-l md:border-t-0 ${
+        open
+          ? "pointer-events-auto translate-y-0 md:translate-x-0"
+          : "pointer-events-none translate-y-full md:translate-x-full md:translate-y-0"
+      }`}
+      aria-hidden={!open}
       data-testid="node-detail-panel"
     >
       {/* Header */}

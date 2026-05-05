@@ -91,6 +91,7 @@ export default function ProjectPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedNode, setSelectedNode] = useState<StackNode | null>(null);
+  const [nodePanelOpen, setNodePanelOpen] = useState(false);
   const [pendingConnection, setPendingConnection] = useState<PendingConnection | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [customSubtypes, setCustomSubtypes] = useState<CustomSubtypesMap>({});
@@ -115,6 +116,7 @@ export default function ProjectPage() {
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<StackEdgeData>([]);
   const rfInstanceRef = useRef<ReactFlowInstance | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const nodePanelCloseTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const latestFlowRef = useRef<{
     nodes: Node<StackNodeData>[];
     edges: Edge<StackEdgeData>[];
@@ -170,6 +172,7 @@ export default function ProjectPage() {
           },
         };
       });
+      setNodePanelOpen(false);
       setSelectedNode(null);
     },
     [setRfNodes, setRfEdges]
@@ -261,6 +264,10 @@ export default function ProjectPage() {
     };
   }, [saveCanvas]);
 
+  useEffect(() => {
+    return () => clearTimeout(nodePanelCloseTimerRef.current);
+  }, []);
+
   // --- Build React Flow nodes with injected callbacks ---
 
   const buildRfNodes = useCallback(
@@ -304,19 +311,41 @@ export default function ProjectPage() {
 
   // --- React Flow event handlers ---
 
-  const handleNodeClick = useCallback((_event: React.MouseEvent, node: Node<StackNodeData>) => {
-    const data = node.data;
-    setSelectedNode({
-      id: node.id,
-      category: data.category,
-      subtype: data.subtype,
-      name: data.name,
-      technology: data.technology,
-      description: data.description,
-      reasoning: data.reasoning,
-      locked: data.locked,
-    });
+  const closeNodePanel = useCallback(() => {
+    setNodePanelOpen(false);
+    clearTimeout(nodePanelCloseTimerRef.current);
+    nodePanelCloseTimerRef.current = setTimeout(() => {
+      setSelectedNode(null);
+    }, 200);
   }, []);
+
+  const handleNodeClick = useCallback(
+    (_event: React.MouseEvent, node: Node<StackNodeData>) => {
+      if (selectedNode?.id === node.id && nodePanelOpen) {
+        closeNodePanel();
+        return;
+      }
+
+      clearTimeout(nodePanelCloseTimerRef.current);
+      const data = node.data;
+      setSelectedNode({
+        id: node.id,
+        category: data.category,
+        subtype: data.subtype,
+        name: data.name,
+        technology: data.technology,
+        description: data.description,
+        reasoning: data.reasoning,
+        locked: data.locked,
+      });
+      setNodePanelOpen(true);
+    },
+    [closeNodePanel, nodePanelOpen, selectedNode?.id]
+  );
+
+  const handlePaneClick = useCallback(() => {
+    if (nodePanelOpen) closeNodePanel();
+  }, [closeNodePanel, nodePanelOpen]);
 
   const handleConnect = useCallback((connection: Connection) => {
     if (!connection.source || !connection.target) return;
@@ -491,6 +520,7 @@ export default function ProjectPage() {
           : prev;
       });
       setSelectedNode(newStackNode);
+      setNodePanelOpen(true);
     },
     [
       handleLockToggle,
@@ -525,8 +555,8 @@ export default function ProjectPage() {
   );
 
   const handleClosePanel = useCallback(() => {
-    setSelectedNode(null);
-  }, []);
+    closeNodePanel();
+  }, [closeNodePanel]);
 
   // --- Suggest alternatives ---
 
@@ -966,6 +996,7 @@ export default function ProjectPage() {
             onEdgesChange={onEdgesChange}
             onConnect={handleConnect}
             onNodeClick={handleNodeClick}
+            onPaneClick={handlePaneClick}
             onInit={(instance) => {
               rfInstanceRef.current = instance;
             }}
@@ -1056,6 +1087,7 @@ export default function ProjectPage() {
           {/* Node Detail Panel (overlays canvas from right) */}
           <NodeDetailPanel
             node={selectedNode}
+            open={nodePanelOpen}
             onUpdate={handleNodeUpdate}
             onDelete={handleNodeDelete}
             onClose={handleClosePanel}
