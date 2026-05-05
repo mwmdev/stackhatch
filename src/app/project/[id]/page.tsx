@@ -43,6 +43,7 @@ import type {
 import { getSubtypeConfig } from "@/lib/node-config";
 import { applyDagreLayout } from "@/lib/layout";
 import { mergeArchitecture } from "@/lib/merge-architecture";
+import { isPaidTierRole } from "@/lib/roles";
 import { parseCustomSubtypes, type CustomSubtypesMap } from "@/lib/custom-subtypes";
 import UpgradePrompt from "@/components/UpgradePrompt";
 
@@ -786,7 +787,7 @@ export default function ProjectPage() {
   );
   const nodeCount = project?.canvasState?.nodes?.length ?? 0;
   const isAdmin = currentUserRole === "admin";
-  const canUseAlternatives = isAdmin || currentUserRole === "paid-user";
+  const canUseAlternatives = isAdmin || isPaidTierRole(currentUserRole);
   const canExportPrd =
     isAdmin || ((billingPlan === "pro" || billingPlan === "team") && billingStatus === "active");
 

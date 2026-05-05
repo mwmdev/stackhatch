@@ -243,7 +243,7 @@ function mockFetchProject(
     if (url === "/api/settings") {
       return Promise.resolve({
         ok: true,
-        json: () => Promise.resolve(options.settings ?? { role: "free-user", isAdmin: false }),
+        json: () => Promise.resolve(options.settings ?? { role: "free", isAdmin: false }),
       } as Response);
     }
     if (url === "/api/billing/subscription") {
@@ -496,7 +496,7 @@ describe("ProjectPage", () => {
 
     it("shows PRD export for active pro users", async () => {
       mockFetchProject(projectWithNodes, {
-        settings: { role: "paid-user", isAdmin: false },
+        settings: { role: "pro", isAdmin: false },
         billing: { plan: "pro", status: "active" },
       });
       render(<ProjectPage />);
@@ -569,9 +569,9 @@ describe("ProjectPage", () => {
       });
     });
 
-    it("enables alternatives for paid users", async () => {
+    it("enables alternatives for Builder users", async () => {
       mockFetchProject(projectWithNodes, {
-        settings: { role: "paid-user", isAdmin: false },
+        settings: { role: "starter", isAdmin: false },
       });
       render(<ProjectPage />);
       await waitFor(() => {

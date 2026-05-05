@@ -4,9 +4,9 @@ import { getDb } from "@/db";
 import { runMigrations } from "@/db/migrate";
 import { users, type UserRole } from "@/db/schema";
 import { auth } from "@/lib/auth-config";
+import { normalizeUserRole, USER_ROLE_VALUES } from "@/lib/roles";
 
 const DEV_USER_ID = "dev-user";
-const VALID_ROLES: UserRole[] = ["admin", "free-user", "paid-user"];
 export const IMPERSONATION_COOKIE = "stackhatch_impersonate_user";
 
 export interface AuthenticatedUser {
@@ -24,7 +24,7 @@ export interface AuthenticatedUser {
 }
 
 function isValidRole(role: string | undefined): role is UserRole {
-  return !!role && VALID_ROLES.includes(role as UserRole);
+  return !!role && USER_ROLE_VALUES.includes(role as UserRole);
 }
 
 function isDevAuthEnabled() {
@@ -33,7 +33,9 @@ function isDevAuthEnabled() {
 
 function getDevRole(): UserRole {
   const role = process.env.STACKHATCH_DEV_ROLE;
-  return isValidRole(role) ? role : "admin";
+  if (!role) return "admin";
+  if (isValidRole(role)) return role;
+  return normalizeUserRole(role);
 }
 
 function getDevUser(): AuthenticatedUser {
@@ -88,7 +90,7 @@ function readUser(userId: string): AuthenticatedUser | null {
 
   return {
     userId: user.id,
-    role: user.role,
+    role: normalizeUserRole(user.role),
     name: user.name,
     email: user.email,
     image: user.avatarUrl,
@@ -147,7 +149,7 @@ export async function getAuthenticatedUserId(): Promise<string | null> {
 }
 
 export function requireRole(userRole: UserRole, allowed: UserRole[]): Response | null {
-  if (allowed.includes(userRole)) return null;
+  if (allowed.includes(normalizeUserRole(userRole))) return null;
   return new Response(JSON.stringify({ error: "Upgrade required", upgradeRequired: true }), {
     status: 403,
     headers: { "Content-Type": "application/json" },

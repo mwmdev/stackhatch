@@ -18,7 +18,7 @@ function createTestDb() {
       email TEXT,
       name TEXT,
       avatar_url TEXT,
-      role TEXT DEFAULT 'free-user' NOT NULL,
+      role TEXT DEFAULT 'free' NOT NULL,
       created_at INTEGER NOT NULL
     );
   `);
@@ -78,12 +78,12 @@ beforeEach(() => {
         createdAt: 1000,
       },
       {
-        id: "free-user",
-        githubId: "manual:free-user",
+        id: "free",
+        githubId: "manual:free",
         email: "free@example.com",
-        name: "Free User",
+        name: "Free plan",
         avatarUrl: null,
-        role: "free-user",
+        role: "free",
         createdAt: 2000,
       },
     ])
@@ -104,15 +104,15 @@ describe("auth impersonation", () => {
   });
 
   it("returns the impersonated user while preserving the actual admin context", async () => {
-    mockImpersonationCookie = "free-user";
+    mockImpersonationCookie = "free";
 
     const user = await authModule.getAuthenticatedUser();
 
     expect(user).toEqual(
       expect.objectContaining({
-        userId: "free-user",
-        role: "free-user",
-        name: "Free User",
+        userId: "free",
+        role: "free",
+        name: "Free plan",
         impersonatedBy: expect.objectContaining({
           userId: "admin-user",
           role: "admin",
@@ -122,22 +122,22 @@ describe("auth impersonation", () => {
   });
 
   it("ignores impersonation cookies for non-admin users", async () => {
-    mockSessionUserId = "free-user";
+    mockSessionUserId = "free";
     mockImpersonationCookie = "admin-user";
 
     const user = await authModule.getAuthenticatedUser();
 
     expect(user).toEqual(
       expect.objectContaining({
-        userId: "free-user",
-        role: "free-user",
+        userId: "free",
+        role: "free",
       })
     );
     expect(user?.impersonatedBy).toBeUndefined();
   });
 
   it("exposes the real admin through getActualAuthenticatedUser", async () => {
-    mockImpersonationCookie = "free-user";
+    mockImpersonationCookie = "free";
 
     const user = await authModule.getActualAuthenticatedUser();
 

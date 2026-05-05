@@ -37,7 +37,7 @@ describe("SettingsPage", () => {
   });
 
   it("renders server-managed settings sections", async () => {
-    mockFetchSettings({ hasAnthropicKey: false, role: "free-user", isAdmin: false });
+    mockFetchSettings({ hasAnthropicKey: false, role: "free", isAdmin: false });
     render(<SettingsPage />);
 
     await waitFor(() => {

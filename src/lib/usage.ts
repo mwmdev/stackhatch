@@ -1,5 +1,5 @@
 import { getDb } from "@/db";
-import { usage } from "@/db/schema";
+import { usage, type UserRole } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { createId } from "@/lib/id";
 import { getActivePlan, isUnlimited, PLAN_CONFIG, type PublicPlanKey } from "@/lib/plans";
@@ -58,7 +58,7 @@ export function getUsageLimit(plan: PublicPlanKey, metric: "messages" | "scans")
 
 export function incrementMessages(
   userId: string,
-  role: "admin" | "free-user" | "paid-user" = "free-user"
+  role: UserRole = "free"
 ): {
   allowed: boolean;
   used: number;
@@ -86,7 +86,7 @@ export function incrementMessages(
 
 export function incrementScans(
   userId: string,
-  role: "admin" | "free-user" | "paid-user" = "free-user"
+  role: UserRole = "free"
 ): { allowed: boolean; used: number; limit: number | "unlimited" | "byok"; plan: PublicPlanKey } {
   const db = getDb();
   const plan = getActivePlan(db, userId, role);

@@ -71,6 +71,13 @@
       "when": 1777914273196,
       "tag": "0009_spotty_magdalene",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1777962600000,
+      "tag": "0010_align_roles_with_tiers",
+      "breakpoints": true
     }
   ]
 }

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
+import { USER_ROLE_OPTIONS } from "@/lib/roles";
 
 interface User {
   id: string;
@@ -22,7 +23,7 @@ export default function AdminPage() {
     name: "",
     email: "",
     githubId: "",
-    role: "free-user",
+    role: "free",
   });
   const [creating, setCreating] = useState(false);
   const [impersonatingUserId, setImpersonatingUserId] = useState<string | null>(null);
@@ -60,7 +61,7 @@ export default function AdminPage() {
 
     if (res.ok) {
       setUsers((prev) => [...prev, data]);
-      setCreateForm({ name: "", email: "", githubId: "", role: "free-user" });
+      setCreateForm({ name: "", email: "", githubId: "", role: "free" });
     } else {
       setError(data.error || "Failed to create user");
     }
@@ -201,9 +202,11 @@ export default function AdminPage() {
                 onChange={(e) => setCreateForm((prev) => ({ ...prev, role: e.target.value }))}
                 className="min-h-11 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm font-normal text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
               >
-                <option value="free-user">Free User</option>
-                <option value="paid-user">Paid User</option>
-                <option value="admin">Admin</option>
+                {USER_ROLE_OPTIONS.map((role) => (
+                  <option key={role.value} value={role.value}>
+                    {role.label}
+                  </option>
+                ))}
               </select>
             </label>
           </div>
@@ -268,9 +271,11 @@ export default function AdminPage() {
                       onChange={(e) => handleRoleChange(user.id, e.target.value)}
                       className="min-h-11 rounded border border-[var(--border)] bg-[var(--background)] px-2 py-2 text-xs text-[var(--foreground)] focus:outline-none focus:ring-1 focus:ring-[var(--color-client)]"
                     >
-                      <option value="admin">Admin</option>
-                      <option value="paid-user">Paid User</option>
-                      <option value="free-user">Free User</option>
+                      {USER_ROLE_OPTIONS.map((role) => (
+                        <option key={role.value} value={role.value}>
+                          {role.label}
+                        </option>
+                      ))}
                     </select>
                   </td>
                   <td className="px-4 py-3 text-[var(--muted-foreground)]">

@@ -56,8 +56,12 @@ beforeEach(() => {
 });
 
 describe("getActivePlan", () => {
-  it("falls back to Studio for paid users without an active paid subscription", () => {
-    expect(getActivePlan(testDb, "paid-user-id", "paid-user")).toBe("pro");
+  it("falls back to Builder for starter-role users without an active paid subscription", () => {
+    expect(getActivePlan(testDb, "starter-id", "starter")).toBe("starter");
+  });
+
+  it("falls back to Studio for pro-role users without an active paid subscription", () => {
+    expect(getActivePlan(testDb, "pro-id", "pro")).toBe("pro");
   });
 
   it("falls back to Studio for admins without an active paid subscription", () => {
@@ -65,22 +69,22 @@ describe("getActivePlan", () => {
   });
 
   it("keeps free users on the Free plan without an active paid subscription", () => {
-    expect(getActivePlan(testDb, "free-user-id", "free-user")).toBe("free");
+    expect(getActivePlan(testDb, "free-id", "free")).toBe("free");
   });
 
   it("prefers an active paid subscription over the role fallback", () => {
-    addSubscription({ userId: "paid-user-id", plan: "starter" });
+    addSubscription({ userId: "pro-id", plan: "starter" });
 
-    expect(getActivePlan(testDb, "paid-user-id", "paid-user")).toBe("starter");
+    expect(getActivePlan(testDb, "pro-id", "pro")).toBe("starter");
   });
 
   it("ignores expired subscriptions before applying the role fallback", () => {
     addSubscription({
-      userId: "free-user-id",
+      userId: "free-id",
       plan: "pro",
       currentPeriodEnd: Date.now() - 1000,
     });
 
-    expect(getActivePlan(testDb, "free-user-id", "free-user")).toBe("free");
+    expect(getActivePlan(testDb, "free-id", "free")).toBe("free");
   });
 });

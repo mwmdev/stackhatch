@@ -8,7 +8,7 @@ import type { AppDatabase } from "@/db";
 let testDb: AppDatabase;
 let mockUser: { userId: string; role: UserRole } | null = {
   userId: "test-user-id",
-  role: "free-user",
+  role: "free",
 };
 
 function createTestDb() {
@@ -72,7 +72,7 @@ beforeEach(() => {
   testDb = createTestDb();
   mockUser = {
     userId: "test-user-id",
-    role: "free-user",
+    role: "free",
   };
 });
 
@@ -90,10 +90,28 @@ describe("GET /api/billing/subscription", () => {
     });
   });
 
-  it("returns Studio for paid-role users without a subscription row", async () => {
+  it("returns Builder for starter-role users without a subscription row", async () => {
     mockUser = {
-      userId: "paid-user-id",
-      role: "paid-user",
+      userId: "starter-id",
+      role: "starter",
+    };
+
+    const res = await subscriptionRoute.GET();
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data).toEqual({
+      plan: "starter",
+      billingInterval: null,
+      status: null,
+      currentPeriodEnd: null,
+    });
+  });
+
+  it("returns Studio for pro-role users without a subscription row", async () => {
+    mockUser = {
+      userId: "pro-id",
+      role: "pro",
     };
 
     const res = await subscriptionRoute.GET();
@@ -110,11 +128,11 @@ describe("GET /api/billing/subscription", () => {
 
   it("preserves an active paid subscription plan when one exists", async () => {
     mockUser = {
-      userId: "paid-user-id",
-      role: "paid-user",
+      userId: "pro-id",
+      role: "pro",
     };
     addSubscription({
-      userId: "paid-user-id",
+      userId: "pro-id",
       plan: "starter",
       billingInterval: "annual",
     });

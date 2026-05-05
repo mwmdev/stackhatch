@@ -2,9 +2,10 @@ import NextAuth from "next-auth";
 import GitHubProvider from "next-auth/providers/github";
 import { getDb } from "@/db";
 import { runMigrations } from "@/db/migrate";
-import { users, type UserRole } from "@/db/schema";
+import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { createId } from "@/lib/id";
+import { normalizeUserRole } from "@/lib/roles";
 
 export const {
   handlers: { GET, POST },
@@ -47,7 +48,7 @@ export const {
               email: profile.email || null,
               name: profile.name || null,
               avatarUrl: (profile as any).avatar_url || null,
-              role: isAdmin ? "admin" : "free-user",
+              role: isAdmin ? "admin" : "free",
               createdAt: Date.now(),
             });
           } else {
@@ -90,7 +91,7 @@ export const {
           if (user.length > 0) {
             token.userId = user[0].id;
             token.githubId = user[0].githubId;
-            token.role = user[0].role;
+            token.role = normalizeUserRole(user[0].role);
           }
         } catch (error) {
           console.error("Error fetching user ID:", error);

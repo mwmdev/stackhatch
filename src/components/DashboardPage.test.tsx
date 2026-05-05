@@ -64,7 +64,7 @@ function mockFetch(
     if (url === "/api/me") {
       return Promise.resolve({
         ok: true,
-        json: () => Promise.resolve({ role: options?.role ?? "free-user" }),
+        json: () => Promise.resolve({ role: options?.role ?? "free" }),
       });
     }
     if (url === "/api/billing/subscription" && options?.billing) {
@@ -156,7 +156,7 @@ describe("Dashboard", () => {
         });
       }
       if (url === "/api/me") {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({ role: "free-user" }) });
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ role: "free" }) });
       }
       if (url === "/api/projects") {
         return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });

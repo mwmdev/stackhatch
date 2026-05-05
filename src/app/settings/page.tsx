@@ -13,6 +13,7 @@ import {
   DEFAULT_PRD_PROMPT,
 } from "@/lib/ai/default-prompts";
 import { AI_MODELS, DEFAULT_AI_MODEL } from "@/lib/ai/models";
+import { getRoleLabel } from "@/lib/roles";
 
 const VALID_MODELS = AI_MODELS;
 
@@ -47,7 +48,7 @@ export default function SettingsPage() {
   const [hasUserAnthropicKey, setHasUserAnthropicKey] = useState(false);
   const [apiKey, setApiKey] = useState("");
   const [savingApiKey, setSavingApiKey] = useState(false);
-  const [currentRole, setCurrentRole] = useState("free-user");
+  const [currentRole, setCurrentRole] = useState("free");
   const [isAdmin, setIsAdmin] = useState(false);
   const [model, setModel] = useState(DEFAULT_AI_MODEL);
   const [saving, setSaving] = useState(false);
@@ -97,7 +98,7 @@ export default function SettingsPage() {
         ]) => {
           setHasAnthropicKey(Boolean(data.hasAnthropicKey));
           setHasUserAnthropicKey(Boolean(data.hasUserAnthropicKey));
-          setCurrentRole(data.role ?? "free-user");
+          setCurrentRole(data.role ?? "free");
           setIsAdmin(Boolean(data.isAdmin));
           if (data.model) {
             setModel(data.model);
@@ -576,7 +577,8 @@ export default function SettingsPage() {
                     </select>
                   </div>
                   <p className="text-sm text-[var(--muted-foreground)]">
-                    Model selection is managed by an administrator. Current role: {currentRole}.
+                    Model selection is managed by an administrator. Current role:{" "}
+                    {getRoleLabel(currentRole)}.
                   </p>
                 </div>
               ) : (

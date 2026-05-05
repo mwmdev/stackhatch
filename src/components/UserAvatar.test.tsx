@@ -7,7 +7,7 @@ describe("UserAvatar", () => {
     global.fetch = vi.fn(() =>
       Promise.resolve({
         ok: true,
-        json: () => Promise.resolve({ name: "Free Customer", role: "free-user" }),
+        json: () => Promise.resolve({ name: "Free Customer", role: "free" }),
       })
     ) as unknown as typeof fetch;
 

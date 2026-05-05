@@ -1,6 +1,7 @@
 import { integer, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
-export type UserRole = "admin" | "free-user" | "paid-user";
+export type PlanRole = "free" | "starter" | "pro";
+export type UserRole = "admin" | PlanRole;
 
 export const users = sqliteTable("users", {
   id: text("id").primaryKey(),
@@ -8,9 +9,9 @@ export const users = sqliteTable("users", {
   email: text("email"),
   name: text("name"),
   avatarUrl: text("avatar_url"),
-  role: text("role", { enum: ["admin", "free-user", "paid-user"] })
+  role: text("role", { enum: ["admin", "free", "starter", "pro"] })
     .notNull()
-    .default("free-user"),
+    .default("free"),
   createdAt: integer("created_at", { mode: "number" }).notNull(),
 });
 

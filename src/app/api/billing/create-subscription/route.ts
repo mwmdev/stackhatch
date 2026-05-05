@@ -5,6 +5,7 @@ import { runMigrations } from "@/db/migrate";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { getAuthenticatedUserId } from "@/lib/auth";
+import { getRoleForPlan } from "@/lib/roles";
 import { getStripe } from "@/lib/stripe";
 import { createId } from "@/lib/id";
 
@@ -88,8 +89,11 @@ export async function POST(request: NextRequest) {
       db.insert(subscriptions).values(subscriptionData).run();
     }
 
-    // Update user role to paid-user
-    db.update(users).set({ role: "paid-user" }).where(eq(users.id, userId)).run();
+    // Keep the support/admin role aligned with the purchased tier.
+    db.update(users)
+      .set({ role: getRoleForPlan(subscriptionData.plan) })
+      .where(eq(users.id, userId))
+      .run();
 
     // Create team if this is a team plan
     if (plan.startsWith("team") && teamName) {

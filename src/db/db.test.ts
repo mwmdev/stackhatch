@@ -17,7 +17,7 @@ function createTestDb() {
       email TEXT,
       name TEXT,
       avatar_url TEXT,
-      role TEXT DEFAULT 'free-user' NOT NULL,
+      role TEXT DEFAULT 'free' NOT NULL,
       created_at INTEGER NOT NULL
     );
     CREATE TABLE projects (
@@ -57,7 +57,7 @@ const testUser = {
   email: "test@example.com",
   name: "Test User",
   avatarUrl: "https://example.com/avatar.png",
-  role: "free-user" as const,
+  role: "free" as const,
   createdAt: Date.now(),
 };
 

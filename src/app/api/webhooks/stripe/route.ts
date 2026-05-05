@@ -5,6 +5,7 @@ import { runMigrations } from "@/db/migrate";
 import { eq } from "drizzle-orm";
 import { getStripe, getPlanByPriceId } from "@/lib/stripe";
 import { createId } from "@/lib/id";
+import { getRoleForPlan } from "@/lib/roles";
 import type Stripe from "stripe";
 
 // Stripe webhooks need the raw body for signature verification.
@@ -132,7 +133,7 @@ function handleSubscriptionChange(db: ReturnType<typeof getDb>, sub: Stripe.Subs
   }
 
   // Update user role
-  const role = status === "active" ? "paid-user" : "free-user";
+  const role = status === "active" ? getRoleForPlan(plan) : "free";
   db.update(users).set({ role }).where(eq(users.id, userId)).run();
 }
 
@@ -159,7 +160,7 @@ function handleSubscriptionDeleted(db: ReturnType<typeof getDb>, sub: Stripe.Sub
   }
 
   // Revert user to free
-  db.update(users).set({ role: "free-user" }).where(eq(users.id, userId)).run();
+  db.update(users).set({ role: "free" }).where(eq(users.id, userId)).run();
 }
 
 function getInvoiceSubscriptionId(invoice: Stripe.Invoice): string | null {
@@ -214,8 +215,11 @@ function handleInvoicePaid(db: ReturnType<typeof getDb>, invoice: Stripe.Invoice
     .where(eq(subscriptions.id, existing.id))
     .run();
 
-  // Update user role to paid
-  db.update(users).set({ role: "paid-user" }).where(eq(users.id, existing.userId)).run();
+  // Update user role to the active paid tier.
+  db.update(users)
+    .set({ role: getRoleForPlan(existing.plan) })
+    .where(eq(users.id, existing.userId))
+    .run();
 
   // Reset usage counters for the new billing period
   const periodEnd = now + 30 * 24 * 60 * 60 * 1000; // ~30 days

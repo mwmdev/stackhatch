@@ -2,11 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import * as schema from "@/db/schema";
-import { settings } from "@/db/schema";
+import { settings, type UserRole } from "@/db/schema";
 import type { AppDatabase } from "@/db";
 
 let testDb: AppDatabase;
-let mockUserRole: "admin" | "free-user" | "paid-user" = "admin";
+let mockUserRole: UserRole = "admin";
 
 function createTestDb() {
   const sqlite = new Database(":memory:");
@@ -142,7 +142,7 @@ describe("GET /api/settings", () => {
   });
 
   it("filters admin-only fields for non-admins", async () => {
-    mockUserRole = "free-user";
+    mockUserRole = "free";
     testDb
       .insert(settings)
       .values([
@@ -190,7 +190,7 @@ describe("PATCH /api/settings", () => {
   });
 
   it("saves theme setting for any authenticated user", async () => {
-    mockUserRole = "free-user";
+    mockUserRole = "free";
     const req = makeRequest({
       method: "PATCH",
       body: { theme: "dark" },
@@ -204,7 +204,7 @@ describe("PATCH /api/settings", () => {
   });
 
   it("blocks non-admin global AI settings", async () => {
-    mockUserRole = "free-user";
+    mockUserRole = "free";
     const req = makeRequest({
       method: "PATCH",
       body: { model: "claude-opus-4-20250514" },

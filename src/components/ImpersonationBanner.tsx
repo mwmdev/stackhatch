@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { getRoleLabel } from "@/lib/roles";
 
 interface MeResponse {
   name?: string | null;
@@ -47,7 +48,7 @@ export default function ImpersonationBanner() {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 bg-amber-100 px-4 py-2 text-sm text-amber-950 dark:bg-amber-950 dark:text-amber-100">
       <span>
-        Impersonating <strong>{displayName}</strong> as {me.role.replace("-", " ")}.
+        Impersonating <strong>{displayName}</strong> as {getRoleLabel(me.role)}.
       </span>
       <button
         type="button"

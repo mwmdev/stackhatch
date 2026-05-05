@@ -17,7 +17,7 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
   if (!user) {
     return NextResponse.json({ error: "Authentication required" }, { status: 401 });
   }
-  const roleErr = requireRole(user.role, ["admin", "paid-user"]);
+  const roleErr = requireRole(user.role, ["admin", "starter", "pro"]);
   if (roleErr) return roleErr;
 
   const db = getDb();

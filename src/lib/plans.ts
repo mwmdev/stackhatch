@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import type { AppDatabase } from "@/db";
 import { subscriptions, type UserRole } from "@/db/schema";
+import { isPaidTierRole } from "@/lib/roles";
 export {
   getPlanLabel,
   getPublicPlan,
@@ -33,7 +34,7 @@ export function getActivePlan(db: AppDatabase, userId: string, role: UserRole): 
     if (plan !== "free") return plan;
   }
 
-  if (role === "paid-user") return "pro";
+  if (isPaidTierRole(role)) return role;
 
   return "free";
 }

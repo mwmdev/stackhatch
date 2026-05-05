@@ -2,11 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import * as schema from "@/db/schema";
-import { users } from "@/db/schema";
+import { users, type UserRole } from "@/db/schema";
 import type { AppDatabase } from "@/db";
 
 let testDb: AppDatabase;
-let mockUserRole: "admin" | "free-user" | "paid-user" = "admin";
+let mockUserRole: UserRole = "admin";
 let mockUserId = "admin-user";
 
 function createTestDb() {
@@ -18,7 +18,7 @@ function createTestDb() {
       email TEXT,
       name TEXT,
       avatar_url TEXT,
-      role TEXT DEFAULT 'free-user' NOT NULL,
+      role TEXT DEFAULT 'free' NOT NULL,
       created_at INTEGER NOT NULL
     );
     CREATE TABLE projects (
@@ -116,7 +116,7 @@ describe("admin users API", () => {
     const req = makeRequest("/api/admin/users", {
       name: "QA User",
       email: "qa@example.com",
-      role: "free-user",
+      role: "starter",
     });
 
     const res = await usersRoute.POST(req as never);
@@ -125,15 +125,16 @@ describe("admin users API", () => {
     expect(res.status).toBe(201);
     expect(data.name).toBe("QA User");
     expect(data.email).toBe("qa@example.com");
+    expect(data.role).toBe("starter");
     expect(data.githubId).toMatch(/^manual:/);
     expect(data.isCurrent).toBe(false);
   });
 
   it("blocks non-admin user creation", async () => {
-    mockUserRole = "free-user";
+    mockUserRole = "free";
     const req = makeRequest("/api/admin/users", {
       name: "QA User",
-      role: "free-user",
+      role: "free",
     });
 
     const res = await usersRoute.POST(req as never);
@@ -145,7 +146,7 @@ describe("admin users API", () => {
     const req = makeRequest("/api/admin/users", {
       name: "Duplicate",
       githubId: "github-admin",
-      role: "free-user",
+      role: "free",
     });
 
     const res = await usersRoute.POST(req as never);
@@ -164,7 +165,7 @@ describe("admin impersonation API", () => {
         email: "target@example.com",
         name: "Target User",
         avatarUrl: null,
-        role: "free-user",
+        role: "free",
         createdAt: 2000,
       })
       .run();

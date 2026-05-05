@@ -4,6 +4,7 @@ import { users, projects } from "@/db/schema";
 import { runMigrations } from "@/db/migrate";
 import { eq } from "drizzle-orm";
 import { getActualAuthenticatedUser, requireRole } from "@/lib/auth";
+import { normalizeUserRole, USER_ROLE_VALUES } from "@/lib/roles";
 import { createId } from "@/lib/id";
 import { z } from "zod";
 
@@ -11,12 +12,12 @@ const createSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(120),
   email: z.union([z.string().email(), z.literal("")]).optional(),
   githubId: z.string().trim().min(1).max(120).optional(),
-  role: z.enum(["admin", "free-user", "paid-user"]),
+  role: z.enum(USER_ROLE_VALUES),
 });
 
 const patchSchema = z.object({
   userId: z.string().min(1),
-  role: z.enum(["admin", "free-user", "paid-user"]),
+  role: z.enum(USER_ROLE_VALUES),
 });
 
 export async function GET() {
@@ -43,7 +44,13 @@ export async function GET() {
     .from(users)
     .all();
 
-  return NextResponse.json(allUsers.map((row) => ({ ...row, isCurrent: row.id === user.userId })));
+  return NextResponse.json(
+    allUsers.map((row) => ({
+      ...row,
+      role: normalizeUserRole(row.role),
+      isCurrent: row.id === user.userId,
+    }))
+  );
 }
 
 export async function POST(request: NextRequest) {

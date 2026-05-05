@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (user.role === "free-user") {
+    if (user.role === "free") {
       return NextResponse.json(
         { error: "Upgrade to a paid plan to create teams", upgradeRequired: true },
         { status: 403 }
