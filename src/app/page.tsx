@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowRight, Check, GitBranch, KeyRound, MessageSquare, Network } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 
@@ -16,6 +17,36 @@ const CAPABILITIES = [
   "Chat with an assistant that understands your stack decisions",
   "Compare alternatives before committing to infrastructure",
   "Export diagrams and PRDs for investor, customer, and engineering review",
+];
+
+const DEMO_FEATURES = [
+  {
+    eyebrow: "GitHub import",
+    title: "Repo to architecture map",
+    description:
+      "Paste a repository URL and get a first useful map with clients, APIs, services, data stores, and export paths already connected.",
+    gif: "/demos/repo-to-map.gif",
+    poster: "/demos/repo-to-map-poster.png",
+    alt: "Animated demo showing StackHatch scanning a GitHub repository and generating an architecture map.",
+  },
+  {
+    eyebrow: "AI revision",
+    title: "Change the stack without losing decisions",
+    description:
+      "Ask for a concrete architecture change, keep locked nodes intact, and watch the diagram update around the choices the team already approved.",
+    gif: "/demos/ai-revision.gif",
+    poster: "/demos/ai-revision-poster.png",
+    alt: "Animated demo showing an AI chat request adding team billing while a locked auth node stays unchanged.",
+  },
+  {
+    eyebrow: "Handoff",
+    title: "Compare alternatives and export the plan",
+    description:
+      "Open a node, review credible alternatives, swap the recommendation, then export a PRD and diagram for collaborators.",
+    gif: "/demos/export-handoff.gif",
+    poster: "/demos/export-handoff-poster.png",
+    alt: "Animated demo showing StackHatch comparing database alternatives and exporting a handoff package.",
+  },
 ];
 
 const LAUNCH_SIGNALS = [
@@ -151,6 +182,55 @@ export default function LandingPage() {
                   </p>
                 </div>
               </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="border-t border-[var(--border)] py-14">
+          <div className="mx-auto max-w-6xl px-6">
+            <div className="max-w-3xl">
+              <p className="text-sm font-semibold uppercase tracking-wide text-[var(--color-services)]">
+                Animated examples
+              </p>
+              <h2 className="mt-3 text-3xl font-bold tracking-tight">
+                Three short loops from the most useful StackHatch workflows.
+              </h2>
+              <p className="mt-4 text-sm leading-6 text-[var(--muted-foreground)]">
+                Each clip focuses on the moment a builder needs to see before trusting the product:
+                analysis, controlled revision, and a clear handoff.
+              </p>
+            </div>
+
+            <div className="mt-8 grid gap-5 lg:grid-cols-3">
+              {DEMO_FEATURES.map((feature) => (
+                <figure
+                  key={feature.title}
+                  className="feature-card overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--card)]"
+                >
+                  <div className="aspect-[16/10] overflow-hidden border-b border-[var(--border)] bg-[var(--muted)]">
+                    <picture>
+                      <source media="(prefers-reduced-motion: reduce)" srcSet={feature.poster} />
+                      <Image
+                        src={feature.gif}
+                        alt={feature.alt}
+                        width={640}
+                        height={400}
+                        unoptimized
+                        className="h-full w-full object-cover"
+                      />
+                    </picture>
+                  </div>
+                  <figcaption className="p-5">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-client)]">
+                      {feature.eyebrow}
+                    </p>
+                    <h3 className="mt-2 text-lg font-bold tracking-tight">{feature.title}</h3>
+                    <p className="mt-3 text-sm leading-6 text-[var(--muted-foreground)]">
+                      {feature.description}
+                    </p>
+                  </figcaption>
+                </figure>
+              ))}
             </div>
           </div>
         </section>

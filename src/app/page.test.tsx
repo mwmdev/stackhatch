@@ -21,4 +21,22 @@ describe("LandingPage", () => {
     );
     expect(screen.getByRole("link", { name: /View pricing/i })).toHaveAttribute("href", "/pricing");
   });
+
+  it("shows animated examples for the three strongest product workflows", () => {
+    render(<LandingPage />);
+
+    expect(
+      screen.getByRole("heading", {
+        name: /Three short loops from the most useful StackHatch workflows/i,
+      })
+    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Repo to architecture map/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: /Change the stack without losing decisions/i })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: /Compare alternatives and export the plan/i })
+    ).toBeInTheDocument();
+    expect(screen.getAllByRole("img", { name: /Animated demo showing/i })).toHaveLength(3);
+  });
 });
