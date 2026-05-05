@@ -16,6 +16,17 @@ const createProjectSchema = z.object({
   teamId: z.string().optional(), // nullable - assign project to a team
 });
 
+function normalizeOptionalText(value: string | undefined) {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+}
+
+function normalizeRepoUrl(value: string | undefined) {
+  const trimmed = value?.trim();
+  if (!trimmed || trimmed === "null" || trimmed === "undefined") return null;
+  return trimmed;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const user = await getAuthenticatedUser();
@@ -77,8 +88,8 @@ export async function POST(request: NextRequest) {
     const project = {
       id: createId(),
       name: parsed.data.name,
-      description: parsed.data.description ?? null,
-      repoUrl: parsed.data.repoUrl ?? null,
+      description: normalizeOptionalText(parsed.data.description),
+      repoUrl: normalizeRepoUrl(parsed.data.repoUrl),
       canvasState: parsed.data.canvasState ?? null,
       userId,
       teamId: parsed.data.teamId ?? null,

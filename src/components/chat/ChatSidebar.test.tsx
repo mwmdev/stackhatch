@@ -32,6 +32,7 @@ function mockFetch(handlers: Record<string, () => Promise<Response> | Response>)
         if (pattern.includes("chat/init") && method === "POST") return handler();
         if (pattern.includes("/chat") && !pattern.includes("init") && method === "POST")
           return handler();
+        if (pattern.includes("repo-scan") && method === "POST") return handler();
         if (pattern.includes("/api/settings") && method === "PATCH") return handler();
         if (method === "GET") return handler();
       }
@@ -430,6 +431,37 @@ describe("ChatSidebar", () => {
     await waitFor(() => {
       expect(screen.getByText("Welcome! What are you building?")).toBeInTheDocument();
     });
+  });
+
+  it("treats blank repo URLs as scratch projects instead of scanning", async () => {
+    let initCalled = false;
+    let scanCalled = false;
+    global.fetch = mockFetch({
+      "/messages": emptyMessagesResponse,
+      "/chat/init": () => {
+        initCalled = true;
+        return createSSEResponse([
+          { type: "text", content: "Welcome! What are you building?" },
+          { type: "done" },
+        ]);
+      },
+      "/repo-scan": () => {
+        scanCalled = true;
+        return createSSEResponse([
+          { type: "error", content: "Repository not found or is private" },
+        ]);
+      },
+    });
+
+    render(<ChatSidebar projectId="p1" repoUrl="   " defaultOpen={true} />);
+
+    await waitFor(() => {
+      expect(initCalled).toBe(true);
+    });
+
+    expect(scanCalled).toBe(false);
+    expect(screen.getByText("Welcome! What are you building?")).toBeInTheDocument();
+    expect(screen.queryByText("Repository not found or is private")).not.toBeInTheDocument();
   });
 
   it("filters out init instruction messages from display", async () => {

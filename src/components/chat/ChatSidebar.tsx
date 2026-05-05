@@ -37,6 +37,12 @@ function isMissingApiKeyError(message: string) {
   return /anthropic api key|api key not configured/i.test(message);
 }
 
+function normalizeRepoUrl(repoUrl?: string | null) {
+  const value = repoUrl?.trim();
+  if (!value || value === "null" || value === "undefined") return "";
+  return value;
+}
+
 export default function ChatSidebar({
   projectId,
   repoUrl,
@@ -65,6 +71,7 @@ export default function ChatSidebar({
   const initCalledRef = useRef(false);
   const lastFailedMessageRef = useRef<string | null>(null);
   const open = controlledOpen ?? uncontrolledOpen;
+  const normalizedRepoUrl = normalizeRepoUrl(repoUrl);
 
   const setSidebarOpen = useCallback(
     (nextOpen: boolean) => {
@@ -113,7 +120,7 @@ export default function ChatSidebar({
           // If no messages, trigger chat init or repo scan
           if (data.length === 0 && !initCalledRef.current) {
             initCalledRef.current = true;
-            if (repoUrl) {
+            if (normalizedRepoUrl) {
               scanRepo();
             } else {
               initChat();
@@ -134,7 +141,7 @@ export default function ChatSidebar({
 
   // Re-scan when toolbar button triggers it
   useEffect(() => {
-    if (scanTrigger > 0 && repoUrl) {
+    if (scanTrigger > 0 && normalizedRepoUrl) {
       scanRepo();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -234,7 +241,7 @@ export default function ChatSidebar({
       const res = await fetch(`/api/projects/${projectId}/repo-scan`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ repoUrl }),
+        body: JSON.stringify({ repoUrl: normalizedRepoUrl }),
       });
       if (res.status === 403) {
         setUpgradeFeature("access repo scanning");
@@ -331,7 +338,7 @@ export default function ChatSidebar({
       setError("");
       setApiKeyRetryAction(null);
 
-      if (retryAction === "scan" && repoUrl) {
+      if (retryAction === "scan" && normalizedRepoUrl) {
         await scanRepo();
       } else if (retryAction === "message" && retryMessage) {
         await sendMessageText(retryMessage, false);

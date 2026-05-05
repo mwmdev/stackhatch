@@ -218,6 +218,20 @@ describe("POST /api/projects", () => {
     expect(data.description).toBeNull();
   });
 
+  it("normalizes blank repo URLs to scratch projects", async () => {
+    const req = makeRequest("/api/projects", {
+      method: "POST",
+      body: { name: "Scratch", repoUrl: "   " },
+    });
+
+    const res = await projectsRoute.POST(req as never);
+    expect(res.status).toBe(201);
+
+    const data = await res.json();
+    expect(data.name).toBe("Scratch");
+    expect(data.repoUrl).toBeNull();
+  });
+
   it("returns 400 when name is missing", async () => {
     const req = makeRequest("/api/projects", {
       method: "POST",
