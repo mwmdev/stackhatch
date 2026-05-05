@@ -21,7 +21,7 @@ import NodeDetailPanel from "@/components/canvas/NodeDetailPanel";
 import AddNodeDropdown from "@/components/canvas/AddNodeDropdown";
 import ConnectionTypeSelector from "@/components/canvas/ConnectionTypeSelector";
 import StackNodeComponent, { type StackNodeData } from "@/components/canvas/StackNode";
-import StackEdgeComponent, { type StackEdgeData } from "@/components/canvas/StackEdge";
+import StackEdgeComponent, { edgeStyles, type StackEdgeData } from "@/components/canvas/StackEdge";
 import EdgeLegend from "@/components/canvas/EdgeLegend";
 import ExportDropdown from "@/components/canvas/ExportDropdown";
 import CommentsPanel from "@/components/comments/CommentsPanel";
@@ -58,11 +58,18 @@ interface Project {
   updatedAt: number;
 }
 
-interface PendingConnection {
-  sourceId: string;
-  targetId: string;
-  position: { x: number; y: number };
-}
+type ConnectionTypePopover =
+  | {
+      mode: "create";
+      sourceId: string;
+      targetId: string;
+      position: { x: number; y: number };
+    }
+  | {
+      mode: "edit";
+      edgeId: string;
+      position: { x: number; y: number };
+    };
 
 interface SettingsResponse {
   role?: string;
@@ -85,6 +92,14 @@ interface StoredCanvasState extends StackArchitecture {
 const nodeTypes = { stackNode: StackNodeComponent };
 const edgeTypes = { stackEdge: StackEdgeComponent };
 
+function getDefaultConnectionLabel(type: ConnectionType) {
+  return edgeStyles[type].displayName;
+}
+
+function isDefaultConnectionLabel(label: string, type: ConnectionType) {
+  return label === getDefaultConnectionLabel(type) || label === type.toUpperCase();
+}
+
 export default function ProjectPage() {
   const params = useParams();
   const projectId = params.id as string;
@@ -93,7 +108,9 @@ export default function ProjectPage() {
   const [error, setError] = useState("");
   const [selectedNode, setSelectedNode] = useState<StackNode | null>(null);
   const [nodePanelOpen, setNodePanelOpen] = useState(false);
-  const [pendingConnection, setPendingConnection] = useState<PendingConnection | null>(null);
+  const [connectionTypePopover, setConnectionTypePopover] = useState<ConnectionTypePopover | null>(
+    null
+  );
   const [toast, setToast] = useState<string | null>(null);
   const [customSubtypes, setCustomSubtypes] = useState<CustomSubtypesMap>({});
   const [scanTrigger, setScanTrigger] = useState(0);
@@ -126,6 +143,8 @@ export default function ProjectPage() {
   const projectRef = useRef<Project | null>(null);
   const initializedRef = useRef(false);
   const alternativesRef = useRef<Record<string, AlternativeNode[]>>({});
+  const isAdmin = currentUserRole === "admin";
+  const canUseConnectionTypes = isAdmin || planFeatures.connectionTypes;
 
   // Keep refs in sync for use in stable callbacks
   projectRef.current = project;
@@ -361,27 +380,16 @@ export default function ProjectPage() {
     if (nodePanelOpen) closeNodePanel();
   }, [closeNodePanel, nodePanelOpen]);
 
-  const handleConnect = useCallback((connection: Connection) => {
-    if (!connection.source || !connection.target) return;
-    setPendingConnection({
-      sourceId: connection.source,
-      targetId: connection.target,
-      position: { x: 300, y: 300 },
-    });
-  }, []);
-
-  // --- Connection type selected ---
-
-  const handleConnectionTypeSelect = useCallback(
-    (type: ConnectionType) => {
-      if (!pendingConnection) return;
+  const addConnectionEdge = useCallback(
+    (sourceId: string, targetId: string, type: ConnectionType) => {
       const id = crypto.randomUUID();
+      const label = getDefaultConnectionLabel(type);
       const rfEdge: Edge<StackEdgeData> = {
         id,
         type: "stackEdge",
-        source: pendingConnection.sourceId,
-        target: pendingConnection.targetId,
-        data: { connectionType: type, label: type.toUpperCase() },
+        source: sourceId,
+        target: targetId,
+        data: { connectionType: type, label },
       };
       setRfEdges((eds) => [...eds, rfEdge]);
       setProject((prev) => {
@@ -394,22 +402,96 @@ export default function ProjectPage() {
               ...prev.canvasState.edges,
               {
                 id,
-                source: pendingConnection.sourceId,
-                target: pendingConnection.targetId,
+                source: sourceId,
+                target: targetId,
                 connectionType: type,
-                label: type.toUpperCase(),
+                label,
               },
             ],
           },
         };
       });
-      setPendingConnection(null);
     },
-    [pendingConnection, setRfEdges]
+    [setRfEdges]
+  );
+
+  const handleConnect = useCallback(
+    (connection: Connection) => {
+      if (!connection.source || !connection.target) return;
+      if (!canUseConnectionTypes) {
+        addConnectionEdge(connection.source, connection.target, "http");
+        return;
+      }
+      setConnectionTypePopover({
+        mode: "create",
+        sourceId: connection.source,
+        targetId: connection.target,
+        position: { x: 300, y: 300 },
+      });
+    },
+    [addConnectionEdge, canUseConnectionTypes]
+  );
+
+  const handleEdgeClick = useCallback(
+    (event: React.MouseEvent, edge: Edge<StackEdgeData>) => {
+      if (!canUseConnectionTypes) return;
+      event.stopPropagation();
+      if (nodePanelOpen) closeNodePanel();
+      setConnectionTypePopover({
+        mode: "edit",
+        edgeId: edge.id,
+        position: { x: event.clientX, y: event.clientY },
+      });
+    },
+    [canUseConnectionTypes, closeNodePanel, nodePanelOpen]
+  );
+
+  // --- Connection type selected ---
+
+  const handleConnectionTypeSelect = useCallback(
+    (type: ConnectionType) => {
+      if (!connectionTypePopover) return;
+      if (connectionTypePopover.mode === "create") {
+        addConnectionEdge(connectionTypePopover.sourceId, connectionTypePopover.targetId, type);
+        setConnectionTypePopover(null);
+        return;
+      }
+
+      const edgeId = connectionTypePopover.edgeId;
+      setRfEdges((eds) =>
+        eds.map((e) => {
+          if (e.id !== edgeId) return e;
+          const previousType = e.data?.connectionType ?? "http";
+          const previousLabel = e.data?.label ?? "";
+          const label = isDefaultConnectionLabel(previousLabel, previousType)
+            ? getDefaultConnectionLabel(type)
+            : previousLabel;
+          return { ...e, data: { ...e.data!, connectionType: type, label } };
+        })
+      );
+      setProject((prev) => {
+        if (!prev?.canvasState) return prev;
+        return {
+          ...prev,
+          canvasState: {
+            ...prev.canvasState,
+            edges: prev.canvasState.edges.map((e) => {
+              if (e.id !== edgeId) return e;
+              const label = isDefaultConnectionLabel(e.label, e.connectionType)
+                ? getDefaultConnectionLabel(type)
+                : e.label;
+              return { ...e, connectionType: type, label };
+            }),
+          },
+        };
+      });
+      setConnectionTypePopover(null);
+    },
+    [addConnectionEdge, connectionTypePopover, setRfEdges]
   );
 
   const handleCancelConnection = useCallback(() => {
-    setPendingConnection(null);
+    setConnectionTypePopover(null);
   }, []);
 
   // --- Edge label editing ---
@@ -439,9 +521,13 @@ export default function ProjectPage() {
     () =>
       rfEdges.map((e) => ({
         ...e,
-        data: { ...e.data!, onLabelChange: handleEdgeLabelChange },
+        data: {
+          ...e.data!,
+          connectionTypesEnabled: canUseConnectionTypes,
+          onLabelChange: canUseConnectionTypes ? handleEdgeLabelChange : undefined,
+        },
       })),
-    [rfEdges, handleEdgeLabelChange]
+    [rfEdges, handleEdgeLabelChange, canUseConnectionTypes]
   );
 
   // --- Export PRD ---
@@ -851,7 +937,6 @@ export default function ProjectPage() {
     [project?.canvasState]
   );
   const nodeCount = project?.canvasState?.nodes?.length ?? 0;
-  const isAdmin = currentUserRole === "admin";
   const canUseAlternatives = isAdmin || planFeatures.alternatives;
   const canExportPrd = isAdmin || planFeatures.prdExport;
 
@@ -1031,6 +1116,7 @@ export default function ProjectPage() {
             onEdgesChange={onEdgesChange}
             onConnect={handleConnect}
             onNodeClick={handleNodeClick}
+            onEdgeClick={handleEdgeClick}
             onPaneClick={handlePaneClick}
             onInit={(instance) => {
               rfInstanceRef.current = instance;
@@ -1097,7 +1183,7 @@ export default function ProjectPage() {
           )}
 
           {/* Edge Legend */}
-          <EdgeLegend />
+          {canUseConnectionTypes && <EdgeLegend />}
 
           {/* Comments Panel */}
           <CommentsPanel
@@ -1111,9 +1197,15 @@ export default function ProjectPage() {
           />
 
           {/* Connection Type Selector popover */}
-          {pendingConnection && (
+          {canUseConnectionTypes && connectionTypePopover && (
             <ConnectionTypeSelector
-              position={pendingConnection.position}
+              position={connectionTypePopover.position}
+              selectedType={
+                connectionTypePopover.mode === "edit"
+                  ? rfEdges.find((edge) => edge.id === connectionTypePopover.edgeId)?.data
+                      ?.connectionType
+                  : undefined
+              }
               onSelect={handleConnectionTypeSelect}
               onCancel={handleCancelConnection}
             />

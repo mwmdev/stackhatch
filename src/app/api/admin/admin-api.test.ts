@@ -168,6 +168,9 @@ describe("admin plans API", () => {
     expect(res.status).toBe(200);
     expect(data.plans.starter.name).toBe("Builder");
     expect(data.plans.starter.features.projects).toBe(5);
+    expect(data.plans.free.features.connectionTypes).toBe(false);
+    expect(data.plans.starter.features.connectionTypes).toBe(false);
+    expect(data.plans.pro.features.connectionTypes).toBe(true);
   });
 
   it("saves an updated plan catalog", async () => {
@@ -175,6 +178,7 @@ describe("admin plans API", () => {
     const { plans } = await getRes.json();
     plans.starter.name = "Launch";
     plans.starter.features.projects = 7;
+    plans.starter.features.connectionTypes = true;
     plans.starter.billing.monthlyStripePriceId = "price_launch_monthly";
 
     const res = await plansRoute.PATCH(makeRequest("/api/admin/plans", { plans }) as never);
@@ -183,6 +187,7 @@ describe("admin plans API", () => {
     expect(res.status).toBe(200);
     expect(data.plans.starter.name).toBe("Launch");
     expect(data.plans.starter.features.projects).toBe(7);
+    expect(data.plans.starter.features.connectionTypes).toBe(true);
 
     const persisted = await plansRoute.GET();
     const persistedData = await persisted.json();

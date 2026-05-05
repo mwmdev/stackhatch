@@ -119,6 +119,18 @@ describe("StackEdge", () => {
     expect(path?.style.stroke).toBe(edgeStyles.http.color);
   });
 
+  it("renders a plain gray edge when connection types are disabled", () => {
+    const { container, queryByTestId } = renderEdge({
+      connectionType: "websocket",
+      label: "Realtime",
+      connectionTypesEnabled: false,
+    });
+    const path = getEdgePath(container);
+    expect(path?.style.stroke).toBe("var(--muted-foreground)");
+    expect(path?.style.strokeDasharray).toBe("0");
+    expect(queryByTestId("edge-label-edge-1")).not.toBeInTheDocument();
+  });
+
   it("has marker-end attribute for arrow direction", () => {
     const { container } = renderEdge({ connectionType: "http" });
     const path = getEdgePath(container);

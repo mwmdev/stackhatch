@@ -20,6 +20,12 @@ describe("PLAN_CONFIG", () => {
     expect(DEFAULT_PLAN_CATALOG.starter.features.projects).toBe(5);
   });
 
+  it("defaults connection types to Studio only", () => {
+    expect(DEFAULT_PLAN_CATALOG.free.features.connectionTypes).toBe(false);
+    expect(DEFAULT_PLAN_CATALOG.starter.features.connectionTypes).toBe(false);
+    expect(DEFAULT_PLAN_CATALOG.pro.features.connectionTypes).toBe(true);
+  });
+
   it("merges partial catalog overrides with defaults", () => {
     const catalog = normalizePlanCatalog({
       starter: {
@@ -34,6 +40,8 @@ describe("PLAN_CONFIG", () => {
     expect(catalog.starter.name).toBe("Launch");
     expect(catalog.starter.features.projects).toBe(8);
     expect(catalog.starter.features.alternatives).toBe(false);
+    expect(catalog.starter.features.connectionTypes).toBe(false);
+    expect(catalog.pro.features.connectionTypes).toBe(true);
     expect(catalog.starter.features.exports).toEqual(["png", "svg", "json"]);
     expect(catalog.free.features.projects).toBe(2);
   });

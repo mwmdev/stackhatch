@@ -116,6 +116,7 @@ export default function AdminPage() {
     field:
       | "nodeDescriptions"
       | "nodeLocking"
+      | "connectionTypes"
       | "alternatives"
       | "prdExport"
       | "customSubtypes"
@@ -562,6 +563,7 @@ export default function AdminPage() {
                           [
                             ["nodeDescriptions", "Node descriptions"],
                             ["nodeLocking", "Node locking"],
+                            ["connectionTypes", "Connection types"],
                             ["alternatives", "Alternatives"],
                             ["prdExport", "PRD export"],
                             ["customSubtypes", "Custom subtypes"],

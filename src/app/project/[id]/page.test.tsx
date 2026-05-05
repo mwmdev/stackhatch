@@ -59,6 +59,33 @@ vi.mock("reactflow", () => {
             (node as { data?: { name?: string } }).data?.name ?? (node as { id: string }).id
           )
         ),
+        ...(edges ?? []).map((edge) =>
+          React.createElement(
+            "button",
+            {
+              key: (edge as { id: string }).id,
+              type: "button",
+              "data-testid": `mock-flow-edge-${(edge as { id: string }).id}`,
+              "data-connection-type":
+                (edge as { data?: { connectionType?: string } }).data?.connectionType ?? "",
+              "data-connection-types-enabled": String(
+                Boolean(
+                  (edge as { data?: { connectionTypesEnabled?: boolean } }).data
+                    ?.connectionTypesEnabled
+                )
+              ),
+              onClick: (event: React.MouseEvent) => {
+                event.stopPropagation();
+                (
+                  props.onEdgeClick as
+                    | ((event: React.MouseEvent, edge: unknown) => void)
+                    | undefined
+                )?.(event, edge);
+              },
+            },
+            (edge as { id: string }).id
+          )
+        ),
         children
       )
     );
@@ -180,7 +207,23 @@ vi.mock("@/components/canvas/AddNodeDropdown", () => ({
 }));
 
 vi.mock("@/components/canvas/ConnectionTypeSelector", () => ({
-  default: () => <div data-testid="connection-type-selector" />,
+  default: ({
+    selectedType,
+    onSelect,
+  }: {
+    selectedType?: string;
+    onSelect: (type: string) => void;
+  }) => (
+    <div data-testid="connection-type-selector" data-selected-type={selectedType ?? ""}>
+      <button
+        type="button"
+        data-testid="mock-select-websocket"
+        onClick={() => onSelect("websocket")}
+      >
+        WebSocket
+      </button>
+    </div>
+  ),
 }));
 
 vi.mock("@/components/canvas/StackNode", () => ({
@@ -191,6 +234,14 @@ vi.mock("@/components/canvas/StackNode", () => ({
 vi.mock("@/components/canvas/StackEdge", () => ({
   __esModule: true,
   default: () => null,
+  edgeStyles: {
+    http: { displayName: "HTTP" },
+    websocket: { displayName: "WebSocket" },
+    grpc: { displayName: "gRPC" },
+    tcp: { displayName: "TCP" },
+    "pub-sub": { displayName: "Pub/Sub" },
+    "file-io": { displayName: "File I/O" },
+  },
 }));
 
 vi.mock("@/components/canvas/EdgeLegend", () => ({
@@ -295,6 +346,7 @@ function mockFetchProject(
             : ["json"],
       nodeDescriptions: true,
       nodeLocking: true,
+      connectionTypes: effectivePlan === "pro",
       customSubtypes: effectivePlan === "pro",
       alternatives: effectivePlan === "starter" || effectivePlan === "pro",
       prdExport: effectivePlan === "pro",
@@ -717,6 +769,48 @@ describe("ProjectPage", () => {
       });
       expect(screen.queryByText("No architecture yet")).not.toBeInTheDocument();
     });
+
+    it("does not open connection type editing for free users", async () => {
+      mockFetchProject(projectWithNodes);
+      render(<ProjectPage />);
+      await waitFor(() => {
+        expect(screen.getByTestId("mock-flow-edge-e1")).toHaveAttribute(
+          "data-connection-types-enabled",
+          "false"
+        );
+      });
+
+      fireEvent.click(screen.getByTestId("mock-flow-edge-e1"));
+      expect(screen.queryByTestId("connection-type-selector")).not.toBeInTheDocument();
+    });
+
+    it("opens connection type editing from an edge click for Studio users", async () => {
+      mockFetchProject(projectWithNodes, {
+        settings: { role: "pro", isAdmin: false },
+        billing: { plan: "pro", status: "active" },
+      });
+      render(<ProjectPage />);
+      await waitFor(() => {
+        expect(screen.getByTestId("mock-flow-edge-e1")).toHaveAttribute(
+          "data-connection-types-enabled",
+          "true"
+        );
+      });
+
+      fireEvent.click(screen.getByTestId("mock-flow-edge-e1"));
+      expect(screen.getByTestId("connection-type-selector")).toHaveAttribute(
+        "data-selected-type",
+        "http"
+      );
+
+      fireEvent.click(screen.getByTestId("mock-select-websocket"));
+      await waitFor(() => {
+        expect(screen.getByTestId("mock-flow-edge-e1")).toHaveAttribute(
+          "data-connection-type",
+          "websocket"
+        );
+      });
+    });
   });
 
   describe("React Flow components", () => {
@@ -745,8 +839,20 @@ describe("ProjectPage", () => {
       expect(screen.queryByTestId("react-flow-minimap")).not.toBeInTheDocument();
     });
 
-    it("renders EdgeLegend component", async () => {
+    it("hides EdgeLegend when connection types are not included in the plan", async () => {
       mockFetchProject(emptyProject);
+      render(<ProjectPage />);
+      await waitFor(() => {
+        expect(screen.getByTestId("react-flow-canvas")).toBeInTheDocument();
+      });
+      expect(screen.queryByTestId("edge-legend")).not.toBeInTheDocument();
+    });
+
+    it("renders EdgeLegend when connection types are included in the plan", async () => {
+      mockFetchProject(projectWithNodes, {
+        settings: { role: "pro", isAdmin: false },
+        billing: { plan: "pro", status: "active" },
+      });
       render(<ProjectPage />);
       await waitFor(() => {
         expect(screen.getByTestId("edge-legend")).toBeInTheDocument();

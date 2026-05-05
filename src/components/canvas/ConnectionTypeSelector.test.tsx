@@ -61,15 +61,15 @@ describe("ConnectionTypeSelector", () => {
   });
 
   it("positions itself at the given coordinates", () => {
-    render(
-      <ConnectionTypeSelector
-        {...defaultProps}
-        position={{ x: 150, y: 300 }}
-      />,
-    );
+    render(<ConnectionTypeSelector {...defaultProps} position={{ x: 150, y: 300 }} />);
 
     const selector = screen.getByTestId("connection-type-selector");
     expect(selector.style.left).toBe("150px");
     expect(selector.style.top).toBe("300px");
+  });
+
+  it("marks the selected connection type", () => {
+    render(<ConnectionTypeSelector {...defaultProps} selectedType="grpc" />);
+    expect(screen.getByTestId("connection-type-grpc")).toHaveAttribute("aria-current", "true");
   });
 });

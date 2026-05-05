@@ -8,6 +8,7 @@ import type { ConnectionType } from "@/types/stack";
 export interface StackEdgeData {
   connectionType: ConnectionType;
   label: string;
+  connectionTypesEnabled?: boolean;
   onLabelChange?: (edgeId: string, label: string) => void;
 }
 
@@ -140,7 +141,15 @@ function StackEdgeComponent({
   selected,
 }: EdgeProps<StackEdgeData>) {
   const connectionType = data?.connectionType ?? "http";
-  const style = edgeStyles[connectionType];
+  const connectionTypesEnabled = data?.connectionTypesEnabled ?? true;
+  const style = connectionTypesEnabled
+    ? edgeStyles[connectionType]
+    : {
+        color: "var(--muted-foreground)",
+        strokeDasharray: "0",
+        strokeWidth: 2,
+        displayName: "Connection",
+      };
 
   const [edgePath, labelX, labelY] = getBezierPath({
     sourceX,
@@ -165,7 +174,7 @@ function StackEdgeComponent({
         }}
         markerEnd={MarkerType.ArrowClosed}
       />
-      {data?.label && (
+      {connectionTypesEnabled && data?.label && (
         <EdgeLabelRenderer>
           <EdgeLabel
             edgeId={id}

@@ -3,24 +3,25 @@
 import { useRef, useEffect } from "react";
 import type { ConnectionType } from "@/types/stack";
 
-const connectionTypes: { value: ConnectionType; label: string; desc: string }[] =
-  [
-    { value: "http", label: "HTTP", desc: "REST API calls" },
-    { value: "websocket", label: "WebSocket", desc: "Real-time bidirectional" },
-    { value: "grpc", label: "gRPC", desc: "RPC calls" },
-    { value: "tcp", label: "TCP", desc: "Raw TCP connection" },
-    { value: "pub-sub", label: "Pub/Sub", desc: "Event messaging" },
-    { value: "file-io", label: "File I/O", desc: "File read/write" },
-  ];
+const connectionTypes: { value: ConnectionType; label: string; desc: string }[] = [
+  { value: "http", label: "HTTP", desc: "REST API calls" },
+  { value: "websocket", label: "WebSocket", desc: "Real-time bidirectional" },
+  { value: "grpc", label: "gRPC", desc: "RPC calls" },
+  { value: "tcp", label: "TCP", desc: "Raw TCP connection" },
+  { value: "pub-sub", label: "Pub/Sub", desc: "Event messaging" },
+  { value: "file-io", label: "File I/O", desc: "File read/write" },
+];
 
 export interface ConnectionTypeSelectorProps {
   position: { x: number; y: number };
+  selectedType?: ConnectionType;
   onSelect: (type: ConnectionType) => void;
   onCancel: () => void;
 }
 
 export default function ConnectionTypeSelector({
   position,
+  selectedType,
   onSelect,
   onCancel,
 }: ConnectionTypeSelectorProps) {
@@ -50,7 +51,10 @@ export default function ConnectionTypeSelector({
         <button
           key={value}
           onClick={() => onSelect(value)}
-          className="flex w-full flex-col px-3 py-2 text-left text-sm hover:bg-[var(--muted)] transition-colors"
+          className={`flex w-full flex-col px-3 py-2 text-left text-sm transition-colors hover:bg-[var(--muted)] ${
+            selectedType === value ? "bg-[var(--muted)]" : ""
+          }`}
+          aria-current={selectedType === value ? "true" : undefined}
           data-testid={`connection-type-${value}`}
         >
           <span className="font-medium text-[var(--foreground)]">{label}</span>
