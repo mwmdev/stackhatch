@@ -220,37 +220,6 @@ export default function NodeDetailPanel({
           </div>
         )}
 
-        {/* Lock Toggle */}
-        {canUseNodeLocking && (
-          <div className="flex items-center justify-between rounded-md border border-[var(--border)] px-3 py-3">
-            <div className="flex items-center gap-2">
-              {node.locked ? (
-                <icons.Lock size={16} className="text-[var(--color-data)]" />
-              ) : (
-                <icons.Unlock size={16} className="text-[var(--muted-foreground)]" />
-              )}
-              <span className="text-sm font-medium text-[var(--foreground)]">
-                {node.locked ? "Locked" : "Unlocked"}
-              </span>
-            </div>
-            <button
-              onClick={() => onUpdate(node.id, { locked: !node.locked })}
-              role="switch"
-              aria-checked={node.locked}
-              aria-label="Lock toggle"
-              className={`relative h-6 w-11 rounded-full transition-colors ${
-                node.locked ? "bg-[var(--color-data-fill)]" : "bg-[var(--muted-foreground)]"
-              }`}
-            >
-              <span
-                className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-[var(--card)] transition-transform ${
-                  node.locked ? "translate-x-5" : "translate-x-0"
-                }`}
-              />
-            </button>
-          </div>
-        )}
-
         {/* Alternatives */}
         {!isNoteNode && onSuggestAlternatives && onSwapAlternative && (
           <AlternativesSection
@@ -264,11 +233,25 @@ export default function NodeDetailPanel({
         )}
       </div>
 
-      {/* Footer - Delete */}
-      <div className="border-t border-[var(--border)] px-4 py-3">
+      <div className="flex items-center gap-2 border-t border-[var(--border)] px-4 py-3">
+        {canUseNodeLocking && (
+          <button
+            type="button"
+            onClick={() => onUpdate(node.id, { locked: !node.locked })}
+            aria-label={node.locked ? "Unlock node" : "Lock node"}
+            title={node.locked ? "Unlock node" : "Lock node"}
+            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-md border transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--ring)] ${
+              node.locked
+                ? "border-[var(--color-data)] bg-[var(--color-data-fill)] text-[var(--color-data-foreground)] hover:opacity-90"
+                : "border-[var(--border)] text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
+            }`}
+          >
+            {node.locked ? <icons.Lock size={18} /> : <icons.Unlock size={18} />}
+          </button>
+        )}
         <button
           onClick={handleDelete}
-          className={`w-full rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+          className={`min-h-10 flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
             confirmDelete
               ? "bg-[var(--danger)] text-[var(--danger-foreground)] hover:bg-[var(--danger-hover)]"
               : "border border-[var(--danger-border)] text-[var(--danger)] hover:bg-[var(--danger-surface)]"

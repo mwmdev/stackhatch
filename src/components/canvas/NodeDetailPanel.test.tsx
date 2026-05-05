@@ -49,7 +49,7 @@ describe("NodeDetailPanel", () => {
     expect(
       screen.getByText("Chosen for strong ACID compliance"),
     ).toBeInTheDocument();
-    expect(screen.getByText("Unlocked")).toBeInTheDocument();
+    expect(screen.getByLabelText("Lock node")).toBeInTheDocument();
   });
 
   it("slides into view when open", () => {
@@ -195,7 +195,7 @@ describe("NodeDetailPanel", () => {
     });
   });
 
-  it("shows locked state when node is locked", () => {
+  it("shows locked state as a footer icon when node is locked", () => {
     const node = makeNode({ locked: true });
     render(
       <NodeDetailPanel
@@ -206,9 +206,9 @@ describe("NodeDetailPanel", () => {
       />,
     );
 
-    expect(screen.getByText("Locked")).toBeInTheDocument();
-    const toggle = screen.getByRole("switch");
-    expect(toggle).toHaveAttribute("aria-checked", "true");
+    expect(screen.queryByText("Locked")).not.toBeInTheDocument();
+    expect(screen.queryByText("Unlocked")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Unlock node")).toBeInTheDocument();
   });
 
   it("toggles lock state via onUpdate", () => {
@@ -223,9 +223,25 @@ describe("NodeDetailPanel", () => {
       />,
     );
 
-    const toggle = screen.getByRole("switch");
+    const toggle = screen.getByLabelText("Lock node");
     fireEvent.click(toggle);
     expect(onUpdate).toHaveBeenCalledWith("node-1", { locked: true });
+  });
+
+  it("places the lock icon on the same footer row as delete", () => {
+    const node = makeNode();
+    render(
+      <NodeDetailPanel
+        node={node}
+        onUpdate={vi.fn()}
+        onDelete={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByLabelText("Lock node").parentElement).toBe(
+      screen.getByText("Delete Node").parentElement,
+    );
   });
 
   it("requires double click to delete (confirmation)", () => {
