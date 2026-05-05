@@ -1,4 +1,4 @@
-import type { NodeCategory, NodeSubtype } from "@/types/stack";
+import type { NodeCategory, NodeSubtype, NoteColor } from "@/types/stack";
 import type { CustomSubtypesMap } from "@/lib/custom-subtypes";
 
 export interface SubtypeConfig {
@@ -13,6 +13,58 @@ export interface CategoryConfig {
   foreground: string; // CSS variable name
   icon: string;
   subtypes: Record<string, SubtypeConfig>;
+}
+
+export interface NoteColorConfig {
+  value: NoteColor;
+  label: string;
+  fill: string;
+  border: string;
+  foreground: string;
+}
+
+export const DEFAULT_NOTE_COLOR: NoteColor = "yellow";
+
+export const NOTE_COLOR_OPTIONS: NoteColorConfig[] = [
+  {
+    value: "yellow",
+    label: "Butter",
+    fill: "var(--note-yellow-fill)",
+    border: "var(--note-yellow-border)",
+    foreground: "var(--note-yellow-foreground)",
+  },
+  {
+    value: "mint",
+    label: "Mint",
+    fill: "var(--note-mint-fill)",
+    border: "var(--note-mint-border)",
+    foreground: "var(--note-mint-foreground)",
+  },
+  {
+    value: "peach",
+    label: "Peach",
+    fill: "var(--note-peach-fill)",
+    border: "var(--note-peach-border)",
+    foreground: "var(--note-peach-foreground)",
+  },
+  {
+    value: "sky",
+    label: "Sky",
+    fill: "var(--note-sky-fill)",
+    border: "var(--note-sky-border)",
+    foreground: "var(--note-sky-foreground)",
+  },
+  {
+    value: "lilac",
+    label: "Lilac",
+    fill: "var(--note-lilac-fill)",
+    border: "var(--note-lilac-border)",
+    foreground: "var(--note-lilac-foreground)",
+  },
+];
+
+export function getNoteColorConfig(color?: NoteColor): NoteColorConfig {
+  return NOTE_COLOR_OPTIONS.find((option) => option.value === color) ?? NOTE_COLOR_OPTIONS[0];
 }
 
 export const nodeConfig: Record<NodeCategory, CategoryConfig> = {

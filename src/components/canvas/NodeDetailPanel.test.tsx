@@ -330,6 +330,8 @@ describe("NodeDetailPanel", () => {
     expect(screen.queryByLabelText("Subtype")).not.toBeInTheDocument();
     expect(screen.queryByText("Reasoning")).not.toBeInTheDocument();
     expect(screen.queryByText("Alternatives")).not.toBeInTheDocument();
+    expect(screen.getByText("Color")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /Note color / })).toHaveLength(5);
 
     const noteInput = screen.getByLabelText("Note");
     expect(noteInput).toHaveValue("Remember to keep v1 boring.");
@@ -337,6 +339,9 @@ describe("NodeDetailPanel", () => {
     expect(onUpdate).toHaveBeenCalledWith("node-1", {
       description: "Ship the smallest useful version.",
     });
+
+    fireEvent.click(screen.getByLabelText("Note color Mint"));
+    expect(onUpdate).toHaveBeenCalledWith("node-1", { noteColor: "mint" });
   });
 
   it("renders different categories with correct config", () => {

@@ -59,6 +59,8 @@ export type ConnectionType =
   | "pub-sub"
   | "file-io";
 
+export type NoteColor = "yellow" | "mint" | "peach" | "sky" | "lilac";
+
 // A stack node as the AI generates it (before React Flow positioning)
 export interface StackNode {
   id: string;
@@ -69,6 +71,7 @@ export interface StackNode {
   description: string;
   reasoning: string;
   locked: boolean;
+  noteColor?: NoteColor;
 }
 
 // A connection between two nodes

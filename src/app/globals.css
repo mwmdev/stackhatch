@@ -59,6 +59,21 @@
   --color-note: oklch(0.6 0.12 78);
   --color-note-fill: oklch(0.91 0.12 88);
   --color-note-foreground: oklch(0.24 0.04 65);
+  --note-yellow-fill: oklch(0.91 0.12 88);
+  --note-yellow-border: oklch(0.68 0.13 78);
+  --note-yellow-foreground: oklch(0.24 0.04 65);
+  --note-mint-fill: oklch(0.91 0.075 150);
+  --note-mint-border: oklch(0.68 0.11 150);
+  --note-mint-foreground: oklch(0.22 0.04 150);
+  --note-peach-fill: oklch(0.91 0.085 48);
+  --note-peach-border: oklch(0.69 0.12 45);
+  --note-peach-foreground: oklch(0.25 0.045 45);
+  --note-sky-fill: oklch(0.91 0.06 220);
+  --note-sky-border: oklch(0.68 0.095 220);
+  --note-sky-foreground: oklch(0.23 0.045 235);
+  --note-lilac-fill: oklch(0.91 0.06 312);
+  --note-lilac-border: oklch(0.7 0.095 312);
+  --note-lilac-foreground: oklch(0.26 0.045 312);
 
   --edge-http: oklch(0.42 0.11 205);
   --edge-websocket: oklch(0.39 0.11 145);
@@ -125,6 +140,21 @@
   --color-note: oklch(0.82 0.12 82);
   --color-note-fill: oklch(0.33 0.08 78);
   --color-note-foreground: oklch(0.94 0.06 88);
+  --note-yellow-fill: oklch(0.33 0.08 78);
+  --note-yellow-border: oklch(0.75 0.13 82);
+  --note-yellow-foreground: oklch(0.94 0.06 88);
+  --note-mint-fill: oklch(0.31 0.055 150);
+  --note-mint-border: oklch(0.75 0.1 150);
+  --note-mint-foreground: oklch(0.93 0.055 150);
+  --note-peach-fill: oklch(0.32 0.07 45);
+  --note-peach-border: oklch(0.76 0.12 48);
+  --note-peach-foreground: oklch(0.94 0.055 58);
+  --note-sky-fill: oklch(0.31 0.055 235);
+  --note-sky-border: oklch(0.75 0.095 225);
+  --note-sky-foreground: oklch(0.94 0.055 220);
+  --note-lilac-fill: oklch(0.32 0.06 312);
+  --note-lilac-border: oklch(0.77 0.095 312);
+  --note-lilac-foreground: oklch(0.94 0.055 315);
 
   --edge-http: oklch(0.72 0.09 205);
   --edge-websocket: oklch(0.72 0.1 145);

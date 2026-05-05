@@ -3,7 +3,13 @@
 import { useState } from "react";
 import * as icons from "lucide-react";
 import type { NodeCategory, NodeSubtype, StackNode, AlternativeNode } from "@/types/stack";
-import { categoryOrder, getCategoryConfig, getSubtypesForCategory } from "@/lib/node-config";
+import {
+  categoryOrder,
+  getCategoryConfig,
+  getNoteColorConfig,
+  getSubtypesForCategory,
+  NOTE_COLOR_OPTIONS,
+} from "@/lib/node-config";
 import type { CustomSubtypesMap } from "@/lib/custom-subtypes";
 import AlternativesSection from "@/components/canvas/AlternativesSection";
 import { sanitizeHtml, containsHtml } from "@/lib/sanitize-html";
@@ -59,6 +65,7 @@ export default function NodeDetailPanel({
 
   const catConfig = getCategoryConfig(node.category);
   const isNoteNode = node.category === "note";
+  const selectedNoteColor = getNoteColorConfig(node.noteColor).value;
   const subtypes = getSubtypesForCategory(node.category, customSubtypes);
   const categoryOptions = categoryOrder.filter(
     (cat) => canUseNotes || cat !== "note" || node.category === "note"
@@ -206,6 +213,35 @@ export default function NodeDetailPanel({
               />
             )}
           </div>
+        )}
+
+        {isNoteNode && (
+          <fieldset>
+            <legend className="mb-2 block text-xs font-medium uppercase tracking-wider text-[var(--muted-foreground)]">
+              Color
+            </legend>
+            <div className="flex gap-2">
+              {NOTE_COLOR_OPTIONS.map((option) => {
+                const selected = selectedNoteColor === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    aria-label={`Note color ${option.label}`}
+                    aria-pressed={selected}
+                    title={option.label}
+                    onClick={() => onUpdate(node.id, { noteColor: option.value })}
+                    className={`flex h-9 w-9 items-center justify-center rounded-full border transition hover:scale-105 focus:outline-none focus:ring-2 focus:ring-[var(--ring)] ${
+                      selected ? "ring-2 ring-[var(--ring)] ring-offset-2 ring-offset-[var(--background)]" : ""
+                    }`}
+                    style={{ backgroundColor: option.fill, borderColor: option.border }}
+                  >
+                    {selected && <icons.Check size={15} style={{ color: option.foreground }} />}
+                  </button>
+                );
+              })}
+            </div>
+          </fieldset>
         )}
 
         {/* Reasoning (read-only) */}

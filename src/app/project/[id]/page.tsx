@@ -40,7 +40,7 @@ import type {
   ConnectionType,
   AlternativeNode,
 } from "@/types/stack";
-import { getSubtypeConfig } from "@/lib/node-config";
+import { DEFAULT_NOTE_COLOR, getSubtypeConfig } from "@/lib/node-config";
 import { applyDagreLayout } from "@/lib/layout";
 import { mergeArchitecture } from "@/lib/merge-architecture";
 import { parseCustomSubtypes, type CustomSubtypesMap } from "@/lib/custom-subtypes";
@@ -585,6 +585,7 @@ export default function ProjectPage() {
         description: "",
         reasoning: "Manually added",
         locked: false,
+        ...(category === "note" ? { noteColor: DEFAULT_NOTE_COLOR } : {}),
       };
 
       // Position at viewport center
@@ -605,6 +606,7 @@ export default function ProjectPage() {
           description: newStackNode.description,
           reasoning: newStackNode.reasoning,
           locked: newStackNode.locked,
+          ...(newStackNode.noteColor ? { noteColor: newStackNode.noteColor } : {}),
           customSubtypes,
           showDescription: planFeatures.nodeDescriptions,
           canUseNodeLocking: planFeatures.nodeLocking || currentUserRole === "admin",

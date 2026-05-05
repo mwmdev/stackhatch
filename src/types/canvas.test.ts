@@ -86,6 +86,25 @@ describe("toReactFlowNodes", () => {
   it("returns empty array for empty input", () => {
     expect(toReactFlowNodes([])).toEqual([]);
   });
+
+  it("preserves note color data", () => {
+    const [rfNode] = toReactFlowNodes([
+      {
+        id: "note-1",
+        category: "note",
+        subtype: "note",
+        name: "Decision note",
+        technology: "",
+        description: "Keep this visible.",
+        reasoning: "",
+        locked: false,
+        noteColor: "lilac",
+      },
+    ]);
+
+    expect(rfNode.data.noteColor).toBe("lilac");
+    expect(fromReactFlowNodes([rfNode])[0].noteColor).toBe("lilac");
+  });
 });
 
 describe("toReactFlowEdges", () => {
@@ -159,6 +178,7 @@ describe("round-trip conversions", () => {
       { id: "n4", category: "data", subtype: "sql-db", name: "D", technology: "", description: "", reasoning: "", locked: false },
       { id: "n5", category: "infrastructure", subtype: "cdn", name: "E", technology: "", description: "", reasoning: "", locked: true },
       { id: "n6", category: "external", subtype: "third-party-api", name: "F", technology: "", description: "", reasoning: "", locked: false },
+      { id: "n7", category: "note", subtype: "note", name: "G", technology: "", description: "", reasoning: "", locked: false, noteColor: "sky" },
     ];
     const roundTripped = fromReactFlowNodes(toReactFlowNodes(allCategories));
     expect(roundTripped).toEqual(allCategories);

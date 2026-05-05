@@ -11,6 +11,8 @@ const nodeCategories = [
 ] as const;
 const nodeCategoriesWithNotes = [...nodeCategories, "note"] as const;
 
+const noteColors = ["yellow", "mint", "peach", "sky", "lilac"] as const;
+
 const connectionTypes = [
   "http",
   "websocket",
@@ -30,6 +32,7 @@ function createStackNodeSchema(allowNoteNodes: boolean) {
     description: z.string(),
     reasoning: z.string(),
     locked: z.boolean(),
+    noteColor: z.enum(noteColors).optional(),
   });
 }
 

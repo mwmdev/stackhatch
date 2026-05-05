@@ -266,6 +266,54 @@ ${JSON.stringify(invalidJson)}
     expect(result.architecture).toBeNull();
   });
 
+  it("preserves valid note colors", () => {
+    const arch = {
+      nodes: [
+        {
+          id: "note-1",
+          category: "note",
+          subtype: "note",
+          name: "Decision note",
+          technology: "",
+          description: "Keep the first release simple.",
+          reasoning: "",
+          locked: false,
+          noteColor: "peach",
+        },
+      ],
+      edges: [],
+    };
+
+    const text = `<stack>${JSON.stringify(arch)}</stack>`;
+    const result = parseAIResponse(text);
+
+    expect(result.architecture?.nodes[0].noteColor).toBe("peach");
+  });
+
+  it("rejects invalid note colors", () => {
+    const arch = {
+      nodes: [
+        {
+          id: "note-1",
+          category: "note",
+          subtype: "note",
+          name: "Decision note",
+          technology: "",
+          description: "Keep the first release simple.",
+          reasoning: "",
+          locked: false,
+          noteColor: "neon",
+        },
+      ],
+      edges: [],
+    };
+
+    const text = `<stack>${JSON.stringify(arch)}</stack>`;
+    const result = parseAIResponse(text);
+
+    expect(result.architecture).toBeNull();
+  });
+
   it("rejects invalid connection type", () => {
     const arch = {
       nodes: [

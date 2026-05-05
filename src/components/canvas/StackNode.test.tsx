@@ -187,10 +187,23 @@ describe("StackNode", () => {
 
     const nodeDiv = container.querySelector(".stack-node") as HTMLElement;
     expect(nodeDiv).toHaveClass("font-note");
-    expect(nodeDiv.style.backgroundColor).toBe("var(--color-note-fill)");
+    expect(nodeDiv.style.backgroundColor).toBe("var(--note-yellow-fill)");
     expect(screen.getByText("Decision note")).toBeInTheDocument();
     expect(screen.getByText("Use a boring queue until traffic proves otherwise.")).toBeInTheDocument();
     expect(screen.queryByText("Note")).not.toBeInTheDocument();
+  });
+
+  it("renders the selected note color", () => {
+    const { container } = renderNode({
+      category: "note",
+      subtype: "note",
+      name: "Decision note",
+      noteColor: "mint",
+    });
+
+    const nodeDiv = container.querySelector(".stack-node") as HTMLElement;
+    expect(nodeDiv.style.backgroundColor).toBe("var(--note-mint-fill)");
+    expect(nodeDiv.style.borderColor).toBe("var(--note-mint-border)");
   });
 
   it("does not show connection handles for note nodes", () => {

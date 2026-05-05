@@ -4,8 +4,9 @@ import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { Handle, Position } from "reactflow";
 import type { NodeProps } from "reactflow";
 import * as icons from "lucide-react";
-import type { NodeCategory, NodeSubtype, StackNode as StackNodeType } from "@/types/stack";
-import { getCategoryConfig, getSubtypeConfig } from "@/lib/node-config";
+import type { CSSProperties } from "react";
+import type { NodeCategory, NodeSubtype, NoteColor } from "@/types/stack";
+import { getCategoryConfig, getNoteColorConfig, getSubtypeConfig } from "@/lib/node-config";
 import type { CustomSubtypesMap } from "@/lib/custom-subtypes";
 import { sanitizeHtml, containsHtml } from "@/lib/sanitize-html";
 
@@ -13,13 +14,15 @@ function DynamicIcon({
   name,
   size,
   className,
+  style,
 }: {
   name: string;
   size?: number;
   className?: string;
+  style?: CSSProperties;
 }) {
   const Icon = (icons as unknown as Record<string, typeof icons.Box>)[name] ?? icons.Box;
-  return <Icon size={size} className={className} />;
+  return <Icon size={size} className={className} style={style} />;
 }
 
 export interface StackNodeData {
@@ -32,6 +35,7 @@ export interface StackNodeData {
   locked: boolean;
   customSubtypes?: CustomSubtypesMap;
   commentCount?: number;
+  noteColor?: NoteColor;
   showDescription?: boolean;
   canUseNodeLocking?: boolean;
   onLockToggle?: (id: string, locked: boolean) => void;
@@ -59,6 +63,7 @@ function StackNodeComponent({ id, data, selected }: NodeProps<StackNodeData>) {
   const subtypeConfig = getSubtypeConfig(data.category, data.subtype, data.customSubtypes);
   const iconName = subtypeConfig?.icon ?? catConfig.icon;
   const isNoteNode = data.category === "note";
+  const noteColor = getNoteColorConfig(data.noteColor);
   const description = data.description.trim();
   const noteText = description || data.technology.trim();
   const tooltipId = `node-description-tooltip-${id}`;
@@ -97,14 +102,14 @@ function StackNodeComponent({ id, data, selected }: NodeProps<StackNodeData>) {
         selected ? "ring-2 ring-[var(--ring)]" : ""
       } ${data.locked ? "border border-dashed border-[var(--muted-foreground)]" : ""}`}
       style={{
-        borderColor: catConfig.color,
+        borderColor: isNoteNode ? noteColor.border : catConfig.color,
         minWidth: isNoteNode ? "210px" : "200px",
         ...(isNoteNode
           ? {
-              backgroundColor: "var(--color-note-fill)",
-              color: "var(--color-note-foreground)",
+              backgroundColor: noteColor.fill,
+              color: noteColor.foreground,
               boxShadow:
-                "0 14px 22px -18px var(--shadow-color), 0 2px 0 color-mix(in oklch, var(--color-note) 24%, transparent)",
+                `0 14px 22px -18px var(--shadow-color), 0 2px 0 color-mix(in oklch, ${noteColor.border} 24%, transparent)`,
               transform: "rotate(-1deg)",
             }
           : {}),
@@ -130,6 +135,7 @@ function StackNodeComponent({ id, data, selected }: NodeProps<StackNodeData>) {
           <icons.Lock
             size={14}
             className={isNoteNode ? "text-[var(--color-note-foreground)]" : "text-[var(--color-data)]"}
+            style={isNoteNode ? { color: noteColor.foreground } : undefined}
           />
         </div>
       )}
@@ -154,13 +160,16 @@ function StackNodeComponent({ id, data, selected }: NodeProps<StackNodeData>) {
         <div className="px-4 pb-4 pt-3">
           <div
             className="pointer-events-none absolute right-0 top-0 h-0 w-0 border-l-[18px] border-t-[18px] border-l-transparent"
-            style={{ borderTopColor: "color-mix(in oklch, var(--color-note), var(--color-note-fill) 45%)" }}
+            style={{
+              borderTopColor: `color-mix(in oklch, ${noteColor.border}, ${noteColor.fill} 45%)`,
+            }}
           />
           <div className="flex items-start gap-2 pr-4">
             <DynamicIcon
               name={iconName}
               size={17}
               className="mt-1 shrink-0 text-[var(--color-note-foreground)]"
+              style={{ color: noteColor.foreground }}
             />
             <span className="text-[18px] font-bold leading-tight">{data.name}</span>
           </div>
