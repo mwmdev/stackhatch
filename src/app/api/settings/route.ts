@@ -4,39 +4,18 @@ import { settings, userSettings } from "@/db/schema";
 import { runMigrations } from "@/db/migrate";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { getAuthenticatedUser, requireRole } from "@/lib/auth";
+import { getAuthenticatedUser } from "@/lib/auth";
 import { encryptSecret } from "@/lib/secrets";
-import { AI_MODEL_IDS, normalizeAiModel } from "@/lib/ai/models";
 
 const VALID_THEMES = ["light", "dark", "system"] as const;
 
-const VALID_KEYS = new Set([
-  "model",
-  "theme",
-  "customSubtypes",
-  "prompt_chat",
-  "prompt_alternatives",
-  "prompt_prd",
-]);
-
-const ADMIN_KEYS = new Set([
-  "model",
-  "customSubtypes",
-  "prompt_chat",
-  "prompt_alternatives",
-  "prompt_prd",
-]);
+const VALID_KEYS = new Set(["theme"]);
 
 const updateSettingsSchema = z
   .object({
     apiKey: z.string().min(20).max(300).optional(),
     clearApiKey: z.boolean().optional(),
-    model: z.enum(AI_MODEL_IDS).optional(),
     theme: z.enum(VALID_THEMES).optional(),
-    customSubtypes: z.string().optional(),
-    prompt_chat: z.string().optional(),
-    prompt_alternatives: z.string().optional(),
-    prompt_prd: z.string().optional(),
   })
   .strict();
 
@@ -59,14 +38,6 @@ export async function GET() {
     }
 
     delete result.apiKey;
-    result.model = normalizeAiModel(result.model || process.env.ANTHROPIC_MODEL);
-
-    if (user.role !== "admin") {
-      delete result.prompt_chat;
-      delete result.prompt_alternatives;
-      delete result.prompt_prd;
-      delete result.customSubtypes;
-    }
 
     const userConfig = db
       .select({ anthropicApiKey: userSettings.anthropicApiKey })
@@ -109,11 +80,6 @@ export async function PATCH(request: NextRequest) {
         { error: "Provide apiKey or clearApiKey, not both" },
         { status: 400 }
       );
-    }
-
-    if (Object.keys(parsed.data).some((key) => ADMIN_KEYS.has(key))) {
-      const roleErr = requireRole(user.role, ["admin"]);
-      if (roleErr) return roleErr;
     }
 
     if (Object.keys(parsed.data).length === 0) {
@@ -174,14 +140,6 @@ export async function PATCH(request: NextRequest) {
     }
 
     delete result.apiKey;
-    result.model = normalizeAiModel(result.model || process.env.ANTHROPIC_MODEL);
-
-    if (user.role !== "admin") {
-      delete result.prompt_chat;
-      delete result.prompt_alternatives;
-      delete result.prompt_prd;
-      delete result.customSubtypes;
-    }
 
     const userConfig = db
       .select({ anthropicApiKey: userSettings.anthropicApiKey })

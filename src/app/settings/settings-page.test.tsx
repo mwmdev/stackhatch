@@ -37,16 +37,17 @@ describe("SettingsPage", () => {
   });
 
   it("renders server-managed settings sections", async () => {
-    mockFetchSettings({ hasAnthropicKey: false, role: "free", isAdmin: false });
+    mockFetchSettings({ hasAnthropicKey: false });
     render(<SettingsPage />);
 
     await waitFor(() => {
       expect(screen.getByText("Anthropic API Key")).toBeInTheDocument();
     });
 
-    expect(screen.getByText("Claude Model")).toBeInTheDocument();
     expect(screen.getByText("Theme")).toBeInTheDocument();
-    expect(screen.getByText("Node Subtypes")).toBeInTheDocument();
+    expect(screen.queryByText("Claude Model")).not.toBeInTheDocument();
+    expect(screen.queryByText("Node Subtypes")).not.toBeInTheDocument();
+    expect(screen.queryByText("AI Prompts")).not.toBeInTheDocument();
   });
 
   it("shows loading state initially", () => {
@@ -72,34 +73,6 @@ describe("SettingsPage", () => {
     });
     expect(screen.getByText("Saved")).toBeInTheDocument();
     expect(screen.getByLabelText("API Key")).toBeInTheDocument();
-  });
-
-  it("loads and displays current model selection", async () => {
-    mockFetchSettings({ model: "claude-opus-4-20250514", isAdmin: false });
-    render(<SettingsPage />);
-
-    await waitFor(() => {
-      expect(screen.getByLabelText("Claude Model")).toHaveValue("claude-opus-4-20250514");
-    });
-  });
-
-  it("allows admins to save model selection", async () => {
-    mockFetchSettings({
-      model: "claude-sonnet-4-20250514",
-      role: "admin",
-      isAdmin: true,
-    });
-    render(<SettingsPage />);
-
-    await screen.findByText("Anthropic API Key");
-    fireEvent.change(screen.getByLabelText("Claude Model"), {
-      target: { value: "claude-opus-4-1-20250805" },
-    });
-    fireEvent.click(screen.getByText("Save"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("toast")).toHaveTextContent("Model preference saved");
-    });
   });
 
   it("renders theme buttons and highlights current theme", async () => {

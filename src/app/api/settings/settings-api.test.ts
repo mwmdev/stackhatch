@@ -89,7 +89,7 @@ describe("GET /api/settings", () => {
     const data = await res.json();
 
     expect(res.status).toBe(200);
-    expect(data.model).toBe("claude-sonnet-4-20250514");
+    expect(data.model).toBeUndefined();
     expect(data.hasAnthropicKey).toBe(false);
     expect(data.apiKey).toBeUndefined();
   });
@@ -108,7 +108,7 @@ describe("GET /api/settings", () => {
     const data = await res.json();
 
     expect(data.apiKey).toBeUndefined();
-    expect(data.model).toBe("claude-opus-4-20250514");
+    expect(data.model).toBeUndefined();
     expect(data.theme).toBe("dark");
   });
 
@@ -123,31 +123,13 @@ describe("GET /api/settings", () => {
     expect(data.apiKey).toBeUndefined();
   });
 
-  it("uses env var fallback for model when not in DB", async () => {
-    process.env.ANTHROPIC_MODEL = "claude-opus-4-1-20250805";
-
-    const res = await settingsRoute.GET();
-    const data = await res.json();
-
-    expect(data.model).toBe("claude-opus-4-1-20250805");
-  });
-
-  it("falls back to Sonnet when a stored model is no longer supported", async () => {
-    testDb.insert(settings).values({ key: "model", value: "claude-haiku-235-20241022" }).run();
-
-    const res = await settingsRoute.GET();
-    const data = await res.json();
-
-    expect(data.model).toBe("claude-sonnet-4-20250514");
-  });
-
-  it("filters admin-only fields for non-admins", async () => {
-    mockUserRole = "free";
+  it("filters global admin settings from personal settings", async () => {
     testDb
       .insert(settings)
       .values([
         { key: "customSubtypes", value: "{}" },
         { key: "prompt_chat", value: "secret prompt" },
+        { key: "model", value: "claude-opus-4-1-20250805" },
         { key: "theme", value: "dark" },
       ])
       .run();
@@ -158,6 +140,7 @@ describe("GET /api/settings", () => {
     expect(data.theme).toBe("dark");
     expect(data.customSubtypes).toBeUndefined();
     expect(data.prompt_chat).toBeUndefined();
+    expect(data.model).toBeUndefined();
   });
 });
 
@@ -176,19 +159,6 @@ describe("PATCH /api/settings", () => {
     expect(data.hasUserAnthropicKey).toBe(true);
   });
 
-  it("saves admin model setting", async () => {
-    const req = makeRequest({
-      method: "PATCH",
-      body: { model: "claude-opus-4-20250514" },
-    });
-
-    const res = await settingsRoute.PATCH(req as never);
-    const data = await res.json();
-
-    expect(res.status).toBe(200);
-    expect(data.model).toBe("claude-opus-4-20250514");
-  });
-
   it("saves theme setting for any authenticated user", async () => {
     mockUserRole = "free";
     const req = makeRequest({
@@ -203,7 +173,7 @@ describe("PATCH /api/settings", () => {
     expect(data.theme).toBe("dark");
   });
 
-  it("blocks non-admin global AI settings", async () => {
+  it("rejects global AI settings", async () => {
     mockUserRole = "free";
     const req = makeRequest({
       method: "PATCH",
@@ -211,14 +181,13 @@ describe("PATCH /api/settings", () => {
     });
 
     const res = await settingsRoute.PATCH(req as never);
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(400);
   });
 
   it("saves multiple safe settings at once", async () => {
     const req = makeRequest({
       method: "PATCH",
       body: {
-        model: "claude-opus-4-1-20250805",
         theme: "light",
       },
     });
@@ -226,28 +195,27 @@ describe("PATCH /api/settings", () => {
     const res = await settingsRoute.PATCH(req as never);
     const data = await res.json();
 
-    expect(data.model).toBe("claude-opus-4-1-20250805");
     expect(data.theme).toBe("light");
     expect(data.apiKey).toBeUndefined();
   });
 
   it("upserts existing settings", async () => {
-    testDb.insert(settings).values({ key: "model", value: "claude-sonnet-4-20250514" }).run();
+    testDb.insert(settings).values({ key: "theme", value: "dark" }).run();
 
     const req = makeRequest({
       method: "PATCH",
-      body: { model: "claude-opus-4-20250514" },
+      body: { theme: "system" },
     });
 
     const res = await settingsRoute.PATCH(req as never);
     const data = await res.json();
 
-    expect(data.model).toBe("claude-opus-4-20250514");
+    expect(data.theme).toBe("system");
     const rows = testDb
       .select()
       .from(settings)
       .all()
-      .filter((row) => row.key === "model");
+      .filter((row) => row.key === "theme");
     expect(rows).toHaveLength(1);
   });
 

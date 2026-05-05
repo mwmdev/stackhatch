@@ -74,6 +74,7 @@ vi.mock("@/lib/auth", () => {
 const usersRoute = await import("@/app/api/admin/users/route");
 const impersonationRoute = await import("@/app/api/admin/impersonation/route");
 const plansRoute = await import("@/app/api/admin/plans/route");
+const adminSettingsRoute = await import("@/app/api/admin/settings/route");
 
 function makeRequest(path: string, body?: unknown) {
   const init: RequestInit = { method: body ? "POST" : "GET" };
@@ -200,6 +201,79 @@ describe("admin plans API", () => {
     const res = await plansRoute.PATCH(makeRequest("/api/admin/plans", { plans: {} }) as never);
 
     expect(res.status).toBe(403);
+  });
+});
+
+describe("admin settings API", () => {
+  it("returns global AI settings to admins", async () => {
+    testDb
+      .insert(schema.settings)
+      .values([
+        { key: "model", value: "claude-opus-4-20250514" },
+        { key: "prompt_chat", value: "custom chat" },
+        { key: "theme", value: "dark" },
+      ])
+      .run();
+
+    const res = await adminSettingsRoute.GET();
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.model).toBe("claude-opus-4-20250514");
+    expect(data.prompt_chat).toBe("custom chat");
+    expect(data.theme).toBeUndefined();
+  });
+
+  it("saves global AI settings", async () => {
+    const res = await adminSettingsRoute.PATCH(
+      makeRequest("/api/admin/settings", {
+        model: "claude-opus-4-1-20250805",
+        customSubtypes: '{"client":[{"slug":"kiosk","displayName":"Kiosk","icon":"Box"}]}',
+        prompt_prd: "custom prd",
+      }) as never
+    );
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.model).toBe("claude-opus-4-1-20250805");
+    expect(data.customSubtypes).toContain("kiosk");
+    expect(data.prompt_prd).toBe("custom prd");
+  });
+
+  it("upserts existing global AI settings", async () => {
+    testDb.insert(schema.settings).values({ key: "prompt_chat", value: "old" }).run();
+
+    const res = await adminSettingsRoute.PATCH(
+      makeRequest("/api/admin/settings", { prompt_chat: "new" }) as never
+    );
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.prompt_chat).toBe("new");
+    const rows = testDb
+      .select()
+      .from(schema.settings)
+      .all()
+      .filter((row) => row.key === "prompt_chat");
+    expect(rows).toHaveLength(1);
+  });
+
+  it("blocks non-admin global AI settings", async () => {
+    mockUserRole = "free";
+
+    const res = await adminSettingsRoute.PATCH(
+      makeRequest("/api/admin/settings", { prompt_chat: "blocked" }) as never
+    );
+
+    expect(res.status).toBe(403);
+  });
+
+  it("rejects invalid model values", async () => {
+    const res = await adminSettingsRoute.PATCH(
+      makeRequest("/api/admin/settings", { model: "gpt-4" }) as never
+    );
+
+    expect(res.status).toBe(400);
   });
 });
 

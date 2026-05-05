@@ -2,6 +2,15 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
+import { categoryOrder, nodeConfig } from "@/lib/node-config";
+import type { CustomSubtypesMap, CustomSubtypeEntry } from "@/lib/custom-subtypes";
+import type { NodeCategory } from "@/types/stack";
+import {
+  DEFAULT_ALTERNATIVES_PROMPT,
+  DEFAULT_CHAT_PROMPT,
+  DEFAULT_PRD_PROMPT,
+} from "@/lib/ai/default-prompts";
+import { AI_MODELS, DEFAULT_AI_MODEL } from "@/lib/ai/models";
 import {
   DEFAULT_PLAN_CATALOG,
   DIAGRAM_EXPORT_FORMATS,
@@ -24,14 +33,66 @@ interface User {
   isCurrent?: boolean;
 }
 
+interface AdminSettings {
+  model?: string;
+  customSubtypes?: string;
+  prompt_chat?: string;
+  prompt_alternatives?: string;
+  prompt_prd?: string;
+}
+
+const PROMPT_DEFAULTS: Record<string, string> = {
+  prompt_chat: DEFAULT_CHAT_PROMPT,
+  prompt_alternatives: DEFAULT_ALTERNATIVES_PROMPT,
+  prompt_prd: DEFAULT_PRD_PROMPT,
+};
+
+const PROMPT_CONFIGS = [
+  {
+    key: "prompt_chat",
+    label: "Chat Prompt",
+    description:
+      "System prompt for the architecture chat interview. The valid categories/subtypes section is appended automatically.",
+  },
+  {
+    key: "prompt_alternatives",
+    label: "Alternatives Prompt",
+    description: "System prompt for suggesting alternative technologies for a node.",
+  },
+  {
+    key: "prompt_prd",
+    label: "PRD Export Prompt",
+    description: "System prompt for generating Product Requirements Documents.",
+  },
+] as const;
+
 export default function AdminPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [planDraft, setPlanDraft] = useState<PlanCatalog>(DEFAULT_PLAN_CATALOG);
-  const [activeTab, setActiveTab] = useState<"users" | "plans">("users");
+  const [activeTab, setActiveTab] = useState<"users" | "plans" | "model" | "subtypes" | "prompts">(
+    "users"
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [planSaving, setPlanSaving] = useState(false);
   const [planStatus, setPlanStatus] = useState("");
+  const [model, setModel] = useState(DEFAULT_AI_MODEL);
+  const [savingModel, setSavingModel] = useState(false);
+  const [modelStatus, setModelStatus] = useState("");
+  const [customSubtypes, setCustomSubtypes] = useState<CustomSubtypesMap>({});
+  const [newSubtype, setNewSubtype] = useState<
+    Record<NodeCategory, { slug: string; displayName: string; icon: string }>
+  >({} as Record<NodeCategory, { slug: string; displayName: string; icon: string }>);
+  const [subtypeStatus, setSubtypeStatus] = useState("");
+  const [savingSubtypes, setSavingSubtypes] = useState(false);
+  const [prompts, setPrompts] = useState({
+    prompt_chat: "",
+    prompt_alternatives: "",
+    prompt_prd: "",
+  });
+  const [expandedPrompt, setExpandedPrompt] = useState<string | null>("prompt_chat");
+  const [savingPrompt, setSavingPrompt] = useState<string | null>(null);
+  const [promptStatus, setPromptStatus] = useState("");
   const [createForm, setCreateForm] = useState({
     name: "",
     email: "",
@@ -55,11 +116,35 @@ export default function AdminPage() {
         if (!res.ok) throw new Error("Failed to load plans");
         return res.json();
       }),
+      fetch("/api/admin/settings").then((res) => {
+        if (res.status === 403) throw new Error("Access denied");
+        if (!res.ok) throw new Error("Failed to load admin settings");
+        return res.json();
+      }),
     ])
-      .then(([usersData, plansData]) => {
-        setUsers(usersData);
-        if (plansData?.plans) setPlanDraft(plansData.plans);
-      })
+      .then(
+        ([usersData, plansData, settingsData]: [
+          User[],
+          { plans?: PlanCatalog },
+          AdminSettings,
+        ]) => {
+          setUsers(usersData);
+          if (plansData?.plans) setPlanDraft(plansData.plans);
+          if (settingsData.model) setModel(settingsData.model);
+          if (settingsData.customSubtypes) {
+            try {
+              setCustomSubtypes(JSON.parse(settingsData.customSubtypes));
+            } catch {
+              setCustomSubtypes({});
+            }
+          }
+          setPrompts({
+            prompt_chat: settingsData.prompt_chat ?? "",
+            prompt_alternatives: settingsData.prompt_alternatives ?? "",
+            prompt_prd: settingsData.prompt_prd ?? "",
+          });
+        }
+      )
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, []);
@@ -190,6 +275,121 @@ export default function AdminPage() {
     setPlanSaving(false);
   }
 
+  async function handleSaveModel() {
+    setSavingModel(true);
+    setModelStatus("");
+    setError("");
+    const res = await fetch("/api/admin/settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model }),
+    });
+    const data = await res.json().catch(() => ({ error: "Failed to save model" }));
+    if (res.ok) {
+      setModel(data.model ?? model);
+      setModelStatus("Model saved");
+    } else {
+      setError(data.error || "Failed to save model");
+    }
+    setSavingModel(false);
+  }
+
+  const saveCustomSubtypes = useCallback(async (map: CustomSubtypesMap) => {
+    setSavingSubtypes(true);
+    setSubtypeStatus("");
+    setError("");
+    const res = await fetch("/api/admin/settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ customSubtypes: JSON.stringify(map) }),
+    });
+    const data = await res.json().catch(() => ({ error: "Failed to save custom subtypes" }));
+    if (res.ok) {
+      setSubtypeStatus("Custom subtypes saved");
+    } else {
+      setError(data.error || "Failed to save custom subtypes");
+    }
+    setSavingSubtypes(false);
+  }, []);
+
+  const handleAddSubtype = useCallback(
+    (category: NodeCategory) => {
+      const form = newSubtype[category];
+      if (!form?.slug || !form?.displayName) return;
+      const entry: CustomSubtypeEntry = {
+        slug: form.slug.toLowerCase().replace(/\s+/g, "-"),
+        displayName: form.displayName,
+        icon: form.icon || "Box",
+      };
+      const builtInSlugs = Object.keys(nodeConfig[category].subtypes);
+      const existingSlugs = customSubtypes[category]?.map((item) => item.slug) ?? [];
+      if (builtInSlugs.includes(entry.slug) || existingSlugs.includes(entry.slug)) {
+        setError(`Subtype "${entry.slug}" already exists`);
+        return;
+      }
+
+      const updated: CustomSubtypesMap = {
+        ...customSubtypes,
+        [category]: [...(customSubtypes[category] ?? []), entry],
+      };
+      setCustomSubtypes(updated);
+      setNewSubtype((prev) => ({ ...prev, [category]: { slug: "", displayName: "", icon: "" } }));
+      saveCustomSubtypes(updated);
+    },
+    [customSubtypes, newSubtype, saveCustomSubtypes]
+  );
+
+  const handleRemoveSubtype = useCallback(
+    (category: NodeCategory, slug: string) => {
+      const updated: CustomSubtypesMap = {
+        ...customSubtypes,
+        [category]: (customSubtypes[category] ?? []).filter((item) => item.slug !== slug),
+      };
+      if (updated[category]?.length === 0) delete updated[category];
+      setCustomSubtypes(updated);
+      saveCustomSubtypes(updated);
+    },
+    [customSubtypes, saveCustomSubtypes]
+  );
+
+  async function handleSavePrompt(key: keyof typeof prompts) {
+    setSavingPrompt(key);
+    setPromptStatus("");
+    setError("");
+    const value = prompts[key] || PROMPT_DEFAULTS[key];
+    const res = await fetch("/api/admin/settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ [key]: value }),
+    });
+    const data = await res.json().catch(() => ({ error: "Failed to save prompt" }));
+    if (res.ok) {
+      setPromptStatus("Prompt saved");
+    } else {
+      setError(data.error || "Failed to save prompt");
+    }
+    setSavingPrompt(null);
+  }
+
+  async function handleResetPrompt(key: keyof typeof prompts) {
+    setSavingPrompt(key);
+    setPromptStatus("");
+    setError("");
+    setPrompts((prev) => ({ ...prev, [key]: "" }));
+    const res = await fetch("/api/admin/settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ [key]: "" }),
+    });
+    const data = await res.json().catch(() => ({ error: "Failed to reset prompt" }));
+    if (res.ok) {
+      setPromptStatus("Prompt reset to default");
+    } else {
+      setError(data.error || "Failed to reset prompt");
+    }
+    setSavingPrompt(null);
+  }
+
   const userRoleOptions = [
     { value: "free", label: planDraft.free.name },
     { value: "starter", label: planDraft.starter.name },
@@ -307,7 +507,7 @@ export default function AdminPage() {
             >
               &larr; Dashboard
             </Link>
-            <span className="text-lg font-bold tracking-tight">User and Plan Management</span>
+            <span className="text-lg font-bold tracking-tight">Admin Dashboard</span>
           </div>
         </div>
       </header>
@@ -325,6 +525,9 @@ export default function AdminPage() {
               [
                 ["users", "Users"],
                 ["plans", "Plans"],
+                ["model", "Model"],
+                ["subtypes", "Node Subtypes"],
+                ["prompts", "Prompts"],
               ] as const
             ).map(([tab, label]) => {
               const selected = activeTab === tab;
@@ -347,6 +550,244 @@ export default function AdminPage() {
             })}
           </div>
         </div>
+
+        {activeTab === "model" && (
+          <section className="mb-6 rounded-xl border border-[var(--border)] bg-[var(--card)] p-4">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-[var(--card-foreground)]">
+                  Claude Model
+                </h2>
+                <p className="text-sm text-[var(--muted-foreground)]">
+                  Select which Claude model powers architecture generation.
+                </p>
+              </div>
+              {modelStatus && (
+                <span className="text-sm font-medium text-[var(--success)]">{modelStatus}</span>
+              )}
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <select
+                value={model}
+                onChange={(e) => {
+                  setModel(e.target.value);
+                  setModelStatus("");
+                }}
+                className="min-h-11 flex-1 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
+                aria-label="Claude Model"
+              >
+                {AI_MODELS.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name} ({item.id})
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={handleSaveModel}
+                disabled={savingModel}
+                className="min-h-11 rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-medium text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)] disabled:opacity-50"
+              >
+                {savingModel ? "Saving..." : "Save model"}
+              </button>
+            </div>
+          </section>
+        )}
+
+        {activeTab === "subtypes" && (
+          <section className="mb-6 rounded-xl border border-[var(--border)] bg-[var(--card)] p-4">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-[var(--card-foreground)]">
+                  Node Subtypes
+                </h2>
+                <p className="text-sm text-[var(--muted-foreground)]">
+                  Add custom subtypes to existing node categories. Built-in subtypes remain
+                  available.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                {savingSubtypes && (
+                  <span className="text-sm text-[var(--muted-foreground)]">Saving...</span>
+                )}
+                {subtypeStatus && (
+                  <span className="text-sm font-medium text-[var(--success)]">{subtypeStatus}</span>
+                )}
+              </div>
+            </div>
+            <div className="space-y-5">
+              {categoryOrder.map((category) => {
+                const config = nodeConfig[category];
+                const customEntries = customSubtypes[category] ?? [];
+                const form = newSubtype[category] ?? { slug: "", displayName: "", icon: "" };
+                return (
+                  <div key={category} className="rounded-lg border border-[var(--border)] p-4">
+                    <div className="mb-2 flex items-center gap-2">
+                      <span
+                        className="inline-block rounded-full px-2 py-0.5 text-xs font-medium"
+                        style={{
+                          backgroundColor: config.fill,
+                          color: config.foreground,
+                        }}
+                      >
+                        {config.displayName}
+                      </span>
+                    </div>
+                    <div className="mb-2 flex flex-wrap gap-1">
+                      {Object.entries(config.subtypes).map(([slug, subtype]) => (
+                        <span
+                          key={slug}
+                          className="inline-block rounded-full bg-[var(--muted)] px-2 py-0.5 text-xs text-[var(--muted-foreground)]"
+                        >
+                          {subtype.displayName}
+                        </span>
+                      ))}
+                    </div>
+                    {customEntries.length > 0 && (
+                      <div className="mb-2 flex flex-wrap gap-1">
+                        {customEntries.map((entry) => (
+                          <span
+                            key={entry.slug}
+                            className="inline-flex items-center gap-1 rounded-full border border-[var(--brand)]/30 bg-[var(--brand)]/10 px-2 py-0.5 text-xs font-medium text-[var(--brand)]"
+                          >
+                            {entry.displayName}
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveSubtype(category, entry.slug)}
+                              className="ml-0.5 hover:text-[var(--danger)]"
+                              aria-label={`Remove ${entry.displayName}`}
+                            >
+                              &times;
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input
+                        type="text"
+                        placeholder="slug"
+                        value={form.slug}
+                        onChange={(e) =>
+                          setNewSubtype((prev) => ({
+                            ...prev,
+                            [category]: { ...form, slug: e.target.value },
+                          }))
+                        }
+                        className="min-h-9 w-28 rounded border border-[var(--border)] bg-[var(--background)] px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--ring)]"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Display Name"
+                        value={form.displayName}
+                        onChange={(e) =>
+                          setNewSubtype((prev) => ({
+                            ...prev,
+                            [category]: { ...form, displayName: e.target.value },
+                          }))
+                        }
+                        className="min-h-9 min-w-40 flex-1 rounded border border-[var(--border)] bg-[var(--background)] px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--ring)]"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Icon"
+                        value={form.icon}
+                        onChange={(e) =>
+                          setNewSubtype((prev) => ({
+                            ...prev,
+                            [category]: { ...form, icon: e.target.value },
+                          }))
+                        }
+                        className="min-h-9 w-24 rounded border border-[var(--border)] bg-[var(--background)] px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--ring)]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleAddSubtype(category)}
+                        disabled={!form.slug || !form.displayName || savingSubtypes}
+                        className="min-h-9 rounded bg-[var(--brand)] px-3 py-1 text-xs font-medium text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)] disabled:opacity-50"
+                      >
+                        Add
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {activeTab === "prompts" && (
+          <section className="mb-6 rounded-xl border border-[var(--border)] bg-[var(--card)] p-4">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-[var(--card-foreground)]">AI Prompts</h2>
+                <p className="text-sm text-[var(--muted-foreground)]">
+                  Customize the system prompts used by AI features. Leave empty to use the default.
+                </p>
+              </div>
+              {promptStatus && (
+                <span className="text-sm font-medium text-[var(--success)]">{promptStatus}</span>
+              )}
+            </div>
+            <div className="space-y-4">
+              {PROMPT_CONFIGS.map(({ key, label, description }) => (
+                <div key={key} className="rounded-lg border border-[var(--border)]">
+                  <button
+                    type="button"
+                    onClick={() => setExpandedPrompt(expandedPrompt === key ? null : key)}
+                    className="flex w-full items-center justify-between gap-4 p-4 text-left"
+                  >
+                    <div>
+                      <span className="font-medium text-[var(--card-foreground)]">{label}</span>
+                      <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">{description}</p>
+                    </div>
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      className={`shrink-0 transition-transform ${
+                        expandedPrompt === key ? "rotate-180" : ""
+                      }`}
+                    >
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                  </button>
+                  {expandedPrompt === key && (
+                    <div className="border-t border-[var(--border)] p-4">
+                      <textarea
+                        value={prompts[key] || PROMPT_DEFAULTS[key]}
+                        onChange={(e) => setPrompts((prev) => ({ ...prev, [key]: e.target.value }))}
+                        rows={14}
+                        className="w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
+                      />
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleSavePrompt(key)}
+                          disabled={savingPrompt === key}
+                          className="min-h-11 rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-medium text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)] disabled:opacity-50"
+                        >
+                          {savingPrompt === key ? "Saving..." : "Save prompt"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleResetPrompt(key)}
+                          disabled={savingPrompt === key}
+                          className="min-h-11 rounded-md border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--muted)] disabled:opacity-50"
+                        >
+                          Reset to default
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {activeTab === "plans" && (
           <section className="mb-6 rounded-xl border border-[var(--border)] bg-[var(--card)] p-4">
