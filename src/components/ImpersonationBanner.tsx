@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getRoleLabel } from "@/lib/roles";
 
 interface MeResponse {
@@ -16,6 +16,7 @@ interface MeResponse {
 export default function ImpersonationBanner() {
   const [me, setMe] = useState<MeResponse | null>(null);
   const [stopping, setStopping] = useState(false);
+  const bannerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -32,6 +33,36 @@ export default function ImpersonationBanner() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!me?.impersonatedBy) {
+      document.documentElement.style.setProperty("--impersonation-banner-height", "0px");
+      return;
+    }
+
+    const banner = bannerRef.current;
+    if (!banner) return;
+
+    const updateBannerHeight = () => {
+      document.documentElement.style.setProperty(
+        "--impersonation-banner-height",
+        `${banner.offsetHeight}px`
+      );
+    };
+
+    updateBannerHeight();
+
+    const resizeObserver =
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(updateBannerHeight);
+    resizeObserver?.observe(banner);
+    window.addEventListener("resize", updateBannerHeight);
+
+    return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener("resize", updateBannerHeight);
+      document.documentElement.style.setProperty("--impersonation-banner-height", "0px");
+    };
+  }, [me?.impersonatedBy]);
+
   if (!me?.impersonatedBy) return null;
 
   const displayName = me.name || me.email || "this user";
@@ -46,7 +77,10 @@ export default function ImpersonationBanner() {
   }
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 bg-amber-100 px-4 py-2 text-sm text-amber-950 dark:bg-amber-950 dark:text-amber-100">
+    <div
+      ref={bannerRef}
+      className="sticky top-0 z-[60] flex flex-wrap items-center justify-between gap-3 bg-amber-100 px-4 py-2 text-sm text-amber-950 dark:bg-amber-950 dark:text-amber-100"
+    >
       <span>
         Impersonating <strong>{displayName}</strong> as {getRoleLabel(me.role)}.
       </span>

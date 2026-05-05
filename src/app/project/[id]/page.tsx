@@ -820,10 +820,15 @@ export default function ProjectPage() {
   }
 
   return (
-    <div className="flex h-screen flex-col bg-[var(--background)] text-[var(--foreground)] md:flex-row">
+    <div
+      className="flex flex-col bg-[var(--background)] text-[var(--foreground)] md:flex-row"
+      data-testid="project-editor-shell"
+      style={{ height: "calc(100vh - var(--impersonation-banner-height, 0px))" }}
+    >
       <button
         onClick={() => setChatOpen((value) => !value)}
-        className="fixed left-4 top-2 z-50 flex h-11 w-11 items-center justify-center rounded-md text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]/30"
+        className="fixed left-4 z-50 flex h-11 w-11 items-center justify-center rounded-md text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]/30"
+        style={{ top: "calc(var(--impersonation-banner-height, 0px) + 0.5rem)" }}
         title={chatOpen ? "Hide chat sidebar" : "Show chat sidebar"}
         aria-label={chatOpen ? "Hide chat sidebar" : "Show chat sidebar"}
         aria-pressed={chatOpen}

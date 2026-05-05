@@ -409,7 +409,10 @@ describe("ProjectPage", () => {
 
       fireEvent.click(screen.getByLabelText("Show chat sidebar"));
       const hideToggle = screen.getByLabelText("Hide chat sidebar");
-      expect(hideToggle).toHaveClass("fixed", "left-4", "top-2");
+      expect(hideToggle).toHaveClass("fixed", "left-4");
+      expect(hideToggle).toHaveStyle({
+        top: "calc(var(--impersonation-banner-height, 0px) + 0.5rem)",
+      });
       expect(screen.getByTestId("chat-sidebar")).toHaveAttribute("data-open", "true");
 
       fireEvent.click(hideToggle);
@@ -426,13 +429,28 @@ describe("ProjectPage", () => {
 
       const chatToggle = screen.getByLabelText("Show chat sidebar");
       const projectTitle = screen.getByText("Test Project");
-      expect(chatToggle).toHaveClass("fixed", "left-4", "top-2");
+      expect(chatToggle).toHaveClass("fixed", "left-4");
+      expect(chatToggle).toHaveStyle({
+        top: "calc(var(--impersonation-banner-height, 0px) + 0.5rem)",
+      });
       expect(
         Boolean(chatToggle.compareDocumentPosition(projectTitle) & Node.DOCUMENT_POSITION_FOLLOWING)
       ).toBe(true);
 
       fireEvent.click(chatToggle);
       expect(screen.getByLabelText("Hide chat sidebar")).toBe(chatToggle);
+    });
+
+    it("reserves viewport height for the impersonation banner", async () => {
+      mockFetchProject(projectWithNodes);
+      render(<ProjectPage />);
+      await waitFor(() => {
+        expect(screen.getByTestId("project-editor-shell")).toBeInTheDocument();
+      });
+
+      expect(screen.getByTestId("project-editor-shell")).toHaveStyle({
+        height: "calc(100vh - var(--impersonation-banner-height, 0px))",
+      });
     });
 
     it("does not render the removed Re-layout button when nodes exist", async () => {

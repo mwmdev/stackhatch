@@ -8,6 +8,7 @@
   --border: #e5e5e5;
   --card: #ffffff;
   --card-foreground: #171717;
+  --impersonation-banner-height: 0px;
 
   /* Category colors */
   --color-client: #2563eb;
