@@ -640,6 +640,25 @@ describe("ProjectPage", () => {
       });
     });
 
+    it("shows a new project icon next to the project name", async () => {
+      mockFetchProject(emptyProject);
+      render(<ProjectPage />);
+      await waitFor(() => {
+        expect(screen.getByText("Test Project")).toBeInTheDocument();
+      });
+
+      const newProjectLink = screen.getByLabelText("Create new project");
+      const projectTitle = screen.getByText("Test Project");
+      expect(newProjectLink).toHaveAttribute("href", "/project/new");
+      expect(newProjectLink).toHaveAttribute("title", "New project");
+      expect(newProjectLink.querySelector(".lucide-folder-plus")).toBeInTheDocument();
+      expect(
+        Boolean(
+          newProjectLink.compareDocumentPosition(projectTitle) & Node.DOCUMENT_POSITION_FOLLOWING
+        )
+      ).toBe(true);
+    });
+
     it("hides PRD export for free users", async () => {
       mockFetchProject(projectWithNodes);
       render(<ProjectPage />);

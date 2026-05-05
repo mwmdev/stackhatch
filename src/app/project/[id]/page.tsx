@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { MessageSquareText, PanelLeftClose, RefreshCw, Sparkles } from "lucide-react";
+import { FolderPlus, MessageSquareText, PanelLeftClose, RefreshCw, Sparkles } from "lucide-react";
 import ReactFlow, {
   Background,
   Controls,
@@ -1020,6 +1020,14 @@ export default function ProjectPage() {
             chatOpen ? "" : "pl-16"
           }`}
         >
+          <Link
+            href="/project/new"
+            className="flex h-11 w-11 items-center justify-center rounded-md text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
+            title="New project"
+            aria-label="Create new project"
+          >
+            <FolderPlus className="h-[18px] w-[18px]" aria-hidden="true" />
+          </Link>
           <h1 className="text-lg font-semibold">{project.name}</h1>
           <div className="ml-auto flex items-center gap-2">
             <AddNodeDropdown onAddNode={handleAddNode} customSubtypes={customSubtypes} />
