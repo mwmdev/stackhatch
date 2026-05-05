@@ -319,6 +319,15 @@ export default function ProjectPage() {
     }, 200);
   }, []);
 
+  const openNodePanel = useCallback((node: StackNode) => {
+    clearTimeout(nodePanelCloseTimerRef.current);
+    setNodePanelOpen(false);
+    setSelectedNode(node);
+    requestAnimationFrame(() => {
+      setNodePanelOpen(true);
+    });
+  }, []);
+
   const handleNodeClick = useCallback(
     (_event: React.MouseEvent, node: Node<StackNodeData>) => {
       if (selectedNode?.id === node.id && nodePanelOpen) {
@@ -326,9 +335,8 @@ export default function ProjectPage() {
         return;
       }
 
-      clearTimeout(nodePanelCloseTimerRef.current);
       const data = node.data;
-      setSelectedNode({
+      openNodePanel({
         id: node.id,
         category: data.category,
         subtype: data.subtype,
@@ -338,9 +346,8 @@ export default function ProjectPage() {
         reasoning: data.reasoning,
         locked: data.locked,
       });
-      setNodePanelOpen(true);
     },
-    [closeNodePanel, nodePanelOpen, selectedNode?.id]
+    [closeNodePanel, nodePanelOpen, openNodePanel, selectedNode?.id]
   );
 
   const handlePaneClick = useCallback(() => {
@@ -519,8 +526,7 @@ export default function ProjectPage() {
             }
           : prev;
       });
-      setSelectedNode(newStackNode);
-      setNodePanelOpen(true);
+      openNodePanel(newStackNode);
     },
     [
       handleLockToggle,
@@ -529,6 +535,7 @@ export default function ProjectPage() {
       handleCommentBadgeClick,
       setRfNodes,
       customSubtypes,
+      openNodePanel,
     ]
   );
 

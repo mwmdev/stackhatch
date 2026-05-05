@@ -616,8 +616,11 @@ describe("ProjectPage", () => {
       expect(screen.getByTestId("node-detail-panel")).toHaveAttribute("data-open", "false");
 
       fireEvent.click(screen.getByTestId("mock-flow-node-n1"));
-      expect(screen.getByTestId("node-detail-panel")).toHaveAttribute("data-open", "true");
+      expect(screen.getByTestId("node-detail-panel")).toHaveAttribute("data-open", "false");
       expect(screen.getByTestId("node-detail-panel")).toHaveAttribute("data-node-id", "n1");
+      await waitFor(() => {
+        expect(screen.getByTestId("node-detail-panel")).toHaveAttribute("data-open", "true");
+      });
 
       fireEvent.click(screen.getByTestId("mock-flow-node-n1"));
       expect(screen.getByTestId("node-detail-panel")).toHaveAttribute("data-open", "false");
@@ -631,7 +634,9 @@ describe("ProjectPage", () => {
       });
 
       fireEvent.click(screen.getByTestId("mock-flow-node-n1"));
-      expect(screen.getByTestId("node-detail-panel")).toHaveAttribute("data-open", "true");
+      await waitFor(() => {
+        expect(screen.getByTestId("node-detail-panel")).toHaveAttribute("data-open", "true");
+      });
 
       fireEvent.click(screen.getByTestId("react-flow-canvas"));
       expect(screen.getByTestId("node-detail-panel")).toHaveAttribute("data-open", "false");
@@ -741,8 +746,11 @@ describe("ProjectPage", () => {
         expect(screen.getByTestId("react-flow-canvas")).toHaveAttribute("data-node-count", "3");
       });
 
-      // Detail panel should open for new node
+      // Detail panel should mount for the new node, then open on the next frame.
       expect(screen.getByTestId("node-detail-panel")).toHaveAttribute("data-has-node", "true");
+      await waitFor(() => {
+        expect(screen.getByTestId("node-detail-panel")).toHaveAttribute("data-open", "true");
+      });
     });
   });
 });
