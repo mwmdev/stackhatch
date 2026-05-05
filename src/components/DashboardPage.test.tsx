@@ -98,6 +98,18 @@ describe("Dashboard", () => {
     expect(screen.getByText("Analyze")).toBeInTheDocument();
   });
 
+  it("does not render activation or launch basics sidebar sections", async () => {
+    mockFetch([]);
+    render(<Dashboard />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Start from scratch")).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText("Activation")).not.toBeInTheDocument();
+    expect(screen.queryByText("Launch basics")).not.toBeInTheDocument();
+  });
+
   it("creates project from repo URL and navigates", async () => {
     global.fetch = vi.fn((input: RequestInfo | URL, options?: RequestInit) => {
       const url = typeof input === "string" ? input : input.toString();

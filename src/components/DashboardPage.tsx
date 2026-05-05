@@ -6,14 +6,12 @@ import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   ArrowRight,
-  CheckCircle2,
   FileText,
   FolderPlus,
   GitBranch,
   LayoutDashboard,
   RefreshCw,
   Settings,
-  ShieldCheck,
   Trash2,
   Users,
 } from "lucide-react";
@@ -34,11 +32,6 @@ interface ProjectSummary {
 
 interface CurrentUser {
   role?: string;
-}
-
-interface SettingsSummary {
-  hasAnthropicKey?: boolean;
-  hasUserAnthropicKey?: boolean;
 }
 
 interface BillingSummary {
@@ -86,7 +79,6 @@ export default function Dashboard() {
   const [error, setError] = useState("");
   const [upgradePrompt, setUpgradePrompt] = useState<string | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
-  const [settings, setSettings] = useState<SettingsSummary | null>(null);
   const [billing, setBilling] = useState<BillingSummary | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -118,16 +110,12 @@ export default function Dashboard() {
 
     Promise.allSettled([
       fetch("/api/me").then((res) => (res.ok ? res.json() : null)),
-      fetch("/api/settings").then((res) => (res.ok ? res.json() : null)),
       fetch("/api/billing/subscription").then((res) => (res.ok ? res.json() : null)),
-    ]).then(([userResult, settingsResult, billingResult]) => {
+    ]).then(([userResult, billingResult]) => {
       if (cancelled) return;
 
       if (userResult.status === "fulfilled") {
         setCurrentUserRole((userResult.value as CurrentUser | null)?.role ?? null);
-      }
-      if (settingsResult.status === "fulfilled") {
-        setSettings(settingsResult.value as SettingsSummary | null);
       }
       if (billingResult.status === "fulfilled") {
         setBilling(billingResult.value as BillingSummary | null);
@@ -231,35 +219,6 @@ export default function Dashboard() {
   const activePlan = normalizePlan(billing?.plan);
   const activePlanConfig = PLAN_CONFIG[activePlan];
   const projectLimit = activePlanConfig.features.projects;
-  const hasAiAccess = Boolean(settings?.hasUserAnthropicKey || settings?.hasAnthropicKey);
-  const activationItems = [
-    {
-      label: "AI access ready",
-      complete: hasAiAccess,
-      detail: hasAiAccess
-        ? "Claude is configured for architecture work."
-        : "Add your Anthropic API key.",
-      href: "/settings",
-    },
-    {
-      label: "First project created",
-      complete: projects.length > 0,
-      detail:
-        projects.length > 0
-          ? `${projects.length} project${projects.length === 1 ? "" : "s"}`
-          : "Start with a repo, PRD, or blank canvas.",
-      href: "#start",
-    },
-    {
-      label: "Shareable handoff path",
-      complete: activePlan !== "free",
-      detail:
-        activePlan === "free"
-          ? "Upgrade for PNG/SVG exports."
-          : "Exports and collaboration are unlocked.",
-      href: "/pricing",
-    },
-  ];
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
@@ -300,7 +259,7 @@ export default function Dashboard() {
         </div>
       </nav>
 
-      <main className="mx-auto grid max-w-7xl gap-8 px-6 py-8 lg:grid-cols-[minmax(0,1fr)_340px]">
+      <main className="mx-auto max-w-7xl px-6 py-8">
         <div className="min-w-0 space-y-8">
           <section className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-6">
             <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-center">
@@ -489,57 +448,6 @@ export default function Dashboard() {
             )}
           </section>
         </div>
-
-        <aside className="space-y-5">
-          <section className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-5">
-            <h2 className="font-semibold">Activation</h2>
-            <div className="mt-4 space-y-3">
-              {activationItems.map((item) => (
-                <Link
-                  key={item.label}
-                  href={item.href}
-                  className="flex min-w-0 gap-3 rounded-md p-2 hover:bg-[var(--muted)]"
-                >
-                  {item.complete ? (
-                    <CheckCircle2 className="mt-0.5 h-4 w-4 flex-none text-green-600" />
-                  ) : (
-                    <AlertCircle className="mt-0.5 h-4 w-4 flex-none text-amber-600" />
-                  )}
-                  <span className="min-w-0">
-                    <span className="block text-sm font-medium">{item.label}</span>
-                    <span className="block text-xs leading-5 text-[var(--muted-foreground)]">
-                      {item.detail}
-                    </span>
-                  </span>
-                </Link>
-              ))}
-            </div>
-          </section>
-
-          <section className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-5">
-            <div className="flex items-start gap-3">
-              <ShieldCheck className="mt-0.5 h-5 w-5 flex-none text-[var(--color-api)]" />
-              <div>
-                <h2 className="font-semibold">Launch basics</h2>
-                <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
-                  Billing, BYOK, team access, comments, and admin support tools are available. Keep
-                  the first session focused on one real architecture artifact.
-                </p>
-              </div>
-            </div>
-            <div className="mt-4 grid gap-2 text-sm">
-              <Link href="/settings" className="hover:text-[var(--color-client)]">
-                Account and AI settings
-              </Link>
-              <Link href="/pricing" className="hover:text-[var(--color-client)]">
-                Plans and limits
-              </Link>
-              <Link href="/support" className="hover:text-[var(--color-client)]">
-                Support and launch guide
-              </Link>
-            </div>
-          </section>
-        </aside>
       </main>
 
       <footer className="border-t border-[var(--border)] py-6">
