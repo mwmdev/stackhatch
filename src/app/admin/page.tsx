@@ -505,7 +505,7 @@ export default function AdminPage() {
                     </div>
 
                     <div>
-                      <div className="mb-2 text-sm font-medium">Diagram exports</div>
+                      <div className="mb-2 text-sm font-medium">Features</div>
                       <div className="grid grid-cols-2 gap-2">
                         {DIAGRAM_EXPORT_FORMATS.map((format) => (
                           <label key={format} className="flex items-center gap-2 text-sm">
@@ -514,7 +514,7 @@ export default function AdminPage() {
                               checked={plan.features.exports.includes(format)}
                               onChange={(e) => setPlanExport(planKey, format, e.target.checked)}
                             />
-                            {format.toUpperCase()}
+                            Diagram export: {format.toUpperCase()}
                           </label>
                         ))}
                       </div>
