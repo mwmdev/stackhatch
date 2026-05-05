@@ -1,0 +1,5 @@
+[[tools.tool]]
+name = "Dev"
+command = "npm run dev"
+auto_start = false
+keybinding = "ctrl+s"
