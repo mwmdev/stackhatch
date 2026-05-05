@@ -875,6 +875,7 @@ export default function ProjectPage() {
               <ExportDropdown
                 rfInstanceRef={rfInstanceRef}
                 projectName={project.name}
+                alternatives={alternatives}
                 onError={setToast}
               />
             )}

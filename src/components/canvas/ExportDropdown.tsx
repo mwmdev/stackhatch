@@ -6,16 +6,23 @@ import { toPng, toSvg } from "html-to-image";
 import { getNodesBounds, getViewportForBounds } from "reactflow";
 import type { ReactFlowInstance } from "reactflow";
 import type { RefObject } from "react";
+import { stringify as stringifyYaml } from "yaml";
+import { fromReactFlowEdges, fromReactFlowNodes } from "@/types/canvas";
+import type { AlternativeNode } from "@/types/stack";
+
+type ExportFormat = "png" | "svg" | "json" | "yaml";
 
 interface ExportDropdownProps {
   rfInstanceRef: RefObject<ReactFlowInstance | null>;
   projectName: string;
+  alternatives?: Record<string, AlternativeNode[]>;
   onError: (message: string) => void;
 }
 
 export default function ExportDropdown({
   rfInstanceRef,
   projectName,
+  alternatives = {},
   onError,
 }: ExportDropdownProps) {
   const [open, setOpen] = useState(false);
@@ -32,10 +39,47 @@ export default function ExportDropdown({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [open]);
 
-  const handleExport = useCallback(
-    async (format: "png" | "svg") => {
-      setOpen(false);
+  const downloadTextFile = useCallback(
+    (format: "json" | "yaml") => {
+      const rfInstance = rfInstanceRef.current;
+      if (!rfInstance) return;
 
+      const nodes = rfInstance.getNodes();
+      if (nodes.length === 0) return;
+
+      const positions: Record<string, { x: number; y: number }> = {};
+      for (const node of nodes) {
+        positions[node.id] = node.position;
+      }
+
+      const payload = {
+        schemaVersion: 1,
+        project: { name: projectName },
+        exportedAt: new Date().toISOString(),
+        diagram: {
+          nodes: fromReactFlowNodes(nodes),
+          edges: fromReactFlowEdges(rfInstance.getEdges()),
+          positions,
+          alternatives,
+        },
+      };
+
+      const content =
+        format === "json" ? JSON.stringify(payload, null, 2) : stringifyYaml(payload);
+      const type = format === "json" ? "application/json" : "application/yaml";
+      const blob = new Blob([content], { type });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.download = `${projectName}.${format}`;
+      link.href = url;
+      link.click();
+      URL.revokeObjectURL(url);
+    },
+    [rfInstanceRef, projectName, alternatives]
+  );
+
+  const downloadImageFile = useCallback(
+    async (format: "png" | "svg") => {
       const rfInstance = rfInstanceRef.current;
       if (!rfInstance) return;
 
@@ -76,6 +120,22 @@ export default function ExportDropdown({
     [rfInstanceRef, projectName, onError]
   );
 
+  const handleExport = useCallback(
+    async (format: ExportFormat) => {
+      setOpen(false);
+      try {
+        if (format === "json" || format === "yaml") {
+          downloadTextFile(format);
+          return;
+        }
+        await downloadImageFile(format);
+      } catch {
+        onError(`Failed to export as ${format.toUpperCase()}`);
+      }
+    },
+    [downloadImageFile, downloadTextFile, onError]
+  );
+
   return (
     <div ref={dropdownRef} className="relative">
       <button
@@ -88,18 +148,30 @@ export default function ExportDropdown({
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-30 mt-1 w-32 rounded-lg border border-[var(--border)] bg-[var(--background)] shadow-lg">
+        <div className="absolute right-0 top-full z-30 mt-1 w-36 rounded-lg border border-[var(--border)] bg-[var(--background)] shadow-lg">
           <button
             onClick={() => handleExport("png")}
-            className="flex w-full items-center gap-2 px-3 py-2 text-sm text-[var(--foreground)] hover:bg-[var(--muted)] transition-colors rounded-t-lg"
+            className="flex w-full items-center gap-2 rounded-t-lg px-3 py-2 text-sm text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]"
           >
             Export PNG
           </button>
           <button
             onClick={() => handleExport("svg")}
-            className="flex w-full items-center gap-2 px-3 py-2 text-sm text-[var(--foreground)] hover:bg-[var(--muted)] transition-colors rounded-b-lg"
+            className="flex w-full items-center gap-2 px-3 py-2 text-sm text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]"
           >
             Export SVG
+          </button>
+          <button
+            onClick={() => handleExport("json")}
+            className="flex w-full items-center gap-2 px-3 py-2 text-sm text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]"
+          >
+            Export JSON
+          </button>
+          <button
+            onClick={() => handleExport("yaml")}
+            className="flex w-full items-center gap-2 rounded-b-lg px-3 py-2 text-sm text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]"
+          >
+            Export YAML
           </button>
         </div>
       )}
