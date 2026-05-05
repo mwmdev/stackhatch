@@ -58,6 +58,14 @@ describe("StackNode", () => {
     expect(nodeDiv).toHaveAttribute("tabindex", "0");
   });
 
+  it("does not let the hidden tooltip become the hover target", () => {
+    renderNode();
+    const tooltip = screen.getByTestId("node-description-tooltip");
+
+    expect(tooltip.className).toContain("pointer-events-none");
+    expect(tooltip.className).not.toContain("pointer-events-auto");
+  });
+
   it("does not render description tooltip for empty descriptions", () => {
     const { container } = renderNode({ description: "   " });
     const nodeDiv = container.querySelector(".stack-node") as HTMLElement;

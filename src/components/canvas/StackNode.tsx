@@ -181,7 +181,7 @@ function StackNodeComponent({ id, data, selected }: NodeProps<StackNodeData>) {
         <div
           id={tooltipId}
           role="tooltip"
-          className="nodrag nopan pointer-events-auto absolute bottom-full left-1/2 z-50 mb-3 max-h-40 w-max max-w-80 -translate-x-1/2 overflow-auto rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-xs leading-5 text-[var(--card-foreground)] opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus:opacity-100"
+          className="nodrag nopan pointer-events-none absolute bottom-full left-1/2 z-50 mb-3 max-h-40 w-max max-w-80 -translate-x-1/2 overflow-auto rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-xs leading-5 text-[var(--card-foreground)] opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus:opacity-100"
           onClick={(e) => e.stopPropagation()}
           data-testid="node-description-tooltip"
         >
