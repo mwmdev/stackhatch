@@ -57,7 +57,7 @@ function SuccessPageContent() {
     return (
       <div className="min-h-screen bg-[var(--background)] flex items-center justify-center">
         <div className="text-center space-y-4">
-          <Loader2 className="w-8 h-8 animate-spin mx-auto text-blue-600" />
+          <Loader2 className="w-8 h-8 animate-spin mx-auto text-[var(--brand)]" />
           <h1 className="text-2xl font-semibold text-[var(--foreground)]">
             Processing your payment...
           </h1>
@@ -73,13 +73,13 @@ function SuccessPageContent() {
     return (
       <div className="min-h-screen bg-[var(--background)] flex items-center justify-center p-4">
         <div className="max-w-md w-full bg-[var(--card)] rounded-lg shadow-lg p-6 text-center space-y-4">
-          <AlertCircle className="w-12 h-12 mx-auto text-red-500" />
+          <AlertCircle className="w-12 h-12 mx-auto text-[var(--danger)]" />
           <h1 className="text-2xl font-semibold text-[var(--foreground)]">Payment Error</h1>
           <p className="text-[var(--muted-foreground)]">{error}</p>
           <div className="flex gap-3 justify-center">
             <Link
               href="/pricing"
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors"
+              className="px-4 py-2 bg-[var(--brand)] hover:bg-[var(--brand-hover)] text-[var(--brand-foreground)] rounded-md transition-colors"
             >
               Try Again
             </Link>
@@ -100,8 +100,8 @@ function SuccessPageContent() {
   return (
     <div className="min-h-screen bg-[var(--background)] flex items-center justify-center p-4">
       <div className="max-w-md w-full bg-[var(--card)] rounded-lg shadow-lg p-6 text-center space-y-4">
-        <div className="w-12 h-12 mx-auto bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center">
-          <Check className="w-6 h-6 text-green-600 dark:text-green-400" />
+        <div className="w-12 h-12 mx-auto bg-[var(--success-surface)] rounded-full flex items-center justify-center">
+          <Check className="w-6 h-6 text-[var(--success)]" />
         </div>
 
         <h1 className="text-2xl font-semibold text-[var(--foreground)]">
@@ -123,7 +123,7 @@ function SuccessPageContent() {
             </div>
             <div className="flex justify-between">
               <span className="text-[var(--muted-foreground)]">Status:</span>
-              <span className="font-medium text-green-600 dark:text-green-400 capitalize">
+              <span className="font-medium text-[var(--success)] capitalize">
                 {subscriptionDetails.status}
               </span>
             </div>
@@ -139,7 +139,7 @@ function SuccessPageContent() {
         <div className="flex gap-3 justify-center">
           <Link
             href="/app"
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors"
+            className="px-4 py-2 bg-[var(--brand)] hover:bg-[var(--brand-hover)] text-[var(--brand-foreground)] rounded-md transition-colors"
           >
             Start Building
           </Link>
@@ -160,7 +160,7 @@ export default function SuccessPage() {
     <Suspense
       fallback={
         <div className="min-h-screen bg-[var(--background)] flex items-center justify-center">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+          <Loader2 className="w-8 h-8 animate-spin text-[var(--brand)]" />
         </div>
       }
     >

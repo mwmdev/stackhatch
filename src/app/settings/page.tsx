@@ -492,14 +492,14 @@ export default function SettingsPage() {
                 </h2>
                 {hasAnthropicKey ? (
                   <span
-                    className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                    className="inline-flex items-center gap-1 rounded-full border border-[var(--success-border)] bg-[var(--success-surface)] px-2 py-0.5 text-xs font-medium text-[var(--success)]"
                     data-testid="key-status-set"
                   >
                     Set
                   </span>
                 ) : (
                   <span
-                    className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                    className="inline-flex items-center gap-1 rounded-full border border-[var(--danger-border)] bg-[var(--danger-surface)] px-2 py-0.5 text-xs font-medium text-[var(--danger)]"
                     data-testid="key-status-missing"
                   >
                     Missing
@@ -531,12 +531,12 @@ export default function SettingsPage() {
                   onChange={(e) => setApiKey(e.target.value)}
                   placeholder="sk-ant-..."
                   autoComplete="off"
-                  className="min-h-11 flex-1 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
+                  className="min-h-11 flex-1 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
                 />
                 <button
                   onClick={handleSaveApiKey}
                   disabled={savingApiKey || !apiKey.trim()}
-                  className="min-h-11 rounded-md bg-[var(--color-client)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+                  className="min-h-11 rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-medium text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)] disabled:opacity-50"
                 >
                   {savingApiKey ? "Saving..." : "Save key"}
                 </button>
@@ -582,11 +582,11 @@ export default function SettingsPage() {
                   </p>
                 </div>
               ) : (
-                <div className="flex gap-2">
+                <div className="flex flex-col gap-2 sm:flex-row">
                   <select
                     value={model}
                     onChange={(e) => setModel(e.target.value)}
-                    className="flex-1 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
+                    className="flex-1 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
                     aria-label="Claude Model"
                   >
                     {VALID_MODELS.map((m) => (
@@ -598,7 +598,7 @@ export default function SettingsPage() {
                   <button
                     onClick={handleSaveModel}
                     disabled={saving}
-                    className="rounded-md bg-[var(--color-client)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+                    className="min-h-11 rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-medium text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)] disabled:opacity-50"
                   >
                     {saving ? "Saving..." : "Save"}
                   </button>
@@ -619,7 +619,7 @@ export default function SettingsPage() {
                     onClick={() => handleThemeChange(t)}
                     className={`rounded-md border px-4 py-2 text-sm font-medium capitalize transition-colors ${
                       currentTheme === t
-                        ? "border-[var(--color-client)] bg-[var(--color-client)] text-white"
+                        ? "border-[var(--color-client)] bg-[var(--brand)] text-[var(--brand-foreground)]"
                         : "border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--muted)]"
                     }`}
                     aria-label={`Theme ${t}`}
@@ -651,7 +651,7 @@ export default function SettingsPage() {
                         {billing.billingInterval}
                       </span>
                       {billing.billingInterval === "monthly" && (
-                        <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                        <span className="rounded-full border border-[var(--success-border)] bg-[var(--success-surface)] px-2 py-0.5 text-xs font-medium text-[var(--success)]">
                           Save ~21% with annual
                         </span>
                       )}
@@ -673,10 +673,10 @@ export default function SettingsPage() {
                       <span
                         className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
                           billing.status === "active"
-                            ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                            ? "border border-[var(--success-border)] bg-[var(--success-surface)] text-[var(--success)]"
                             : billing.status === "past_due"
-                              ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
-                              : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                              ? "border border-[var(--warning-border)] bg-[var(--warning-surface)] text-[var(--warning)]"
+                              : "border border-[var(--danger-border)] bg-[var(--danger-surface)] text-[var(--danger)]"
                         }`}
                       >
                         {billing.status === "past_due"
@@ -716,7 +716,7 @@ export default function SettingsPage() {
                         </button>
                         <button
                           onClick={() => setShowCancelConfirm(true)}
-                          className="rounded-md border border-red-300 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20"
+                          className="rounded-md border border-[var(--danger-border)] px-4 py-2 text-sm font-medium text-[var(--danger)] hover:bg-[var(--danger-surface)]"
                         >
                           Cancel Subscription
                         </button>
@@ -726,7 +726,7 @@ export default function SettingsPage() {
                       <button
                         onClick={handleReactivate}
                         disabled={canceling}
-                        className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+                        className="rounded-md bg-[var(--success)] px-4 py-2 text-sm font-medium text-[var(--success-foreground)] hover:opacity-90 disabled:opacity-50"
                       >
                         {canceling ? "Reactivating..." : "Reactivate Subscription"}
                       </button>
@@ -748,7 +748,7 @@ export default function SettingsPage() {
 
                 {/* Cancel Confirmation Dialog */}
                 {showCancelConfirm && (
-                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay)]">
                     <div className="mx-4 max-w-md rounded-lg bg-[var(--card)] p-6 shadow-xl">
                       <h3 className="mb-2 text-lg font-semibold text-[var(--card-foreground)]">
                         Cancel Subscription?
@@ -771,7 +771,7 @@ export default function SettingsPage() {
                         <button
                           onClick={handleCancelSubscription}
                           disabled={canceling}
-                          className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                          className="rounded-md bg-[var(--danger)] px-4 py-2 text-sm font-medium text-[var(--danger-foreground)] hover:bg-[var(--danger-hover)] disabled:opacity-50"
                         >
                           {canceling ? "Canceling..." : "Yes, Cancel"}
                         </button>
@@ -782,7 +782,7 @@ export default function SettingsPage() {
 
                 {/* Change Plan Dialog */}
                 {showChangePlan && (
-                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay)]">
                     <div className="mx-4 max-w-md rounded-lg bg-[var(--card)] p-6 shadow-xl">
                       <h3 className="mb-4 text-lg font-semibold text-[var(--card-foreground)]">
                         Change Plan
@@ -800,7 +800,7 @@ export default function SettingsPage() {
                               disabled={changingPlan || isCurrent}
                               className={`flex w-full items-center justify-between rounded-md border px-4 py-3 text-left text-sm font-medium transition-colors ${
                                 isCurrent
-                                  ? "border-[var(--color-client)] bg-[var(--color-client)]/10 text-[var(--foreground)]"
+                                  ? "border-[var(--color-client)] bg-[var(--brand)]/10 text-[var(--foreground)]"
                                   : "border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--muted)] disabled:opacity-50"
                               }`}
                             >
@@ -853,8 +853,11 @@ export default function SettingsPage() {
                       <div key={category} className="rounded border border-[var(--border)] p-4">
                         <div className="mb-2 flex items-center gap-2">
                           <span
-                            className="inline-block rounded-full px-2 py-0.5 text-xs font-medium text-white"
-                            style={{ backgroundColor: config.color }}
+                            className="inline-block rounded-full px-2 py-0.5 text-xs font-medium"
+                            style={{
+                              backgroundColor: config.fill,
+                              color: config.foreground,
+                            }}
                           >
                             {config.displayName}
                           </span>
@@ -876,12 +879,12 @@ export default function SettingsPage() {
                             {customEntries.map((entry) => (
                               <span
                                 key={entry.slug}
-                                className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                                className="inline-flex items-center gap-1 rounded-full border border-[var(--brand)]/30 bg-[var(--brand)]/10 px-2 py-0.5 text-xs font-medium text-[var(--brand)]"
                               >
                                 {entry.displayName}
                                 <button
                                   onClick={() => handleRemoveSubtype(category, entry.slug)}
-                                  className="ml-0.5 hover:text-red-500"
+                                  className="ml-0.5 hover:text-[var(--danger)]"
                                   aria-label={`Remove ${entry.displayName}`}
                                 >
                                   &times;
@@ -891,7 +894,7 @@ export default function SettingsPage() {
                           </div>
                         )}
                         {/* Add form */}
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <input
                             type="text"
                             placeholder="slug"
@@ -902,7 +905,7 @@ export default function SettingsPage() {
                                 [category]: { ...form, slug: e.target.value },
                               }))
                             }
-                            className="w-24 rounded border border-[var(--border)] bg-[var(--background)] px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--color-client)]"
+                            className="w-24 rounded border border-[var(--border)] bg-[var(--background)] px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--ring)]"
                           />
                           <input
                             type="text"
@@ -914,7 +917,7 @@ export default function SettingsPage() {
                                 [category]: { ...form, displayName: e.target.value },
                               }))
                             }
-                            className="flex-1 rounded border border-[var(--border)] bg-[var(--background)] px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--color-client)]"
+                            className="min-w-36 flex-1 rounded border border-[var(--border)] bg-[var(--background)] px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--ring)]"
                           />
                           <input
                             type="text"
@@ -926,12 +929,12 @@ export default function SettingsPage() {
                                 [category]: { ...form, icon: e.target.value },
                               }))
                             }
-                            className="w-20 rounded border border-[var(--border)] bg-[var(--background)] px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--color-client)]"
+                            className="w-20 rounded border border-[var(--border)] bg-[var(--background)] px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--ring)]"
                           />
                           <button
                             onClick={() => handleAddSubtype(category)}
                             disabled={!form.slug || !form.displayName}
-                            className="rounded bg-[var(--color-client)] px-2 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
+                            className="rounded bg-[var(--brand)] px-2 py-1 text-xs font-medium text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)] disabled:opacity-50"
                           >
                             Add
                           </button>
@@ -1005,13 +1008,13 @@ export default function SettingsPage() {
                               setPrompts((prev) => ({ ...prev, [key]: e.target.value }))
                             }
                             rows={12}
-                            className="w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
+                            className="w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
                           />
                           <div className="mt-3 flex gap-2">
                             <button
                               onClick={() => handleSavePrompt(key)}
                               disabled={savingPrompt === key}
-                              className="rounded-md bg-[var(--color-client)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+                              className="rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-medium text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)] disabled:opacity-50"
                             >
                               {savingPrompt === key ? "Saving..." : "Save"}
                             </button>
@@ -1037,8 +1040,10 @@ export default function SettingsPage() {
       {/* Toast */}
       {toast && (
         <div
-          className={`fixed bottom-6 right-6 rounded-lg px-4 py-3 text-sm font-medium text-white shadow-lg transition-opacity ${
-            toast.type === "success" ? "bg-green-600" : "bg-red-600"
+          className={`fixed bottom-6 right-6 rounded-lg px-4 py-3 text-sm font-medium shadow-lg transition-opacity ${
+            toast.type === "success"
+              ? "bg-[var(--success)] text-[var(--success-foreground)]"
+              : "bg-[var(--danger)] text-[var(--danger-foreground)]"
           }`}
           data-testid="toast"
           role="status"

@@ -205,7 +205,7 @@ export default function TeamPage() {
             <ThemeToggle />
           </div>
         </header>
-        <main className="mx-auto max-w-3xl px-6 py-12 text-center text-red-500">
+        <main className="mx-auto max-w-3xl px-6 py-12 text-center text-[var(--danger)]">
           {error || "Team not found"}
         </main>
       </div>
@@ -231,8 +231,8 @@ export default function TeamPage() {
           <div
             className={`fixed right-6 top-6 z-50 rounded-lg px-4 py-3 text-sm font-medium shadow-lg ${
               toast.type === "success"
-                ? "bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/30"
-                : "bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/30"
+                ? "bg-[var(--success-surface)] text-[var(--success)] border border-[var(--success-border)]"
+                : "bg-[var(--danger-surface)] text-[var(--danger)] border border-[var(--danger-border)]"
             }`}
           >
             {toast.message}
@@ -249,7 +249,7 @@ export default function TeamPage() {
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
                   autoFocus
-                  className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-1 text-2xl font-bold focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
+                  className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-1 text-2xl font-bold focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
                   onKeyDown={(e) => {
                     if (e.key === "Escape") setEditingName(false);
                   }}
@@ -257,7 +257,7 @@ export default function TeamPage() {
                 <button
                   type="submit"
                   disabled={renaming}
-                  className="rounded-lg bg-[var(--color-client)] px-3 py-1 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                  className="rounded-lg bg-[var(--brand)] px-3 py-1 text-sm font-medium text-[var(--brand-foreground)] transition-opacity hover:bg-[var(--brand-hover)] disabled:opacity-50"
                 >
                   {renaming ? "Saving..." : "Save"}
                 </button>
@@ -330,7 +330,7 @@ export default function TeamPage() {
                 {team.isOwner && member.role !== "owner" && (
                   <button
                     onClick={() => handleRemoveMember(member.userId, member.name)}
-                    className="rounded px-2 py-1 text-xs text-red-500 transition-colors hover:bg-red-500/10"
+                    className="rounded px-2 py-1 text-xs text-[var(--danger)] transition-colors hover:bg-[var(--danger-surface)]"
                   >
                     Remove
                   </button>
@@ -350,12 +350,12 @@ export default function TeamPage() {
                 value={inviteEmail}
                 onChange={(e) => setInviteEmail(e.target.value)}
                 placeholder="colleague@example.com"
-                className="flex-1 rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
+                className="flex-1 rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
               />
               <button
                 type="submit"
                 disabled={inviting || !inviteEmail.trim()}
-                className="rounded-lg bg-[var(--color-client)] px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                className="rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-medium text-[var(--brand-foreground)] transition-opacity hover:bg-[var(--brand-hover)] disabled:opacity-50"
               >
                 {inviting ? "Sending..." : "Send Invite"}
               </button>
@@ -378,7 +378,7 @@ export default function TeamPage() {
                       </div>
                       <button
                         onClick={() => handleRevokeInvite(invite.id)}
-                        className="rounded px-2 py-1 text-xs text-red-500 transition-colors hover:bg-red-500/10"
+                        className="rounded px-2 py-1 text-xs text-[var(--danger)] transition-colors hover:bg-[var(--danger-surface)]"
                       >
                         Revoke
                       </button>

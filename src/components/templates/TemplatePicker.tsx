@@ -91,7 +91,7 @@ export default function TemplatePicker({ onSelectTemplate, onCancel }: TemplateP
       const categories = new Set(parsed.nodes?.map((n: any) => n.category) || []);
       const categoryList = Array.from(categories).slice(0, 3).join(", ");
 
-      return `${nodeCount} node${nodeCount !== 1 ? 's' : ''}, ${edgeCount} connection${edgeCount !== 1 ? 's' : ''}\nIncludes: ${categoryList}`;
+      return `${nodeCount} node${nodeCount !== 1 ? "s" : ""}, ${edgeCount} connection${edgeCount !== 1 ? "s" : ""}\nIncludes: ${categoryList}`;
     } catch {
       return "Invalid template data";
     }
@@ -99,11 +99,12 @@ export default function TemplatePicker({ onSelectTemplate, onCancel }: TemplateP
 
   if (teams.length === 0) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay)]">
         <div className="w-96 rounded-lg bg-[var(--card)] p-6 shadow-xl">
           <h3 className="mb-4 text-lg font-semibold">Start from Template</h3>
           <p className="mb-4 text-[var(--muted-foreground)]">
-            Templates are only available for team projects. Join a team or upgrade to access shared templates.
+            Templates are only available for team projects. Join a team or upgrade to access shared
+            templates.
           </p>
           <div className="flex justify-end">
             <button
@@ -119,7 +120,7 @@ export default function TemplatePicker({ onSelectTemplate, onCancel }: TemplateP
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay)]">
       <div className="w-[600px] max-h-[80vh] rounded-lg bg-[var(--card)] shadow-xl overflow-hidden flex flex-col">
         <div className="p-6 border-b border-[var(--border)]">
           <h3 className="mb-4 text-lg font-semibold">Start from Template</h3>
@@ -133,7 +134,7 @@ export default function TemplatePicker({ onSelectTemplate, onCancel }: TemplateP
               id="team-select"
               value={selectedTeamId}
               onChange={(e) => setSelectedTeamId(e.target.value)}
-              className="w-full rounded border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
+              className="w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
             >
               {teams.map((team) => (
                 <option key={team.id} value={team.id}>
@@ -149,7 +150,7 @@ export default function TemplatePicker({ onSelectTemplate, onCancel }: TemplateP
           {loading ? (
             <div className="text-center text-[var(--muted-foreground)]">Loading templates...</div>
           ) : error ? (
-            <div className="text-center text-red-500">{error}</div>
+            <div className="text-center text-[var(--danger)]">{error}</div>
           ) : templates.length === 0 ? (
             <div className="text-center text-[var(--muted-foreground)]">
               No templates available for this team.

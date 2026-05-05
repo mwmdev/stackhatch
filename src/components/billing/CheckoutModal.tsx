@@ -83,7 +83,7 @@ export default function CheckoutModal({
       <div className="flex min-h-screen items-center justify-center p-4">
         <button
           type="button"
-          className="fixed inset-0 cursor-default bg-black/50"
+          className="fixed inset-0 cursor-default bg-[var(--overlay)]"
           onClick={handleClose}
           aria-label="Close checkout"
         />
@@ -110,7 +110,7 @@ export default function CheckoutModal({
           </div>
 
           {error && (
-            <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300">
+            <div className="mb-4 rounded-md border border-[var(--danger-border)] bg-[var(--danger-surface)] p-4 text-sm text-[var(--danger)]">
               {error}
             </div>
           )}
@@ -119,7 +119,7 @@ export default function CheckoutModal({
             type="button"
             onClick={handleCheckout}
             disabled={isLoading}
-            className="flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-[var(--color-client)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-client-hover)] disabled:opacity-50"
+            className="flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-medium text-[var(--brand-foreground)] transition-colors hover:bg-[var(--brand-hover)] disabled:opacity-50"
           >
             {isLoading ? (
               <>

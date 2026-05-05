@@ -23,14 +23,14 @@ export default function UpgradePrompt({
 
   if (variant === "modal") {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay)]">
         <div
           role="dialog"
           aria-modal="true"
           aria-labelledby="upgrade-title"
           className="mx-4 w-full max-w-sm rounded-xl bg-[var(--card)] p-6 shadow-xl"
         >
-          <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30">
+          <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-[var(--warning-surface)]">
             <svg
               width="20"
               height="20"
@@ -38,7 +38,7 @@ export default function UpgradePrompt({
               fill="none"
               stroke="currentColor"
               strokeWidth="2"
-              className="text-amber-600 dark:text-amber-400"
+              className="text-[var(--warning)]"
             >
               <path d="M12 2L2 7l10 5 10-5-10-5z" />
               <path d="M2 17l10 5 10-5" />
@@ -60,7 +60,7 @@ export default function UpgradePrompt({
             )}
             <Link
               href="/pricing"
-              className="inline-flex min-h-11 items-center rounded-md bg-[var(--color-client)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--color-client-hover)]"
+              className="inline-flex min-h-11 items-center rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-medium text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)]"
             >
               View Plans
             </Link>
@@ -72,7 +72,7 @@ export default function UpgradePrompt({
 
   // Inline banner variant
   return (
-    <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-800 dark:bg-amber-950/50">
+    <div className="rounded-lg border border-[var(--warning-border)] bg-[var(--warning-surface)] px-4 py-3">
       <div className="flex items-start gap-3">
         <svg
           width="16"
@@ -81,17 +81,17 @@ export default function UpgradePrompt({
           fill="none"
           stroke="currentColor"
           strokeWidth="2"
-          className="mt-0.5 flex-shrink-0 text-amber-600 dark:text-amber-400"
+          className="mt-0.5 flex-shrink-0 text-[var(--warning)]"
         >
           <path d="M12 2L2 7l10 5 10-5-10-5z" />
           <path d="M2 17l10 5 10-5" />
           <path d="M2 12l10 5 10-5" />
         </svg>
         <div className="flex-1">
-          <p className="text-sm text-amber-800 dark:text-amber-200">{text}</p>
+          <p className="text-sm text-[var(--foreground)]">{text}</p>
           <Link
             href="/pricing"
-            className="mt-1 inline-block text-sm font-medium text-amber-700 underline hover:text-amber-900 dark:text-amber-300 dark:hover:text-amber-100"
+            className="mt-1 inline-block text-sm font-medium text-[var(--warning)] underline hover:text-[var(--foreground)]"
           >
             View Plans
           </Link>
@@ -99,7 +99,7 @@ export default function UpgradePrompt({
         {onDismiss && (
           <button
             onClick={onDismiss}
-            className="flex-shrink-0 text-amber-500 hover:text-amber-700 dark:hover:text-amber-300"
+            className="flex-shrink-0 text-[var(--warning)] hover:text-[var(--foreground)]"
             aria-label="Dismiss"
           >
             <svg

@@ -93,7 +93,7 @@ export default function InvitePage() {
               <p className="mb-6 text-sm text-[var(--muted-foreground)]">{error}</p>
               <Link
                 href="/"
-                className="inline-block rounded-lg bg-[var(--color-client)] px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90"
+                className="inline-block rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-medium text-[var(--brand-foreground)] transition-opacity hover:bg-[var(--brand-hover)]"
               >
                 Go to StackHatch
               </Link>
@@ -111,7 +111,7 @@ export default function InvitePage() {
               </p>
               <button
                 onClick={() => router.push("/app")}
-                className="rounded-lg bg-[var(--color-client)] px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90"
+                className="rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-medium text-[var(--brand-foreground)] transition-opacity hover:bg-[var(--brand-hover)]"
               >
                 Go to Dashboard
               </button>
@@ -129,7 +129,7 @@ export default function InvitePage() {
               <p className="mb-6 text-xl font-bold">{invite.team?.name}</p>
 
               {needsAuth && (
-                <div className="mb-4 rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-3 text-sm text-yellow-600 dark:text-yellow-400">
+                <div className="mb-4 rounded-lg border border-[var(--warning-border)] bg-[var(--warning-surface)] p-3 text-sm text-[var(--warning)]">
                   Please sign in with GitHub first, then revisit this link.
                 </div>
               )}
@@ -149,7 +149,7 @@ export default function InvitePage() {
                 <button
                   onClick={handleAccept}
                   disabled={state === "accepting"}
-                  className="flex-1 rounded-lg bg-[var(--color-client)] px-4 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                  className="flex-1 rounded-lg bg-[var(--brand)] px-4 py-2.5 text-sm font-medium text-[var(--brand-foreground)] transition-opacity hover:bg-[var(--brand-hover)] disabled:opacity-50"
                 >
                   {state === "accepting" ? "Joining..." : "Accept Invite"}
                 </button>

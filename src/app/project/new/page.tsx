@@ -108,7 +108,7 @@ export default function NewProjectPage() {
               <button
                 type="button"
                 onClick={() => setSelectedTemplate(null)}
-                className="text-xs text-red-500 hover:underline"
+                className="text-xs text-[var(--danger)] hover:underline"
               >
                 Remove
               </button>
@@ -123,7 +123,7 @@ export default function NewProjectPage() {
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
             <label htmlFor="name" className="mb-1 block text-sm font-medium">
-              Project Name <span className="text-red-500">*</span>
+              Project Name <span className="text-[var(--danger)]">*</span>
             </label>
             <input
               id="name"
@@ -131,7 +131,7 @@ export default function NewProjectPage() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="My App Architecture"
-              className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-4 py-2 text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
+              className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-4 py-2 text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
               autoFocus
             />
           </div>
@@ -146,7 +146,7 @@ export default function NewProjectPage() {
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Brief description of what you're building..."
               rows={3}
-              className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-4 py-2 text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
+              className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-4 py-2 text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
             />
           </div>
 
@@ -161,7 +161,7 @@ export default function NewProjectPage() {
               value={repoUrl}
               onChange={(e) => setRepoUrl(e.target.value)}
               placeholder="https://github.com/owner/repo"
-              className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-4 py-2 text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
+              className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-4 py-2 text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
             />
             <p className="mt-1 text-xs text-[var(--muted-foreground)]">
               Public GitHub repos only. The AI will analyze the repo and generate an architecture.
@@ -169,7 +169,7 @@ export default function NewProjectPage() {
           </div>
 
           {error && (
-            <p className="text-sm text-red-500" role="alert">
+            <p className="text-sm text-[var(--danger)]" role="alert">
               {error}
             </p>
           )}
@@ -177,7 +177,7 @@ export default function NewProjectPage() {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full rounded-lg bg-[var(--color-client)] px-4 py-2 font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+            className="w-full rounded-lg bg-[var(--brand)] px-4 py-2 font-medium text-[var(--brand-foreground)] transition-opacity hover:bg-[var(--brand-hover)] disabled:opacity-50"
           >
             {submitting ? "Creating..." : "Create Project"}
           </button>

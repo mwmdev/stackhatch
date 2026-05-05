@@ -87,8 +87,8 @@ function StackNodeComponent({ id, data, selected }: NodeProps<StackNodeData>) {
 
   return (
     <div
-      className={`stack-node group relative rounded-xl border-2 bg-[var(--card)] text-[var(--card-foreground)] shadow-md hover:shadow-lg ${
-        selected ? "ring-2 ring-blue-500" : ""
+      className={`stack-node group relative rounded-lg border-2 bg-[var(--card)] text-[var(--card-foreground)] shadow-md shadow-[var(--shadow-color)] hover:shadow-lg ${
+        selected ? "ring-2 ring-[var(--ring)]" : ""
       } ${data.locked ? "border border-dashed border-[var(--muted-foreground)]" : ""}`}
       style={{
         borderColor: catConfig.color,
@@ -118,7 +118,7 @@ function StackNodeComponent({ id, data, selected }: NodeProps<StackNodeData>) {
       {/* Comment count badge */}
       {(data.commentCount ?? 0) > 0 && (
         <button
-          className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--color-client)] px-1 text-[10px] font-bold text-white shadow-sm hover:opacity-80"
+          className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--brand)] px-1 text-[10px] font-bold text-[var(--brand-foreground)] shadow-sm hover:opacity-80"
           onClick={(e) => {
             e.stopPropagation();
             data.onCommentBadgeClick?.(id);
@@ -136,7 +136,7 @@ function StackNodeComponent({ id, data, selected }: NodeProps<StackNodeData>) {
         <div className="flex items-center gap-2">
           <div
             className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded"
-            style={{ backgroundColor: catConfig.color, color: "white" }}
+            style={{ backgroundColor: catConfig.fill, color: catConfig.foreground }}
           >
             <DynamicIcon name={iconName} size={14} />
           </div>
@@ -149,7 +149,7 @@ function StackNodeComponent({ id, data, selected }: NodeProps<StackNodeData>) {
             {containsHtml(data.technology) ? (
               <span
                 dangerouslySetInnerHTML={{ __html: sanitizeHtml(data.technology) }}
-                className="[&_a]:text-blue-500 [&_a]:underline"
+                className="[&_a]:text-[var(--link)] [&_a]:underline"
               />
             ) : (
               data.technology
@@ -160,8 +160,8 @@ function StackNodeComponent({ id, data, selected }: NodeProps<StackNodeData>) {
         {/* Category badge */}
         <div className="mt-2">
           <span
-            className="inline-block rounded-full px-2 py-0.5 text-[10px] font-medium text-white"
-            style={{ backgroundColor: catConfig.color }}
+            className="inline-block rounded-full px-2 py-0.5 text-[10px] font-medium"
+            style={{ backgroundColor: catConfig.fill, color: catConfig.foreground }}
           >
             {catConfig.displayName}
           </span>
@@ -188,7 +188,7 @@ function StackNodeComponent({ id, data, selected }: NodeProps<StackNodeData>) {
           {containsHtml(description) ? (
             <div
               dangerouslySetInnerHTML={{ __html: sanitizeHtml(description) }}
-              className="[&_a]:text-blue-500 [&_a]:underline [&_code]:rounded [&_code]:bg-[var(--muted)] [&_code]:px-1"
+              className="[&_a]:text-[var(--link)] [&_a]:underline [&_code]:rounded [&_code]:bg-[var(--muted)] [&_code]:px-1"
             />
           ) : (
             description
@@ -231,7 +231,7 @@ function StackNodeComponent({ id, data, selected }: NodeProps<StackNodeData>) {
             Add Comment
           </button>
           <button
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-red-500 hover:bg-[var(--muted)]"
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--danger)] hover:bg-[var(--danger-surface)]"
             onClick={(e) => {
               e.stopPropagation();
               data.onDelete?.(id);

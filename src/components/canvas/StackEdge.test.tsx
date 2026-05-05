@@ -6,10 +6,7 @@ import type { StackEdgeData } from "./StackEdge";
 import type { ConnectionType } from "@/types/stack";
 import { Position } from "reactflow";
 
-function makeProps(
-  dataOverrides: Partial<StackEdgeData> = {},
-  selected = false,
-) {
+function makeProps(dataOverrides: Partial<StackEdgeData> = {}, selected = false) {
   return {
     id: "edge-1",
     source: "node-a",
@@ -29,24 +26,19 @@ function makeProps(
   } as Parameters<typeof StackEdgeComponent>[0];
 }
 
-function renderEdge(
-  dataOverrides: Partial<StackEdgeData> = {},
-  selected = false,
-) {
+function renderEdge(dataOverrides: Partial<StackEdgeData> = {}, selected = false) {
   return render(
     <ReactFlowProvider>
       <svg>
         <StackEdgeComponent {...makeProps(dataOverrides, selected)} />
       </svg>
-    </ReactFlowProvider>,
+    </ReactFlowProvider>
   );
 }
 
 // BaseEdge renders style as inline CSS, so we check via element.style
 function getEdgePath(container: HTMLElement) {
-  return container.querySelector(
-    ".react-flow__edge-path",
-  ) as SVGPathElement | null;
+  return container.querySelector(".react-flow__edge-path") as SVGPathElement | null;
 }
 
 describe("StackEdge", () => {
@@ -57,47 +49,47 @@ describe("StackEdge", () => {
     expect(path?.style.stroke).toBe(edgeStyles.http.color);
   });
 
-  it("renders solid blue line for http", () => {
+  it("renders solid http line", () => {
     const { container } = renderEdge({ connectionType: "http" });
     const path = getEdgePath(container);
-    expect(path?.style.stroke).toBe("#3B82F6");
+    expect(path?.style.stroke).toBe(edgeStyles.http.color);
     expect(path?.style.strokeDasharray).toBe("0");
     expect(path?.style.strokeWidth).toBe("2");
   });
 
-  it("renders dashed green line for websocket", () => {
+  it("renders dashed websocket line", () => {
     const { container } = renderEdge({ connectionType: "websocket" });
     const path = getEdgePath(container);
-    expect(path?.style.stroke).toBe("#10B981");
+    expect(path?.style.stroke).toBe(edgeStyles.websocket.color);
     expect(path?.style.strokeDasharray).toBe("8 4");
   });
 
-  it("renders solid purple thicker line for grpc", () => {
+  it("renders solid thicker grpc line", () => {
     const { container } = renderEdge({ connectionType: "grpc" });
     const path = getEdgePath(container);
-    expect(path?.style.stroke).toBe("#8B5CF6");
+    expect(path?.style.stroke).toBe(edgeStyles.grpc.color);
     expect(path?.style.strokeDasharray).toBe("0");
     expect(path?.style.strokeWidth).toBe("3");
   });
 
-  it("renders dotted gray line for tcp", () => {
+  it("renders dotted tcp line", () => {
     const { container } = renderEdge({ connectionType: "tcp" });
     const path = getEdgePath(container);
-    expect(path?.style.stroke).toBe("#6B7280");
+    expect(path?.style.stroke).toBe(edgeStyles.tcp.color);
     expect(path?.style.strokeDasharray).toBe("4 4");
   });
 
-  it("renders dash-dot orange line for pub-sub", () => {
+  it("renders dash-dot pub-sub line", () => {
     const { container } = renderEdge({ connectionType: "pub-sub" });
     const path = getEdgePath(container);
-    expect(path?.style.stroke).toBe("#F97316");
+    expect(path?.style.stroke).toBe(edgeStyles["pub-sub"].color);
     expect(path?.style.strokeDasharray).toBe("12 4 4 4");
   });
 
-  it("renders dotted brown line for file-io", () => {
+  it("renders dotted file-io line", () => {
     const { container } = renderEdge({ connectionType: "file-io" });
     const path = getEdgePath(container);
-    expect(path?.style.stroke).toBe("#92400E");
+    expect(path?.style.stroke).toBe(edgeStyles["file-io"].color);
     expect(path?.style.strokeDasharray).toBe("4 4");
   });
 
@@ -121,10 +113,10 @@ describe("StackEdge", () => {
         <svg>
           <StackEdgeComponent {...props} />
         </svg>
-      </ReactFlowProvider>,
+      </ReactFlowProvider>
     );
     const path = getEdgePath(container);
-    expect(path?.style.stroke).toBe("#3B82F6");
+    expect(path?.style.stroke).toBe(edgeStyles.http.color);
   });
 
   it("has marker-end attribute for arrow direction", () => {

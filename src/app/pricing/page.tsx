@@ -49,7 +49,7 @@ export default function PricingPage() {
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
       <header className="border-b border-[var(--border)]">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-4">
-          <Link href="/" className="text-lg font-bold tracking-tight">
+          <Link href="/" className="font-display text-xl font-extrabold tracking-tight">
             StackHatch
           </Link>
           <Link
@@ -64,11 +64,11 @@ export default function PricingPage() {
       <main className="mx-auto max-w-6xl px-6 py-12">
         <div className="grid gap-8 lg:grid-cols-[1fr_360px] lg:items-end">
           <div>
-            <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--color-client)]">
+            <p className="mb-3 text-sm font-bold uppercase tracking-[0.16em] text-[var(--color-data)]">
               Pricing
             </p>
-            <h1 className="max-w-3xl text-4xl font-bold tracking-tight md:text-5xl">
-              Bring your own key on every plan. Upgrade for limits, exports, and collaboration.
+            <h1 className="font-display max-w-3xl text-4xl font-extrabold tracking-tight md:text-5xl">
+              Start with your own key. Upgrade when the architecture needs a handoff.
             </h1>
             <p className="mt-5 max-w-2xl text-lg leading-8 text-[var(--muted-foreground)]">
               Every tier uses your Anthropic account for AI. Paid plans add deeper exports,
@@ -77,7 +77,7 @@ export default function PricingPage() {
             </p>
           </div>
 
-          <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-2">
+          <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-2 shadow-sm shadow-[var(--shadow-color)]">
             <div className="grid grid-cols-2 gap-1">
               {(["monthly", "annual"] as const).map((interval) => (
                 <button
@@ -110,7 +110,9 @@ export default function PricingPage() {
               <section
                 key={plan.key}
                 className={`flex min-w-0 flex-col rounded-lg border bg-[var(--card)] p-6 ${
-                  isFeatured ? "border-[var(--color-client)] shadow-lg" : "border-[var(--border)]"
+                  isFeatured
+                    ? "border-[var(--accent)] shadow-lg shadow-[var(--shadow-color)]"
+                    : "border-[var(--border)]"
                 }`}
               >
                 <div className="flex items-start justify-between gap-4">
@@ -124,8 +126,8 @@ export default function PricingPage() {
                     </p>
                   </div>
                   {isFeatured && (
-                    <span className="rounded-full bg-[var(--color-client)] px-3 py-1 text-xs font-semibold text-white">
-                      Best entry
+                    <span className="rounded-full bg-[var(--accent)] px-3 py-1 text-xs font-bold text-[var(--accent-foreground)]">
+                      Builder pick
                     </span>
                   )}
                 </div>
@@ -147,7 +149,7 @@ export default function PricingPage() {
                 <ul className="mt-6 flex-1 space-y-3">
                   {plan.bullets.map((feature) => (
                     <li key={feature} className="flex min-w-0 items-start gap-3 text-sm">
-                      <Check className="mt-0.5 h-4 w-4 flex-none text-green-600" />
+                      <Check className="mt-0.5 h-4 w-4 flex-none text-[var(--success)]" />
                       <span className="min-w-0 text-[var(--foreground)]">{feature}</span>
                     </li>
                   ))}
@@ -171,7 +173,7 @@ export default function PricingPage() {
                       interval={billingInterval}
                       className={`flex min-h-11 w-full items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition-colors ${
                         isFeatured
-                          ? "bg-[var(--color-client)] text-white hover:bg-[var(--color-client-hover)]"
+                          ? "bg-[var(--brand)] text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)]"
                           : "bg-[var(--foreground)] text-[var(--background)] hover:opacity-90"
                       }`}
                     >

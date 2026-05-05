@@ -12,14 +12,17 @@ describe("LandingPage", () => {
 
     expect(
       screen.getByRole("heading", {
-        name: /StackHatch turns codebases and ideas into architecture you can ship/i,
+        name: /StackHatch maps your architecture before the build hardens/i,
       })
     ).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Start free with BYOK/i })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /Open the workspace/i })).toHaveAttribute(
       "href",
       "/login?callbackUrl=/app"
     );
-    expect(screen.getByRole("link", { name: /View pricing/i })).toHaveAttribute("href", "/pricing");
+    expect(screen.getByRole("link", { name: /Compare plans/i })).toHaveAttribute(
+      "href",
+      "/pricing"
+    );
   });
 
   it("shows real app screencasts for the three strongest product workflows", () => {
@@ -27,18 +30,18 @@ describe("LandingPage", () => {
 
     expect(
       screen.getByRole("heading", {
-        name: /Three short recordings of StackHatch in use/i,
+        name: /Three decisions, one shared map/i,
       })
     ).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /Repo to architecture map/i })).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: /Change the stack without losing decisions/i })
+      screen.getByRole("heading", { name: /Start from the system that already exists/i })
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: /Compare alternatives and export the plan/i })
+      screen.getByRole("heading", { name: /Ask for changes without losing approved decisions/i })
     ).toBeInTheDocument();
-    expect(screen.getAllByRole("img", { name: /Real StackHatch screencast showing/i })).toHaveLength(
-      3
-    );
+    expect(
+      screen.getByRole("heading", { name: /Leave with a diagram, alternatives, and a PRD/i })
+    ).toBeInTheDocument();
+    expect(screen.getAllByRole("img", { name: /StackHatch screencast showing/i })).toHaveLength(3);
   });
 });

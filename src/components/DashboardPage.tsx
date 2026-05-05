@@ -250,7 +250,10 @@ export default function Dashboard() {
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
       <nav className="nav-blur sticky top-0 z-40 border-b border-[var(--border)]">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3">
-          <Link href="/app" className="flex items-center gap-2 text-lg font-bold tracking-tight">
+          <Link
+            href="/app"
+            className="font-display flex items-center gap-2 text-xl font-extrabold tracking-tight"
+          >
             <LayoutDashboard className="h-5 w-5 text-[var(--color-client)]" />
             StackHatch
           </Link>
@@ -287,21 +290,21 @@ export default function Dashboard() {
 
       <main className="mx-auto max-w-7xl px-6 py-8">
         <div className="min-w-0 space-y-8">
-          <section className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-6">
+          <section className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm shadow-[var(--shadow-color)]">
             <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-center">
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-[var(--color-client)]">
+                <p className="text-sm font-bold uppercase tracking-[0.14em] text-[var(--color-data)]">
                   Architecture workspace
                 </p>
-                <h1 className="mt-2 max-w-3xl text-3xl font-bold tracking-tight md:text-4xl">
-                  Turn a repo or product brief into a decision-ready architecture map.
+                <h1 className="font-display mt-2 max-w-3xl text-3xl font-extrabold tracking-tight md:text-4xl">
+                  Map the stack before the build hardens.
                 </h1>
                 <p className="mt-4 max-w-2xl text-sm leading-6 text-[var(--muted-foreground)]">
-                  The fastest path to value is a real input: a public GitHub repo, a short PRD, or a
-                  blank project for the architecture assistant.
+                  Start from a public repo, a short PRD, or a blank canvas. Every path lands in the
+                  same editor, where decisions stay visible.
                 </p>
               </div>
-              <div className="rounded-lg border border-[var(--border)] bg-[var(--background)] p-4">
+              <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] p-4">
                 <div className="text-sm font-semibold">{activePlanConfig.name}</div>
                 <p className="mt-1 text-xs text-[var(--muted-foreground)]">
                   {projects.length}/{getProjectLimitLabel(activePlanConfig)} projects used
@@ -309,7 +312,7 @@ export default function Dashboard() {
                 {projectLimit !== "unlimited" && projects.length >= projectLimit && (
                   <Link
                     href="/pricing"
-                    className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-md bg-[var(--color-client)] px-3 py-2 text-sm font-semibold text-white hover:bg-[var(--color-client-hover)]"
+                    className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-md bg-[var(--brand)] px-3 py-2 text-sm font-bold text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)]"
                   >
                     Upgrade plan
                     <ArrowRight className="h-4 w-4" />
@@ -325,7 +328,7 @@ export default function Dashboard() {
           >
             <form
               onSubmit={handleRepoSubmit}
-              className="flex min-w-0 flex-col rounded-lg border border-[var(--border)] bg-[var(--card)] p-5"
+              className="entry-card flex min-w-0 flex-col rounded-lg border border-[var(--border)] bg-[var(--card)] p-5"
             >
               <GitBranch className="h-5 w-5 text-[var(--color-client)]" />
               <h2 className="mt-3 font-semibold">Analyze a repository</h2>
@@ -338,12 +341,12 @@ export default function Dashboard() {
                 onChange={(e) => setRepoUrl(e.target.value)}
                 placeholder="https://github.com/owner/repo"
                 disabled={creating}
-                className="mt-4 w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)] disabled:opacity-50"
+                className="mt-4 w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)] disabled:opacity-50"
               />
               <button
                 type="submit"
                 disabled={creating || !repoUrl.trim()}
-                className="mt-3 min-h-11 rounded-md bg-[var(--color-client)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--color-client-hover)] disabled:opacity-50"
+                className="mt-3 min-h-11 rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-bold text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)] disabled:opacity-50"
               >
                 {creating ? "Creating..." : "Analyze"}
               </button>
@@ -351,7 +354,7 @@ export default function Dashboard() {
 
             <StartOptionSeparator />
 
-            <div className="flex min-w-0 flex-col rounded-lg border border-[var(--border)] bg-[var(--card)] p-5">
+            <div className="entry-card flex min-w-0 flex-col rounded-lg border border-[var(--border)] bg-[var(--card)] p-5">
               <FileText className="h-5 w-5 text-[var(--color-services)]" />
               <h2 className="mt-3 font-semibold">Upload requirements</h2>
               <p className="mt-1 flex-1 text-sm leading-6 text-[var(--muted-foreground)]">
@@ -376,7 +379,7 @@ export default function Dashboard() {
 
             <StartOptionSeparator />
 
-            <div className="flex min-w-0 flex-col rounded-lg border border-[var(--border)] bg-[var(--card)] p-5">
+            <div className="entry-card flex min-w-0 flex-col rounded-lg border border-[var(--border)] bg-[var(--card)] p-5">
               <FolderPlus className="h-5 w-5 text-[var(--color-api)]" />
               <h2 className="mt-3 font-semibold">Start fresh</h2>
               <p className="mt-1 flex-1 text-sm leading-6 text-[var(--muted-foreground)]">
@@ -394,7 +397,7 @@ export default function Dashboard() {
 
           {error && (
             <div
-              className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-200"
+              className="flex items-start gap-3 rounded-lg border border-[var(--danger-border)] bg-[var(--danger-surface)] p-4 text-sm text-[var(--danger)]"
               role="alert"
             >
               <AlertCircle className="mt-0.5 h-4 w-4 flex-none" />
@@ -438,7 +441,7 @@ export default function Dashboard() {
                 {projects.map((project) => (
                   <div
                     key={project.id}
-                    className="group relative min-w-0 rounded-lg border border-[var(--border)] bg-[var(--background)] p-4 transition-shadow hover:shadow-md"
+                    className="group relative min-w-0 rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] p-4 transition-shadow hover:shadow-md hover:shadow-[var(--shadow-color)]"
                   >
                     <button
                       onClick={() => router.push(`/project/${project.id}`)}
@@ -469,7 +472,7 @@ export default function Dashboard() {
                         e.stopPropagation();
                         setDeleteTarget(project);
                       }}
-                      className="absolute right-3 top-3 flex h-11 w-11 items-center justify-center rounded-md text-[var(--muted-foreground)] hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30"
+                      className="absolute right-3 top-3 flex h-11 w-11 items-center justify-center rounded-md text-[var(--muted-foreground)] hover:bg-[var(--danger-surface)] hover:text-[var(--danger)]"
                       title="Delete project"
                       aria-label={`Delete ${project.name}`}
                     >
@@ -485,18 +488,27 @@ export default function Dashboard() {
 
       <footer className="border-t border-[var(--border)] py-6">
         <div className="mx-auto flex max-w-7xl flex-col gap-3 px-6 text-sm text-[var(--muted-foreground)] sm:flex-row sm:items-center sm:justify-between">
-          <span>StackHatch</span>
-          <div className="flex flex-wrap gap-5">
-            <Link href="/support" className="hover:text-[var(--foreground)]">
+          <span className="font-display font-bold">StackHatch</span>
+          <nav aria-label="Footer navigation" className="flex flex-wrap gap-1">
+            <Link
+              href="/support"
+              className="inline-flex min-h-11 items-center rounded-md px-3 hover:text-[var(--foreground)]"
+            >
               Support
             </Link>
-            <Link href="/privacy" className="hover:text-[var(--foreground)]">
+            <Link
+              href="/privacy"
+              className="inline-flex min-h-11 items-center rounded-md px-3 hover:text-[var(--foreground)]"
+            >
               Privacy
             </Link>
-            <Link href="/terms" className="hover:text-[var(--foreground)]">
+            <Link
+              href="/terms"
+              className="inline-flex min-h-11 items-center rounded-md px-3 hover:text-[var(--foreground)]"
+            >
               Terms
             </Link>
-          </div>
+          </nav>
         </div>
       </footer>
 
@@ -510,7 +522,7 @@ export default function Dashboard() {
 
       {deleteTarget && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay)]"
           onClick={() => !deleting && setDeleteTarget(null)}
           data-testid="delete-modal"
         >
@@ -542,7 +554,7 @@ export default function Dashboard() {
               <button
                 onClick={handleDelete}
                 disabled={deleting}
-                className="min-h-11 rounded-md bg-red-600 px-3 py-2 text-sm text-white hover:bg-red-700 disabled:opacity-50"
+                className="min-h-11 rounded-md bg-[var(--danger)] px-3 py-2 text-sm text-[var(--danger-foreground)] hover:bg-[var(--danger-hover)] disabled:opacity-50"
                 data-testid="confirm-delete"
               >
                 {deleting ? "Deleting..." : "Delete"}

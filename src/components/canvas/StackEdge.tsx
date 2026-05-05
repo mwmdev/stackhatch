@@ -13,7 +13,6 @@ export interface StackEdgeData {
 
 export interface EdgeStyleConfig {
   color: string;
-  darkColor: string;
   strokeDasharray: string;
   strokeWidth: number;
   displayName: string;
@@ -21,43 +20,37 @@ export interface EdgeStyleConfig {
 
 export const edgeStyles: Record<ConnectionType, EdgeStyleConfig> = {
   http: {
-    color: "#3B82F6",
-    darkColor: "#60A5FA",
+    color: "var(--edge-http)",
     strokeDasharray: "0",
     strokeWidth: 2,
     displayName: "HTTP",
   },
   websocket: {
-    color: "#10B981",
-    darkColor: "#34D399",
+    color: "var(--edge-websocket)",
     strokeDasharray: "8 4",
     strokeWidth: 2,
     displayName: "WebSocket",
   },
   grpc: {
-    color: "#8B5CF6",
-    darkColor: "#A78BFA",
+    color: "var(--edge-grpc)",
     strokeDasharray: "0",
     strokeWidth: 3,
     displayName: "gRPC",
   },
   tcp: {
-    color: "#6B7280",
-    darkColor: "#9CA3AF",
+    color: "var(--edge-tcp)",
     strokeDasharray: "4 4",
     strokeWidth: 2,
     displayName: "TCP",
   },
   "pub-sub": {
-    color: "#F97316",
-    darkColor: "#FB923C",
+    color: "var(--edge-pub-sub)",
     strokeDasharray: "12 4 4 4",
     strokeWidth: 2,
     displayName: "Pub/Sub",
   },
   "file-io": {
-    color: "#92400E",
-    darkColor: "#D97706",
+    color: "var(--edge-file-io)",
     strokeDasharray: "4 4",
     strokeWidth: 2,
     displayName: "File I/O",

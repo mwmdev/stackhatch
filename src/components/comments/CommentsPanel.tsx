@@ -135,10 +135,9 @@ export default function CommentsPanel({
   };
 
   const handleDelete = async (commentId: string) => {
-    const res = await fetch(
-      `/api/projects/${projectId}/comments/${commentId}`,
-      { method: "DELETE" },
-    );
+    const res = await fetch(`/api/projects/${projectId}/comments/${commentId}`, {
+      method: "DELETE",
+    });
     if (res.ok) {
       setComments((prev) => prev.filter((c) => c.id !== commentId));
     }
@@ -156,9 +155,7 @@ export default function CommentsPanel({
     ? comments.filter((c) => c.nodeId === activeNodeId)
     : comments;
 
-  const activeNodeName = activeNodeId
-    ? nodeNames?.[activeNodeId] ?? "Deleted node"
-    : null;
+  const activeNodeName = activeNodeId ? (nodeNames?.[activeNodeId] ?? "Deleted node") : null;
 
   return (
     <>
@@ -188,7 +185,7 @@ export default function CommentsPanel({
         </svg>
         Comments
         {comments.length > 0 && (
-          <span className="rounded-full bg-[var(--color-client)] px-1.5 py-0.5 text-xs text-white">
+          <span className="rounded-full bg-[var(--brand)] px-1.5 py-0.5 text-xs text-[var(--brand-foreground)]">
             {comments.length}
           </span>
         )}
@@ -219,9 +216,7 @@ export default function CommentsPanel({
                 </button>
               )}
               <h3 className="text-sm font-semibold">
-                {activeNodeName
-                  ? `Comments on ${activeNodeName}`
-                  : "Comments"}
+                {activeNodeName ? `Comments on ${activeNodeName}` : "Comments"}
               </h3>
             </div>
             <button
@@ -245,9 +240,7 @@ export default function CommentsPanel({
           {/* Comments list */}
           <div ref={listRef} className="flex-1 overflow-y-auto px-4 py-2">
             {loading && comments.length === 0 && (
-              <p className="py-8 text-center text-sm text-[var(--muted-foreground)]">
-                Loading...
-              </p>
+              <p className="py-8 text-center text-sm text-[var(--muted-foreground)]">Loading...</p>
             )}
             {!loading && displayComments.length === 0 && (
               <p className="py-8 text-center text-sm text-[var(--muted-foreground)]">
@@ -257,11 +250,8 @@ export default function CommentsPanel({
               </p>
             )}
             {displayComments.map((comment) => {
-              const nodeName = comment.nodeId
-                ? nodeNames?.[comment.nodeId] ?? null
-                : null;
-              const isOrphaned =
-                comment.nodeId !== null && nodeName === null;
+              const nodeName = comment.nodeId ? (nodeNames?.[comment.nodeId] ?? null) : null;
+              const isOrphaned = comment.nodeId !== null && nodeName === null;
 
               return (
                 <div key={comment.id} className="group mb-3">
@@ -275,7 +265,7 @@ export default function CommentsPanel({
                         className="rounded-full"
                       />
                     ) : (
-                      <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--color-client)] text-[10px] font-medium text-white">
+                      <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--brand)] text-[10px] font-medium text-[var(--brand-foreground)]">
                         {(comment.authorName ?? "U")[0].toUpperCase()}
                       </div>
                     )}
@@ -289,7 +279,7 @@ export default function CommentsPanel({
                         </span>
                         <button
                           onClick={() => handleDelete(comment.id)}
-                          className="ml-auto hidden text-[10px] text-[var(--muted-foreground)] hover:text-red-500 group-hover:inline"
+                          className="ml-auto hidden text-[10px] text-[var(--muted-foreground)] hover:text-[var(--danger)] group-hover:inline"
                           title="Delete comment"
                         >
                           Delete
@@ -298,14 +288,10 @@ export default function CommentsPanel({
                       {/* Node label (shown in general view, not when filtered to a node) */}
                       {!activeNodeId && comment.nodeId && (
                         <span className="text-[10px] text-[var(--color-client)]">
-                          {isOrphaned
-                            ? "on deleted node"
-                            : `on ${nodeName}`}
+                          {isOrphaned ? "on deleted node" : `on ${nodeName}`}
                         </span>
                       )}
-                      <p className="mt-0.5 text-sm leading-snug">
-                        {comment.content}
-                      </p>
+                      <p className="mt-0.5 text-sm leading-snug">{comment.content}</p>
                     </div>
                   </div>
                 </div>
@@ -314,28 +300,21 @@ export default function CommentsPanel({
           </div>
 
           {/* Input */}
-          <form
-            onSubmit={handleSubmit}
-            className="border-t border-[var(--border)] px-4 py-3"
-          >
+          <form onSubmit={handleSubmit} className="border-t border-[var(--border)] px-4 py-3">
             <div className="flex gap-2">
               <input
                 ref={inputRef}
                 type="text"
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
-                placeholder={
-                  activeNodeId
-                    ? `Comment on ${activeNodeName}...`
-                    : "Add a comment..."
-                }
-                className="min-w-0 flex-1 rounded border border-[var(--border)] bg-[var(--background)] px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--color-client)]"
+                placeholder={activeNodeId ? `Comment on ${activeNodeName}...` : "Add a comment..."}
+                className="min-w-0 flex-1 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--ring)]"
                 disabled={submitting}
               />
               <button
                 type="submit"
                 disabled={!newComment.trim() || submitting}
-                className="rounded bg-[var(--color-client)] px-3 py-1.5 text-sm text-white hover:opacity-90 disabled:opacity-50"
+                className="rounded-md bg-[var(--brand)] px-3 py-1.5 text-sm font-medium text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)] disabled:opacity-50"
               >
                 Send
               </button>

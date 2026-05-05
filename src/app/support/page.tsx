@@ -52,7 +52,7 @@ export default function SupportPage() {
             </p>
             <a
               href="mailto:support@stackhatch.app"
-              className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-md bg-[var(--color-client)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--color-client-hover)]"
+              className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-semibold text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)]"
             >
               <Mail className="h-4 w-4" />
               support@stackhatch.app

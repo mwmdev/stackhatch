@@ -9,6 +9,8 @@ export interface SubtypeConfig {
 export interface CategoryConfig {
   displayName: string;
   color: string; // CSS variable name
+  fill: string; // CSS variable name
+  foreground: string; // CSS variable name
   icon: string;
   subtypes: Record<string, SubtypeConfig>;
 }
@@ -17,6 +19,8 @@ export const nodeConfig: Record<NodeCategory, CategoryConfig> = {
   client: {
     displayName: "Client",
     color: "var(--color-client)",
+    fill: "var(--color-client-fill)",
+    foreground: "var(--color-client-foreground)",
     icon: "Monitor",
     subtypes: {
       "web-app": { displayName: "Web App", icon: "Globe" },
@@ -28,6 +32,8 @@ export const nodeConfig: Record<NodeCategory, CategoryConfig> = {
   api: {
     displayName: "API Layer",
     color: "var(--color-api)",
+    fill: "var(--color-api-fill)",
+    foreground: "var(--color-api-foreground)",
     icon: "Server",
     subtypes: {
       "rest-api": { displayName: "REST API", icon: "ArrowRightLeft" },
@@ -42,6 +48,8 @@ export const nodeConfig: Record<NodeCategory, CategoryConfig> = {
   services: {
     displayName: "Services",
     color: "var(--color-services)",
+    fill: "var(--color-services-fill)",
+    foreground: "var(--color-services-foreground)",
     icon: "Boxes",
     subtypes: {
       auth: { displayName: "Authentication", icon: "Shield" },
@@ -55,6 +63,8 @@ export const nodeConfig: Record<NodeCategory, CategoryConfig> = {
   data: {
     displayName: "Data",
     color: "var(--color-data)",
+    fill: "var(--color-data-fill)",
+    foreground: "var(--color-data-foreground)",
     icon: "Database",
     subtypes: {
       "sql-db": { displayName: "SQL Database", icon: "Database" },
@@ -67,6 +77,8 @@ export const nodeConfig: Record<NodeCategory, CategoryConfig> = {
   infrastructure: {
     displayName: "Infrastructure",
     color: "var(--color-infrastructure)",
+    fill: "var(--color-infrastructure-fill)",
+    foreground: "var(--color-infrastructure-foreground)",
     icon: "Cloud",
     subtypes: {
       cdn: { displayName: "CDN", icon: "Globe" },
@@ -79,6 +91,8 @@ export const nodeConfig: Record<NodeCategory, CategoryConfig> = {
   external: {
     displayName: "External",
     color: "var(--color-external)",
+    fill: "var(--color-external-fill)",
+    foreground: "var(--color-external-foreground)",
     icon: "ExternalLink",
     subtypes: {
       "third-party-api": { displayName: "Third-Party API", icon: "Plug" },
@@ -98,7 +112,7 @@ export function getCategoryConfig(category: NodeCategory): CategoryConfig {
 export function getSubtypeConfig(
   category: NodeCategory,
   subtype: NodeSubtype,
-  custom?: CustomSubtypesMap,
+  custom?: CustomSubtypesMap
 ): SubtypeConfig | undefined {
   const builtIn = nodeConfig[category]?.subtypes[subtype];
   if (builtIn) return builtIn;
@@ -109,7 +123,7 @@ export function getSubtypeConfig(
 
 export function getSubtypesForCategory(
   category: NodeCategory,
-  custom?: CustomSubtypesMap,
+  custom?: CustomSubtypesMap
 ): Record<string, SubtypeConfig> {
   const builtIn = { ...(nodeConfig[category]?.subtypes ?? {}) };
   const entries = custom?.[category];

@@ -120,7 +120,7 @@ describe("StackNode", () => {
     const { container } = renderNode({}, true);
     const nodeDiv = container.querySelector(".stack-node");
     expect(nodeDiv?.className).toContain("ring-2");
-    expect(nodeDiv?.className).toContain("ring-blue-500");
+    expect(nodeDiv?.className).toContain("ring-[var(--ring)]");
   });
 
   it("does not show selection ring when not selected", () => {

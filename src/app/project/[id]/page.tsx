@@ -875,7 +875,7 @@ export default function ProjectPage() {
   if (error || !project) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-[var(--background)]">
-        <p className="mb-4 text-red-500">{error || "Project not found"}</p>
+        <p className="mb-4 text-[var(--danger)]">{error || "Project not found"}</p>
         <Link href="/app" className="text-[var(--color-client)] hover:underline">
           Back to Dashboard
         </Link>
@@ -891,7 +891,7 @@ export default function ProjectPage() {
     >
       <button
         onClick={() => setChatOpen((value) => !value)}
-        className="fixed left-4 z-50 flex h-11 w-11 items-center justify-center rounded-md text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]/30"
+        className="fixed left-4 z-50 flex h-11 w-11 items-center justify-center rounded-md text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]/30"
         style={{ top: "calc(var(--impersonation-banner-height, 0px) + 0.5rem)" }}
         title={chatOpen ? "Hide chat sidebar" : "Show chat sidebar"}
         aria-label={chatOpen ? "Hide chat sidebar" : "Show chat sidebar"}
@@ -948,7 +948,7 @@ export default function ProjectPage() {
               <button
                 onClick={handleExportPrd}
                 disabled={prdLoading}
-                className="flex min-h-11 items-center gap-2 rounded border border-[var(--border)] px-3 py-2 text-xs font-medium text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]/30 disabled:opacity-50"
+                className="flex min-h-11 items-center gap-2 rounded-md border border-[var(--border)] px-3 py-2 text-xs font-medium text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)] disabled:opacity-50"
                 title="Generate PRD from architecture"
                 aria-label="Generate PRD from architecture"
               >
@@ -959,7 +959,7 @@ export default function ProjectPage() {
             {nodeCount > 0 && project?.teamId && (
               <button
                 onClick={() => setSaveTemplateModalOpen(true)}
-                className="min-h-11 rounded border border-[var(--border)] px-3 py-2 text-xs text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
+                className="min-h-11 rounded-md border border-[var(--border)] px-3 py-2 text-xs text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
                 title="Save current canvas as team template"
               >
                 Save as Template
@@ -968,7 +968,7 @@ export default function ProjectPage() {
             {project.repoUrl ? (
               <button
                 onClick={() => setScanTrigger((t) => t + 1)}
-                className="group relative flex h-11 w-11 items-center justify-center rounded border border-[var(--border)] text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]/30"
+                className="group relative flex h-11 w-11 items-center justify-center rounded-md border border-[var(--border)] text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
                 aria-label={`Re-scan repository: ${project.repoUrl}`}
                 title={`Re-scan: ${project.repoUrl}`}
               >
@@ -981,7 +981,7 @@ export default function ProjectPage() {
               <>
                 <button
                   onClick={() => setShowScanInput((v) => !v)}
-                  className="min-h-11 rounded border border-[var(--border)] px-3 py-2 text-xs text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
+                  className="min-h-11 rounded-md border border-[var(--border)] px-3 py-2 text-xs text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
                   title="Scan a GitHub repository"
                 >
                   Scan Repo
@@ -1004,13 +1004,13 @@ export default function ProjectPage() {
                       value={scanUrlInput}
                       onChange={(e) => setScanUrlInput(e.target.value)}
                       placeholder="https://github.com/owner/repo"
-                      className="min-h-11 w-56 rounded border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--color-client)]"
+                      className="min-h-11 w-56 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--ring)]"
                       autoFocus
                     />
                     <button
                       type="submit"
                       disabled={!scanUrlInput.trim()}
-                      className="min-h-11 rounded bg-[var(--color-client)] px-3 py-2 text-xs text-white hover:bg-[var(--color-client-hover)] disabled:opacity-50"
+                      className="min-h-11 rounded-md bg-[var(--brand)] px-3 py-2 text-xs text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)] disabled:opacity-50"
                     >
                       Go
                     </button>
@@ -1023,7 +1023,7 @@ export default function ProjectPage() {
         </div>
 
         {/* Canvas area */}
-        <div className="relative flex-1">
+        <div className="relative flex-1 bg-[var(--canvas)]">
           <ReactFlow
             nodes={rfNodes}
             edges={edgesWithCallbacks}
@@ -1137,7 +1137,7 @@ export default function ProjectPage() {
 
           {/* Save Template Modal */}
           {saveTemplateModalOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay)]">
               <div
                 role="dialog"
                 aria-modal="true"
@@ -1167,7 +1167,7 @@ export default function ProjectPage() {
                       name="name"
                       type="text"
                       required
-                      className="w-full rounded border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
+                      className="w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
                       placeholder="e.g., Microservices API Template"
                       autoFocus
                     />
@@ -1183,7 +1183,7 @@ export default function ProjectPage() {
                       id="template-description"
                       name="description"
                       rows={3}
-                      className="w-full rounded border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
+                      className="w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
                       placeholder="Describe when to use this template..."
                     />
                   </div>
@@ -1192,14 +1192,14 @@ export default function ProjectPage() {
                       type="button"
                       onClick={() => setSaveTemplateModalOpen(false)}
                       disabled={templateSaving}
-                      className="min-h-11 rounded border border-[var(--border)] px-4 py-2 text-sm hover:bg-[var(--muted)] disabled:opacity-50"
+                      className="min-h-11 rounded-md border border-[var(--border)] px-4 py-2 text-sm hover:bg-[var(--muted)] disabled:opacity-50"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
                       disabled={templateSaving}
-                      className="min-h-11 rounded bg-[var(--color-client)] px-4 py-2 text-sm text-white hover:bg-[var(--color-client-hover)] disabled:opacity-50"
+                      className="min-h-11 rounded-md bg-[var(--brand)] px-4 py-2 text-sm text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)] disabled:opacity-50"
                     >
                       {templateSaving ? "Saving..." : "Save Template"}
                     </button>
@@ -1221,7 +1221,7 @@ export default function ProjectPage() {
           {/* Toast notification */}
           {toast && (
             <div
-              className="absolute bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-red-600 px-4 py-2 text-sm text-white shadow-lg"
+              className="absolute bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-[var(--danger)] px-4 py-2 text-sm text-[var(--danger-foreground)] shadow-lg shadow-[var(--shadow-color)]"
               data-testid="canvas-toast"
             >
               {toast}

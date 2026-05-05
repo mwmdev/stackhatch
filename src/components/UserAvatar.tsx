@@ -35,7 +35,7 @@ export default function UserAvatar() {
 
   return (
     <div
-      className="flex h-11 w-11 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--color-client)] text-sm font-medium text-white"
+      className="flex h-11 w-11 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--brand)] text-sm font-medium text-[var(--brand-foreground)]"
       title={label}
       aria-label={label}
     >

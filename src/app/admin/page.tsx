@@ -271,7 +271,7 @@ export default function AdminPage() {
   if (error === "Access denied") {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-[var(--background)]">
-        <p className="mb-4 text-red-500">Access denied</p>
+        <p className="mb-4 text-[var(--danger)]">Access denied</p>
         <Link href="/app" className="text-[var(--color-client)] hover:underline">
           Back to Dashboard
         </Link>
@@ -297,7 +297,7 @@ export default function AdminPage() {
 
       <main className="mx-auto max-w-5xl px-6 py-8">
         {error && error !== "Access denied" && (
-          <div className="mb-4 rounded-lg bg-red-50 px-4 py-2 text-sm text-red-600 dark:bg-red-950 dark:text-red-400">
+          <div className="mb-4 rounded-lg border border-[var(--danger-border)] bg-[var(--danger-surface)] px-4 py-2 text-sm text-[var(--danger)]">
             {error}
           </div>
         )}
@@ -344,9 +344,7 @@ export default function AdminPage() {
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 {planStatus && (
-                  <span className="text-sm font-medium text-green-600 dark:text-green-400">
-                    {planStatus}
-                  </span>
+                  <span className="text-sm font-medium text-[var(--success)]">{planStatus}</span>
                 )}
                 <button
                   type="button"
@@ -363,7 +361,7 @@ export default function AdminPage() {
                   type="button"
                   onClick={handleSavePlans}
                   disabled={planSaving}
-                  className="min-h-11 rounded-md bg-[var(--color-client)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+                  className="min-h-11 rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-medium text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)] disabled:opacity-50"
                 >
                   {planSaving ? "Saving..." : "Save plans"}
                 </button>
@@ -406,7 +404,7 @@ export default function AdminPage() {
                         <input
                           value={plan.name}
                           onChange={(e) => setPlanText(planKey, "name", e.target.value)}
-                          className="min-h-11 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm font-normal focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
+                          className="min-h-11 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm font-normal focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
                         />
                       </label>
                       <label className="flex flex-col gap-1 text-sm font-medium">
@@ -414,7 +412,7 @@ export default function AdminPage() {
                         <input
                           value={plan.shortName}
                           onChange={(e) => setPlanText(planKey, "shortName", e.target.value)}
-                          className="min-h-11 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm font-normal focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
+                          className="min-h-11 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm font-normal focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
                         />
                       </label>
                       <label className="flex flex-col gap-1 text-sm font-medium">
@@ -423,7 +421,7 @@ export default function AdminPage() {
                           value={plan.description}
                           onChange={(e) => setPlanText(planKey, "description", e.target.value)}
                           rows={3}
-                          className="rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm font-normal focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
+                          className="rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm font-normal focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
                         />
                       </label>
                       <label className="flex flex-col gap-1 text-sm font-medium">
@@ -431,7 +429,7 @@ export default function AdminPage() {
                         <input
                           value={plan.cta}
                           onChange={(e) => setPlanText(planKey, "cta", e.target.value)}
-                          className="min-h-11 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm font-normal focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
+                          className="min-h-11 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm font-normal focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
                         />
                       </label>
                       <label className="flex flex-col gap-1 text-sm font-medium">
@@ -440,7 +438,7 @@ export default function AdminPage() {
                           value={plan.bullets.join("\n")}
                           onChange={(e) => setPlanBullets(planKey, e.target.value)}
                           rows={5}
-                          className="rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm font-normal focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
+                          className="rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm font-normal focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
                         />
                       </label>
 
@@ -608,7 +606,7 @@ export default function AdminPage() {
                     value={createForm.name}
                     onChange={(e) => setCreateForm((prev) => ({ ...prev, name: e.target.value }))}
                     placeholder="Jane Customer"
-                    className="min-h-11 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm font-normal text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
+                    className="min-h-11 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm font-normal text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
                   />
                 </label>
                 <label className="flex flex-col gap-1 text-sm font-medium">
@@ -618,7 +616,7 @@ export default function AdminPage() {
                     value={createForm.email}
                     onChange={(e) => setCreateForm((prev) => ({ ...prev, email: e.target.value }))}
                     placeholder="jane@example.com"
-                    className="min-h-11 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm font-normal text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
+                    className="min-h-11 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm font-normal text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
                   />
                 </label>
                 <label className="flex flex-col gap-1 text-sm font-medium">
@@ -626,7 +624,7 @@ export default function AdminPage() {
                   <select
                     value={createForm.role}
                     onChange={(e) => setCreateForm((prev) => ({ ...prev, role: e.target.value }))}
-                    className="min-h-11 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm font-normal text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
+                    className="min-h-11 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm font-normal text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
                   >
                     {userRoleOptions.map((role) => (
                       <option key={role.value} value={role.value}>
@@ -645,13 +643,13 @@ export default function AdminPage() {
                       setCreateForm((prev) => ({ ...prev, githubId: e.target.value }))
                     }
                     placeholder="Leave blank for manual user"
-                    className="min-h-11 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm font-normal text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
+                    className="min-h-11 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm font-normal text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
                   />
                 </label>
                 <button
                   type="submit"
                   disabled={creating || !createForm.name.trim()}
-                  className="min-h-11 self-end rounded-md bg-[var(--color-client)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+                  className="min-h-11 self-end rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-medium text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)] disabled:opacity-50"
                 >
                   {creating ? "Creating..." : "Create user"}
                 </button>
@@ -684,7 +682,7 @@ export default function AdminPage() {
                     <tr key={user.id} className="bg-[var(--card)]">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
-                          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--color-client)] text-xs font-medium text-white">
+                          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--brand)] text-xs font-medium text-[var(--brand-foreground)]">
                             {(user.name || user.githubId).slice(0, 1).toUpperCase()}
                           </span>
                           <span className="font-medium text-[var(--card-foreground)]">
@@ -699,7 +697,7 @@ export default function AdminPage() {
                         <select
                           value={user.role}
                           onChange={(e) => handleRoleChange(user.id, e.target.value)}
-                          className="min-h-11 rounded border border-[var(--border)] bg-[var(--background)] px-2 py-2 text-xs text-[var(--foreground)] focus:outline-none focus:ring-1 focus:ring-[var(--color-client)]"
+                          className="min-h-11 rounded border border-[var(--border)] bg-[var(--background)] px-2 py-2 text-xs text-[var(--foreground)] focus:outline-none focus:ring-1 focus:ring-[var(--ring)]"
                         >
                           {userRoleOptions.map((role) => (
                             <option key={role.value} value={role.value}>
@@ -729,7 +727,7 @@ export default function AdminPage() {
                           <button
                             onClick={() => setDeleteTarget(user)}
                             disabled={user.isCurrent}
-                            className="min-h-11 rounded px-3 py-2 text-xs text-red-500 hover:bg-red-50 disabled:opacity-40 dark:hover:bg-red-950"
+                            className="min-h-11 rounded px-3 py-2 text-xs text-[var(--danger)] hover:bg-[var(--danger-surface)] disabled:opacity-40"
                           >
                             Delete
                           </button>
@@ -757,7 +755,7 @@ export default function AdminPage() {
       {/* Delete Confirmation Modal */}
       {deleteTarget && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay)]"
           onClick={() => !deleting && setDeleteTarget(null)}
         >
           <div
@@ -789,7 +787,7 @@ export default function AdminPage() {
               <button
                 onClick={handleDelete}
                 disabled={deleting}
-                className="min-h-11 rounded-md bg-red-600 px-3 py-2 text-sm text-white hover:bg-red-700 disabled:opacity-50"
+                className="min-h-11 rounded-md bg-[var(--danger)] px-3 py-2 text-sm text-[var(--danger-foreground)] hover:bg-[var(--danger-hover)] disabled:opacity-50"
               >
                 {deleting ? "Deleting..." : "Delete"}
               </button>
