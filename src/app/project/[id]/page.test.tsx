@@ -363,7 +363,6 @@ function mockFetchProject(
       noteNodes: effectivePlan !== "free",
       alternatives: effectivePlan === "starter" || effectivePlan === "pro",
       prdExport: effectivePlan === "pro",
-      collaboration: effectivePlan === "pro",
       serverManagedAi: false,
       byok: true,
     };

@@ -120,8 +120,7 @@ export default function AdminPage() {
       | "alternatives"
       | "prdExport"
       | "customSubtypes"
-      | "noteNodes"
-      | "collaboration",
+      | "noteNodes",
     value: boolean
   ) {
     updatePlan(key, (plan) => ({
@@ -585,7 +584,6 @@ export default function AdminPage() {
                             ["prdExport", "PRD export"],
                             ["customSubtypes", "Custom subtypes"],
                             ["noteNodes", "Note nodes"],
-                            ["collaboration", "Collaboration"],
                           ] as const
                         ).map(([field, label]) => (
                           <label key={field} className="flex items-center gap-2">
