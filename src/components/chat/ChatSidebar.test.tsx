@@ -385,6 +385,9 @@ describe("ChatSidebar", () => {
     render(<ChatSidebar projectId="p1" defaultOpen={true} />);
 
     const keyInput = await screen.findByLabelText("Anthropic API key");
+    const apiKeyForm = keyInput.closest("form");
+    expect(apiKeyForm).toHaveClass("bg-[var(--card)]", "border-l-[var(--color-data)]");
+    expect(apiKeyForm).not.toHaveClass("bg-red-50");
     fireEvent.change(keyInput, { target: { value: "sk-ant-test-inline-key-1234567890" } });
     fireEvent.click(screen.getByRole("button", { name: "Save and retry" }));
 

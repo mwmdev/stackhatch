@@ -471,12 +471,12 @@ export default function ChatSidebar({
           {showApiKeyForm && (
             <form
               onSubmit={saveApiKeyInline}
-              className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm dark:border-red-900/60 dark:bg-red-950"
+              className="rounded-lg border border-[var(--border)] border-l-4 border-l-[var(--color-data)] bg-[var(--card)] p-3 text-sm shadow-sm"
             >
-              <p className="font-medium text-red-700 dark:text-red-300">{error}</p>
+              <p className="font-medium text-[var(--foreground)]">{error}</p>
               <div className="mt-3 flex flex-col gap-2">
                 <label
-                  className="text-xs font-semibold uppercase tracking-wide text-red-700 dark:text-red-300"
+                  className="text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)]"
                   htmlFor="chat-anthropic-api-key"
                 >
                   Anthropic API key
@@ -489,18 +489,20 @@ export default function ChatSidebar({
                   placeholder="sk-ant-..."
                   autoComplete="off"
                   disabled={savingApiKey}
-                  className="min-h-10 rounded-md border border-red-200 bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)] disabled:opacity-50 dark:border-red-900/70"
+                  className="min-h-10 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] transition-colors focus:border-[var(--color-client)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]/20 disabled:bg-[var(--muted)] disabled:text-[var(--muted-foreground)]"
                 />
                 <button
                   type="submit"
                   disabled={savingApiKey || !apiKeyInput.trim()}
-                  className="min-h-10 rounded-md bg-[var(--color-client)] px-3 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
+                  className="min-h-10 rounded-md bg-[var(--color-client)] px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-[var(--color-client-hover)] disabled:cursor-not-allowed disabled:bg-[var(--muted)] disabled:text-[var(--muted-foreground)]"
                 >
                   {savingApiKey ? "Saving..." : "Save and retry"}
                 </button>
               </div>
               {apiKeySaveError && (
-                <p className="mt-2 text-xs text-red-700 dark:text-red-300">{apiKeySaveError}</p>
+                <p className="mt-2 text-xs font-medium text-red-600 dark:text-red-400">
+                  {apiKeySaveError}
+                </p>
               )}
             </form>
           )}
