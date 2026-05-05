@@ -210,11 +210,17 @@ vi.mock("@/components/canvas/ConnectionTypeSelector", () => ({
   default: ({
     selectedType,
     onSelect,
+    ignoreOutsideClickWithin,
   }: {
     selectedType?: string;
     onSelect: (type: string) => void;
+    ignoreOutsideClickWithin?: string;
   }) => (
-    <div data-testid="connection-type-selector" data-selected-type={selectedType ?? ""}>
+    <div
+      data-testid="connection-type-selector"
+      data-selected-type={selectedType ?? ""}
+      data-ignore-outside-click-within={ignoreOutsideClickWithin ?? ""}
+    >
       <button
         type="button"
         data-testid="mock-select-websocket"
@@ -801,6 +807,10 @@ describe("ProjectPage", () => {
       expect(screen.getByTestId("connection-type-selector")).toHaveAttribute(
         "data-selected-type",
         "http"
+      );
+      expect(screen.getByTestId("connection-type-selector")).toHaveAttribute(
+        "data-ignore-outside-click-within",
+        "[data-connection-type-popover-boundary]"
       );
 
       fireEvent.click(screen.getByTestId("mock-select-websocket"));

@@ -17,6 +17,7 @@ export interface ConnectionTypeSelectorProps {
   selectedType?: ConnectionType;
   onSelect: (type: ConnectionType) => void;
   onCancel: () => void;
+  ignoreOutsideClickWithin?: string;
 }
 
 export default function ConnectionTypeSelector({
@@ -24,18 +25,30 @@ export default function ConnectionTypeSelector({
   selectedType,
   onSelect,
   onCancel,
+  ignoreOutsideClickWithin,
 }: ConnectionTypeSelectorProps) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (ref.current?.contains(target)) {
+        return;
+      }
+      if (
+        ignoreOutsideClickWithin &&
+        target instanceof Element &&
+        target.closest(ignoreOutsideClickWithin)
+      ) {
+        return;
+      }
+      if (ref.current) {
         onCancel();
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [onCancel]);
+  }, [ignoreOutsideClickWithin, onCancel]);
 
   return (
     <div

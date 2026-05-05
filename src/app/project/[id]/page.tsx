@@ -1108,7 +1108,7 @@ export default function ProjectPage() {
         </div>
 
         {/* Canvas area */}
-        <div className="relative flex-1 bg-[var(--canvas)]">
+        <div className="relative flex-1 bg-[var(--canvas)]" data-connection-type-popover-boundary>
           <ReactFlow
             nodes={rfNodes}
             edges={edgesWithCallbacks}
@@ -1208,6 +1208,7 @@ export default function ProjectPage() {
               }
               onSelect={handleConnectionTypeSelect}
               onCancel={handleCancelConnection}
+              ignoreOutsideClickWithin="[data-connection-type-popover-boundary]"
             />
           )}
 

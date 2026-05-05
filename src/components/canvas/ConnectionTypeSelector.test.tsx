@@ -72,4 +72,31 @@ describe("ConnectionTypeSelector", () => {
     render(<ConnectionTypeSelector {...defaultProps} selectedType="grpc" />);
     expect(screen.getByTestId("connection-type-grpc")).toHaveAttribute("aria-current", "true");
   });
+
+  it("calls onCancel when clicking outside", () => {
+    const onCancel = vi.fn();
+    render(<ConnectionTypeSelector {...defaultProps} onCancel={onCancel} />);
+
+    fireEvent.mouseDown(document.body);
+
+    expect(onCancel).toHaveBeenCalledOnce();
+  });
+
+  it("does not cancel when clicking inside an ignored outside boundary", () => {
+    const onCancel = vi.fn();
+    render(
+      <>
+        <div data-testid="scene" data-connection-type-popover-boundary />
+        <ConnectionTypeSelector
+          {...defaultProps}
+          onCancel={onCancel}
+          ignoreOutsideClickWithin="[data-connection-type-popover-boundary]"
+        />
+      </>
+    );
+
+    fireEvent.mouseDown(screen.getByTestId("scene"));
+
+    expect(onCancel).not.toHaveBeenCalled();
+  });
 });
