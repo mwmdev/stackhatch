@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import { Loader2, MessageSquareText, SendHorizontal } from "lucide-react";
 import UpgradePrompt from "@/components/UpgradePrompt";
+import type { StackArchitecture } from "@/types/stack";
 
 function stripStackTags(text: string): string {
   return text
@@ -27,7 +28,8 @@ interface ChatSidebarProps {
   onOpenChange?: (open: boolean) => void;
   showCollapsedButton?: boolean;
   scanTrigger?: number;
-  onArchitecture?: (architecture: import("@/types/stack").StackArchitecture) => void;
+  canvasState?: StackArchitecture | null;
+  onArchitecture?: (architecture: StackArchitecture) => void;
   onStreaming?: (streaming: boolean) => void;
 }
 
@@ -51,6 +53,7 @@ export default function ChatSidebar({
   onOpenChange,
   showCollapsedButton = true,
   scanTrigger = 0,
+  canvasState,
   onArchitecture,
   onStreaming,
 }: ChatSidebarProps) {
@@ -219,6 +222,8 @@ export default function ChatSidebar({
     try {
       const res = await fetch(`/api/projects/${projectId}/chat/init`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(canvasState ? { canvasState } : {}),
       });
       if (res.status === 403) {
         setUpgradeFeature("access AI chat");
@@ -291,7 +296,7 @@ export default function ChatSidebar({
       const res = await fetch(`/api/projects/${projectId}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text }),
+        body: JSON.stringify(canvasState ? { message: text, canvasState } : { message: text }),
       });
       if (res.status === 403) {
         setUpgradeFeature("continue chatting");

@@ -4,10 +4,16 @@ import { messages, projects } from "@/db/schema";
 import { runMigrations } from "@/db/migrate";
 import { eq, asc, and } from "drizzle-orm";
 import { streamChat } from "@/lib/ai/stream-chat";
+import { chatCanvasStateSchema } from "@/lib/ai/request-context";
 import { getAuthenticatedUser } from "@/lib/auth";
 import { incrementMessages } from "@/lib/usage";
+import { z } from "zod";
 
-export async function POST(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+const initSchema = z.object({
+  canvasState: chatCanvasStateSchema.optional(),
+});
+
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
   const user = await getAuthenticatedUser();
@@ -50,6 +56,21 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
     });
   }
 
+  let parsedBody: z.infer<typeof initSchema> = {};
+  try {
+    const body = await request.json();
+    const parsed = initSchema.safeParse(body);
+    if (!parsed.success) {
+      return new Response(JSON.stringify({ error: parsed.error.issues[0].message }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    parsedBody = parsed.data;
+  } catch {
+    parsedBody = {};
+  }
+
   // Enforce usage limits for free users
   if (user.role !== "admin") {
     const result = incrementMessages(userId, user.role);
@@ -69,5 +90,7 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
     }
   }
 
-  return streamChat(db, id, null, undefined, user);
+  return streamChat(db, id, null, undefined, user, {
+    contextArchitecture: parsedBody.canvasState,
+  });
 }

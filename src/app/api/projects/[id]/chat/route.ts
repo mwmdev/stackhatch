@@ -3,12 +3,14 @@ import { getDb } from "@/db";
 import { runMigrations } from "@/db/migrate";
 import { z } from "zod";
 import { streamChat } from "@/lib/ai/stream-chat";
+import { chatCanvasStateSchema } from "@/lib/ai/request-context";
 import { getAuthenticatedUser } from "@/lib/auth";
 import { incrementMessages } from "@/lib/usage";
 import { getAccessibleProject } from "@/lib/project-access";
 
 const chatSchema = z.object({
   message: z.string().min(1),
+  canvasState: chatCanvasStateSchema.optional(),
 });
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -73,7 +75,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     usageRemaining = typeof result.limit === "number" ? result.limit - result.used : null;
   }
 
-  const response = streamChat(db, id, parsed.data.message, undefined, user);
+  const response = streamChat(db, id, parsed.data.message, undefined, user, {
+    contextArchitecture: parsed.data.canvasState,
+  });
   if (usageRemaining !== null) {
     response.headers.set("X-Usage-Remaining", String(usageRemaining));
   }

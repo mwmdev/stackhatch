@@ -947,6 +947,20 @@ export default function ProjectPage() {
     [project?.canvasState]
   );
   const nodeCount = project?.canvasState?.nodes?.length ?? 0;
+  const liveCanvasState = useMemo<StackArchitecture | null>(
+    () => {
+      if (rfNodes.length > 0 || rfEdges.length > 0) {
+        return {
+          nodes: fromReactFlowNodes(rfNodes),
+          edges: fromReactFlowEdges(rfEdges),
+        };
+      }
+      return project?.canvasState
+        ? { nodes: project.canvasState.nodes, edges: project.canvasState.edges }
+        : null;
+    },
+    [project?.canvasState, rfNodes, rfEdges]
+  );
   const canUseAlternatives = isAdmin || planFeatures.alternatives;
   const canExportPrd = isAdmin || planFeatures.prdExport;
   const canUseNotes = isAdmin || planFeatures.noteNodes;
@@ -1015,6 +1029,7 @@ export default function ProjectPage() {
           onOpenChange={setChatOpen}
           showCollapsedButton={false}
           scanTrigger={scanTrigger}
+          canvasState={liveCanvasState}
           onArchitecture={handleArchitecture}
           onStreaming={setChatStreaming}
         />

@@ -236,6 +236,74 @@ describe("ChatSidebar", () => {
     expect(screen.getByText("I need WebSocket support")).toBeInTheDocument();
   });
 
+  it("includes the latest canvas state when sending a message", async () => {
+    let chatBody: { message?: string; canvasState?: unknown } | null = null;
+    global.fetch = vi.fn(async (input: RequestInfo | URL, options?: RequestInit) => {
+      const url = String(input);
+      const method = options?.method ?? "GET";
+
+      if (url.includes("/messages")) {
+        return messagesWithHistory();
+      }
+      if (url.includes("/chat") && method === "POST") {
+        chatBody = JSON.parse(options?.body as string);
+        return createSSEResponse([{ type: "text", content: "Updated" }, { type: "done" }]);
+      }
+      return new Response("Not found", { status: 404 });
+    }) as typeof fetch;
+
+    render(
+      <ChatSidebar
+        projectId="p1"
+        defaultOpen={true}
+        canvasState={{
+          nodes: [
+            {
+              id: "note-1",
+              category: "note",
+              subtype: "note",
+              name: "Live Note",
+              technology: "",
+              description: "Unsaved edit",
+              reasoning: "",
+              locked: false,
+              noteColor: "lilac",
+            },
+          ],
+          edges: [],
+        }}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("A chat application")).toBeInTheDocument();
+    });
+
+    const textarea = screen.getByPlaceholderText("Message...");
+    fireEvent.change(textarea, { target: { value: "Use latest note" } });
+    fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
+
+    await waitFor(() => {
+      expect(chatBody?.message).toBe("Use latest note");
+      expect(chatBody?.canvasState).toEqual({
+        nodes: [
+          {
+            id: "note-1",
+            category: "note",
+            subtype: "note",
+            name: "Live Note",
+            technology: "",
+            description: "Unsaved edit",
+            reasoning: "",
+            locked: false,
+            noteColor: "lilac",
+          },
+        ],
+        edges: [],
+      });
+    });
+  });
+
   it("does not send message on Shift+Enter", async () => {
     let chatCalled = false;
     global.fetch = mockFetch({

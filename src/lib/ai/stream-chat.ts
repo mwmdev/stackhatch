@@ -74,7 +74,8 @@ export function streamChat(
   projectId: string,
   userMessage: string | null,
   initMessage?: string,
-  user?: AuthenticatedUser
+  user?: AuthenticatedUser,
+  options: { contextArchitecture?: StackArchitecture | null } = {}
 ): Response {
   const settingsMap = getSettings(db);
   const apiKey = getApiKey(db, user?.userId);
@@ -126,14 +127,16 @@ export function streamChat(
     .where(eq(projects.id, projectId))
     .get();
 
-  let currentArchitecture: StackArchitecture | null = null;
+  let persistedArchitecture: StackArchitecture | null = null;
   if (project?.canvasState) {
     try {
-      currentArchitecture = JSON.parse(project.canvasState);
+      persistedArchitecture = JSON.parse(project.canvasState);
     } catch {
       // Ignore malformed canvas state
     }
   }
+  const currentArchitecture =
+    options.contextArchitecture !== undefined ? options.contextArchitecture : persistedArchitecture;
 
   // Convert DB messages to ChatMessage format for context builder
   const chatHistory: ChatMessage[] = history.map((msg) => ({

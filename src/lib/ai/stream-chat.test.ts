@@ -5,6 +5,7 @@ import { eq, asc } from "drizzle-orm";
 import * as schema from "@/db/schema";
 import { projects, messages, settings, users, userSettings } from "@/db/schema";
 import type { AppDatabase } from "@/db";
+import type { StackArchitecture } from "@/types/stack";
 
 // Mock the Anthropic SDK
 vi.mock("@anthropic-ai/sdk", () => {
@@ -550,6 +551,66 @@ describe("streamChat", () => {
     const allContent = callArgs.messages.map((m: { content: string }) => m.content).join(" ");
     expect(allContent).toContain("LOCKED");
     expect(allContent).toContain("PostgreSQL");
+  });
+
+  it("uses request-provided architecture context instead of stale persisted canvasState", async () => {
+    const staleArch: StackArchitecture = {
+      nodes: [
+        {
+          id: "stale-1",
+          category: "data",
+          subtype: "sql-db",
+          name: "Old Database",
+          technology: "MySQL",
+          description: "Persisted but stale",
+          reasoning: "",
+          locked: false,
+        },
+      ],
+      edges: [],
+    };
+    const liveArch: StackArchitecture = {
+      nodes: [
+        {
+          id: "live-1",
+          category: "note",
+          subtype: "note",
+          name: "Live Note",
+          technology: "",
+          description: "Fresh unsaved edit",
+          reasoning: "",
+          locked: false,
+          noteColor: "sky",
+        },
+      ],
+      edges: [],
+    };
+
+    db.update(projects)
+      .set({ canvasState: JSON.stringify(staleArch) })
+      .where(eq(projects.id, projectId))
+      .run();
+
+    const streamFn = vi.fn().mockReturnValue({
+      [Symbol.asyncIterator]: () => ({
+        async next() {
+          return { done: true, value: undefined };
+        },
+      }),
+    });
+    const mockClient = { messages: { stream: streamFn } };
+    vi.mocked(Anthropic).mockImplementation(() => mockClient as unknown as Anthropic);
+
+    const response = streamChat(db, projectId, "Use the note", undefined, undefined, {
+      contextArchitecture: liveArch,
+    });
+    await response.text();
+
+    const callArgs = streamFn.mock.calls[0][0];
+    const allContent = callArgs.messages.map((m: { content: string }) => m.content).join(" ");
+    expect(allContent).toContain("Live Note");
+    expect(allContent).toContain('"noteColor":"sky"');
+    expect(allContent).not.toContain("Old Database");
   });
 
   it("handles malformed canvasState gracefully", async () => {

@@ -1,7 +1,44 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { ChatMessage } from "@/types/chat";
-import type { StackArchitecture } from "@/types/stack";
-import { nodeConfig } from "@/lib/node-config";
+import type { StackArchitecture, StackEdge, StackNode } from "@/types/stack";
+
+function stripStackTags(text: string): string {
+  return text
+    .replace(/<stack>\s*[\s\S]*?\s*<\/stack>/g, "")
+    .replace(/<stack>[\s\S]*$/g, "")
+    .trim();
+}
+
+function compactNode(node: StackNode): Partial<StackNode> {
+  return {
+    id: node.id,
+    category: node.category,
+    subtype: node.subtype,
+    name: node.name,
+    ...(node.technology ? { technology: node.technology } : {}),
+    ...(node.description ? { description: node.description } : {}),
+    ...(node.reasoning ? { reasoning: node.reasoning } : {}),
+    locked: node.locked,
+    ...(node.noteColor ? { noteColor: node.noteColor } : {}),
+  };
+}
+
+function compactEdge(edge: StackEdge): Partial<StackEdge> {
+  return {
+    id: edge.id,
+    source: edge.source,
+    target: edge.target,
+    connectionType: edge.connectionType,
+    ...(edge.label ? { label: edge.label } : {}),
+  };
+}
+
+export function buildCompactArchitectureJson(architecture: StackArchitecture): string {
+  return JSON.stringify({
+    nodes: architecture.nodes.map(compactNode),
+    edges: architecture.edges.map(compactEdge),
+  });
+}
 
 /**
  * Builds a context block describing the current canvas state for the AI.
@@ -12,43 +49,16 @@ export function buildCanvasContext(
   options: { nodeLockingEnabled?: boolean } = {}
 ): string {
   const nodeLockingEnabled = options.nodeLockingEnabled ?? true;
-  const lockedNodes = nodeLockingEnabled ? architecture.nodes.filter((n) => n.locked) : [];
-  const unlockedNodes = nodeLockingEnabled
-    ? architecture.nodes.filter((n) => !n.locked)
-    : architecture.nodes;
+  const lockInstruction = nodeLockingEnabled
+    ? "LOCKED nodes must be preserved exactly unless the user explicitly asks to unlock or replace them."
+    : "Node locking is disabled; treat stored locked flags as informational.";
 
-  let context = "## Current Architecture State\n\n";
-
-  if (lockedNodes.length > 0) {
-    context += "### LOCKED Nodes (must NOT be modified or removed):\n";
-    for (const node of lockedNodes) {
-      const catName = nodeConfig[node.category].displayName;
-      context += `- **${node.name}** (${catName} / ${node.technology}) — ${node.description}\n`;
-    }
-    context += "\n";
-  }
-
-  if (unlockedNodes.length > 0) {
-    context += "### Unlocked Nodes (may be modified or removed):\n";
-    for (const node of unlockedNodes) {
-      const catName = nodeConfig[node.category].displayName;
-      context += `- **${node.name}** (${catName} / ${node.technology}) — ${node.description}\n`;
-    }
-    context += "\n";
-  }
-
-  if (architecture.edges.length > 0) {
-    context += "### Connections:\n";
-    const nodeMap = new Map(architecture.nodes.map((n) => [n.id, n.name]));
-    for (const edge of architecture.edges) {
-      const src = nodeMap.get(edge.source) ?? edge.source;
-      const tgt = nodeMap.get(edge.target) ?? edge.target;
-      context += `- ${src} → ${tgt} (${edge.connectionType}): ${edge.label}\n`;
-    }
-    context += "\n";
-  }
-
-  return context;
+  return [
+    "[SYSTEM CONTEXT - Latest Canvas]",
+    "This compact JSON is the current in-browser canvas state and overrides older architecture in chat history.",
+    lockInstruction,
+    buildCompactArchitectureJson(architecture),
+  ].join("\n");
 }
 
 /**
@@ -61,19 +71,27 @@ export function buildMessages(
   options: { nodeLockingEnabled?: boolean } = {}
 ): Anthropic.MessageParam[] {
   const msgs: Anthropic.MessageParam[] = [];
+  const sanitizedHistory: Anthropic.MessageParam[] = chatHistory
+    .map((msg) => ({
+      role: msg.role,
+      content: msg.role === "assistant" ? stripStackTags(msg.content) : msg.content,
+    }))
+    .filter((msg) => msg.content.trim().length > 0);
 
-  // If there's an existing architecture, prepend context as the first user message
+  const lastMessage = sanitizedHistory[sanitizedHistory.length - 1];
+  const priorHistory =
+    lastMessage?.role === "user" ? sanitizedHistory.slice(0, -1) : sanitizedHistory;
+
+  msgs.push(...priorHistory);
+
+  // If there's an existing architecture, inject compact latest context near the current request.
   if (currentArchitecture && currentArchitecture.nodes.length > 0) {
     const nodeLockingEnabled = options.nodeLockingEnabled ?? true;
     const canvasContext = buildCanvasContext(currentArchitecture, { nodeLockingEnabled });
-    const contextJson = JSON.stringify(currentArchitecture, null, 2);
-    const lockInstruction = nodeLockingEnabled
-      ? "Preserve all LOCKED nodes exactly as they are."
-      : "Node locking is disabled for this plan, so treat all nodes as editable regardless of stored locked flags.";
 
     msgs.push({
       role: "user",
-      content: `[SYSTEM CONTEXT — Current Architecture]\n\n${canvasContext}\nRaw architecture JSON:\n\`\`\`json\n${contextJson}\n\`\`\`\n\nPlease consider this existing architecture when responding. ${lockInstruction}`,
+      content: canvasContext,
     });
     msgs.push({
       role: "assistant",
@@ -83,12 +101,8 @@ export function buildMessages(
     });
   }
 
-  // Append chat history
-  for (const msg of chatHistory) {
-    msgs.push({
-      role: msg.role,
-      content: msg.content,
-    });
+  if (lastMessage?.role === "user") {
+    msgs.push(lastMessage);
   }
 
   return msgs;

@@ -168,17 +168,21 @@ vi.mock("@/components/chat/ChatSidebar", () => ({
     defaultOpen,
     open,
     onOpenChange,
+    canvasState,
   }: {
     projectId: string;
     defaultOpen: boolean;
     open?: boolean;
     onOpenChange?: (open: boolean) => void;
+    canvasState?: { nodes?: unknown[]; edges?: unknown[] } | null;
   }) => (
     <div
       data-testid="chat-sidebar"
       data-project-id={projectId}
       data-default-open={String(defaultOpen)}
       data-open={String(open)}
+      data-canvas-node-count={String(canvasState?.nodes?.length ?? 0)}
+      data-canvas-edge-count={String(canvasState?.edges?.length ?? 0)}
     >
       Chat Sidebar
       <button type="button" onClick={() => onOpenChange?.(!open)}>
@@ -916,6 +920,16 @@ describe("ProjectPage", () => {
       await waitFor(() => {
         expect(screen.getByTestId("chat-sidebar")).toBeInTheDocument();
         expect(screen.getByTestId("react-flow-canvas")).toBeInTheDocument();
+      });
+    });
+
+    it("passes the current React Flow canvas state to chat", async () => {
+      mockFetchProject(projectWithNodes);
+      render(<ProjectPage />);
+      await waitFor(() => {
+        const sidebar = screen.getByTestId("chat-sidebar");
+        expect(sidebar).toHaveAttribute("data-canvas-node-count", "2");
+        expect(sidebar).toHaveAttribute("data-canvas-edge-count", "1");
       });
     });
   });
