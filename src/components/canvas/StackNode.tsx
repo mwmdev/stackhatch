@@ -115,13 +115,14 @@ function StackNodeComponent({ id, data, selected }: NodeProps<StackNodeData>) {
       aria-describedby={hasDescription ? tooltipId : undefined}
       data-testid={`stack-node-${id}`}
     >
-      {/* Target handle (top) */}
-      <Handle
-        type="target"
-        position={Position.Top}
-        className="!h-3 !w-3 !border-2 !border-white"
-        style={{ backgroundColor: catConfig.color }}
-      />
+      {!isNoteNode && (
+        <Handle
+          type="target"
+          position={Position.Top}
+          className="!h-3 !w-3 !border-2 !border-white"
+          style={{ backgroundColor: catConfig.color }}
+        />
+      )}
 
       {/* Lock indicator */}
       {data.locked && (
@@ -215,13 +216,14 @@ function StackNodeComponent({ id, data, selected }: NodeProps<StackNodeData>) {
         </div>
       )}
 
-      {/* Source handle (bottom) */}
-      <Handle
-        type="source"
-        position={Position.Bottom}
-        className="!h-3 !w-3 !border-2 !border-white"
-        style={{ backgroundColor: catConfig.color }}
-      />
+      {!isNoteNode && (
+        <Handle
+          type="source"
+          position={Position.Bottom}
+          className="!h-3 !w-3 !border-2 !border-white"
+          style={{ backgroundColor: catConfig.color }}
+        />
+      )}
 
       {/* Description tooltip */}
       {hasDescription && (

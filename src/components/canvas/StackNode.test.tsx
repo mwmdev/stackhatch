@@ -193,6 +193,16 @@ describe("StackNode", () => {
     expect(screen.queryByText("Note")).not.toBeInTheDocument();
   });
 
+  it("does not show connection handles for note nodes", () => {
+    const { container } = renderNode({
+      category: "note",
+      subtype: "note",
+      name: "Decision note",
+    });
+
+    expect(container.querySelectorAll(".react-flow__handle").length).toBe(0);
+  });
+
   it("has connection handles", () => {
     const { container } = renderNode();
     const handles = container.querySelectorAll(".react-flow__handle");
