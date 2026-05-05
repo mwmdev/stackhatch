@@ -25,7 +25,15 @@ export function getActivePlan(db: AppDatabase, userId: string, role: UserRole): 
     .where(and(eq(subscriptions.userId, userId), eq(subscriptions.status, "active")))
     .get();
 
-  if (!subscription) return "free";
-  if (subscription.currentPeriodEnd && subscription.currentPeriodEnd < Date.now()) return "free";
-  return getPublicPlan(subscription.plan);
+  if (
+    subscription &&
+    (!subscription.currentPeriodEnd || subscription.currentPeriodEnd >= Date.now())
+  ) {
+    const plan = getPublicPlan(subscription.plan);
+    if (plan !== "free") return plan;
+  }
+
+  if (role === "paid-user") return "pro";
+
+  return "free";
 }

@@ -47,13 +47,30 @@ const mockProjects = [
   },
 ];
 
-function mockFetch(projects: typeof mockProjects) {
-  global.fetch = vi.fn((input: RequestInfo | URL, options?: RequestInit) => {
+function mockFetch(
+  projects: typeof mockProjects,
+  options?: {
+    billing?: {
+      plan: string;
+      billingInterval: string | null;
+      status: string | null;
+      currentPeriodEnd: number | null;
+    };
+    role?: string;
+  }
+) {
+  global.fetch = vi.fn((input: RequestInfo | URL, requestOptions?: RequestInit) => {
     const url = typeof input === "string" ? input : input.toString();
     if (url === "/api/me") {
       return Promise.resolve({
         ok: true,
-        json: () => Promise.resolve({ role: "free-user" }),
+        json: () => Promise.resolve({ role: options?.role ?? "free-user" }),
+      });
+    }
+    if (url === "/api/billing/subscription" && options?.billing) {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(options.billing),
       });
     }
     if (url === "/api/projects") {
@@ -62,7 +79,7 @@ function mockFetch(projects: typeof mockProjects) {
         json: () => Promise.resolve(projects),
       });
     }
-    if (url.startsWith("/api/projects/") && options?.method === "DELETE") {
+    if (url.startsWith("/api/projects/") && requestOptions?.method === "DELETE") {
       return Promise.resolve({ ok: true, json: () => Promise.resolve({ success: true }) });
     }
     return Promise.resolve({ ok: false, json: () => Promise.resolve({}) });
@@ -97,6 +114,24 @@ describe("Dashboard", () => {
     expect(screen.getByText("Start from scratch")).toBeInTheDocument();
     expect(screen.getByText("Analyze")).toBeInTheDocument();
     expect(screen.getAllByText("OR")).toHaveLength(2);
+  });
+
+  it("renders the paid billing plan in the usage card", async () => {
+    mockFetch([], {
+      billing: {
+        plan: "pro",
+        billingInterval: null,
+        status: null,
+        currentPeriodEnd: null,
+      },
+    });
+    render(<Dashboard />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Studio")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("0/Unlimited projects used")).toBeInTheDocument();
   });
 
   it("does not render activation or launch basics sidebar sections", async () => {

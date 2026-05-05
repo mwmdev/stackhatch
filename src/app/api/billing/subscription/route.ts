@@ -2,31 +2,32 @@ import { NextResponse } from "next/server";
 import { getDb } from "@/db";
 import { subscriptions } from "@/db/schema";
 import { runMigrations } from "@/db/migrate";
-import { eq } from "drizzle-orm";
-import { getAuthenticatedUserId } from "@/lib/auth";
+import { and, eq } from "drizzle-orm";
+import { getAuthenticatedUser } from "@/lib/auth";
+import { getActivePlan, getPublicPlan } from "@/lib/plans";
 
 export async function GET() {
   try {
-    const userId = await getAuthenticatedUserId();
-    if (!userId) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 },
-      );
+    const user = await getAuthenticatedUser();
+    if (!user) {
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
     }
+    const userId = user.userId;
 
     const db = getDb();
     runMigrations(db);
 
+    const plan = getActivePlan(db, userId, user.role);
     const subscription = db
       .select()
       .from(subscriptions)
-      .where(eq(subscriptions.userId, userId))
+      .where(and(eq(subscriptions.userId, userId), eq(subscriptions.status, "active")))
       .get();
+    const subscriptionPlan = getPublicPlan(subscription?.plan);
 
-    if (!subscription || subscription.plan === "free") {
+    if (!subscription || subscriptionPlan === "free" || plan === "free") {
       return NextResponse.json({
-        plan: "free",
+        plan,
         billingInterval: null,
         status: null,
         currentPeriodEnd: null,
@@ -34,16 +35,13 @@ export async function GET() {
     }
 
     return NextResponse.json({
-      plan: subscription.plan,
+      plan,
       billingInterval: subscription.billingInterval || "monthly",
       status: subscription.status,
       currentPeriodEnd: subscription.currentPeriodEnd,
     });
   } catch (error) {
     console.error("Subscription fetch error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch subscription" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Failed to fetch subscription" }, { status: 500 });
   }
 }
