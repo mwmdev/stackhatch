@@ -64,12 +64,18 @@ function EdgeLabel({
   labelX,
   labelY,
   onLabelChange,
+  visible,
+  onHoverChange,
+  onEditingChange,
 }: {
   edgeId: string;
   label: string;
   labelX: number;
   labelY: number;
   onLabelChange?: (edgeId: string, label: string) => void;
+  visible: boolean;
+  onHoverChange: (hovered: boolean) => void;
+  onEditingChange: (editing: boolean) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(label);
@@ -93,19 +99,31 @@ function EdgeLabel({
       setValue(label);
     }
     setEditing(false);
+    onEditingChange(false);
   }
 
   return (
     <div
-      className={`stack-edge-label absolute rounded-full border border-[var(--border)] bg-[var(--card)] px-2 py-0.5 text-[10px] font-medium text-[var(--card-foreground)] ${canEdit ? "pointer-events-auto cursor-pointer hover:border-[var(--color-client)]" : "pointer-events-none"}`}
+      className={`stack-edge-label absolute rounded-full border border-[var(--border)] bg-[var(--card)] px-2 py-0.5 text-[10px] font-medium text-[var(--card-foreground)] shadow-sm transition-opacity ${
+        visible ? "opacity-100" : "opacity-0"
+      } ${
+        canEdit && visible
+          ? "pointer-events-auto cursor-pointer hover:border-[var(--color-client)]"
+          : "pointer-events-none"
+      }`}
       style={{
         transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
       }}
       data-testid={`edge-label-${edgeId}`}
+      onMouseEnter={() => onHoverChange(true)}
+      onMouseLeave={() => onHoverChange(false)}
       onClick={(e) => e.stopPropagation()}
       onDoubleClick={(e) => {
         e.stopPropagation();
-        if (canEdit) setEditing(true);
+        if (canEdit) {
+          setEditing(true);
+          onEditingChange(true);
+        }
       }}
     >
       {editing ? (
@@ -119,6 +137,7 @@ function EdgeLabel({
             if (e.key === "Escape") {
               setValue(label);
               setEditing(false);
+              onEditingChange(false);
             }
           }}
           className="w-24 border-none bg-transparent text-center text-[10px] font-medium text-[var(--card-foreground)] outline-none"
@@ -142,6 +161,9 @@ function StackEdgeComponent({
   data,
   selected,
 }: EdgeProps<StackEdgeData>) {
+  const [edgeHovered, setEdgeHovered] = useState(false);
+  const [labelHovered, setLabelHovered] = useState(false);
+  const [labelEditing, setLabelEditing] = useState(false);
   const connectionType = data?.connectionType ?? "http";
   const connectionTypesEnabled = data?.connectionTypesEnabled ?? true;
   const style = connectionTypesEnabled
@@ -163,19 +185,22 @@ function StackEdgeComponent({
   });
 
   const strokeWidth = selected ? 3 : style.strokeWidth;
+  const labelVisible = edgeHovered || labelHovered || labelEditing;
 
   return (
     <>
-      <BaseEdge
-        id={id}
-        path={edgePath}
-        style={{
-          stroke: style.color,
-          strokeWidth,
-          strokeDasharray: style.strokeDasharray,
-        }}
-        markerEnd={MarkerType.ArrowClosed}
-      />
+      <g onMouseEnter={() => setEdgeHovered(true)} onMouseLeave={() => setEdgeHovered(false)}>
+        <BaseEdge
+          id={id}
+          path={edgePath}
+          style={{
+            stroke: style.color,
+            strokeWidth,
+            strokeDasharray: style.strokeDasharray,
+          }}
+          markerEnd={MarkerType.ArrowClosed}
+        />
+      </g>
       {connectionTypesEnabled && data?.label && (
         <EdgeLabelRenderer>
           <EdgeLabel
@@ -184,6 +209,9 @@ function StackEdgeComponent({
             labelX={labelX}
             labelY={labelY}
             onLabelChange={data.onLabelChange}
+            visible={labelVisible}
+            onHoverChange={setLabelHovered}
+            onEditingChange={setLabelEditing}
           />
         </EdgeLabelRenderer>
       )}

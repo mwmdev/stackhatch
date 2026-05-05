@@ -1,10 +1,19 @@
-import { describe, it, expect } from "vitest";
-import { render } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { ReactFlowProvider } from "reactflow";
+import type { ReactNode } from "react";
 import StackEdgeComponent, { edgeStyles } from "./StackEdge";
 import type { StackEdgeData } from "./StackEdge";
 import type { ConnectionType } from "@/types/stack";
 import { Position } from "reactflow";
+
+vi.mock("reactflow", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("reactflow")>();
+  return {
+    ...actual,
+    EdgeLabelRenderer: ({ children }: { children: ReactNode }) => <>{children}</>,
+  };
+});
 
 function makeProps(dataOverrides: Partial<StackEdgeData> = {}, selected = false) {
   return {
@@ -39,6 +48,10 @@ function renderEdge(dataOverrides: Partial<StackEdgeData> = {}, selected = false
 // BaseEdge renders style as inline CSS, so we check via element.style
 function getEdgePath(container: HTMLElement) {
   return container.querySelector(".react-flow__edge-path") as SVGPathElement | null;
+}
+
+function getEdgeHitArea(container: HTMLElement) {
+  return container.querySelector("g") as SVGGElement | null;
 }
 
 describe("StackEdge", () => {
@@ -129,6 +142,28 @@ describe("StackEdge", () => {
     expect(path?.style.stroke).toBe("var(--muted-foreground)");
     expect(path?.style.strokeDasharray).toBe("0");
     expect(queryByTestId("edge-label-edge-1")).not.toBeInTheDocument();
+  });
+
+  it("hides editable labels until the edge is hovered", () => {
+    const { container } = renderEdge({ onLabelChange: vi.fn() });
+    const label = screen.getByTestId("edge-label-edge-1");
+
+    expect(label).toHaveClass("opacity-0", "pointer-events-none");
+
+    fireEvent.mouseEnter(getEdgeHitArea(container)!);
+
+    expect(label).toHaveClass("opacity-100", "pointer-events-auto");
+  });
+
+  it("hides labels again after leaving the edge", () => {
+    const { container } = renderEdge({ onLabelChange: vi.fn() });
+    const edgeHitArea = getEdgeHitArea(container)!;
+    const label = screen.getByTestId("edge-label-edge-1");
+
+    fireEvent.mouseEnter(edgeHitArea);
+    fireEvent.mouseLeave(edgeHitArea);
+
+    expect(label).toHaveClass("opacity-0", "pointer-events-none");
   });
 
   it("has marker-end attribute for arrow direction", () => {
