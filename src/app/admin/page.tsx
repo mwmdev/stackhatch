@@ -148,21 +148,37 @@ export default function AdminPage() {
   function setPlanBullets(key: PublicPlanKey, value: string) {
     updatePlan(key, (plan) => ({
       ...plan,
-      bullets: value
-        .split("\n")
-        .map((line) => line.trim())
-        .filter(Boolean),
+      bullets: value.split("\n"),
     }));
+  }
+
+  function normalizePlanBullets(catalog: PlanCatalog): PlanCatalog {
+    return {
+      ...catalog,
+      free: {
+        ...catalog.free,
+        bullets: catalog.free.bullets.map((line) => line.trim()).filter(Boolean),
+      },
+      starter: {
+        ...catalog.starter,
+        bullets: catalog.starter.bullets.map((line) => line.trim()).filter(Boolean),
+      },
+      pro: {
+        ...catalog.pro,
+        bullets: catalog.pro.bullets.map((line) => line.trim()).filter(Boolean),
+      },
+    };
   }
 
   async function handleSavePlans() {
     setPlanSaving(true);
     setPlanStatus("");
     setError("");
+    const plans = normalizePlanBullets(planDraft);
     const res = await fetch("/api/admin/plans", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ plans: planDraft }),
+      body: JSON.stringify({ plans }),
     });
     const data = await res.json().catch(() => ({ error: "Failed to save plans" }));
     if (res.ok) {
