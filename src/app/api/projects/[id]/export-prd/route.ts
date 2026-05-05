@@ -6,9 +6,9 @@ import { getSettings, getApiKey, getModel, getPrompt } from "@/lib/ai/settings";
 import { DEFAULT_PRD_PROMPT } from "@/lib/ai/default-prompts";
 import { buildCanvasContext } from "@/lib/ai/context-builder";
 import type { StackArchitecture } from "@/types/stack";
-import { getAuthenticatedUser, requireRole } from "@/lib/auth";
+import { getAuthenticatedUser } from "@/lib/auth";
 import { getAccessibleProject } from "@/lib/project-access";
-import { getActivePlan } from "@/lib/plans";
+import { getActivePlan, getPlanCatalog } from "@/lib/plans";
 
 export async function POST(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -17,17 +17,16 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
   if (!user) {
     return NextResponse.json({ error: "Authentication required" }, { status: 401 });
   }
-  const roleErr = requireRole(user.role, ["admin", "starter", "pro"]);
-  if (roleErr) return roleErr;
 
   const db = getDb();
   runMigrations(db);
 
   const plan = getActivePlan(db, user.userId, user.role);
-  if (plan !== "pro") {
+  const features = getPlanCatalog(db)[plan].features;
+  if (user.role !== "admin" && !features.prdExport) {
     return NextResponse.json(
       {
-        error: "Studio plan required for PRD export",
+        error: "Your plan does not include PRD export",
         upgradeRequired: true,
         upgradeUrl: "/pricing",
       },

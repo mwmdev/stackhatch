@@ -9,13 +9,15 @@ import type { RefObject } from "react";
 import { stringify as stringifyYaml } from "yaml";
 import { fromReactFlowEdges, fromReactFlowNodes } from "@/types/canvas";
 import type { AlternativeNode } from "@/types/stack";
+import type { DiagramExportFormat } from "@/lib/plan-config";
 
-type ExportFormat = "png" | "svg" | "json" | "yaml";
+type ExportFormat = DiagramExportFormat;
 
 interface ExportDropdownProps {
   rfInstanceRef: RefObject<ReactFlowInstance | null>;
   projectName: string;
   alternatives?: Record<string, AlternativeNode[]>;
+  formats?: ExportFormat[];
   onError: (message: string) => void;
 }
 
@@ -23,6 +25,7 @@ export default function ExportDropdown({
   rfInstanceRef,
   projectName,
   alternatives = {},
+  formats = ["png", "svg", "json", "yaml"],
   onError,
 }: ExportDropdownProps) {
   const [open, setOpen] = useState(false);
@@ -64,8 +67,7 @@ export default function ExportDropdown({
         },
       };
 
-      const content =
-        format === "json" ? JSON.stringify(payload, null, 2) : stringifyYaml(payload);
+      const content = format === "json" ? JSON.stringify(payload, null, 2) : stringifyYaml(payload);
       const type = format === "json" ? "application/json" : "application/yaml";
       const blob = new Blob([content], { type });
       const url = URL.createObjectURL(blob);
@@ -149,30 +151,17 @@ export default function ExportDropdown({
 
       {open && (
         <div className="absolute right-0 top-full z-30 mt-1 w-36 rounded-lg border border-[var(--border)] bg-[var(--background)] shadow-lg">
-          <button
-            onClick={() => handleExport("png")}
-            className="flex w-full items-center gap-2 rounded-t-lg px-3 py-2 text-sm text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]"
-          >
-            Export PNG
-          </button>
-          <button
-            onClick={() => handleExport("svg")}
-            className="flex w-full items-center gap-2 px-3 py-2 text-sm text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]"
-          >
-            Export SVG
-          </button>
-          <button
-            onClick={() => handleExport("json")}
-            className="flex w-full items-center gap-2 px-3 py-2 text-sm text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]"
-          >
-            Export JSON
-          </button>
-          <button
-            onClick={() => handleExport("yaml")}
-            className="flex w-full items-center gap-2 rounded-b-lg px-3 py-2 text-sm text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]"
-          >
-            Export YAML
-          </button>
+          {formats.map((format, index) => (
+            <button
+              key={format}
+              onClick={() => handleExport(format)}
+              className={`flex w-full items-center gap-2 px-3 py-2 text-sm text-[var(--foreground)] transition-colors hover:bg-[var(--muted)] ${
+                index === 0 ? "rounded-t-lg" : ""
+              } ${index === formats.length - 1 ? "rounded-b-lg" : ""}`}
+            >
+              Export {format.toUpperCase()}
+            </button>
+          ))}
         </div>
       )}
     </div>

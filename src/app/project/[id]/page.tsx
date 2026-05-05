@@ -43,9 +43,9 @@ import type {
 import { getSubtypeConfig } from "@/lib/node-config";
 import { applyDagreLayout } from "@/lib/layout";
 import { mergeArchitecture } from "@/lib/merge-architecture";
-import { isPaidTierRole } from "@/lib/roles";
 import { parseCustomSubtypes, type CustomSubtypesMap } from "@/lib/custom-subtypes";
 import UpgradePrompt from "@/components/UpgradePrompt";
+import { DEFAULT_PLAN_CATALOG, type PlanFeatures } from "@/lib/plan-config";
 
 interface Project {
   id: string;
@@ -70,9 +70,10 @@ interface SettingsResponse {
   customSubtypes?: string;
 }
 
-interface BillingResponse {
+interface CapabilitiesResponse {
   plan?: string;
-  status?: string | null;
+  features?: PlanFeatures;
+  isAdmin?: boolean;
 }
 
 /** Stored canvasState extends StackArchitecture with persisted positions */
@@ -110,8 +111,9 @@ export default function ProjectPage() {
   const [commentsPanelOpenTrigger, setCommentsPanelOpenTrigger] = useState(0);
   const [upgradeFeature, setUpgradeFeature] = useState<string | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
-  const [billingPlan, setBillingPlan] = useState("free");
-  const [billingStatus, setBillingStatus] = useState<string | null>(null);
+  const [planFeatures, setPlanFeatures] = useState<PlanFeatures>(
+    DEFAULT_PLAN_CATALOG.free.features
+  );
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<StackNodeData>([]);
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<StackEdgeData>([]);
   const rfInstanceRef = useRef<ReactFlowInstance | null>(null);
@@ -282,6 +284,8 @@ export default function ProjectPage() {
           customSubtypes,
           commentCount: commentCounts[n.id] ?? 0,
           onLockToggle: handleLockToggle,
+          showDescription: planFeatures.nodeDescriptions,
+          canUseNodeLocking: planFeatures.nodeLocking || currentUserRole === "admin",
           onDelete: handleNodeDelete,
           onAddComment: handleAddComment,
           onCommentBadgeClick: handleCommentBadgeClick,
@@ -295,6 +299,9 @@ export default function ProjectPage() {
       handleCommentBadgeClick,
       customSubtypes,
       commentCounts,
+      planFeatures.nodeDescriptions,
+      planFeatures.nodeLocking,
+      currentUserRole,
     ]
   );
 
@@ -506,6 +513,8 @@ export default function ProjectPage() {
           reasoning: newStackNode.reasoning,
           locked: newStackNode.locked,
           customSubtypes,
+          showDescription: planFeatures.nodeDescriptions,
+          canUseNodeLocking: planFeatures.nodeLocking || currentUserRole === "admin",
           onLockToggle: handleLockToggle,
           onDelete: handleNodeDelete,
           onAddComment: handleAddComment,
@@ -536,6 +545,9 @@ export default function ProjectPage() {
       setRfNodes,
       customSubtypes,
       openNodePanel,
+      planFeatures.nodeDescriptions,
+      planFeatures.nodeLocking,
+      currentUserRole,
     ]
   );
 
@@ -712,7 +724,9 @@ export default function ProjectPage() {
             id: n.id,
             position: n.position,
           }));
-          const result = mergeArchitecture(currentCanvas, incoming, currentPositions);
+          const result = mergeArchitecture(currentCanvas, incoming, currentPositions, {
+            nodeLockingEnabled: planFeatures.nodeLocking || currentUserRole === "admin",
+          });
           finalArch = result.architecture;
           const positions = applyDagreLayout(
             result.architecture.nodes,
@@ -734,7 +748,7 @@ export default function ProjectPage() {
         setToast("Failed to update canvas");
       }
     },
-    [rfNodes, buildRfNodes, setRfNodes, setRfEdges]
+    [rfNodes, buildRfNodes, setRfNodes, setRfEdges, planFeatures.nodeLocking, currentUserRole]
   );
 
   // --- Load project ---
@@ -750,11 +764,10 @@ export default function ProjectPage() {
             if (s.customSubtypes) setCustomSubtypes(parseCustomSubtypes(s.customSubtypes));
           })
           .catch(() => {});
-        fetch("/api/billing/subscription")
+        fetch("/api/me/capabilities")
           .then((r) => (r.ok ? r.json() : null))
-          .then((s: BillingResponse | null) => {
-            setBillingPlan(s?.plan ?? "free");
-            setBillingStatus(s?.status ?? null);
+          .then((s: CapabilitiesResponse | null) => {
+            if (s?.features) setPlanFeatures(s.features);
           })
           .catch(() => {});
         const res = await fetch(`/api/projects/${projectId}`);
@@ -788,6 +801,8 @@ export default function ProjectPage() {
             data: {
               ...n.data,
               customSubtypes,
+              showDescription: planFeatures.nodeDescriptions,
+              canUseNodeLocking: planFeatures.nodeLocking || currentUserRole === "admin",
               onLockToggle: handleLockToggle,
               onDelete: handleNodeDelete,
               onAddComment: handleAddComment,
@@ -816,6 +831,19 @@ export default function ProjectPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
+  useEffect(() => {
+    setRfNodes((nds) =>
+      nds.map((n) => ({
+        ...n,
+        data: {
+          ...n.data,
+          showDescription: planFeatures.nodeDescriptions,
+          canUseNodeLocking: planFeatures.nodeLocking || currentUserRole === "admin",
+        },
+      }))
+    );
+  }, [planFeatures.nodeDescriptions, planFeatures.nodeLocking, currentUserRole, setRfNodes]);
+
   // --- Derived state ---
 
   const hasCanvas = useMemo(
@@ -824,9 +852,8 @@ export default function ProjectPage() {
   );
   const nodeCount = project?.canvasState?.nodes?.length ?? 0;
   const isAdmin = currentUserRole === "admin";
-  const canUseAlternatives = isAdmin || isPaidTierRole(currentUserRole);
-  const canExportPrd =
-    isAdmin || ((billingPlan === "pro" || billingPlan === "team") && billingStatus === "active");
+  const canUseAlternatives = isAdmin || planFeatures.alternatives;
+  const canExportPrd = isAdmin || planFeatures.prdExport;
 
   // Map nodeId → name for comment labels
   const nodeNames = useMemo(() => {
@@ -913,6 +940,7 @@ export default function ProjectPage() {
                 rfInstanceRef={rfInstanceRef}
                 projectName={project.name}
                 alternatives={alternatives}
+                formats={planFeatures.exports}
                 onError={setToast}
               />
             )}
@@ -1101,6 +1129,8 @@ export default function ProjectPage() {
             customSubtypes={customSubtypes}
             alternatives={selectedNode ? alternatives[selectedNode.id] : undefined}
             alternativesLoading={altLoading}
+            showDescription={planFeatures.nodeDescriptions}
+            canUseNodeLocking={planFeatures.nodeLocking || isAdmin}
             onSuggestAlternatives={canUseAlternatives ? handleSuggestAlternatives : undefined}
             onSwapAlternative={canUseAlternatives ? handleSwapAlternative : undefined}
           />

@@ -18,10 +18,7 @@ export async function POST(request: NextRequest) {
   try {
     const user = await getAuthenticatedUser();
     if (!user) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
     }
 
     if (user.role === "free") {
@@ -34,17 +31,13 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const parsed = createTeamSchema.safeParse(body);
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues[0].message },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
     }
-
-    const { name, plan, interval } = parsed.data;
-    const priceId = getPriceId(plan, interval);
 
     const db = getDb();
     runMigrations(db);
+    const { name, plan, interval } = parsed.data;
+    const priceId = getPriceId(plan, interval, db);
 
     // Get or create Stripe customer
     const { subscriptions, users } = await import("@/db/schema");
@@ -99,10 +92,7 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("POST /api/teams error:", error);
-    return NextResponse.json(
-      { error: "Failed to create team" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to create team" }, { status: 500 });
   }
 }
 
@@ -111,10 +101,7 @@ export async function GET() {
   try {
     const user = await getAuthenticatedUser();
     if (!user) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
     }
 
     const db = getDb();
@@ -136,9 +123,6 @@ export async function GET() {
     return NextResponse.json(userTeams);
   } catch (error) {
     console.error("GET /api/teams error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch teams" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to fetch teams" }, { status: 500 });
   }
 }

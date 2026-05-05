@@ -49,9 +49,11 @@ vi.mock("reactflow", () => {
               "data-testid": `mock-flow-node-${(node as { id: string }).id}`,
               onClick: (event: React.MouseEvent) => {
                 event.stopPropagation();
-                (props.onNodeClick as
-                  | ((event: React.MouseEvent, node: unknown) => void)
-                  | undefined)?.(event, node);
+                (
+                  props.onNodeClick as
+                    | ((event: React.MouseEvent, node: unknown) => void)
+                    | undefined
+                )?.(event, node);
               },
             },
             (node as { data?: { name?: string } }).data?.name ?? (node as { id: string }).id
@@ -270,10 +272,51 @@ function mockFetchProject(
 ) {
   global.fetch = vi.fn((input: RequestInfo | URL, _options?: RequestInit) => {
     const url = String(input);
+    const role = String(options.settings?.role ?? "free");
+    const billingPlan = String(options.billing?.plan ?? role);
+    const effectivePlan =
+      role === "admin"
+        ? "pro"
+        : billingPlan === "pro" || billingPlan === "team"
+          ? "pro"
+          : billingPlan === "starter"
+            ? "starter"
+            : "free";
+    const features = {
+      projects: effectivePlan === "pro" ? "unlimited" : effectivePlan === "starter" ? 5 : 2,
+      messagesPerMonth: "byok",
+      scansPerMonth: effectivePlan === "pro" ? 150 : effectivePlan === "starter" ? 25 : 2,
+      models: effectivePlan === "pro" ? ["sonnet", "opus"] : ["sonnet"],
+      exports:
+        effectivePlan === "pro"
+          ? ["png", "svg", "json", "yaml"]
+          : effectivePlan === "starter"
+            ? ["png", "svg", "json"]
+            : ["json"],
+      nodeDescriptions: true,
+      nodeLocking: true,
+      customSubtypes: effectivePlan === "pro",
+      alternatives: effectivePlan === "starter" || effectivePlan === "pro",
+      prdExport: effectivePlan === "pro",
+      collaboration: effectivePlan === "pro",
+      serverManagedAi: false,
+      byok: true,
+    };
     if (url === "/api/settings") {
       return Promise.resolve({
         ok: true,
         json: () => Promise.resolve(options.settings ?? { role: "free", isAdmin: false }),
+      } as Response);
+    }
+    if (url === "/api/me/capabilities") {
+      return Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            plan: effectivePlan,
+            features,
+            isAdmin: role === "admin",
+          }),
       } as Response);
     }
     if (url === "/api/billing/subscription") {

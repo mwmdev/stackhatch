@@ -30,6 +30,8 @@ export interface NodeDetailPanelProps {
   customSubtypes?: CustomSubtypesMap;
   alternatives?: AlternativeNode[];
   alternativesLoading?: boolean;
+  showDescription?: boolean;
+  canUseNodeLocking?: boolean;
   onSuggestAlternatives?: () => void;
   onSwapAlternative?: (alt: AlternativeNode) => void;
 }
@@ -43,6 +45,8 @@ export default function NodeDetailPanel({
   customSubtypes,
   alternatives,
   alternativesLoading,
+  showDescription = true,
+  canUseNodeLocking = true,
   onSuggestAlternatives,
   onSwapAlternative,
 }: NodeDetailPanelProps) {
@@ -168,26 +172,27 @@ export default function NodeDetailPanel({
           </select>
         </div>
 
-        {/* Description */}
-        <div>
-          <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-[var(--muted-foreground)]">
-            Description
-          </label>
-          <textarea
-            value={node.description}
-            onChange={(e) => onUpdate(node.id, { description: e.target.value })}
-            placeholder="What this component does..."
-            rows={3}
-            className="w-full resize-none rounded border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
-            aria-label="Description"
-          />
-          {containsHtml(node.description) && (
-            <div
-              className="mt-1 rounded bg-[var(--muted)] px-3 py-1.5 text-sm text-[var(--foreground)] [&_a]:text-blue-500 [&_a]:underline"
-              dangerouslySetInnerHTML={{ __html: sanitizeHtml(node.description) }}
+        {showDescription && (
+          <div>
+            <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-[var(--muted-foreground)]">
+              Description
+            </label>
+            <textarea
+              value={node.description}
+              onChange={(e) => onUpdate(node.id, { description: e.target.value })}
+              placeholder="What this component does..."
+              rows={3}
+              className="w-full resize-none rounded border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-client)]"
+              aria-label="Description"
             />
-          )}
-        </div>
+            {containsHtml(node.description) && (
+              <div
+                className="mt-1 rounded bg-[var(--muted)] px-3 py-1.5 text-sm text-[var(--foreground)] [&_a]:text-blue-500 [&_a]:underline"
+                dangerouslySetInnerHTML={{ __html: sanitizeHtml(node.description) }}
+              />
+            )}
+          </div>
+        )}
 
         {/* Reasoning (read-only) */}
         {node.reasoning && (
@@ -202,33 +207,35 @@ export default function NodeDetailPanel({
         )}
 
         {/* Lock Toggle */}
-        <div className="flex items-center justify-between rounded border border-[var(--border)] px-3 py-3">
-          <div className="flex items-center gap-2">
-            {node.locked ? (
-              <icons.Lock size={16} className="text-[var(--color-data)]" />
-            ) : (
-              <icons.Unlock size={16} className="text-[var(--muted-foreground)]" />
-            )}
-            <span className="text-sm font-medium text-[var(--foreground)]">
-              {node.locked ? "Locked" : "Unlocked"}
-            </span>
-          </div>
-          <button
-            onClick={() => onUpdate(node.id, { locked: !node.locked })}
-            role="switch"
-            aria-checked={node.locked}
-            aria-label="Lock toggle"
-            className={`relative h-6 w-11 rounded-full transition-colors ${
-              node.locked ? "bg-[var(--color-data)]" : "bg-[var(--muted-foreground)]"
-            }`}
-          >
-            <span
-              className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${
-                node.locked ? "translate-x-5" : "translate-x-0"
+        {canUseNodeLocking && (
+          <div className="flex items-center justify-between rounded border border-[var(--border)] px-3 py-3">
+            <div className="flex items-center gap-2">
+              {node.locked ? (
+                <icons.Lock size={16} className="text-[var(--color-data)]" />
+              ) : (
+                <icons.Unlock size={16} className="text-[var(--muted-foreground)]" />
+              )}
+              <span className="text-sm font-medium text-[var(--foreground)]">
+                {node.locked ? "Locked" : "Unlocked"}
+              </span>
+            </div>
+            <button
+              onClick={() => onUpdate(node.id, { locked: !node.locked })}
+              role="switch"
+              aria-checked={node.locked}
+              aria-label="Lock toggle"
+              className={`relative h-6 w-11 rounded-full transition-colors ${
+                node.locked ? "bg-[var(--color-data)]" : "bg-[var(--muted-foreground)]"
               }`}
-            />
-          </button>
-        </div>
+            >
+              <span
+                className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${
+                  node.locked ? "translate-x-5" : "translate-x-0"
+                }`}
+              />
+            </button>
+          </div>
+        )}
 
         {/* Alternatives */}
         {onSuggestAlternatives && onSwapAlternative && (

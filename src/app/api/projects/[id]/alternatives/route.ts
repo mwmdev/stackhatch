@@ -7,8 +7,9 @@ import { getSettings, getApiKey, getModel, getPrompt } from "@/lib/ai/settings";
 import { DEFAULT_ALTERNATIVES_PROMPT } from "@/lib/ai/default-prompts";
 import { buildCanvasContext } from "@/lib/ai/context-builder";
 import type { StackArchitecture, AlternativeNode } from "@/types/stack";
-import { getAuthenticatedUser, requireRole } from "@/lib/auth";
+import { getAuthenticatedUser } from "@/lib/auth";
 import { getAccessibleProject } from "@/lib/project-access";
+import { getActivePlan, getPlanCatalog } from "@/lib/plans";
 
 const requestSchema = z.object({
   node: z.object({
@@ -36,8 +37,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!user) {
     return NextResponse.json({ error: "Authentication required" }, { status: 401 });
   }
-  const roleErr = requireRole(user.role, ["admin", "starter", "pro"]);
-  if (roleErr) return roleErr;
   const userId = user.userId;
 
   let body: unknown;
@@ -54,6 +53,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const db = getDb();
   runMigrations(db);
+  const plan = getActivePlan(db, userId, user.role);
+  const features = getPlanCatalog(db)[plan].features;
+  if (user.role !== "admin" && !features.alternatives) {
+    return NextResponse.json(
+      {
+        error: "Your plan does not include alternatives.",
+        upgradeRequired: true,
+        upgradeUrl: "/pricing",
+      },
+      { status: 403 }
+    );
+  }
 
   const settingsMap = getSettings(db);
   const apiKey = getApiKey(db, user.userId);

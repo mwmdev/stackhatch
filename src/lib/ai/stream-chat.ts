@@ -12,6 +12,7 @@ import { DEFAULT_CHAT_PROMPT } from "@/lib/ai/default-prompts";
 import type { ChatMessage } from "@/types/chat";
 import type { StackArchitecture } from "@/types/stack";
 import type { AuthenticatedUser } from "@/lib/auth";
+import { getActivePlan, getPlanCatalog } from "@/lib/plans";
 
 export function sseEvent(data: object): string {
   return `data: ${JSON.stringify(data)}\n\n`;
@@ -89,6 +90,8 @@ export function streamChat(
   }
 
   const model = getModel(settingsMap);
+  const plan = user ? getActivePlan(db, user.userId, user.role) : "free";
+  const features = getPlanCatalog(db)[plan].features;
   const customSubtypes = parseCustomSubtypes(settingsMap.customSubtypes);
   const chatBase = getPrompt(settingsMap, "prompt_chat", DEFAULT_CHAT_PROMPT);
   const systemPrompt = buildSystemPrompt(customSubtypes, chatBase);
@@ -140,7 +143,9 @@ export function streamChat(
   }));
 
   // Build Anthropic messages with architecture context
-  let anthropicMessages = buildMessages(chatHistory, currentArchitecture);
+  let anthropicMessages = buildMessages(chatHistory, currentArchitecture, {
+    nodeLockingEnabled: user?.role === "admin" || features.nodeLocking,
+  });
 
   // For init (no user message and no history), add init instruction as user message
   if (!userMessage && history.length === 0) {

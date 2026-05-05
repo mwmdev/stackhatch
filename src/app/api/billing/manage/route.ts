@@ -73,8 +73,8 @@ export async function POST(request: NextRequest) {
         currentPlan === "starter" ? "starter" : "pro";
       if (currentPlan === "team") {
         const currentPriceId = currentItem.price.id;
-        const team5MonthlyPrice = getPriceId("team5", "monthly");
-        const team5AnnualPrice = getPriceId("team5", "annual");
+        const team5MonthlyPrice = getPriceId("team5", "monthly", db);
+        const team5AnnualPrice = getPriceId("team5", "annual", db);
         if (currentPriceId === team5MonthlyPrice || currentPriceId === team5AnnualPrice) {
           planKey = "team5";
         } else {
@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      const newPriceId = getPriceId(planKey, interval);
+      const newPriceId = getPriceId(planKey, interval, db);
 
       if (interval === "annual") {
         await getStripe().subscriptions.update(subscription.stripeSubscriptionId, {
@@ -115,7 +115,7 @@ export async function POST(request: NextRequest) {
     if (action === "change_plan") {
       const { plan: newPlanKey } = parsed.data;
       const interval = (subscription.billingInterval || "monthly") as "monthly" | "annual";
-      const newPriceId = getPriceId(newPlanKey, interval);
+      const newPriceId = getPriceId(newPlanKey, interval, db);
       const newPlanName = newPlanKey;
 
       await getStripe().subscriptions.update(subscription.stripeSubscriptionId, {

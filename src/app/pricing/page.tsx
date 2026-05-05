@@ -4,7 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, Check, KeyRound, Sparkles, UsersRound } from "lucide-react";
 import Link from "next/link";
 import CheckoutButton from "@/components/billing/CheckoutButton";
-import { PLAN_CONFIG, type BillingInterval } from "@/lib/plan-config";
+import {
+  DEFAULT_PLAN_CATALOG,
+  type BillingInterval,
+  type PublicPlanCatalog,
+  type PublicPlanCatalogEntry,
+} from "@/lib/plan-config";
 
 const PLAN_ORDER = ["free", "starter", "pro"] as const;
 
@@ -14,54 +19,31 @@ const PLAN_ICONS = {
   pro: UsersRound,
 } as const;
 
-const FEATURE_COPY = {
-  free: [
-    "Bring your own Anthropic key",
-    "2 active projects",
-    "2 repository scans per month",
-    "Sonnet architecture chat",
-    "JSON export for handoff",
-  ],
-  starter: [
-    "Bring your own Anthropic key",
-    "10 active projects",
-    "25 repository scans per month",
-    "PNG, SVG, and JSON exports",
-    "Node alternatives and stack swaps",
-  ],
-  pro: [
-    "Bring your own Anthropic key",
-    "Unlimited active projects",
-    "150 repository scans per month",
-    "Opus 4.1, Opus 4, and Sonnet 4 model access",
-    "PRD and Markdown exports",
-    "Team workspaces, comments, and templates",
-    "Custom node subtype system",
-  ],
-} as const;
-
-function displayPrice(
-  plan: (typeof PLAN_CONFIG)[keyof typeof PLAN_CONFIG],
-  interval: BillingInterval
-) {
-  if (plan.monthlyPrice === 0) return "Free";
-  return `$${interval === "annual" && "annualPrice" in plan ? plan.annualPrice : plan.monthlyPrice}`;
+function displayPrice(plan: PublicPlanCatalogEntry, interval: BillingInterval) {
+  if (plan.billing.monthlyPrice === 0) return "Free";
+  return `$${interval === "annual" && plan.billing.annualPrice ? plan.billing.annualPrice : plan.billing.monthlyPrice}`;
 }
 
 export default function PricingPage() {
   const [billingInterval, setBillingInterval] = useState<BillingInterval>("monthly");
   const [currentPlan, setCurrentPlan] = useState<string | null>(null);
+  const [planCatalog, setPlanCatalog] = useState<PublicPlanCatalog>(DEFAULT_PLAN_CATALOG);
 
   useEffect(() => {
-    fetch("/api/billing/subscription")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data?.plan) setCurrentPlan(data.plan === "team" ? "pro" : data.plan);
-      })
-      .catch(() => {});
+    Promise.allSettled([
+      fetch("/api/billing/subscription").then((res) => (res.ok ? res.json() : null)),
+      fetch("/api/plans").then((res) => (res.ok ? res.json() : null)),
+    ]).then(([billingResult, plansResult]) => {
+      if (billingResult.status === "fulfilled" && billingResult.value?.plan) {
+        setCurrentPlan(billingResult.value.plan === "team" ? "pro" : billingResult.value.plan);
+      }
+      if (plansResult.status === "fulfilled" && plansResult.value?.plans) {
+        setPlanCatalog(plansResult.value.plans);
+      }
+    });
   }, []);
 
-  const plans = useMemo(() => PLAN_ORDER.map((key) => PLAN_CONFIG[key]), []);
+  const plans = useMemo(() => PLAN_ORDER.map((key) => planCatalog[key]), [planCatalog]);
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
@@ -155,15 +137,15 @@ export default function PricingPage() {
                       /mo{billingInterval === "annual" ? ", billed annually" : ""}
                     </span>
                   )}
-                  {isPaid && billingInterval === "annual" && "annualPrice" in plan && (
+                  {isPaid && billingInterval === "annual" && plan.billing.annualPrice && (
                     <p className="mt-1 text-xs text-[var(--muted-foreground)]">
-                      ${plan.annualPrice * 12}/year
+                      ${plan.billing.annualPrice * 12}/year
                     </p>
                   )}
                 </div>
 
                 <ul className="mt-6 flex-1 space-y-3">
-                  {FEATURE_COPY[plan.key].map((feature) => (
+                  {plan.bullets.map((feature) => (
                     <li key={feature} className="flex min-w-0 items-start gap-3 text-sm">
                       <Check className="mt-0.5 h-4 w-4 flex-none text-green-600" />
                       <span className="min-w-0 text-[var(--foreground)]">{feature}</span>

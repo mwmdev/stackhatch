@@ -32,6 +32,8 @@ export interface StackNodeData {
   locked: boolean;
   customSubtypes?: CustomSubtypesMap;
   commentCount?: number;
+  showDescription?: boolean;
+  canUseNodeLocking?: boolean;
   onLockToggle?: (id: string, locked: boolean) => void;
   onDelete?: (id: string) => void;
   onClick?: (id: string) => void;
@@ -58,7 +60,8 @@ function StackNodeComponent({ id, data, selected }: NodeProps<StackNodeData>) {
   const iconName = subtypeConfig?.icon ?? catConfig.icon;
   const description = data.description.trim();
   const tooltipId = `node-description-tooltip-${id}`;
-  const hasDescription = description.length > 0;
+  const hasDescription = data.showDescription !== false && description.length > 0;
+  const canUseNodeLocking = data.canUseNodeLocking !== false;
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -201,18 +204,20 @@ function StackNodeComponent({ id, data, selected }: NodeProps<StackNodeData>) {
           style={{ left: contextMenu.x, top: contextMenu.y }}
           data-testid="node-context-menu"
         >
-          <button
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--card-foreground)] hover:bg-[var(--muted)]"
-            onClick={(e) => {
-              e.stopPropagation();
-              data.onLockToggle?.(id, !data.locked);
-              setContextMenu((prev) => ({ ...prev, visible: false }));
-            }}
-            data-testid="context-menu-lock"
-          >
-            {data.locked ? <icons.Unlock size={14} /> : <icons.Lock size={14} />}
-            {data.locked ? "Unlock" : "Lock"}
-          </button>
+          {canUseNodeLocking && (
+            <button
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--card-foreground)] hover:bg-[var(--muted)]"
+              onClick={(e) => {
+                e.stopPropagation();
+                data.onLockToggle?.(id, !data.locked);
+                setContextMenu((prev) => ({ ...prev, visible: false }));
+              }}
+              data-testid="context-menu-lock"
+            >
+              {data.locked ? <icons.Unlock size={14} /> : <icons.Lock size={14} />}
+              {data.locked ? "Unlock" : "Lock"}
+            </button>
+          )}
           <button
             className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--card-foreground)] hover:bg-[var(--muted)]"
             onClick={(e) => {

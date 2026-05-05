@@ -32,6 +32,10 @@ function createTestDb() {
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );
+    CREATE TABLE settings (
+      key TEXT PRIMARY KEY NOT NULL,
+      value TEXT NOT NULL
+    );
   `);
   return drizzle(sqlite, { schema });
 }
@@ -69,6 +73,7 @@ vi.mock("@/lib/auth", () => {
 
 const usersRoute = await import("@/app/api/admin/users/route");
 const impersonationRoute = await import("@/app/api/admin/impersonation/route");
+const plansRoute = await import("@/app/api/admin/plans/route");
 
 function makeRequest(path: string, body?: unknown) {
   const init: RequestInit = { method: body ? "POST" : "GET" };
@@ -152,6 +157,44 @@ describe("admin users API", () => {
     const res = await usersRoute.POST(req as never);
 
     expect(res.status).toBe(409);
+  });
+});
+
+describe("admin plans API", () => {
+  it("returns the saved plan catalog to admins", async () => {
+    const res = await plansRoute.GET();
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.plans.starter.name).toBe("Builder");
+    expect(data.plans.starter.features.projects).toBe(5);
+  });
+
+  it("saves an updated plan catalog", async () => {
+    const getRes = await plansRoute.GET();
+    const { plans } = await getRes.json();
+    plans.starter.name = "Launch";
+    plans.starter.features.projects = 7;
+    plans.starter.billing.monthlyStripePriceId = "price_launch_monthly";
+
+    const res = await plansRoute.PATCH(makeRequest("/api/admin/plans", { plans }) as never);
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.plans.starter.name).toBe("Launch");
+    expect(data.plans.starter.features.projects).toBe(7);
+
+    const persisted = await plansRoute.GET();
+    const persistedData = await persisted.json();
+    expect(persistedData.plans.starter.billing.monthlyStripePriceId).toBe("price_launch_monthly");
+  });
+
+  it("blocks non-admin plan updates", async () => {
+    mockUserRole = "free";
+
+    const res = await plansRoute.PATCH(makeRequest("/api/admin/plans", { plans: {} }) as never);
+
+    expect(res.status).toBe(403);
   });
 });
 

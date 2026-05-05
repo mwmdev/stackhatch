@@ -2,7 +2,7 @@ import { getDb } from "@/db";
 import { usage, type UserRole } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { createId } from "@/lib/id";
-import { getActivePlan, isUnlimited, PLAN_CONFIG, type PublicPlanKey } from "@/lib/plans";
+import { getActivePlan, getPlanCatalog, isUnlimited, type PublicPlanKey } from "@/lib/plans";
 
 const PERIOD_MS = 30 * 24 * 60 * 60 * 1000; // ~30 days
 
@@ -52,7 +52,7 @@ export function getUsage(userId: string) {
 }
 
 export function getUsageLimit(plan: PublicPlanKey, metric: "messages" | "scans") {
-  const features = PLAN_CONFIG[plan].features;
+  const features = getPlanCatalog(getDb())[plan].features;
   return metric === "messages" ? features.messagesPerMonth : features.scansPerMonth;
 }
 
@@ -67,7 +67,7 @@ export function incrementMessages(
 } {
   const db = getDb();
   const plan = getActivePlan(db, userId, role);
-  const limit = getUsageLimit(plan, "messages");
+  const limit = getPlanCatalog(db)[plan].features.messagesPerMonth;
   if (limit === "byok" || isUnlimited(limit)) {
     return { allowed: true, used: 0, limit, plan };
   }
@@ -90,8 +90,8 @@ export function incrementScans(
 ): { allowed: boolean; used: number; limit: number | "unlimited" | "byok"; plan: PublicPlanKey } {
   const db = getDb();
   const plan = getActivePlan(db, userId, role);
-  const limit = getUsageLimit(plan, "scans");
-  if (limit === "byok" || isUnlimited(limit)) {
+  const limit = getPlanCatalog(db)[plan].features.scansPerMonth;
+  if (isUnlimited(limit)) {
     return { allowed: true, used: 0, limit, plan };
   }
 

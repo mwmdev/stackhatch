@@ -18,7 +18,12 @@ import {
 import ThemeToggle from "@/components/ThemeToggle";
 import UserAvatar from "@/components/UserAvatar";
 import UpgradePrompt from "@/components/UpgradePrompt";
-import { PLAN_CONFIG, type PublicPlanKey } from "@/lib/plan-config";
+import {
+  DEFAULT_PLAN_CATALOG,
+  type PlanCatalog,
+  type PlanCatalogEntry,
+  type PublicPlanKey,
+} from "@/lib/plan-config";
 
 interface ProjectSummary {
   id: string;
@@ -41,6 +46,12 @@ interface BillingSummary {
   currentPeriodEnd?: number | null;
 }
 
+interface CapabilitiesSummary {
+  plan?: PublicPlanKey;
+  planConfig?: PlanCatalogEntry;
+  plans?: PlanCatalog;
+}
+
 const ACCEPTED_REQUIREMENT_FILES = [".md", ".txt"];
 
 function formatDate(timestamp: number): string {
@@ -57,8 +68,8 @@ function normalizePlan(plan: string | null | undefined): PublicPlanKey {
   return "free";
 }
 
-function getProjectLimitLabel(plan: PublicPlanKey) {
-  const limit = PLAN_CONFIG[plan].features.projects;
+function getProjectLimitLabel(planConfig: PlanCatalogEntry) {
+  const limit = planConfig.features.projects;
   return limit === "unlimited" ? "Unlimited" : String(limit);
 }
 
@@ -90,6 +101,7 @@ export default function Dashboard() {
   const [upgradePrompt, setUpgradePrompt] = useState<string | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [billing, setBilling] = useState<BillingSummary | null>(null);
+  const [capabilities, setCapabilities] = useState<CapabilitiesSummary | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadProjects = useCallback(async () => {
@@ -121,7 +133,8 @@ export default function Dashboard() {
     Promise.allSettled([
       fetch("/api/me").then((res) => (res.ok ? res.json() : null)),
       fetch("/api/billing/subscription").then((res) => (res.ok ? res.json() : null)),
-    ]).then(([userResult, billingResult]) => {
+      fetch("/api/me/capabilities").then((res) => (res.ok ? res.json() : null)),
+    ]).then(([userResult, billingResult, capabilitiesResult]) => {
       if (cancelled) return;
 
       if (userResult.status === "fulfilled") {
@@ -129,6 +142,9 @@ export default function Dashboard() {
       }
       if (billingResult.status === "fulfilled") {
         setBilling(billingResult.value as BillingSummary | null);
+      }
+      if (capabilitiesResult.status === "fulfilled") {
+        setCapabilities(capabilitiesResult.value as CapabilitiesSummary | null);
       }
     });
 
@@ -226,8 +242,8 @@ export default function Dashboard() {
   }, [deleteTarget]);
 
   const isAdmin = currentUserRole === "admin";
-  const activePlan = normalizePlan(billing?.plan);
-  const activePlanConfig = PLAN_CONFIG[activePlan];
+  const activePlan = capabilities?.plan ?? normalizePlan(billing?.plan);
+  const activePlanConfig = capabilities?.planConfig ?? DEFAULT_PLAN_CATALOG[activePlan];
   const projectLimit = activePlanConfig.features.projects;
 
   return (
@@ -288,7 +304,7 @@ export default function Dashboard() {
               <div className="rounded-lg border border-[var(--border)] bg-[var(--background)] p-4">
                 <div className="text-sm font-semibold">{activePlanConfig.name}</div>
                 <p className="mt-1 text-xs text-[var(--muted-foreground)]">
-                  {projects.length}/{getProjectLimitLabel(activePlan)} projects used
+                  {projects.length}/{getProjectLimitLabel(activePlanConfig)} projects used
                 </p>
                 {projectLimit !== "unlimited" && projects.length >= projectLimit && (
                   <Link

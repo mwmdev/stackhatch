@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get price ID for the selected plan and interval
-    const priceId = getPriceId(plan, interval);
+    const priceId = getPriceId(plan, interval, db);
 
     // Create checkout session
     const session = await getStripe().checkout.sessions.create({

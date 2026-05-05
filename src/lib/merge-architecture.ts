@@ -16,8 +16,10 @@ export function mergeArchitecture(
   current: StackArchitecture,
   incoming: StackArchitecture,
   currentPositions: NodePosition[],
+  options: { nodeLockingEnabled?: boolean } = {}
 ): MergeResult {
-  const lockedNodes = current.nodes.filter((n) => n.locked);
+  const nodeLockingEnabled = options.nodeLockingEnabled ?? true;
+  const lockedNodes = nodeLockingEnabled ? current.nodes.filter((n) => n.locked) : [];
   const lockedIds = new Set(lockedNodes.map((n) => n.id));
 
   // Build position map for locked nodes
@@ -38,19 +40,15 @@ export function mergeArchitecture(
 
   // Keep current edges where both endpoints are locked
   const preservedEdges = current.edges.filter(
-    (e) => lockedIds.has(e.source) && lockedIds.has(e.target),
+    (e) => lockedIds.has(e.source) && lockedIds.has(e.target)
   );
-  const preservedEdgeKeys = new Set(
-    preservedEdges.map((e) => `${e.source}->${e.target}`),
-  );
+  const preservedEdgeKeys = new Set(preservedEdges.map((e) => `${e.source}->${e.target}`));
 
   // Add incoming edges that connect valid nodes and aren't already preserved
   const incomingEdges = incoming.edges.filter((e) => {
     const key = `${e.source}->${e.target}`;
     return (
-      mergedNodeIds.has(e.source) &&
-      mergedNodeIds.has(e.target) &&
-      !preservedEdgeKeys.has(key)
+      mergedNodeIds.has(e.source) && mergedNodeIds.has(e.target) && !preservedEdgeKeys.has(key)
     );
   });
 

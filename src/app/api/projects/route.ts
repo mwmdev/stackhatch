@@ -5,7 +5,7 @@ import { runMigrations } from "@/db/migrate";
 import { z } from "zod";
 import { desc, eq, and, or, inArray, count } from "drizzle-orm";
 import { getAuthenticatedUser, getAuthenticatedUserId } from "@/lib/auth";
-import { getActivePlan, isUnlimited, PLAN_CONFIG } from "@/lib/plans";
+import { getActivePlan, getPlanCatalog, isUnlimited } from "@/lib/plans";
 import { createId } from "@/lib/id";
 
 const createProjectSchema = z.object({
@@ -50,7 +50,9 @@ export async function POST(request: NextRequest) {
     runMigrations(db);
 
     const plan = getActivePlan(db, userId, user.role);
-    const projectLimit = PLAN_CONFIG[plan].features.projects;
+    const catalog = getPlanCatalog(db);
+    const planConfig = catalog[plan];
+    const projectLimit = planConfig.features.projects;
     if (!isUnlimited(projectLimit)) {
       const [{ total }] = db
         .select({ total: count() })
@@ -60,7 +62,7 @@ export async function POST(request: NextRequest) {
       if (total >= projectLimit) {
         return NextResponse.json(
           {
-            error: `${PLAN_CONFIG[plan].name} is limited to ${projectLimit} projects`,
+            error: `${planConfig.name} is limited to ${projectLimit} projects`,
             upgradeRequired: true,
             limit: projectLimit,
             used: total,

@@ -74,7 +74,7 @@ function handleSubscriptionChange(db: ReturnType<typeof getDb>, sub: Stripe.Subs
 
   if (priceId) {
     try {
-      const planInfo = getPlanByPriceId(priceId);
+      const planInfo = getPlanByPriceId(priceId, db);
       plan = planInfo.plan.startsWith("team") ? "team" : (planInfo.plan as "starter" | "pro");
       interval = planInfo.interval;
     } catch {

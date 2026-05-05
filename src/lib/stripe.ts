@@ -1,5 +1,7 @@
 import Stripe from "stripe";
 import { PLAN_CONFIG, type BillingInterval, type CheckoutPlanKey } from "@/lib/plan-config";
+import type { AppDatabase } from "@/db";
+import { getPlanCatalog } from "@/lib/plans";
 
 // Server-side Stripe client (lazy to avoid crash when key is missing)
 let _stripe: Stripe | null = null;
@@ -28,12 +30,24 @@ export const STRIPE_PRICES = {
 export { PLAN_CONFIG };
 
 // Helper function to get price ID for a given plan and interval
-export function getPriceId(plan: CheckoutPlanKey, interval: BillingInterval): string {
+export function getPriceId(
+  plan: CheckoutPlanKey,
+  interval: BillingInterval,
+  db?: AppDatabase
+): string {
   if (plan === "starter") {
-    return interval === "monthly" ? STRIPE_PRICES.STARTER_MONTHLY : STRIPE_PRICES.STARTER_ANNUAL;
+    const saved = db ? getPlanCatalog(db).starter.billing : undefined;
+    return (
+      (interval === "monthly" ? saved?.monthlyStripePriceId : saved?.annualStripePriceId) ||
+      (interval === "monthly" ? STRIPE_PRICES.STARTER_MONTHLY : STRIPE_PRICES.STARTER_ANNUAL)
+    );
   }
   if (plan === "pro") {
-    return interval === "monthly" ? STRIPE_PRICES.PRO_MONTHLY : STRIPE_PRICES.PRO_ANNUAL;
+    const saved = db ? getPlanCatalog(db).pro.billing : undefined;
+    return (
+      (interval === "monthly" ? saved?.monthlyStripePriceId : saved?.annualStripePriceId) ||
+      (interval === "monthly" ? STRIPE_PRICES.PRO_MONTHLY : STRIPE_PRICES.PRO_ANNUAL)
+    );
   }
   if (plan === "team5") {
     return interval === "monthly" ? STRIPE_PRICES.TEAM5_MONTHLY : STRIPE_PRICES.TEAM5_ANNUAL;
@@ -45,31 +59,32 @@ export function getPriceId(plan: CheckoutPlanKey, interval: BillingInterval): st
 }
 
 // Helper function to get plan details by price ID
-export function getPlanByPriceId(priceId: string) {
+export function getPlanByPriceId(priceId: string, db?: AppDatabase) {
+  const catalog = db ? getPlanCatalog(db) : PLAN_CONFIG;
   const plans = [
     {
       key: "starter-monthly",
       plan: "starter",
       interval: "monthly" as const,
-      priceId: STRIPE_PRICES.STARTER_MONTHLY,
+      priceId: catalog.starter.billing.monthlyStripePriceId || STRIPE_PRICES.STARTER_MONTHLY,
     },
     {
       key: "starter-annual",
       plan: "starter",
       interval: "annual" as const,
-      priceId: STRIPE_PRICES.STARTER_ANNUAL,
+      priceId: catalog.starter.billing.annualStripePriceId || STRIPE_PRICES.STARTER_ANNUAL,
     },
     {
       key: "pro-monthly",
       plan: "pro",
       interval: "monthly" as const,
-      priceId: STRIPE_PRICES.PRO_MONTHLY,
+      priceId: catalog.pro.billing.monthlyStripePriceId || STRIPE_PRICES.PRO_MONTHLY,
     },
     {
       key: "pro-annual",
       plan: "pro",
       interval: "annual" as const,
-      priceId: STRIPE_PRICES.PRO_ANNUAL,
+      priceId: catalog.pro.billing.annualStripePriceId || STRIPE_PRICES.PRO_ANNUAL,
     },
     {
       key: "team5-monthly",

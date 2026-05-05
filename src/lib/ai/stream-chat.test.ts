@@ -61,6 +61,18 @@ function createTestDb(): AppDatabase {
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );
+    CREATE TABLE subscriptions (
+      id TEXT PRIMARY KEY NOT NULL,
+      user_id TEXT NOT NULL,
+      stripe_customer_id TEXT,
+      stripe_subscription_id TEXT,
+      plan TEXT DEFAULT 'free' NOT NULL,
+      billing_interval TEXT DEFAULT 'monthly',
+      status TEXT NOT NULL,
+      current_period_end INTEGER,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
   `);
 
   return drizzle(sqlite, { schema });
