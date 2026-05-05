@@ -102,7 +102,9 @@ function EdgeLabel({
         transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
       }}
       data-testid={`edge-label-${edgeId}`}
-      onDoubleClick={() => {
+      onClick={(e) => e.stopPropagation()}
+      onDoubleClick={(e) => {
+        e.stopPropagation();
         if (canEdit) setEditing(true);
       }}
     >

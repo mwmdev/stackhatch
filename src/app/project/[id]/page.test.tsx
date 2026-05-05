@@ -83,7 +83,19 @@ vi.mock("reactflow", () => {
                 )?.(event, edge);
               },
             },
-            (edge as { id: string }).id
+            React.createElement(
+              React.Fragment,
+              null,
+              (edge as { id: string }).id,
+              React.createElement(
+                "span",
+                {
+                  className: "stack-edge-label",
+                  "data-testid": `mock-flow-edge-label-${(edge as { id: string }).id}`,
+                },
+                (edge as { data?: { label?: string } }).data?.label ?? ""
+              )
+            )
           )
         ),
         children
@@ -810,6 +822,24 @@ describe("ProjectPage", () => {
           "websocket"
         );
       });
+    });
+
+    it("does not open connection type editing from an edge label click", async () => {
+      mockFetchProject(projectWithNodes, {
+        settings: { role: "pro", isAdmin: false },
+        billing: { plan: "pro", status: "active" },
+      });
+      render(<ProjectPage />);
+      await waitFor(() => {
+        expect(screen.getByTestId("mock-flow-edge-e1")).toHaveAttribute(
+          "data-connection-types-enabled",
+          "true"
+        );
+      });
+
+      fireEvent.click(screen.getByTestId("mock-flow-edge-label-e1"));
+
+      expect(screen.queryByTestId("connection-type-selector")).not.toBeInTheDocument();
     });
   });
 

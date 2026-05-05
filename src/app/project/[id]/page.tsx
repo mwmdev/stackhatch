@@ -435,6 +435,9 @@ export default function ProjectPage() {
   const handleEdgeClick = useCallback(
     (event: React.MouseEvent, edge: Edge<StackEdgeData>) => {
       if (!canUseConnectionTypes) return;
+      if (event.target instanceof Element && event.target.closest(".stack-edge-label")) {
+        return;
+      }
       event.stopPropagation();
       if (nodePanelOpen) closeNodePanel();
       setConnectionTypePopover({
