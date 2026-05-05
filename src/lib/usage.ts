@@ -107,6 +107,22 @@ export function incrementScans(
   return { allowed: true, used: newCount, limit, plan };
 }
 
+export function checkScans(
+  userId: string,
+  role: UserRole = "free"
+): { allowed: boolean; used: number; limit: number | "unlimited" | "byok"; plan: PublicPlanKey } {
+  const db = getDb();
+  const plan = getActivePlan(db, userId, role);
+  const limit = getPlanCatalog(db)[plan].features.scansPerMonth;
+  if (isUnlimited(limit)) {
+    return { allowed: true, used: 0, limit, plan };
+  }
+
+  const record = getOrCreateUsage(db, userId);
+
+  return { allowed: record.scanCount < limit, used: record.scanCount, limit, plan };
+}
+
 export function resetUsage(userId: string) {
   const db = getDb();
   const now = Date.now();

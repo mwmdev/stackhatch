@@ -7,7 +7,7 @@ import { z } from "zod";
 import { analyzeRepo, formatRepoAnalysis } from "@/lib/github-analyzer";
 import { streamChat, sseEvent, SSE_HEADERS } from "@/lib/ai/stream-chat";
 import { getAuthenticatedUser } from "@/lib/auth";
-import { incrementScans } from "@/lib/usage";
+import { checkScans, incrementScans } from "@/lib/usage";
 import { getAccessibleProject } from "@/lib/project-access";
 
 const scanSchema = z.object({
@@ -58,8 +58,37 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const { repoUrl } = parsed.data;
 
-  // Enforce usage limits for free users
+  // Enforce usage limits before doing external work, but only consume quota after analysis succeeds.
   let scansRemaining: number | null = null;
+  if (user.role !== "admin") {
+    const result = checkScans(userId, user.role);
+    if (!result.allowed) {
+      return new Response(
+        JSON.stringify({
+          error: `Monthly scan limit reached (${result.limit})`,
+          limit: result.limit,
+          used: result.used,
+          upgradeUrl: "/pricing",
+        }),
+        {
+          status: 429,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+    }
+  }
+
+  // Analyze the repo
+  let analysis;
+  try {
+    analysis = await analyzeRepo(repoUrl);
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : "Failed to analyze repository";
+    return new Response(sseEvent({ type: "error", content: errorMessage }), {
+      headers: SSE_HEADERS,
+    });
+  }
+
   if (user.role !== "admin") {
     const result = incrementScans(userId, user.role);
     if (!result.allowed) {
@@ -77,17 +106,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       );
     }
     scansRemaining = typeof result.limit === "number" ? result.limit - result.used : null;
-  }
-
-  // Analyze the repo
-  let analysis;
-  try {
-    analysis = await analyzeRepo(repoUrl);
-  } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : "Failed to analyze repository";
-    return new Response(sseEvent({ type: "error", content: errorMessage }), {
-      headers: SSE_HEADERS,
-    });
   }
 
   db.transaction((tx) => {
