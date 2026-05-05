@@ -98,6 +98,7 @@ describe("ChatSidebar", () => {
     expect(screen.queryByText("Thinking")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Collapse chat")).not.toBeInTheDocument();
     expect(screen.getByTestId("chat-scroll-overlay")).toBeInTheDocument();
+    expect(screen.getByTestId("chat-scroll-overlay")).toHaveClass("h-[3.75rem]");
     expect(screen.getByPlaceholderText("Message...")).toBeInTheDocument();
   });
 

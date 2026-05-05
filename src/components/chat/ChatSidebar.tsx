@@ -388,11 +388,11 @@ export default function ChatSidebar({
       <div
         aria-hidden="true"
         data-testid="chat-scroll-overlay"
-        className="pointer-events-none absolute inset-x-0 top-0 z-10 h-14 border-b border-[var(--border)] bg-[var(--background)]/95 backdrop-blur supports-[backdrop-filter]:bg-[var(--background)]/85"
+        className="pointer-events-none absolute inset-x-0 top-0 z-10 h-[3.75rem] border-b border-[var(--border)] bg-[var(--background)]/95 backdrop-blur supports-[backdrop-filter]:bg-[var(--background)]/85"
       />
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 pb-4 pt-16">
+      <div className="flex-1 overflow-y-auto px-4 pb-4 pt-[4.25rem]">
         <div className="space-y-3">
           {messages.map((msg) => (
             <div
