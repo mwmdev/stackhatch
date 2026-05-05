@@ -82,21 +82,17 @@ describe("ConnectionTypeSelector", () => {
     expect(onCancel).toHaveBeenCalledOnce();
   });
 
-  it("does not cancel when clicking inside an ignored outside boundary", () => {
+  it("calls onCancel when clicking the scene background", () => {
     const onCancel = vi.fn();
     render(
       <>
-        <div data-testid="scene" data-connection-type-popover-boundary />
-        <ConnectionTypeSelector
-          {...defaultProps}
-          onCancel={onCancel}
-          ignoreOutsideClickWithin="[data-connection-type-popover-boundary]"
-        />
+        <div data-testid="scene" />
+        <ConnectionTypeSelector {...defaultProps} onCancel={onCancel} />
       </>
     );
 
     fireEvent.mouseDown(screen.getByTestId("scene"));
 
-    expect(onCancel).not.toHaveBeenCalled();
+    expect(onCancel).toHaveBeenCalledOnce();
   });
 });
