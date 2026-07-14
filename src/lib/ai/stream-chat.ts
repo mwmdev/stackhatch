@@ -12,6 +12,7 @@ import { DEFAULT_CHAT_PROMPT } from "@/lib/ai/default-prompts";
 import type { ChatMessage } from "@/types/chat";
 import type { StackArchitecture } from "@/types/stack";
 import type { AuthenticatedUser } from "@/lib/auth";
+import { modelSupportsEffort } from "@/lib/ai/models";
 
 export function sseEvent(data: object): string {
   return `data: ${JSON.stringify(data)}\n\n`;
@@ -22,6 +23,19 @@ export const SSE_HEADERS = {
   "Cache-Control": "no-cache",
   Connection: "keep-alive",
 };
+
+export interface RepositoryScanReplacement {
+  repoUrl: string;
+  commitSha: string;
+  scannedAt: number;
+  analysisStatus: "complete" | "partial";
+  analysisWarning: string | null;
+}
+
+interface StreamChatOptions {
+  contextArchitecture?: StackArchitecture | null;
+  repositoryScanReplacement?: RepositoryScanReplacement;
+}
 
 function getErrorStatus(err: unknown): number | null {
   if (typeof err !== "object" || err === null) return null;
@@ -74,7 +88,7 @@ export function streamChat(
   userMessage: string | null,
   initMessage?: string,
   user?: AuthenticatedUser,
-  options: { contextArchitecture?: StackArchitecture | null } = {}
+  options: StreamChatOptions = {}
 ): Response {
   const settingsMap = getSettings(db);
   if (!user) {
@@ -145,11 +159,15 @@ export function streamChat(
       // Ignore malformed canvas state
     }
   }
-  const currentArchitecture =
-    options.contextArchitecture !== undefined ? options.contextArchitecture : persistedArchitecture;
+  const currentArchitecture = options.repositoryScanReplacement
+    ? null
+    : options.contextArchitecture !== undefined
+      ? options.contextArchitecture
+      : persistedArchitecture;
+  const effectiveHistory = options.repositoryScanReplacement ? [] : history;
 
   // Convert DB messages to ChatMessage format for context builder
-  const chatHistory: ChatMessage[] = history.map((msg) => ({
+  const chatHistory: ChatMessage[] = effectiveHistory.map((msg) => ({
     id: msg.id,
     projectId: msg.projectId,
     role: msg.role as "user" | "assistant",
@@ -163,7 +181,8 @@ export function streamChat(
   });
 
   // For init (no user message and no history), add init instruction as user message
-  if (!userMessage && history.length === 0) {
+  const isInitialization = !userMessage && effectiveHistory.length === 0;
+  if (isInitialization) {
     const initContent =
       initMessage ??
       (project?.description
@@ -189,9 +208,10 @@ export function streamChat(
         let fullResponse = "";
         const anthropicStream = client.messages.stream({
           model,
-          max_tokens: 4096,
+          max_tokens: 8192,
           system: systemPrompt,
           messages: anthropicMessages,
+          ...(modelSupportsEffort(model) ? { output_config: { effort: "low" as const } } : {}),
         });
 
         for await (const event of anthropicStream) {
@@ -205,44 +225,83 @@ export function streamChat(
         // Parse the full response for architecture
         const parsed = parseAIResponse(fullResponse, { allowNoteNodes: true });
 
-        // Save assistant message (with the full response including <stack> block)
-        const saveTimestamp = Date.now();
-        db.insert(messages)
-          .values({
-            id: createId(),
-            projectId,
-            role: "assistant",
-            content: fullResponse,
-            createdAt: saveTimestamp,
-          })
-          .run();
+        if (
+          options.repositoryScanReplacement &&
+          (!parsed.architecture || parsed.architecture.nodes.length === 0)
+        ) {
+          controller.enqueue(
+            encoder.encode(
+              sseEvent({
+                type: "error",
+                code: "AI_INVALID_OUTPUT",
+                content:
+                  "StackHatch could not produce a usable architecture map. Your current map was kept; try scanning again.",
+              })
+            )
+          );
+          controller.close();
+          return;
+        }
 
-        // For init, also save the init instruction as a hidden user message
-        if (!userMessage && history.length === 0) {
-          // Insert init instruction before the assistant message
-          db.insert(messages)
+        const saveTimestamp = Date.now();
+        db.transaction((tx) => {
+          if (options.repositoryScanReplacement) {
+            tx.delete(messages).where(eq(messages.projectId, projectId)).run();
+          }
+
+          if (isInitialization) {
+            tx.insert(messages)
+              .values({
+                id: createId(),
+                projectId,
+                role: "user",
+                content: initMessage ?? INIT_INSTRUCTION,
+                createdAt: saveTimestamp - 1,
+              })
+              .run();
+          }
+
+          tx.insert(messages)
             .values({
               id: createId(),
               projectId,
-              role: "user",
-              content: initMessage ?? INIT_INSTRUCTION,
-              createdAt: saveTimestamp - 1,
+              role: "assistant",
+              content: fullResponse,
+              createdAt: saveTimestamp,
             })
             .run();
-        }
 
-        // If architecture was found, save to canvasState and emit event
+          if (parsed.architecture) {
+            tx.update(projects)
+              .set({
+                canvasState: JSON.stringify(parsed.architecture),
+                ...(options.repositoryScanReplacement
+                  ? {
+                      repoUrl: options.repositoryScanReplacement.repoUrl,
+                      repoCommitSha: options.repositoryScanReplacement.commitSha,
+                      repoScannedAt: options.repositoryScanReplacement.scannedAt,
+                      repoAnalysisStatus: options.repositoryScanReplacement.analysisStatus,
+                      repoAnalysisWarning: options.repositoryScanReplacement.analysisWarning,
+                    }
+                  : {}),
+                updatedAt: saveTimestamp,
+              })
+              .where(eq(projects.id, projectId))
+              .run();
+          }
+        });
+
         if (parsed.architecture) {
-          db.update(projects)
-            .set({
-              canvasState: JSON.stringify(parsed.architecture),
-              updatedAt: Date.now(),
-            })
-            .where(eq(projects.id, projectId))
-            .run();
-
           controller.enqueue(
-            encoder.encode(sseEvent({ type: "architecture", content: parsed.architecture }))
+            encoder.encode(
+              sseEvent({
+                type: "architecture",
+                content: parsed.architecture,
+                ...(options.repositoryScanReplacement
+                  ? { provenance: options.repositoryScanReplacement }
+                  : {}),
+              })
+            )
           );
         }
 

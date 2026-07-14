@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import UserAvatar from "@/components/UserAvatar";
+import { consumeAuthenticationStarted, trackEvent } from "@/lib/analytics";
 
 interface ProjectSummary {
   id: string;
@@ -51,14 +52,36 @@ function isAcceptedRequirementsFile(file: File) {
   return ACCEPTED_REQUIREMENT_FILES.some((extension) => name.endsWith(extension));
 }
 
-function StartOptionSeparator() {
-  return (
-    <div className="flex items-center justify-center gap-3 text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
-      <span className="h-px flex-1 bg-[var(--border)] md:hidden" />
-      <span>OR</span>
-      <span className="h-px flex-1 bg-[var(--border)] md:hidden" />
-    </div>
-  );
+function normalizeGitHubRepository(value: string) {
+  const input = value.trim().replace(/\/$/, "");
+  if (!input) return null;
+
+  let path = input;
+  if (/^https?:\/\//i.test(input)) {
+    try {
+      const parsed = new URL(input);
+      if (parsed.hostname.toLowerCase() !== "github.com" || parsed.search || parsed.hash)
+        return null;
+      path = parsed.pathname.replace(/^\//, "");
+    } catch {
+      return null;
+    }
+  } else {
+    path = path.replace(/^github\.com\//i, "");
+  }
+
+  path = path.replace(/\.git$/i, "");
+  const parts = path.split("/");
+  if (
+    parts.length !== 2 ||
+    !/^[A-Za-z0-9_-]+$/.test(parts[0]) ||
+    !/^[A-Za-z0-9_.-]+$/.test(parts[1])
+  ) {
+    return null;
+  }
+
+  const slug = `${parts[0]}/${parts[1]}`;
+  return { slug, url: `https://github.com/${slug}` };
 }
 
 export default function Dashboard() {
@@ -70,6 +93,7 @@ export default function Dashboard() {
   const [deleteTarget, setDeleteTarget] = useState<ProjectSummary | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [repoUrl, setRepoUrl] = useState("");
+  const [requestedRepo, setRequestedRepo] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
@@ -77,6 +101,7 @@ export default function Dashboard() {
   const [newTeamName, setNewTeamName] = useState("");
   const [creatingTeam, setCreatingTeam] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const routedToSetup = useRef(false);
 
   const loadProjects = useCallback(async () => {
     setLoading(true);
@@ -102,6 +127,19 @@ export default function Dashboard() {
   }, [loadProjects]);
 
   useEffect(() => {
+    const repo = new URLSearchParams(window.location.search).get("repo");
+    const normalized = repo ? normalizeGitHubRepository(repo) : null;
+    if (normalized) {
+      setRequestedRepo(normalized.slug);
+      setRepoUrl(normalized.slug);
+    }
+
+    if (consumeAuthenticationStarted()) {
+      trackEvent("github_auth_completed", { location: "dashboard" });
+    }
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
     Promise.allSettled([
       fetch("/api/me").then((res) => (res.ok ? res.json() : null)),
@@ -124,13 +162,23 @@ export default function Dashboard() {
     };
   }, []);
 
-  const requireAnthropicKey = useCallback(() => {
-    if (hasAnthropicKey === false) {
-      router.push("/settings?setup=anthropic");
-      return false;
-    }
-    return true;
-  }, [hasAnthropicKey, router]);
+  useEffect(() => {
+    if (!requestedRepo || hasAnthropicKey !== false || routedToSetup.current) return;
+    routedToSetup.current = true;
+    router.replace(`/settings?setup=anthropic&repo=${encodeURIComponent(requestedRepo)}`);
+  }, [hasAnthropicKey, requestedRepo, router]);
+
+  const requireAnthropicKey = useCallback(
+    (repo?: string) => {
+      if (hasAnthropicKey === false) {
+        const suffix = repo ? `&repo=${encodeURIComponent(repo)}` : "";
+        router.push(`/settings?setup=anthropic${suffix}`);
+        return false;
+      }
+      return true;
+    },
+    [hasAnthropicKey, router]
+  );
 
   async function createProject(opts?: { repoUrl?: string; description?: string }) {
     if ((opts?.repoUrl || opts?.description) && !requireAnthropicKey()) return;
@@ -140,8 +188,8 @@ export default function Dashboard() {
     try {
       let name = "Untitled Project";
       if (opts?.repoUrl) {
-        const match = opts.repoUrl.match(/github\.com\/[^/]+\/([^/]+)/);
-        name = match ? match[1].replace(/\.git$/, "") : "Imported Project";
+        const repository = normalizeGitHubRepository(opts.repoUrl);
+        name = repository?.slug.split("/")[1] || "Imported Project";
       } else if (opts?.description) {
         const firstLine = opts.description.split("\n").find((line) => line.trim());
         if (firstLine) name = firstLine.replace(/^#\s*/, "").trim().slice(0, 80) || name;
@@ -159,7 +207,9 @@ export default function Dashboard() {
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         if (data.code === "AI_NOT_CONFIGURED") {
-          router.push("/settings?setup=anthropic");
+          const repository = opts?.repoUrl ? normalizeGitHubRepository(opts.repoUrl) : null;
+          const suffix = repository ? `&repo=${encodeURIComponent(repository.slug)}` : "";
+          router.push(`/settings?setup=anthropic${suffix}`);
           return;
         }
         setError(data.error || "Failed to create project");
@@ -176,8 +226,18 @@ export default function Dashboard() {
 
   function handleRepoSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const url = repoUrl.trim();
-    if (url) createProject({ repoUrl: url });
+    const repository = normalizeGitHubRepository(repoUrl);
+    if (!repository) {
+      setError("Enter a public GitHub repository as owner/repo or a full GitHub URL.");
+      trackEvent("repository_intent_submitted", {
+        location: "dashboard",
+        error_category: "invalid_url",
+      });
+      return;
+    }
+    trackEvent("repository_intent_submitted", { location: "dashboard" });
+    if (!requireAnthropicKey(repository.slug)) return;
+    createProject({ repoUrl: repository.url });
   }
 
   function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -298,7 +358,7 @@ export default function Dashboard() {
               </div>
             </div>
             <Link
-              href="/settings?setup=anthropic"
+              href={`/settings?setup=anthropic${requestedRepo ? `&repo=${encodeURIComponent(requestedRepo)}` : ""}`}
               className="inline-flex min-h-11 flex-none items-center justify-center rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-bold text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)]"
             >
               Add API key
@@ -307,84 +367,95 @@ export default function Dashboard() {
         )}
 
         <section className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm shadow-[var(--shadow-color)]">
-          <p className="text-sm font-bold uppercase tracking-[0.14em] text-[var(--color-data)]">
-            Architecture workspace
-          </p>
           <h1 className="font-display mt-2 max-w-3xl text-3xl font-extrabold tracking-tight md:text-4xl">
-            Map the stack before the build hardens.
+            What do you want to map?
           </h1>
           <p className="mt-4 max-w-2xl text-sm leading-6 text-[var(--muted-foreground)]">
-            Start from a public repo, a short PRD, or a blank canvas. StackHatch is free to use; AI
-            requests run on your Anthropic account.
+            Turn a public repository into a visual architecture you can explore, question, and keep
+            in focus as the code changes.
           </p>
         </section>
 
-        <section
-          id="start"
-          className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto_minmax(0,1fr)]"
-        >
+        <section id="start" className="space-y-8">
           <form
             onSubmit={handleRepoSubmit}
-            className="entry-card flex min-w-0 flex-col rounded-lg border border-[var(--border)] bg-[var(--card)] p-5"
+            className="entry-card rounded-lg border border-[var(--border)] bg-[var(--card)] p-6"
           >
-            <GitBranch className="h-5 w-5 text-[var(--color-client)]" />
-            <h2 className="mt-3 font-semibold">Analyze a repository</h2>
-            <p className="mt-1 flex-1 text-sm leading-6 text-[var(--muted-foreground)]">
-              Use a public GitHub URL to create the first architecture map.
-            </p>
-            <input
-              type="url"
-              value={repoUrl}
-              onChange={(e) => setRepoUrl(e.target.value)}
-              placeholder="https://github.com/owner/repo"
-              disabled={creating}
-              className="mt-4 w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)] disabled:opacity-50"
-            />
-            <button
-              type="submit"
-              disabled={creating || !repoUrl.trim()}
-              className="mt-3 min-h-11 rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-bold text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)] disabled:opacity-50"
-            >
-              {creating ? "Creating..." : "Analyze"}
-            </button>
+            <div className="flex items-start gap-3">
+              <GitBranch className="mt-0.5 h-5 w-5 flex-none text-[var(--color-client)]" />
+              <div>
+                <h2 className="font-semibold">Map a GitHub repository</h2>
+                <p className="mt-1 text-sm leading-6 text-[var(--muted-foreground)]">
+                  Enter a public repository. You will review it before StackHatch starts the scan.
+                </p>
+              </div>
+            </div>
+            <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+              <label className="sr-only" htmlFor="repository-reference">
+                GitHub repository
+              </label>
+              <input
+                id="repository-reference"
+                type="text"
+                inputMode="url"
+                value={repoUrl}
+                onChange={(e) => setRepoUrl(e.target.value)}
+                placeholder="owner/repo or https://github.com/owner/repo"
+                disabled={creating}
+                className="min-h-11 min-w-0 flex-1 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)] disabled:opacity-50"
+              />
+              <button
+                type="submit"
+                disabled={creating || !repoUrl.trim()}
+                className="min-h-11 rounded-md bg-[var(--brand)] px-5 py-2 text-sm font-bold text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)] disabled:opacity-50"
+              >
+                {creating ? "Creating map..." : "Map repository"}
+              </button>
+            </div>
           </form>
-          <StartOptionSeparator />
-          <div className="entry-card flex min-w-0 flex-col rounded-lg border border-[var(--border)] bg-[var(--card)] p-5">
-            <FileText className="h-5 w-5 text-[var(--color-services)]" />
-            <h2 className="mt-3 font-semibold">Upload requirements</h2>
-            <p className="mt-1 flex-1 text-sm leading-6 text-[var(--muted-foreground)]">
-              Start from a Markdown or text PRD and refine the generated architecture.
-            </p>
-            <button
-              onClick={() => (requireAnthropicKey() ? fileInputRef.current?.click() : undefined)}
-              disabled={creating}
-              className="mt-4 min-h-11 rounded-md border border-dashed border-[var(--border)] px-4 py-2 text-sm font-semibold hover:border-[var(--color-services)] hover:bg-[var(--muted)] disabled:opacity-50"
-            >
-              Choose file...
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".md,.txt,text/markdown,text/plain"
-              onChange={handleFileUpload}
-              className="hidden"
-            />
-            <p className="mt-2 text-xs text-[var(--muted-foreground)]">.md or .txt</p>
-          </div>
-          <StartOptionSeparator />
-          <div className="entry-card flex min-w-0 flex-col rounded-lg border border-[var(--border)] bg-[var(--card)] p-5">
-            <FolderPlus className="h-5 w-5 text-[var(--color-api)]" />
-            <h2 className="mt-3 font-semibold">Start fresh</h2>
-            <p className="mt-1 flex-1 text-sm leading-6 text-[var(--muted-foreground)]">
-              Open a blank canvas and work manually. No API key is required.
-            </p>
-            <button
-              onClick={() => createProject()}
-              disabled={creating}
-              className="mt-4 min-h-11 rounded-md border border-[var(--border)] px-4 py-2 text-sm font-semibold hover:bg-[var(--muted)] disabled:opacity-50"
-            >
-              Start from scratch
-            </button>
+
+          <div>
+            <h2 className="font-display text-xl font-bold">Other ways to start</h2>
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <div className="entry-card flex min-w-0 flex-col rounded-lg border border-[var(--border)] bg-[var(--card)] p-5">
+                <FileText className="h-5 w-5 text-[var(--color-services)]" />
+                <h3 className="mt-3 font-semibold">Upload requirements</h3>
+                <p className="mt-1 flex-1 text-sm leading-6 text-[var(--muted-foreground)]">
+                  Start from a Markdown or text PRD and refine the generated architecture.
+                </p>
+                <button
+                  onClick={() =>
+                    requireAnthropicKey() ? fileInputRef.current?.click() : undefined
+                  }
+                  disabled={creating}
+                  className="mt-4 min-h-11 rounded-md border border-dashed border-[var(--border)] px-4 py-2 text-sm font-semibold hover:border-[var(--color-services)] hover:bg-[var(--muted)] disabled:opacity-50"
+                >
+                  Choose file...
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".md,.txt,text/markdown,text/plain"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+                <p className="mt-2 text-xs text-[var(--muted-foreground)]">.md or .txt</p>
+              </div>
+              <div className="entry-card flex min-w-0 flex-col rounded-lg border border-[var(--border)] bg-[var(--card)] p-5">
+                <FolderPlus className="h-5 w-5 text-[var(--color-api)]" />
+                <h3 className="mt-3 font-semibold">Start fresh</h3>
+                <p className="mt-1 flex-1 text-sm leading-6 text-[var(--muted-foreground)]">
+                  Open a blank canvas and work manually. No API key is required.
+                </p>
+                <button
+                  onClick={() => createProject()}
+                  disabled={creating}
+                  className="mt-4 min-h-11 rounded-md border border-[var(--border)] px-4 py-2 text-sm font-semibold hover:bg-[var(--muted)] disabled:opacity-50"
+                >
+                  Start from scratch
+                </button>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -468,7 +539,7 @@ export default function Dashboard() {
         <section className="rounded-lg border border-[var(--border)] bg-[var(--card)]">
           <div className="flex flex-col gap-3 border-b border-[var(--border)] p-5 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="font-semibold">Recent projects</h2>
+              <h2 className="font-semibold">Your maps</h2>
               <p className="mt-1 text-sm text-[var(--muted-foreground)]">
                 Continue from the latest architecture decision.
               </p>

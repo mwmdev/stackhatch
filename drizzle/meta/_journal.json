@@ -8,6 +8,20 @@
       "when": 1784033780625,
       "tag": "0000_useful_inhumans",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1784048097363,
+      "tag": "0001_skinny_old_lace",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1784050528266,
+      "tag": "0002_sleepy_kang",
+      "breakpoints": true
     }
   ]
 }

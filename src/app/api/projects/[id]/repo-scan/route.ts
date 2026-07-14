@@ -1,10 +1,8 @@
 import { NextRequest } from "next/server";
 import { getDb } from "@/db";
-import { messages, projects } from "@/db/schema";
 import { runMigrations } from "@/db/migrate";
-import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { analyzeRepo, formatRepoAnalysis } from "@/lib/github-analyzer";
+import { analyzeRepo, formatRepoAnalysis, type RepoAnalysisErrorCode } from "@/lib/github-analyzer";
 import { streamChat, sseEvent, SSE_HEADERS } from "@/lib/ai/stream-chat";
 import { getAuthenticatedUser } from "@/lib/auth";
 import { getAccessibleProject } from "@/lib/project-access";
@@ -13,6 +11,29 @@ import { getApiKey } from "@/lib/ai/settings";
 const scanSchema = z.object({
   repoUrl: z.string().min(1, "Repository URL is required"),
 });
+
+const REPO_ERROR_CODES = new Set<RepoAnalysisErrorCode>([
+  "invalid_url",
+  "not_found_or_private",
+  "github_rate_limited",
+  "github_unavailable",
+]);
+
+function normalizeRepoError(error: unknown): {
+  code: RepoAnalysisErrorCode;
+  content: string;
+} {
+  const candidate = error as { code?: unknown; message?: unknown };
+  const hasKnownCode =
+    typeof candidate?.code === "string" &&
+    REPO_ERROR_CODES.has(candidate.code as RepoAnalysisErrorCode);
+  const code = hasKnownCode ? (candidate.code as RepoAnalysisErrorCode) : "github_unavailable";
+  const content =
+    hasKnownCode && typeof candidate?.message === "string" && candidate.message
+      ? candidate.message
+      : "GitHub could not be reached. Try the scan again in a moment.";
+  return { code, content };
+}
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -77,20 +98,22 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   try {
     analysis = await analyzeRepo(repoUrl);
   } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : "Failed to analyze repository";
-    return new Response(sseEvent({ type: "error", content: errorMessage }), {
+    const error = normalizeRepoError(err);
+    return new Response(sseEvent({ type: "error", ...error }), {
       headers: SSE_HEADERS,
     });
   }
 
-  db.transaction((tx) => {
-    tx.update(projects)
-      .set({ repoUrl, canvasState: null, updatedAt: Date.now() })
-      .where(eq(projects.id, id))
-      .run();
-    tx.delete(messages).where(eq(messages.projectId, id)).run();
-  });
-
+  const scannedAt = Date.now();
   const initMessage = formatRepoAnalysis(analysis);
-  return streamChat(db, id, null, initMessage, user);
+  return streamChat(db, id, null, initMessage, user, {
+    contextArchitecture: null,
+    repositoryScanReplacement: {
+      repoUrl: analysis.normalizedUrl,
+      commitSha: analysis.commitSha,
+      scannedAt,
+      analysisStatus: analysis.status,
+      analysisWarning: analysis.warnings.length > 0 ? analysis.warnings.join(" ") : null,
+    },
+  });
 }

@@ -1,313 +1,255 @@
 import Link from "next/link";
-import Image from "next/image";
-import {
-  ArrowRight,
-  Check,
-  Download,
-  GitBranch,
-  KeyRound,
-  Lock,
-  Network,
-  Sparkles,
-} from "lucide-react";
+import type { Metadata } from "next";
+import { ArrowRight, GitBranch, KeyRound, Star } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
+import LazyArchitectureDemo from "@/components/public/LazyArchitectureDemo";
+import RepositoryIntentForm from "@/components/public/RepositoryIntentForm";
+import TrackedSourceLink from "@/components/public/TrackedSourceLink";
+import { formatGitHubStarCount, getGitHubStarCount } from "@/lib/github-stars";
 
-const WORKFLOWS = [
+export const metadata = {
+  alternates: { canonical: "/" },
+} satisfies Metadata;
+
+const WORKFLOW = [
   {
-    step: "01",
-    eyebrow: "Repo scan",
-    title: "Start from the system that already exists.",
+    number: "01",
+    title: "Map the system.",
     description:
-      "Paste a public GitHub URL and StackHatch turns the codebase into a first useful map: clients, routes, services, stores, and handoff paths.",
-    poster: "/demos/repo-to-map-poster.png",
-    alt: "StackHatch workspace showing a GitHub repository scan generating an architecture map.",
+      "Start from a public repository and get a visual overview of the main components and connections.",
   },
   {
-    step: "02",
-    eyebrow: "Controlled revision",
-    title: "Ask for changes without losing approved decisions.",
-    description:
-      "Use the architecture chat to revise the system, keep locked nodes intact, and preserve the tradeoffs the team has already agreed on.",
-    poster: "/demos/ai-revision-poster.png",
-    alt: "StackHatch workspace showing an AI chat request updating a map while a locked auth node stays unchanged.",
+    number: "02",
+    title: "Ask in context.",
+    description: "Ask how a part works or why it connects to the rest of the system.",
   },
   {
-    step: "03",
-    eyebrow: "Handoff",
-    title: "Leave with a diagram, alternatives, and a PRD.",
+    number: "03",
+    title: "Test another direction.",
     description:
-      "Review credible swaps for a node, choose the recommendation, and export material that a client, investor, or engineer can act on.",
-    poster: "/demos/export-handoff-poster.png",
-    alt: "StackHatch workspace showing database alternatives and export options for an architecture plan.",
+      "Open a component and compare practical alternatives without losing the current map.",
+  },
+  {
+    number: "04",
+    title: "Re-scan when the code changes.",
+    description: "Generate a fresh view when the repository evolves.",
   },
 ];
 
-const DECISION_POINTS = [
-  "Free to use with your own Anthropic API key",
-  "Repo maps, blank canvases, and PRD uploads start from the same editor",
-  "Node locking keeps approved choices stable while the rest of the map changes",
-  "Exports create a diagram and PRD for client, investor, and engineering review",
-];
-
-const USE_CASES = [
+const USE_MOMENTS = [
   {
-    label: "Solo founders",
-    value: "Turn a loose product idea or repo into a stack you can explain before hiring.",
+    title: "Your project",
+    description: "Keep the whole system visible while you work on one part of it.",
   },
   {
-    label: "Small agencies",
-    value: "Give clients an architecture plan without turning discovery into a heavyweight deck.",
+    title: "A project you joined",
+    description: "Form a useful mental model before making your first change.",
   },
   {
-    label: "Devtool teams",
-    value: "Compare infrastructure decisions before the roadmap locks in avoidable rewrites.",
+    title: "An open-source project",
+    description: "Understand the architecture before choosing where to contribute.",
   },
 ];
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  const githubStars = await getGitHubStarCount();
+
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
-      <header className="border-b border-[var(--border)]">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-4">
-          <Link href="/" className="font-display text-xl font-extrabold tracking-tight">
+      <header className="public-header">
+        <div className="public-header-inner">
+          <Link href="/" className="wordmark" aria-label="StackHatch home">
+            <span className="wordmark-mark" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+            </span>
             StackHatch
           </Link>
-          <nav aria-label="Primary navigation" className="flex items-center gap-1">
-            <Link
-              href="/login?callbackUrl=/app"
-              className="inline-flex min-h-11 items-center rounded-md px-3 py-2 text-sm font-medium text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
-            >
-              Sign in
+          <nav aria-label="Primary navigation" className="public-nav">
+            <a href="#demo" className="hide-compact">
+              Explore demo
+            </a>
+            <Link href="/demo" className="show-compact">
+              Demo
             </Link>
+            <TrackedSourceLink
+              href="https://github.com/mwmdev/stackhatch"
+              target="_blank"
+              rel="noreferrer"
+              className="github-star-link hide-compact"
+              location="navigation"
+              intent="star"
+              aria-label={
+                githubStars === null
+                  ? "Star StackHatch on GitHub"
+                  : `Star StackHatch on GitHub — ${formatGitHubStarCount(githubStars)} stars`
+              }
+            >
+              <Star aria-hidden="true" className="h-4 w-4" />
+              {githubStars === null ? "Star on GitHub" : formatGitHubStarCount(githubStars)}
+            </TrackedSourceLink>
+            <Link href="/login?callbackUrl=/app">Sign in</Link>
             <ThemeToggle />
           </nav>
         </div>
       </header>
 
       <main>
-        <section className="mx-auto grid max-w-6xl gap-10 px-6 py-14 lg:grid-cols-[minmax(0,1fr)_520px] lg:items-center lg:py-20">
-          <div className="min-w-0">
-            <p className="mb-5 inline-flex rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-1.5 text-xs font-bold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">
-              Architecture maps for small technical teams
+        <section className="hero-section">
+          <div className="hero-copy">
+            <p className="public-eyebrow">Visual architecture for GitHub repositories</p>
+            <h1>See how your codebase fits together.</h1>
+            <p className="hero-description">
+              Paste a public GitHub repository. StackHatch maps the system, lets you ask
+              architecture questions, and helps you compare other ways to build it.
             </p>
-            <h1 className="font-display max-w-3xl text-4xl font-extrabold leading-[0.98] tracking-tight md:text-6xl">
-              StackHatch maps your architecture before the build hardens.
-            </h1>
-            <p className="mt-6 max-w-2xl text-lg leading-8 text-[var(--muted-foreground)]">
-              Start from a real repo, PRD, or blank canvas. StackHatch diagrams the system, explains
-              tradeoffs, and keeps decisions visible as the product changes.
-            </p>
-            <p className="mt-3 text-sm font-semibold text-[var(--foreground)]">
-              Free to use. Bring your own Anthropic API key.
-            </p>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <Link
-                href="/login?callbackUrl=/app"
-                className="inline-flex min-h-11 items-center gap-2 rounded-md bg-[var(--brand)] px-5 py-2.5 text-sm font-bold text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)]"
-              >
-                Open the workspace
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-              <Link
-                href="/support"
-                className="inline-flex min-h-11 items-center rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-5 py-2.5 text-sm font-bold hover:bg-[var(--muted)]"
-              >
-                How BYOK works
-              </Link>
-            </div>
-            <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-sm text-[var(--muted-foreground)]">
-              <span className="inline-flex items-center gap-2">
-                <KeyRound className="h-4 w-4 text-[var(--color-data)]" />
-                BYOK
-              </span>
-              <span className="inline-flex items-center gap-2">
-                <GitBranch className="h-4 w-4 text-[var(--color-client)]" />
-                Repo analysis
-              </span>
-              <span className="inline-flex items-center gap-2">
-                <Lock className="h-4 w-4 text-[var(--color-services)]" />
-                Locked decisions
-              </span>
-              <span className="inline-flex items-center gap-2">
-                <Download className="h-4 w-4 text-[var(--color-api)]" />
-                PRD and diagram export
-              </span>
-            </div>
-          </div>
-
-          <figure className="product-frame overflow-hidden rounded-lg bg-[var(--card)]">
-            <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
-              <div className="flex items-center gap-2">
-                <span className="h-3 w-3 rounded-full bg-[var(--color-external-fill)]" />
-                <span className="h-3 w-3 rounded-full bg-[var(--color-data-fill)]" />
-                <span className="h-3 w-3 rounded-full bg-[var(--color-api-fill)]" />
-              </div>
-              <span className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
-                repo-to-map
-              </span>
-            </div>
-            <div className="relative bg-[var(--canvas)]">
-              <Image
-                src="/demos/repo-to-map-poster.png"
-                alt="StackHatch workspace showing a repository-generated architecture map."
-                width={960}
-                height={600}
-                priority
-                className="h-auto w-full"
-              />
-              <div className="absolute bottom-4 left-4 right-4 rounded-md border border-[var(--border)] bg-[var(--card)]/95 p-3 shadow-lg shadow-[var(--shadow-color)]">
-                <div className="flex items-start gap-3">
-                  <Network className="mt-0.5 h-5 w-5 flex-none text-[var(--color-client)]" />
-                  <p className="text-sm leading-6 text-[var(--muted-foreground)]">
-                    Auth is coupled to the API layer. Isolate token exchange before adding team
-                    workspaces.
-                  </p>
-                </div>
-              </div>
-            </div>
-            <figcaption className="sr-only">
-              A StackHatch architecture map generated from a repository.
-            </figcaption>
-          </figure>
-        </section>
-
-        <section className="border-t border-[var(--border)] py-14">
-          <div className="mx-auto max-w-6xl px-6">
-            <div className="grid gap-8 lg:grid-cols-[320px_minmax(0,1fr)]">
-              <div>
-                <p className="text-sm font-bold uppercase tracking-[0.16em] text-[var(--color-data)]">
-                  Working proof
-                </p>
-                <h2 className="font-display mt-3 text-3xl font-extrabold tracking-tight">
-                  Three decisions, one shared map.
-                </h2>
-                <p className="mt-4 text-sm leading-6 text-[var(--muted-foreground)]">
-                  These are real product views because the product has to earn trust with behavior,
-                  not illustrations made for a sales deck.
-                </p>
-              </div>
-
-              <div className="grid gap-6">
-                {WORKFLOWS.map((workflow) => (
-                  <article
-                    key={workflow.step}
-                    className="grid overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--card)] md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]"
-                  >
-                    <div className="flex flex-col justify-between gap-8 p-5">
-                      <div>
-                        <p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">
-                          {workflow.step} / {workflow.eyebrow}
-                        </p>
-                        <h3 className="font-display mt-3 text-2xl font-bold leading-tight">
-                          {workflow.title}
-                        </h3>
-                        <p className="mt-4 text-sm leading-6 text-[var(--muted-foreground)]">
-                          {workflow.description}
-                        </p>
-                      </div>
-                      <div className="flex h-10 w-10 items-center justify-center rounded-md bg-[var(--muted)] text-[var(--color-client)]">
-                        <Sparkles className="h-5 w-5" />
-                      </div>
-                    </div>
-                    <div className="border-t border-[var(--border)] bg-[var(--canvas)] md:border-l md:border-t-0">
-                      <Image
-                        src={workflow.poster}
-                        alt={workflow.alt}
-                        width={640}
-                        height={400}
-                        loading={workflow.step === "01" ? "eager" : "lazy"}
-                        className="h-full w-full object-cover"
-                      />
-                    </div>
-                  </article>
-                ))}
+            <div className="hero-action">
+              <RepositoryIntentForm location="hero" />
+              <div className="hero-action-notes">
+                <p>Free to use · AI features use your Anthropic API key</p>
+                <a href="#demo">
+                  Explore the StackHatch map
+                  <ArrowRight aria-hidden="true" className="h-4 w-4" />
+                </a>
               </div>
             </div>
           </div>
         </section>
 
-        <section className="border-t border-[var(--border)] py-14">
-          <div className="mx-auto grid max-w-6xl gap-10 px-6 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+        <section id="demo" className="self-map-section" aria-labelledby="self-map-heading">
+          <div className="self-map-intro">
             <div>
-              <p className="text-sm font-bold uppercase tracking-[0.16em] text-[var(--color-api)]">
-                Built for the first technical handoff
+              <p className="public-eyebrow">The product is the proof</p>
+              <h2 id="self-map-heading">StackHatch, mapped by StackHatch.</h2>
+            </div>
+            <div>
+              <p>
+                This is a real, read-only map generated from the public repository. Open a
+                component, follow a connection, or see how StackHatch answers a question about
+                itself.
               </p>
-              <h2 className="font-display mt-3 text-3xl font-extrabold tracking-tight">
-                Enough structure to decide. Not so much process that you stop building.
-              </h2>
+              <p className="self-map-provenance">
+                mwmdev/stackhatch · mapped from 5d05e8a · 14 Jul 2026
+              </p>
             </div>
-            <div className="space-y-3">
-              {DECISION_POINTS.map((item) => (
-                <div
-                  key={item}
-                  className="flex min-w-0 items-start gap-3 border-b border-[var(--border)] py-3 last:border-b-0"
-                >
-                  <Check className="mt-0.5 h-5 w-5 flex-none text-[var(--success)]" />
-                  <p className="text-sm leading-6 text-[var(--foreground)]">{item}</p>
-                </div>
-              ))}
-            </div>
+          </div>
+          <LazyArchitectureDemo />
+          <div className="self-map-footer">
+            <Link href="/demo" className="text-action">
+              Explore the full map
+              <ArrowRight aria-hidden="true" className="h-4 w-4" />
+            </Link>
+            <span>No sign-in or API key required</span>
           </div>
         </section>
 
-        <section className="border-t border-[var(--border)] py-14">
-          <div className="mx-auto grid max-w-6xl gap-8 px-6 lg:grid-cols-3">
-            {USE_CASES.map((item) => (
-              <article key={item.label} className="border-t border-[var(--foreground)] pt-4">
-                <h3 className="font-display text-2xl font-bold">{item.label}</h3>
-                <p className="mt-3 text-sm leading-6 text-[var(--muted-foreground)]">
-                  {item.value}
-                </p>
+        <section className="workflow-section" aria-labelledby="workflow-heading">
+          <div className="section-heading-row">
+            <p className="public-eyebrow">One working loop</p>
+            <h2 id="workflow-heading">Keep the architecture in view as the code changes.</h2>
+          </div>
+          <ol className="workflow-line">
+            {WORKFLOW.map((step) => (
+              <li key={step.number}>
+                <span className="workflow-number">{step.number}</span>
+                <div>
+                  <h3>{step.title}</h3>
+                  <p>{step.description}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        <section className="use-moments-section" aria-labelledby="use-moments-heading">
+          <div className="section-heading-row">
+            <p className="public-eyebrow">Useful from day one</p>
+            <h2 id="use-moments-heading">A map for the codebase in front of you.</h2>
+          </div>
+          <div className="use-moment-rows">
+            {USE_MOMENTS.map((moment) => (
+              <article key={moment.title}>
+                <h3>{moment.title}</h3>
+                <p>{moment.description}</p>
               </article>
             ))}
           </div>
         </section>
 
-        <section className="border-t border-[var(--border)] py-14">
-          <div className="mx-auto flex max-w-6xl flex-col gap-5 px-6 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="font-display text-3xl font-extrabold tracking-tight">
-                Map the stack before it gets expensive.
-              </h2>
-              <p className="mt-2 text-[var(--muted-foreground)]">
-                Use every feature for free. AI usage is billed directly to your Anthropic account.
-              </p>
-            </div>
-            <Link
-              href="/login?callbackUrl=/app"
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-[var(--foreground)] px-5 py-2.5 text-sm font-bold text-[var(--background)] hover:opacity-90"
-            >
-              Open StackHatch
-              <ArrowRight className="h-4 w-4" />
+        <section className="trust-section">
+          <article id="byok" aria-labelledby="byok-heading">
+            <KeyRound aria-hidden="true" className="trust-icon" />
+            <h2 id="byok-heading">Free product. Your model. Your key.</h2>
+            <p>
+              StackHatch has no plans, quotas, or feature gates. Connect an Anthropic API key for
+              repository analysis, questions, and alternatives. Your key is encrypted at rest and
+              never returned to the browser.
+            </p>
+            <p className="trust-note">Anthropic bills model usage directly to your account.</p>
+            <Link href="/support#byok" className="text-action">
+              How BYOK works
+              <ArrowRight aria-hidden="true" className="h-4 w-4" />
             </Link>
+          </article>
+          <article aria-labelledby="open-heading">
+            <GitBranch aria-hidden="true" className="trust-icon" />
+            <h2 id="open-heading">Built in the open.</h2>
+            <p>Inspect the code behind the map, report an issue, or star StackHatch on GitHub.</p>
+            <div className="github-actions">
+              <TrackedSourceLink
+                href="https://github.com/mwmdev/stackhatch"
+                target="_blank"
+                rel="noreferrer"
+                className="text-action"
+                location="navigation"
+              >
+                View the source
+                <ArrowRight aria-hidden="true" className="h-4 w-4" />
+              </TrackedSourceLink>
+              <TrackedSourceLink
+                href="https://github.com/mwmdev/stackhatch"
+                target="_blank"
+                rel="noreferrer"
+                className="text-action"
+                location="navigation"
+                intent="star"
+              >
+                Star on GitHub
+                <ArrowRight aria-hidden="true" className="h-4 w-4" />
+              </TrackedSourceLink>
+            </div>
+          </article>
+        </section>
+
+        <section className="final-cta" aria-labelledby="final-cta-heading">
+          <div>
+            <p className="public-eyebrow">Public repositories</p>
+            <h2 id="final-cta-heading">Put your codebase on the map.</h2>
           </div>
+          <RepositoryIntentForm location="final" />
         </section>
       </main>
 
-      <footer className="border-t border-[var(--border)] py-6">
-        <div className="mx-auto flex max-w-6xl flex-col gap-3 px-6 text-sm text-[var(--muted-foreground)] sm:flex-row sm:items-center sm:justify-between">
-          <span className="font-display font-bold">StackHatch</span>
-          <nav aria-label="Footer navigation" className="flex flex-wrap gap-1">
-            <Link
-              href="/support"
-              className="inline-flex min-h-11 items-center rounded-md px-3 hover:text-[var(--foreground)]"
-            >
-              Support
-            </Link>
-            <Link
-              href="/privacy"
-              className="inline-flex min-h-11 items-center rounded-md px-3 hover:text-[var(--foreground)]"
-            >
-              Privacy
-            </Link>
-            <Link
-              href="/terms"
-              className="inline-flex min-h-11 items-center rounded-md px-3 hover:text-[var(--foreground)]"
-            >
-              Terms
-            </Link>
-          </nav>
+      <footer className="public-footer">
+        <div>
+          <span className="wordmark">StackHatch</span>
+          <p>Architecture you can see, question, and revisit.</p>
         </div>
+        <nav aria-label="Footer navigation">
+          <Link href="/demo">Demo</Link>
+          <TrackedSourceLink
+            href="https://github.com/mwmdev/stackhatch"
+            target="_blank"
+            rel="noreferrer"
+            location="navigation"
+          >
+            GitHub
+          </TrackedSourceLink>
+          <Link href="/support">Support</Link>
+          <Link href="/privacy">Privacy</Link>
+          <Link href="/terms">Terms</Link>
+        </nav>
       </footer>
     </div>
   );

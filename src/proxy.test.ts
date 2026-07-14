@@ -13,7 +13,7 @@ function makeRequest(pathname: string) {
 }
 
 describe("proxy", () => {
-  it.each(["/", "/login", "/support", "/privacy", "/terms"])(
+  it.each(["/", "/demo", "/login", "/support", "/privacy", "/terms"])(
     "allows public path %s",
     async (pathname) => {
       const response = await proxy(makeRequest(pathname));
@@ -30,5 +30,16 @@ describe("proxy", () => {
 
     expect(response.status).toBe(307);
     expect(response.headers.get("location")).toContain("/login");
+    expect(new URL(response.headers.get("location")!).searchParams.get("callbackUrl")).toBe("/app");
+  });
+
+  it("preserves a protected path and query without copying the origin", async () => {
+    getToken.mockResolvedValueOnce(null);
+
+    const response = await proxy(makeRequest("/app?repo=acme%2Fapi"));
+
+    expect(new URL(response.headers.get("location")!).searchParams.get("callbackUrl")).toBe(
+      "/app?repo=acme%2Fapi"
+    );
   });
 });

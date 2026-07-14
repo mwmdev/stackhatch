@@ -5,12 +5,12 @@ const PREFIX = "enc:v1:";
 function getSecretKey() {
   const source =
     process.env.STACKHATCH_ENCRYPTION_KEY ||
-    process.env.AUTH_SECRET ||
-    process.env.NEXTAUTH_SECRET ||
-    (process.env.NODE_ENV === "production" ? null : "stackhatch-dev-secret");
+    (process.env.NODE_ENV === "production"
+      ? null
+      : process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || "stackhatch-dev-secret");
 
   if (!source) {
-    throw new Error("Missing STACKHATCH_ENCRYPTION_KEY or NEXTAUTH_SECRET");
+    throw new Error("Missing STACKHATCH_ENCRYPTION_KEY");
   }
 
   return createHash("sha256").update(source).digest();

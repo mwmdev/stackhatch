@@ -24,7 +24,7 @@ beforeEach(() => {
   `);
   testDb = drizzle(sqlite, { schema });
   process.env.ANTHROPIC_API_KEY = "sk-ant-server-key";
-  process.env.ANTHROPIC_MODEL = "claude-opus-4-1-20250805";
+  process.env.ANTHROPIC_MODEL = "claude-opus-4-8";
 });
 
 afterEach(() => {
@@ -63,12 +63,27 @@ describe("user AI settings", () => {
       .values({
         userId: "user-1",
         anthropicApiKey: null,
-        model: "claude-opus-4-20250514",
+        model: "claude-opus-4-8",
         createdAt: 1,
         updatedAt: 1,
       })
       .run();
 
-    expect(getModel(testDb, "user-1")).toBe("claude-opus-4-20250514");
+    expect(getModel(testDb, "user-1")).toBe("claude-opus-4-8");
+  });
+
+  it("normalizes a retired stored model to the current default", () => {
+    testDb
+      .insert(userSettings)
+      .values({
+        userId: "legacy-user",
+        anthropicApiKey: null,
+        model: "claude-sonnet-4-20250514" as typeof DEFAULT_AI_MODEL,
+        createdAt: 1,
+        updatedAt: 1,
+      })
+      .run();
+
+    expect(getModel(testDb, "legacy-user")).toBe(DEFAULT_AI_MODEL);
   });
 });

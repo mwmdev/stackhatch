@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import SettingsPage from "./page";
 
+const { mockTrackEvent } = vi.hoisted(() => ({ mockTrackEvent: vi.fn() }));
 const mockSetTheme = vi.fn();
 let mockTheme = "light";
 
@@ -9,6 +10,8 @@ vi.mock("next-themes", () => ({
   ThemeProvider: ({ children }: { children: React.ReactNode }) => children,
   useTheme: () => ({ theme: mockTheme, setTheme: mockSetTheme }),
 }));
+
+vi.mock("@/lib/analytics", () => ({ trackEvent: mockTrackEvent }));
 
 function mockFetchSettings(settings: Record<string, unknown>) {
   global.fetch = vi.fn((input: RequestInfo | URL, options?: RequestInit) => {
@@ -20,10 +23,15 @@ function mockFetchSettings(settings: Record<string, unknown>) {
       });
     }
     if (url === "/api/settings" && options?.method === "PATCH") {
+      const update = JSON.parse(options.body as string) as Record<string, unknown>;
       return Promise.resolve({
         ok: true,
         json: () =>
-          Promise.resolve({ ...settings, ...(JSON.parse(options.body as string) as object) }),
+          Promise.resolve({
+            ...settings,
+            ...update,
+            ...(update.apiKey ? { hasAnthropicKey: true } : {}),
+          }),
       });
     }
     return Promise.resolve({ ok: false, json: () => Promise.resolve({}) });
@@ -34,6 +42,8 @@ describe("SettingsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockTheme = "light";
+    mockTrackEvent.mockClear();
+    window.history.replaceState({}, "", "/settings");
   });
 
   it("renders per-user BYOK, model, and theme settings", async () => {
@@ -61,7 +71,7 @@ describe("SettingsPage", () => {
     render(<SettingsPage />);
 
     await screen.findByText("Anthropic API Key");
-    expect(screen.getByText(/Back to Dashboard/).closest("a")).toHaveAttribute("href", "/app");
+    expect(screen.getByText(/Back to your maps/).closest("a")).toHaveAttribute("href", "/app");
   });
 
   it("shows BYOK key status", async () => {
@@ -75,11 +85,11 @@ describe("SettingsPage", () => {
   });
 
   it("persists the selected Claude model", async () => {
-    mockFetchSettings({ model: "claude-sonnet-4-20250514" });
+    mockFetchSettings({ model: "claude-sonnet-5" });
     render(<SettingsPage />);
 
     const model = await screen.findByLabelText("Model");
-    fireEvent.change(model, { target: { value: "claude-opus-4-20250514" } });
+    fireEvent.change(model, { target: { value: "claude-opus-4-8" } });
 
     await waitFor(() => {
       const call = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.find(
@@ -116,6 +126,34 @@ describe("SettingsPage", () => {
           JSON.parse((call[1] as RequestInit).body as string).theme === "system"
       );
       expect(themeCall).toBeTruthy();
+    });
+  });
+
+  it("preserves repository context through BYOK setup", async () => {
+    window.history.replaceState({}, "", "/settings?setup=anthropic&repo=acme%2Fapi");
+    mockFetchSettings({ hasAnthropicKey: true });
+    render(<SettingsPage />);
+
+    const continueLink = await screen.findByRole("link", { name: "Continue to acme/api" });
+    expect(continueLink).toHaveAttribute("href", "/app?repo=acme%2Fapi");
+    expect(screen.getByText("Connect Anthropic to map this repository.")).toBeInTheDocument();
+  });
+
+  it("reveals the continue action after a key is saved", async () => {
+    window.history.replaceState({}, "", "/settings?setup=anthropic&repo=acme%2Fapi");
+    mockFetchSettings({ hasAnthropicKey: false });
+    render(<SettingsPage />);
+
+    await screen.findByTestId("key-status-missing");
+    fireEvent.change(screen.getByLabelText("API Key"), { target: { value: "sk-ant-test" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save key" }));
+
+    expect(await screen.findByRole("link", { name: "Continue to acme/api" })).toBeInTheDocument();
+    expect(mockTrackEvent).toHaveBeenNthCalledWith(1, "anthropic_setup_started", {
+      location: "settings",
+    });
+    expect(mockTrackEvent).toHaveBeenNthCalledWith(2, "anthropic_setup_completed", {
+      location: "settings",
     });
   });
 });

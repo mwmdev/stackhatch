@@ -37,7 +37,7 @@ test.describe("tierless BYOK experience", () => {
     await page.goto("/");
 
     await expect(page.getByRole("main")).toContainText(/free to use/i);
-    await expect(page.getByRole("main")).toContainText(/bring your own Anthropic API key|BYOK/i);
+    await expect(page.getByRole("main")).toContainText(/your Anthropic API key|BYOK/i);
     await expect(page.locator('a[href="/pricing"]')).toHaveCount(0);
     await expect(page.getByRole("link", { name: /pricing|compare plans|upgrade/i })).toHaveCount(0);
     await expect(page.getByRole("button", { name: /pricing|compare plans|upgrade/i })).toHaveCount(
@@ -67,7 +67,7 @@ test.describe("tierless BYOK experience", () => {
 
     await page.waitForURL(/\/project\/[a-f0-9-]+$/);
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Untitled Project");
-    await expect(page.getByText("Start a conversation or add nodes manually")).toBeVisible();
+    await expect(page.getByText("Ask an architecture question or add a component")).toBeVisible();
 
     await page.getByTestId("add-node-button").click();
     await page.getByTestId("category-data").click();
