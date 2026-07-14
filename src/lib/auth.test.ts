@@ -18,7 +18,7 @@ function createTestDb() {
       email TEXT,
       name TEXT,
       avatar_url TEXT,
-      role TEXT DEFAULT 'free' NOT NULL,
+      role TEXT DEFAULT 'user' NOT NULL,
       created_at INTEGER NOT NULL
     );
   `);
@@ -78,12 +78,12 @@ beforeEach(() => {
         createdAt: 1000,
       },
       {
-        id: "free",
-        githubId: "manual:free",
-        email: "free@example.com",
-        name: "Free plan",
+        id: "member",
+        githubId: "manual:member",
+        email: "member@example.com",
+        name: "Member",
         avatarUrl: null,
-        role: "free",
+        role: "user",
         createdAt: 2000,
       },
     ])
@@ -104,15 +104,15 @@ describe("auth impersonation", () => {
   });
 
   it("returns the impersonated user while preserving the actual admin context", async () => {
-    mockImpersonationCookie = "free";
+    mockImpersonationCookie = "member";
 
     const user = await authModule.getAuthenticatedUser();
 
     expect(user).toEqual(
       expect.objectContaining({
-        userId: "free",
-        role: "free",
-        name: "Free plan",
+        userId: "member",
+        role: "user",
+        name: "Member",
         impersonatedBy: expect.objectContaining({
           userId: "admin-user",
           role: "admin",
@@ -122,22 +122,22 @@ describe("auth impersonation", () => {
   });
 
   it("ignores impersonation cookies for non-admin users", async () => {
-    mockSessionUserId = "free";
+    mockSessionUserId = "member";
     mockImpersonationCookie = "admin-user";
 
     const user = await authModule.getAuthenticatedUser();
 
     expect(user).toEqual(
       expect.objectContaining({
-        userId: "free",
-        role: "free",
+        userId: "member",
+        role: "user",
       })
     );
     expect(user?.impersonatedBy).toBeUndefined();
   });
 
   it("exposes the real admin through getActualAuthenticatedUser", async () => {
-    mockImpersonationCookie = "free";
+    mockImpersonationCookie = "member";
 
     const user = await authModule.getActualAuthenticatedUser();
 
@@ -147,5 +147,31 @@ describe("auth impersonation", () => {
         role: "admin",
       })
     );
+  });
+});
+
+describe("role authorization", () => {
+  it("allows configured roles and returns a plain forbidden response otherwise", async () => {
+    expect(authModule.requireRole("user", ["user"])).toBeNull();
+
+    const response = authModule.requireRole("user", ["admin"]);
+    expect(response?.status).toBe(403);
+    await expect(response?.json()).resolves.toEqual({ error: "Forbidden" });
+  });
+});
+
+describe("development authentication", () => {
+  it("defaults the development user to the user role", async () => {
+    process.env.STACKHATCH_DEV_AUTH = "1";
+    delete process.env.STACKHATCH_DEV_ROLE;
+
+    try {
+      await expect(authModule.getAuthenticatedUser()).resolves.toEqual(
+        expect.objectContaining({ userId: "dev-user", role: "user" })
+      );
+    } finally {
+      delete process.env.STACKHATCH_DEV_AUTH;
+      delete process.env.STACKHATCH_DEV_ROLE;
+    }
   });
 });

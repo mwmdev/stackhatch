@@ -5,78 +5,8 @@
     {
       "idx": 0,
       "version": "6",
-      "when": 1772114951450,
-      "tag": "0000_ambiguous_tattoo",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "6",
-      "when": 1772134174164,
-      "tag": "0001_hard_cassandra_nova",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "6",
-      "when": 1772194510250,
-      "tag": "0002_strong_gressill",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "6",
-      "when": 1772194682495,
-      "tag": "0003_easy_sway",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "6",
-      "when": 1772216778515,
-      "tag": "0004_chunky_psylocke",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "6",
-      "when": 1772814367777,
-      "tag": "0005_gorgeous_golden_guardian",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "6",
-      "when": 1772815096811,
-      "tag": "0006_noisy_junta",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "6",
-      "when": 1772815702827,
-      "tag": "0007_dapper_sue_storm",
-      "breakpoints": true
-    },
-    {
-      "idx": 8,
-      "version": "6",
-      "when": 1777902000000,
-      "tag": "0008_secure_auth_data",
-      "breakpoints": true
-    },
-    {
-      "idx": 9,
-      "version": "6",
-      "when": 1777914273196,
-      "tag": "0009_spotty_magdalene",
-      "breakpoints": true
-    },
-    {
-      "idx": 10,
-      "version": "6",
-      "when": 1777962600000,
-      "tag": "0010_align_roles_with_tiers",
+      "when": 1784033780625,
+      "tag": "0000_useful_inhumans",
       "breakpoints": true
     }
   ]

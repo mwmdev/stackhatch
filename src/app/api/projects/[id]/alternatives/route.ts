@@ -9,7 +9,6 @@ import { buildCanvasContext } from "@/lib/ai/context-builder";
 import type { StackArchitecture, AlternativeNode } from "@/types/stack";
 import { getAuthenticatedUser } from "@/lib/auth";
 import { getAccessibleProject } from "@/lib/project-access";
-import { getActivePlan, getPlanCatalog } from "@/lib/plans";
 
 const requestSchema = z.object({
   node: z.object({
@@ -53,17 +52,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const db = getDb();
   runMigrations(db);
-  const plan = getActivePlan(db, userId, user.role);
-  const features = getPlanCatalog(db)[plan].features;
-  if (user.role !== "admin" && !features.alternatives) {
-    return NextResponse.json(
-      {
-        error: "Your plan does not include alternatives.",
-        upgradeRequired: true,
-        upgradeUrl: "/pricing",
-      },
-      { status: 403 }
-    );
+
+  // Verify project access before exposing any user-specific configuration state.
+  const project = getAccessibleProject(db, id, userId);
+
+  if (!project) {
+    return NextResponse.json({ error: "Project not found" }, { status: 404 });
   }
 
   const settingsMap = getSettings(db);
@@ -73,19 +67,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       {
         error: "Add your Anthropic API key in Settings to generate alternatives.",
         code: "AI_NOT_CONFIGURED",
+        settingsUrl: "/settings",
       },
       { status: 503 }
     );
   }
 
-  const model = getModel(settingsMap);
-
-  // Load current architecture for context and verify ownership
-  const project = getAccessibleProject(db, id, userId);
-
-  if (!project) {
-    return NextResponse.json({ error: "Project not found" }, { status: 404 });
-  }
+  const model = getModel(db, userId);
 
   let architectureContext = "";
   if (project?.canvasState) {

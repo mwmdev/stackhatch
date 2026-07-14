@@ -397,7 +397,7 @@ describe("ChatSidebar", () => {
     });
   });
 
-  it("displays error message from SSE stream", async () => {
+  it("shows the BYOK settings prompt when the key is missing", async () => {
     global.fetch = mockFetch({
       "/messages": emptyMessagesResponse,
       "/chat/init": () => createSSEResponse([{ type: "error", content: "API key not configured" }]),
@@ -406,13 +406,17 @@ describe("ChatSidebar", () => {
     render(<ChatSidebar projectId="p1" defaultOpen={true} />);
 
     await waitFor(() => {
-      expect(screen.getByText("API key not configured")).toBeInTheDocument();
+      expect(
+        screen.getByText("Connect your Anthropic account to use AI features.")
+      ).toBeInTheDocument();
     });
+    expect(screen.getByRole("link", { name: "Open Settings" })).toHaveAttribute(
+      "href",
+      "/settings?setup=anthropic"
+    );
   });
 
-  it("saves an Anthropic key inline when chat init is blocked and retries", async () => {
-    let initCalls = 0;
-    let savedBody: Record<string, unknown> | null = null;
+  it("never asks for an Anthropic key inside the project editor", async () => {
     global.fetch = vi.fn(async (input: RequestInfo | URL, options?: RequestInit) => {
       const url = String(input);
       const method = options?.method ?? "GET";
@@ -422,30 +426,12 @@ describe("ChatSidebar", () => {
       }
 
       if (url.includes("/chat/init") && method === "POST") {
-        initCalls += 1;
-        if (initCalls === 1) {
-          return createSSEResponse([
-            {
-              type: "error",
-              content: "Add your Anthropic API key in Settings to use StackHatch AI.",
-            },
-          ]);
-        }
         return createSSEResponse([
-          { type: "text", content: "Welcome back. What are you building?" },
-          { type: "done" },
+          {
+            type: "error",
+            content: "Add your Anthropic API key in Settings to use StackHatch AI.",
+          },
         ]);
-      }
-
-      if (url === "/api/settings" && method === "PATCH") {
-        savedBody = JSON.parse(options?.body as string);
-        return new Response(
-          JSON.stringify({
-            hasAnthropicKey: true,
-            hasUserAnthropicKey: true,
-          }),
-          { status: 200 }
-        );
       }
 
       return new Response("Not found", { status: 404 });
@@ -453,20 +439,13 @@ describe("ChatSidebar", () => {
 
     render(<ChatSidebar projectId="p1" defaultOpen={true} />);
 
-    const keyInput = await screen.findByLabelText("Anthropic API key");
-    const apiKeyForm = keyInput.closest("form");
-    expect(apiKeyForm).toHaveClass("bg-[var(--warning-surface)]", "border-[var(--warning-border)]");
-    expect(apiKeyForm).not.toHaveClass("border-l-4");
-    fireEvent.change(keyInput, { target: { value: "sk-ant-test-inline-key-1234567890" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save and retry" }));
-
-    await waitFor(() => {
-      expect(savedBody).toEqual({ apiKey: "sk-ant-test-inline-key-1234567890" });
-      expect(initCalls).toBe(2);
-    });
-    await waitFor(() => {
-      expect(screen.getByText("Welcome back. What are you building?")).toBeInTheDocument();
-    });
+    await screen.findByRole("link", { name: "Open Settings" });
+    expect(screen.queryByLabelText("Anthropic API key")).not.toBeInTheDocument();
+    expect(
+      (global.fetch as ReturnType<typeof vi.fn>).mock.calls.some(
+        (call) => call[0] === "/api/settings"
+      )
+    ).toBe(false);
   });
 
   it("displays error when message load fails", async () => {

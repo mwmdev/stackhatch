@@ -1,7 +1,6 @@
 import { integer, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
-export type PlanRole = "free" | "starter" | "pro";
-export type UserRole = "admin" | PlanRole;
+export type UserRole = "user" | "admin";
 
 export const users = sqliteTable("users", {
   id: text("id").primaryKey(),
@@ -9,9 +8,9 @@ export const users = sqliteTable("users", {
   email: text("email"),
   name: text("name"),
   avatarUrl: text("avatar_url"),
-  role: text("role", { enum: ["admin", "free", "starter", "pro"] })
+  role: text("role", { enum: ["user", "admin"] })
     .notNull()
-    .default("free"),
+    .default("user"),
   createdAt: integer("created_at", { mode: "number" }).notNull(),
 });
 
@@ -47,48 +46,25 @@ export const userSettings = sqliteTable("user_settings", {
     .primaryKey()
     .references(() => users.id, { onDelete: "cascade" }),
   anthropicApiKey: text("anthropic_api_key"),
+  model: text("model", {
+    enum: ["claude-sonnet-4-20250514", "claude-opus-4-20250514", "claude-opus-4-1-20250805"],
+  })
+    .notNull()
+    .default("claude-sonnet-4-20250514"),
+  theme: text("theme", { enum: ["light", "dark", "system"] })
+    .notNull()
+    .default("system"),
   createdAt: integer("created_at", { mode: "number" }).notNull(),
   updatedAt: integer("updated_at", { mode: "number" }).notNull(),
-});
-
-// Billing and subscription tables
-export const subscriptions = sqliteTable("subscriptions", {
-  id: text("id").primaryKey(),
-  userId: text("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  stripeCustomerId: text("stripe_customer_id"),
-  stripeSubscriptionId: text("stripe_subscription_id"),
-  plan: text("plan", { enum: ["free", "starter", "pro", "team"] })
-    .notNull()
-    .default("free"),
-  billingInterval: text("billing_interval", { enum: ["monthly", "annual"] }).default("monthly"),
-  status: text("status", { enum: ["active", "canceled", "past_due"] }).notNull(),
-  currentPeriodEnd: integer("current_period_end", { mode: "number" }),
-  createdAt: integer("created_at", { mode: "number" }).notNull(),
-  updatedAt: integer("updated_at", { mode: "number" }).notNull(),
-});
-
-export const usage = sqliteTable("usage", {
-  id: text("id").primaryKey(),
-  userId: text("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  messageCount: integer("message_count").notNull().default(0),
-  scanCount: integer("scan_count").notNull().default(0),
-  periodStart: integer("period_start", { mode: "number" }).notNull(),
-  periodEnd: integer("period_end", { mode: "number" }).notNull(),
 });
 
 // Team collaboration tables
 export const teams = sqliteTable("teams", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
-  plan: text("plan", { enum: ["team5", "team15"] }).notNull(),
   ownerId: text("owner_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
-  stripeSubscriptionId: text("stripe_subscription_id"),
   createdAt: integer("created_at", { mode: "number" }).notNull(),
 });
 

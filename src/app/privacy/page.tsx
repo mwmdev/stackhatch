@@ -18,8 +18,8 @@ export default function PrivacyPage() {
             <h2 className="text-lg font-semibold text-[var(--foreground)]">Information We Use</h2>
             <p className="mt-2">
               StackHatch stores account profile details from authentication, project names,
-              descriptions, public repository URLs, generated architecture data, billing status,
-              team membership, comments, and usage counts needed to operate plan limits.
+              descriptions, public repository URLs, generated architecture data, team membership,
+              comments, templates, and user preferences needed to operate the product.
             </p>
           </section>
 
@@ -28,18 +28,19 @@ export default function PrivacyPage() {
               AI Keys and Project Content
             </h2>
             <p className="mt-2">
-              Bring-your-own Anthropic keys are encrypted before storage and are never returned to
-              the browser. Project content is sent to configured AI providers only when a user asks
-              StackHatch to generate, analyze, or revise architecture output.
+              Each user provides their own Anthropic API key. Keys are encrypted before storage,
+              used only on the server for that user&apos;s requests, and never returned to the
+              browser. Project content is sent to Anthropic only when a user asks StackHatch to
+              generate, analyze, or revise architecture output.
             </p>
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-[var(--foreground)]">Payments</h2>
+            <h2 className="text-lg font-semibold text-[var(--foreground)]">AI Provider</h2>
             <p className="mt-2">
-              Stripe processes paid subscriptions. StackHatch stores subscription identifiers, plan
-              status, billing interval, and renewal period data. Full payment card details are not
-              stored by StackHatch.
+              StackHatch does not process payments. Anthropic bills AI usage directly to the
+              Anthropic account associated with each user-provided key. Anthropic&apos;s own privacy
+              terms apply when it processes those AI requests.
             </p>
           </section>
 

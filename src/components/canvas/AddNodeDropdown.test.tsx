@@ -100,16 +100,9 @@ describe("AddNodeDropdown", () => {
     expect(screen.getByText("Reverse Proxy")).toBeInTheDocument();
   });
 
-  it("hides note nodes when the plan feature is disabled", () => {
-    render(<AddNodeDropdown onAddNode={vi.fn()} canUseNotes={false} />);
-    fireEvent.click(screen.getByTestId("add-node-button"));
-
-    expect(screen.queryByTestId("category-note")).not.toBeInTheDocument();
-  });
-
-  it("adds note nodes when the plan feature is enabled", () => {
+  it("adds note nodes", () => {
     const onAddNode = vi.fn();
-    render(<AddNodeDropdown onAddNode={onAddNode} canUseNotes />);
+    render(<AddNodeDropdown onAddNode={onAddNode} />);
     fireEvent.click(screen.getByTestId("add-node-button"));
     fireEvent.click(screen.getByTestId("category-note"));
     fireEvent.click(screen.getByTestId("subtype-note"));

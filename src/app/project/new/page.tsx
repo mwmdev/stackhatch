@@ -1,24 +1,51 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import TemplatePicker from "@/components/templates/TemplatePicker";
+
+interface Team {
+  id: string;
+  name: string;
+}
+
+interface Template {
+  id: string;
+  name: string;
+  description: string | null;
+  canvasState: string;
+  teamId?: string;
+}
 
 export default function NewProjectPage() {
   const router = useRouter();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [repoUrl, setRepoUrl] = useState("");
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [teamId, setTeamId] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
-  const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
+  const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
+
+  useEffect(() => {
+    const requestedTeamId = new URLSearchParams(window.location.search).get("teamId") ?? "";
+    fetch("/api/teams")
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data: Team[]) => {
+        setTeams(data);
+        if (requestedTeamId && data.some((team) => team.id === requestedTeamId)) {
+          setTeamId(requestedTeamId);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-
     if (!name.trim()) {
       setError("Project name is required");
       return;
@@ -26,32 +53,27 @@ export default function NewProjectPage() {
 
     setSubmitting(true);
     try {
-      const projectData: any = {
-        name: name.trim(),
-        description: description.trim() || undefined,
-        repoUrl: repoUrl.trim() || undefined,
-      };
-
-      // If creating from template, include the canvas state
-      if (selectedTemplate) {
-        projectData.canvasState = selectedTemplate.canvasState;
-        // Note: teamId would be set by the backend if the template belongs to a team
-      }
-
       const res = await fetch("/api/projects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(projectData),
+        body: JSON.stringify({
+          name: name.trim(),
+          description: description.trim() || undefined,
+          repoUrl: repoUrl.trim() || undefined,
+          teamId: teamId || undefined,
+          canvasState: selectedTemplate?.canvasState,
+        }),
       });
-
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const data = await res.json();
+        if (data.code === "AI_NOT_CONFIGURED") {
+          router.push("/settings?setup=anthropic");
+          return;
+        }
         setError(data.error || "Failed to create project");
         return;
       }
-
-      const project = await res.json();
-      router.push(`/project/${project.id}`);
+      router.push(`/project/${data.id}`);
     } catch {
       setError("Failed to create project");
     } finally {
@@ -59,13 +81,11 @@ export default function NewProjectPage() {
     }
   }
 
-  function handleSelectTemplate(template: any) {
+  function handleSelectTemplate(template: Template) {
     setSelectedTemplate(template);
     setShowTemplatePicker(false);
-    // Pre-fill name if not already set
-    if (!name.trim()) {
-      setName(`${template.name} - Copy`);
-    }
+    if (template.teamId) setTeamId(template.teamId);
+    if (!name.trim()) setName(`${template.name} - Copy`);
   }
 
   return (
@@ -77,65 +97,88 @@ export default function NewProjectPage() {
         >
           &larr; Back to Dashboard
         </Link>
-
         <h1 className="mb-2 text-2xl font-bold">New Project</h1>
         <p className="mb-8 text-[var(--muted-foreground)]">
-          Give your project a name and the AI will help you design its architecture.
+          Create a personal project or share it with a team. You can work manually or use your
+          Anthropic key for AI assistance.
         </p>
 
-        {/* Template section */}
-        <div className="mb-6 p-4 border border-[var(--border)] rounded-lg bg-[var(--muted)]/20">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="font-medium">Start from Template</h3>
-            <button
-              type="button"
-              onClick={() => setShowTemplatePicker(true)}
-              className="text-sm text-[var(--color-client)] hover:underline"
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div>
+            <label htmlFor="workspace" className="mb-1 block text-sm font-medium">
+              Workspace
+            </label>
+            <select
+              id="workspace"
+              value={teamId}
+              onChange={(e) => {
+                setTeamId(e.target.value);
+                if (selectedTemplate?.teamId && selectedTemplate.teamId !== e.target.value)
+                  setSelectedTemplate(null);
+              }}
+              className="min-h-11 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
             >
-              Browse Templates
-            </button>
+              <option value="">Personal</option>
+              {teams.map((team) => (
+                <option key={team.id} value={team.id}>
+                  {team.name}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-[var(--muted-foreground)]">
+              Team projects are visible and editable by that team&apos;s members.
+            </p>
           </div>
-          {selectedTemplate ? (
-            <div className="flex items-center justify-between p-2 bg-[var(--background)] rounded border border-[var(--border)]">
-              <div>
-                <div className="font-medium text-sm">{selectedTemplate.name}</div>
-                {selectedTemplate.description && (
-                  <div className="text-xs text-[var(--muted-foreground)]">
-                    {selectedTemplate.description}
-                  </div>
-                )}
-              </div>
+
+          <div className="rounded-lg border border-[var(--border)] bg-[var(--muted)]/20 p-4">
+            <div className="mb-2 flex items-center justify-between">
+              <h2 className="font-medium">Start from Template</h2>
               <button
                 type="button"
-                onClick={() => setSelectedTemplate(null)}
-                className="text-xs text-[var(--danger)] hover:underline"
+                onClick={() => setShowTemplatePicker(true)}
+                className="text-sm text-[var(--color-client)] hover:underline"
               >
-                Remove
+                Browse Templates
               </button>
             </div>
-          ) : (
-            <p className="text-sm text-[var(--muted-foreground)]">
-              Start with a pre-built template from your team library.
-            </p>
-          )}
-        </div>
+            {selectedTemplate ? (
+              <div className="flex items-center justify-between rounded border border-[var(--border)] bg-[var(--background)] p-2">
+                <div>
+                  <div className="text-sm font-medium">{selectedTemplate.name}</div>
+                  {selectedTemplate.description && (
+                    <div className="text-xs text-[var(--muted-foreground)]">
+                      {selectedTemplate.description}
+                    </div>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedTemplate(null)}
+                  className="text-xs text-[var(--danger)] hover:underline"
+                >
+                  Remove
+                </button>
+              </div>
+            ) : (
+              <p className="text-sm text-[var(--muted-foreground)]">
+                Optionally reuse a template from one of your teams.
+              </p>
+            )}
+          </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
           <div>
             <label htmlFor="name" className="mb-1 block text-sm font-medium">
               Project Name <span className="text-[var(--danger)]">*</span>
             </label>
             <input
               id="name"
-              type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="My App Architecture"
-              className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-4 py-2 text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
               autoFocus
+              className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
             />
           </div>
-
           <div>
             <label htmlFor="description" className="mb-1 block text-sm font-medium">
               Description <span className="text-[var(--muted-foreground)]">(optional)</span>
@@ -146,10 +189,9 @@ export default function NewProjectPage() {
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Brief description of what you're building..."
               rows={3}
-              className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-4 py-2 text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
+              className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
             />
           </div>
-
           <div>
             <label htmlFor="repoUrl" className="mb-1 block text-sm font-medium">
               GitHub Repository URL{" "}
@@ -161,29 +203,26 @@ export default function NewProjectPage() {
               value={repoUrl}
               onChange={(e) => setRepoUrl(e.target.value)}
               placeholder="https://github.com/owner/repo"
-              className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-4 py-2 text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
+              className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
             />
             <p className="mt-1 text-xs text-[var(--muted-foreground)]">
-              Public GitHub repos only. The AI will analyze the repo and generate an architecture.
+              Public GitHub repositories only. Analysis uses your Anthropic API key.
             </p>
           </div>
-
           {error && (
             <p className="text-sm text-[var(--danger)]" role="alert">
               {error}
             </p>
           )}
-
           <button
             type="submit"
             disabled={submitting}
-            className="w-full rounded-lg bg-[var(--brand)] px-4 py-2 font-medium text-[var(--brand-foreground)] transition-opacity hover:bg-[var(--brand-hover)] disabled:opacity-50"
+            className="w-full rounded-lg bg-[var(--brand)] px-4 py-2 font-medium text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)] disabled:opacity-50"
           >
             {submitting ? "Creating..." : "Create Project"}
           </button>
         </form>
 
-        {/* Template Picker Modal */}
         {showTemplatePicker && (
           <TemplatePicker
             onSelectTemplate={handleSelectTemplate}

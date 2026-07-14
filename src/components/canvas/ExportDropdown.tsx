@@ -9,15 +9,12 @@ import type { RefObject } from "react";
 import { stringify as stringifyYaml } from "yaml";
 import { fromReactFlowEdges, fromReactFlowNodes } from "@/types/canvas";
 import type { AlternativeNode } from "@/types/stack";
-import type { DiagramExportFormat } from "@/lib/plan-config";
-
-type ExportFormat = DiagramExportFormat;
+type ExportFormat = "png" | "svg" | "json" | "yaml";
 
 interface ExportDropdownProps {
   rfInstanceRef: RefObject<ReactFlowInstance | null>;
   projectName: string;
   alternatives?: Record<string, AlternativeNode[]>;
-  formats?: ExportFormat[];
   onError: (message: string) => void;
 }
 
@@ -25,7 +22,6 @@ export default function ExportDropdown({
   rfInstanceRef,
   projectName,
   alternatives = {},
-  formats = ["png", "svg", "json", "yaml"],
   onError,
 }: ExportDropdownProps) {
   const [open, setOpen] = useState(false);
@@ -151,7 +147,7 @@ export default function ExportDropdown({
 
       {open && (
         <div className="absolute right-0 top-full z-30 mt-1 w-36 rounded-lg border border-[var(--border)] bg-[var(--background)] shadow-lg">
-          {formats.map((format, index) => (
+          {(["png", "svg", "json", "yaml"] as const).map((format, index, formats) => (
             <button
               key={format}
               onClick={() => handleExport(format)}

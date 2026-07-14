@@ -33,7 +33,7 @@ function isDevAuthEnabled() {
 
 function getDevRole(): UserRole {
   const role = process.env.STACKHATCH_DEV_ROLE;
-  if (!role) return "admin";
+  if (!role) return "user";
   if (isValidRole(role)) return role;
   return normalizeUserRole(role);
 }
@@ -150,7 +150,7 @@ export async function getAuthenticatedUserId(): Promise<string | null> {
 
 export function requireRole(userRole: UserRole, allowed: UserRole[]): Response | null {
   if (allowed.includes(normalizeUserRole(userRole))) return null;
-  return new Response(JSON.stringify({ error: "Upgrade required", upgradeRequired: true }), {
+  return new Response(JSON.stringify({ error: "Forbidden" }), {
     status: 403,
     headers: { "Content-Type": "application/json" },
   });

@@ -7,7 +7,7 @@ vi.mock("next-themes", () => ({
 }));
 
 describe("LandingPage", () => {
-  it("renders a public SaaS landing page with app and pricing CTAs", () => {
+  it("renders a public free BYOK landing page", () => {
     render(<LandingPage />);
 
     expect(
@@ -19,13 +19,11 @@ describe("LandingPage", () => {
       "href",
       "/login?callbackUrl=/app"
     );
-    expect(screen.getByRole("link", { name: /Compare plans/i })).toHaveAttribute(
-      "href",
-      "/pricing"
-    );
+    expect(screen.getByText("Free to use. Bring your own Anthropic API key.")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /pricing|plans/i })).not.toBeInTheDocument();
   });
 
-  it("shows real app screencasts for the three strongest product workflows", () => {
+  it("shows real product views for the three strongest workflows", () => {
     render(<LandingPage />);
 
     expect(
@@ -42,6 +40,6 @@ describe("LandingPage", () => {
     expect(
       screen.getByRole("heading", { name: /Leave with a diagram, alternatives, and a PRD/i })
     ).toBeInTheDocument();
-    expect(screen.getAllByRole("img", { name: /StackHatch screencast showing/i })).toHaveLength(3);
+    expect(screen.getAllByRole("img", { name: /StackHatch workspace showing/i })).toHaveLength(4);
   });
 });

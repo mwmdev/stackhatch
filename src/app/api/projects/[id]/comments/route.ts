@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/db";
-import { comments, projects, teamMembers, users, teams } from "@/db/schema";
+import { comments, projects, teamMembers, users } from "@/db/schema";
 import { runMigrations } from "@/db/migrate";
 import { eq, and, asc } from "drizzle-orm";
 import { getAuthenticatedUserId } from "@/lib/auth";
@@ -94,9 +94,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!project) {
     return NextResponse.json({ error: "Comments not available for this project" }, { status: 403 });
   }
-
-  // Check team subscription is active
-  const team = db.select().from(teams).where(eq(teams.id, project.teamId!)).get();
 
   const now = Date.now();
   const commentId = createId();

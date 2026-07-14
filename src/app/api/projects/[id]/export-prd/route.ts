@@ -8,7 +8,6 @@ import { buildCanvasContext } from "@/lib/ai/context-builder";
 import type { StackArchitecture } from "@/types/stack";
 import { getAuthenticatedUser } from "@/lib/auth";
 import { getAccessibleProject } from "@/lib/project-access";
-import { getActivePlan, getPlanCatalog } from "@/lib/plans";
 
 export async function POST(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -20,19 +19,6 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
 
   const db = getDb();
   runMigrations(db);
-
-  const plan = getActivePlan(db, user.userId, user.role);
-  const features = getPlanCatalog(db)[plan].features;
-  if (user.role !== "admin" && !features.prdExport) {
-    return NextResponse.json(
-      {
-        error: "Your plan does not include PRD export",
-        upgradeRequired: true,
-        upgradeUrl: "/pricing",
-      },
-      { status: 403 }
-    );
-  }
 
   const project = getAccessibleProject(db, id, user.userId);
 
@@ -68,12 +54,13 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
       {
         error: "Add your Anthropic API key in Settings to export a PRD.",
         code: "AI_NOT_CONFIGURED",
+        settingsUrl: "/settings",
       },
       { status: 503 }
     );
   }
 
-  const model = getModel(settingsMap);
+  const model = getModel(db, user.userId);
   const prdPrompt = getPrompt(settingsMap, "prompt_prd", DEFAULT_PRD_PROMPT);
   const canvasContext = buildCanvasContext(architecture);
   const architectureJson = JSON.stringify(architecture, null, 2);

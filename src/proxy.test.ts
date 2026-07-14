@@ -13,7 +13,7 @@ function makeRequest(pathname: string) {
 }
 
 describe("proxy", () => {
-  it.each(["/", "/login", "/pricing", "/support", "/privacy", "/terms"])(
+  it.each(["/", "/login", "/support", "/privacy", "/terms"])(
     "allows public path %s",
     async (pathname) => {
       const response = await proxy(makeRequest(pathname));

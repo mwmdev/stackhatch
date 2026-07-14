@@ -7,7 +7,7 @@ import ThemeToggle from "@/components/ThemeToggle";
 
 interface InviteInfo {
   email: string;
-  team: { id: string; name: string; plan: string } | null;
+  team: { id: string; name: string } | null;
   invitedBy: { name: string | null; avatarUrl: string | null } | null;
   expiresAt: number;
 }

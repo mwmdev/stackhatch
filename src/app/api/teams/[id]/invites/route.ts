@@ -10,11 +10,6 @@ import { createId } from "@/lib/id";
 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
-const SEAT_LIMITS: Record<string, number> = {
-  team5: 5,
-  team15: 15,
-};
-
 const inviteSchema = z.object({
   email: z.string().email("Valid email is required"),
 });
@@ -49,32 +44,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const { email } = parsed.data;
-
-    // Check seat limits
-    const memberCount = db
-      .select()
-      .from(teamMembers)
-      .where(eq(teamMembers.teamId, teamId))
-      .all().length;
-
-    const pendingCount = db
-      .select()
-      .from(teamInvites)
-      .where(and(eq(teamInvites.teamId, teamId), eq(teamInvites.status, "pending")))
-      .all().length;
-
-    const seatLimit = SEAT_LIMITS[team.plan] ?? 5;
-    if (memberCount + pendingCount >= seatLimit) {
-      return NextResponse.json(
-        {
-          error: `Team is at capacity (${seatLimit} seats). Upgrade to add more members.`,
-          limit: seatLimit,
-          current: memberCount,
-          pending: pendingCount,
-        },
-        { status: 409 }
-      );
-    }
 
     // Check if email is already a member
     const existingUser = db.select().from(users).where(eq(users.email, email)).get();
@@ -126,7 +95,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     db.insert(teamInvites).values(invite).run();
 
-    const inviteUrl = new URL(`/invites/${token}`, request.url).toString();
+    const inviteUrl = new URL(`/invite/${token}`, request.url).toString();
 
     return NextResponse.json(
       {
@@ -145,7 +114,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 }
 
 // GET /api/teams/[id]/invites - List pending invites
-export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id: teamId } = await params;
     const userId = await getAuthenticatedUserId();
@@ -173,12 +142,18 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         email: teamInvites.email,
         status: teamInvites.status,
         expiresAt: teamInvites.expiresAt,
+        token: teamInvites.token,
       })
       .from(teamInvites)
       .where(and(eq(teamInvites.teamId, teamId), eq(teamInvites.status, "pending")))
       .all();
 
-    return NextResponse.json(invites);
+    return NextResponse.json(
+      invites.map(({ token, ...invite }) => ({
+        ...invite,
+        inviteUrl: new URL(`/invite/${token}`, request.url).toString(),
+      }))
+    );
   } catch (error) {
     console.error("GET /api/teams/[id]/invites error:", error);
     return NextResponse.json({ error: "Failed to fetch invites" }, { status: 500 });

@@ -50,13 +50,8 @@ const mockProjects = [
 function mockFetch(
   projects: typeof mockProjects,
   options?: {
-    billing?: {
-      plan: string;
-      billingInterval: string | null;
-      status: string | null;
-      currentPeriodEnd: number | null;
-    };
     role?: string;
+    hasAnthropicKey?: boolean;
   }
 ) {
   global.fetch = vi.fn((input: RequestInfo | URL, requestOptions?: RequestInit) => {
@@ -64,15 +59,16 @@ function mockFetch(
     if (url === "/api/me") {
       return Promise.resolve({
         ok: true,
-        json: () => Promise.resolve({ role: options?.role ?? "free" }),
+        json: () => Promise.resolve({ role: options?.role ?? "user" }),
       });
     }
-    if (url === "/api/billing/subscription" && options?.billing) {
+    if (url === "/api/settings") {
       return Promise.resolve({
         ok: true,
-        json: () => Promise.resolve(options.billing),
+        json: () => Promise.resolve({ hasAnthropicKey: options?.hasAnthropicKey ?? true }),
       });
     }
+    if (url === "/api/teams") return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
     if (url === "/api/projects") {
       return Promise.resolve({
         ok: true,
@@ -116,22 +112,15 @@ describe("Dashboard", () => {
     expect(screen.getAllByText("OR")).toHaveLength(2);
   });
 
-  it("renders the paid billing plan in the usage card", async () => {
-    mockFetch([], {
-      billing: {
-        plan: "pro",
-        billingInterval: null,
-        status: null,
-        currentPeriodEnd: null,
-      },
-    });
+  it("shows BYOK setup without blocking blank canvases", async () => {
+    mockFetch([], { hasAnthropicKey: false });
     render(<Dashboard />);
 
     await waitFor(() => {
-      expect(screen.getByText("Studio")).toBeInTheDocument();
+      expect(screen.getByTestId("byok-setup-prompt")).toBeInTheDocument();
     });
-
-    expect(screen.getByText("0/Unlimited projects used")).toBeInTheDocument();
+    expect(screen.getByText("Start from scratch")).toBeInTheDocument();
+    expect(screen.queryByText(/upgrade/i)).not.toBeInTheDocument();
   });
 
   it("does not render activation or launch basics sidebar sections", async () => {
@@ -156,8 +145,15 @@ describe("Dashboard", () => {
         });
       }
       if (url === "/api/me") {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({ role: "free" }) });
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ role: "user" }) });
       }
+      if (url === "/api/settings")
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ hasAnthropicKey: true }),
+        });
+      if (url === "/api/teams")
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
       if (url === "/api/projects") {
         return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
       }
@@ -246,7 +242,7 @@ describe("Dashboard", () => {
     expect(settingsLink).toHaveAttribute("href", "/settings");
   });
 
-  it("hides admin link for free users", async () => {
+  it("hides admin link for regular users", async () => {
     mockFetch([]);
     render(<Dashboard />);
 

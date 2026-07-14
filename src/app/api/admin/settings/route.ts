@@ -5,10 +5,8 @@ import { getDb } from "@/db";
 import { runMigrations } from "@/db/migrate";
 import { settings } from "@/db/schema";
 import { getActualAuthenticatedUser, requireRole } from "@/lib/auth";
-import { AI_MODEL_IDS, normalizeAiModel } from "@/lib/ai/models";
 
 const ADMIN_SETTING_KEYS = new Set([
-  "model",
   "customSubtypes",
   "prompt_chat",
   "prompt_alternatives",
@@ -17,7 +15,6 @@ const ADMIN_SETTING_KEYS = new Set([
 
 const updateAdminSettingsSchema = z
   .object({
-    model: z.enum(AI_MODEL_IDS).optional(),
     customSubtypes: z.string().optional(),
     prompt_chat: z.string().optional(),
     prompt_alternatives: z.string().optional(),
@@ -51,8 +48,6 @@ export async function GET() {
       result[row.key] = row.value;
     }
   }
-
-  result.model = normalizeAiModel(result.model || process.env.ANTHROPIC_MODEL);
 
   return NextResponse.json(result);
 }
@@ -97,7 +92,5 @@ export async function PATCH(request: NextRequest) {
       result[row.key] = row.value;
     }
   }
-  result.model = normalizeAiModel(result.model || process.env.ANTHROPIC_MODEL);
-
   return NextResponse.json(result);
 }

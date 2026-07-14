@@ -5,11 +5,6 @@ import { runMigrations } from "@/db/migrate";
 import { eq, and } from "drizzle-orm";
 import { getAuthenticatedUserId } from "@/lib/auth";
 
-const SEAT_LIMITS: Record<string, number> = {
-  team5: 5,
-  team15: 15,
-};
-
 // GET /api/invites/[token] - Get invite details (public, no auth required)
 export async function GET(
   _request: NextRequest,
@@ -39,7 +34,7 @@ export async function GET(
 
     // Get team info
     const team = db
-      .select({ id: teams.id, name: teams.name, plan: teams.plan })
+      .select({ id: teams.id, name: teams.name })
       .from(teams)
       .where(eq(teams.id, invite.teamId))
       .get();
@@ -109,22 +104,10 @@ export async function POST(
       return NextResponse.json({ success: true, alreadyMember: true });
     }
 
-    // Verify seat limit
     const team = db.select().from(teams).where(eq(teams.id, invite.teamId)).get();
 
     if (!team) {
       return NextResponse.json({ error: "Team no longer exists" }, { status: 404 });
-    }
-
-    const memberCount = db
-      .select()
-      .from(teamMembers)
-      .where(eq(teamMembers.teamId, invite.teamId))
-      .all().length;
-
-    const seatLimit = SEAT_LIMITS[team.plan] ?? 5;
-    if (memberCount >= seatLimit) {
-      return NextResponse.json({ error: "Team is at capacity" }, { status: 409 });
     }
 
     // Add user to team and mark invite as accepted

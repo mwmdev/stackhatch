@@ -1,12 +1,12 @@
 import { NextRequest } from "next/server";
 import { getDb } from "@/db";
-import { messages, projects } from "@/db/schema";
+import { messages } from "@/db/schema";
 import { runMigrations } from "@/db/migrate";
-import { eq, asc, and } from "drizzle-orm";
+import { eq, asc } from "drizzle-orm";
 import { streamChat } from "@/lib/ai/stream-chat";
 import { chatCanvasStateSchema } from "@/lib/ai/request-context";
 import { getAuthenticatedUser } from "@/lib/auth";
-import { incrementMessages } from "@/lib/usage";
+import { getAccessibleProject } from "@/lib/project-access";
 import { z } from "zod";
 
 const initSchema = z.object({
@@ -28,11 +28,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const db = getDb();
   runMigrations(db);
 
-  const project = db
-    .select({ id: projects.id })
-    .from(projects)
-    .where(and(eq(projects.id, id), eq(projects.userId, userId)))
-    .get();
+  const project = getAccessibleProject(db, id, userId);
 
   if (!project) {
     return new Response(JSON.stringify({ error: "Project not found" }), {
@@ -69,25 +65,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     parsedBody = parsed.data;
   } catch {
     parsedBody = {};
-  }
-
-  // Enforce usage limits for free users
-  if (user.role !== "admin") {
-    const result = incrementMessages(userId, user.role);
-    if (!result.allowed) {
-      return new Response(
-        JSON.stringify({
-          error: `Monthly message limit reached (${result.limit})`,
-          limit: result.limit,
-          used: result.used,
-          upgradeUrl: "/pricing",
-        }),
-        {
-          status: 429,
-          headers: { "Content-Type": "application/json" },
-        }
-      );
-    }
   }
 
   return streamChat(db, id, null, undefined, user, {

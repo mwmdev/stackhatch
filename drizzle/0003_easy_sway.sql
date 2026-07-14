@@ -1,1 +1,0 @@
-ALTER TABLE `projects` ADD `user_id` text REFERENCES users(id);

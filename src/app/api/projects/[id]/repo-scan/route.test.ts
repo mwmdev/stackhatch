@@ -1,15 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
-import { eq } from "drizzle-orm";
 import * as schema from "@/db/schema";
-import { projects, usage, users, type UserRole } from "@/db/schema";
+import { projects, userSettings, users, type UserRole } from "@/db/schema";
 import type { AppDatabase } from "@/db";
+import { encryptSecret } from "@/lib/secrets";
 
 let testDb: AppDatabase;
 
 const authState = vi.hoisted(() => ({
-  role: "free" as UserRole,
+  role: "user" as UserRole,
 }));
 
 const githubMocks = vi.hoisted(() => ({
@@ -36,7 +36,7 @@ function createTestDb() {
       email TEXT,
       name TEXT,
       avatar_url TEXT,
-      role TEXT DEFAULT 'free' NOT NULL,
+      role TEXT DEFAULT 'user' NOT NULL,
       created_at INTEGER NOT NULL
     );
     CREATE TABLE projects (
@@ -63,33 +63,19 @@ function createTestDb() {
       key TEXT PRIMARY KEY NOT NULL,
       value TEXT NOT NULL
     );
-    CREATE TABLE usage (
-      id TEXT PRIMARY KEY NOT NULL,
-      user_id TEXT NOT NULL,
-      message_count INTEGER DEFAULT 0 NOT NULL,
-      scan_count INTEGER DEFAULT 0 NOT NULL,
-      period_start INTEGER NOT NULL,
-      period_end INTEGER NOT NULL,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    );
-    CREATE TABLE subscriptions (
-      id TEXT PRIMARY KEY NOT NULL,
-      user_id TEXT NOT NULL,
-      stripe_customer_id TEXT,
-      stripe_subscription_id TEXT,
-      plan TEXT DEFAULT 'free' NOT NULL,
-      billing_interval TEXT DEFAULT 'monthly',
-      status TEXT NOT NULL,
-      current_period_end INTEGER,
+    CREATE TABLE user_settings (
+      user_id TEXT PRIMARY KEY NOT NULL,
+      anthropic_api_key TEXT,
+      model TEXT DEFAULT 'claude-sonnet-4-20250514' NOT NULL,
+      theme TEXT DEFAULT 'system' NOT NULL,
       created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
     CREATE TABLE teams (
       id TEXT PRIMARY KEY NOT NULL,
       name TEXT NOT NULL,
-      plan TEXT NOT NULL,
       owner_id TEXT NOT NULL,
-      stripe_subscription_id TEXT,
       created_at INTEGER NOT NULL,
       FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
     );
@@ -155,13 +141,9 @@ function makeParams(id = "p1") {
   return { params: Promise.resolve({ id }) };
 }
 
-function getUsageRecord() {
-  return testDb.select().from(usage).where(eq(usage.userId, "test-user-id")).get();
-}
-
 beforeEach(() => {
   testDb = createTestDb();
-  authState.role = "free";
+  authState.role = "user";
   vi.clearAllMocks();
 
   testDb
@@ -172,8 +154,19 @@ beforeEach(() => {
       email: "test@example.com",
       name: "Test User",
       avatarUrl: null,
-      role: "free",
+      role: "user",
       createdAt: Date.now(),
+    })
+    .run();
+
+  testDb
+    .insert(userSettings)
+    .values({
+      userId: "test-user-id",
+      anthropicApiKey: encryptSecret("sk-ant-test-key"),
+      model: "claude-sonnet-4-20250514",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
     })
     .run();
 
@@ -194,7 +187,7 @@ beforeEach(() => {
 });
 
 describe("POST /api/projects/[id]/repo-scan", () => {
-  it("does not increment scan usage when repository analysis fails", async () => {
+  it("returns repository analysis failures without mutating the project", async () => {
     githubMocks.analyzeRepo.mockRejectedValue(new Error("Repository not found or is private"));
 
     const res = await repoScanRoute.POST(
@@ -204,11 +197,11 @@ describe("POST /api/projects/[id]/repo-scan", () => {
 
     expect(res.status).toBe(200);
     expect(await res.text()).toContain("Repository not found or is private");
-    expect(getUsageRecord()?.scanCount ?? 0).toBe(0);
+    expect(testDb.select().from(projects).get()?.repoUrl).toBeNull();
     expect(streamMocks.streamChat).not.toHaveBeenCalled();
   });
 
-  it("increments scan usage after repository analysis succeeds", async () => {
+  it("analyzes repositories without usage accounting", async () => {
     githubMocks.analyzeRepo.mockResolvedValue({
       owner: "acme",
       repo: "app",
@@ -225,24 +218,12 @@ describe("POST /api/projects/[id]/repo-scan", () => {
     );
 
     expect(res.status).toBe(200);
-    expect(getUsageRecord()?.scanCount).toBe(1);
-    expect(res.headers.get("X-Usage-Remaining")).toBe("1");
+    expect(res.headers.get("X-Usage-Remaining")).toBeNull();
     expect(streamMocks.streamChat).toHaveBeenCalledOnce();
   });
 
-  it("blocks over-limit users before repository analysis", async () => {
-    const now = Date.now();
-    testDb
-      .insert(usage)
-      .values({
-        id: "usage-1",
-        userId: "test-user-id",
-        messageCount: 0,
-        scanCount: 2,
-        periodStart: now,
-        periodEnd: now + 30 * 24 * 60 * 60 * 1000,
-      })
-      .run();
+  it("requires a BYOK key before repository analysis", async () => {
+    testDb.delete(userSettings).run();
 
     const res = await repoScanRoute.POST(
       makeRequest({ repoUrl: "https://github.com/acme/app" }) as never,
@@ -250,9 +231,9 @@ describe("POST /api/projects/[id]/repo-scan", () => {
     );
     const data = await res.json();
 
-    expect(res.status).toBe(429);
-    expect(data.error).toBe("Monthly scan limit reached (2)");
+    expect(res.status).toBe(503);
+    expect(data.code).toBe("AI_NOT_CONFIGURED");
+    expect(data.settingsUrl).toBe("/settings");
     expect(githubMocks.analyzeRepo).not.toHaveBeenCalled();
-    expect(getUsageRecord()?.scanCount).toBe(2);
   });
 });

@@ -3,31 +3,25 @@ import { Page, Route } from "@playwright/test";
 /**
  * Build an SSE response body string from a series of events.
  */
-export function buildSSEBody(
-  events: Array<{ type: string; content?: string }>,
-): string {
-  return events
-    .map((e) => `data: ${JSON.stringify(e)}\n\n`)
-    .join("");
+export function buildSSEBody(events: Array<{ type: string; content?: string }>): string {
+  return events.map((e) => `data: ${JSON.stringify(e)}\n\n`).join("");
 }
 
 /**
  * Build a simple text-then-done SSE body from a string.
  */
 export function textSSE(text: string): string {
-  return buildSSEBody([
-    { type: "text", content: text },
-    { type: "done" },
-  ]);
+  return buildSSEBody([{ type: "text", content: text }, { type: "done" }]);
 }
 
 /**
  * Build a multi-chunk text SSE body (simulates streaming).
  */
 export function chunkedTextSSE(chunks: string[]): string {
-  const events: Array<{ type: string; content?: string }> = chunks.map(
-    (c) => ({ type: "text", content: c }),
-  );
+  const events: Array<{ type: string; content?: string }> = chunks.map((c) => ({
+    type: "text",
+    content: c,
+  }));
   events.push({ type: "done" });
   return buildSSEBody(events);
 }
@@ -35,19 +29,14 @@ export function chunkedTextSSE(chunks: string[]): string {
 /**
  * Build an SSE body that includes architecture data.
  */
-export function architectureSSE(
-  textChunks: string[],
-  architecture: object,
-): string {
+export function architectureSSE(textChunks: string[], architecture: object): string {
   const events: Array<{ type: string; content?: string | object }> = [];
   for (const chunk of textChunks) {
     events.push({ type: "text", content: chunk });
   }
   events.push({ type: "architecture", content: architecture });
   events.push({ type: "done" });
-  return events
-    .map((e) => `data: ${JSON.stringify(e)}\n\n`)
-    .join("");
+  return events.map((e) => `data: ${JSON.stringify(e)}\n\n`).join("");
 }
 
 /**
@@ -138,9 +127,7 @@ export async function mockInterviewFlow(page: Page) {
     chatCallCount++;
 
     // Find matching response
-    const matchIdx = INTERVIEW_RESPONSES.findIndex(
-      (r) => r.pattern && r.pattern.test(userMessage),
-    );
+    const matchIdx = INTERVIEW_RESPONSES.findIndex((r) => r.pattern && r.pattern.test(userMessage));
 
     if (matchIdx >= 0) {
       await fulfillSSE(route, INTERVIEW_RESPONSES[matchIdx].response);
@@ -149,8 +136,8 @@ export async function mockInterviewFlow(page: Page) {
       await fulfillSSE(
         route,
         textSSE(
-          "Thank you for that information. Could you tell me more about your deployment preferences?",
-        ),
+          "Thank you for that information. Could you tell me more about your deployment preferences?"
+        )
       );
     }
   });
@@ -178,12 +165,17 @@ export async function mockInterviewFlow(page: Page) {
 /**
  * Helper to create a project and navigate to its page.
  */
-export async function createProjectAndNavigate(
-  page: Page,
-  name: string,
-  description?: string,
-) {
+export async function createProjectAndNavigate(page: Page, name: string, description?: string) {
   await page.goto("/project/new");
+  const settingsResponse = await page.request.patch("/api/settings", {
+    data: {
+      apiKey: "sk-ant-playwright-placeholder-key",
+      model: "claude-sonnet-4-20250514",
+    },
+  });
+  if (!settingsResponse.ok()) {
+    throw new Error(`Unable to configure BYOK for E2E: ${settingsResponse.status()}`);
+  }
   await page.fill("#name", name);
   if (description) {
     await page.fill("#description", description);

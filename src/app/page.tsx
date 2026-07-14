@@ -19,9 +19,8 @@ const WORKFLOWS = [
     title: "Start from the system that already exists.",
     description:
       "Paste a public GitHub URL and StackHatch turns the codebase into a first useful map: clients, routes, services, stores, and handoff paths.",
-    gif: "/demos/repo-to-map.gif",
     poster: "/demos/repo-to-map-poster.png",
-    alt: "StackHatch screencast showing a GitHub repository scan generating an architecture map.",
+    alt: "StackHatch workspace showing a GitHub repository scan generating an architecture map.",
   },
   {
     step: "02",
@@ -29,9 +28,8 @@ const WORKFLOWS = [
     title: "Ask for changes without losing approved decisions.",
     description:
       "Use the architecture chat to revise the system, keep locked nodes intact, and preserve the tradeoffs the team has already agreed on.",
-    gif: "/demos/ai-revision.gif",
     poster: "/demos/ai-revision-poster.png",
-    alt: "StackHatch screencast showing an AI chat request updating a map while a locked auth node stays unchanged.",
+    alt: "StackHatch workspace showing an AI chat request updating a map while a locked auth node stays unchanged.",
   },
   {
     step: "03",
@@ -39,14 +37,13 @@ const WORKFLOWS = [
     title: "Leave with a diagram, alternatives, and a PRD.",
     description:
       "Review credible swaps for a node, choose the recommendation, and export material that a client, investor, or engineer can act on.",
-    gif: "/demos/export-handoff.gif",
     poster: "/demos/export-handoff-poster.png",
-    alt: "StackHatch screencast showing database alternatives and export options for an architecture plan.",
+    alt: "StackHatch workspace showing database alternatives and export options for an architecture plan.",
   },
 ];
 
 const DECISION_POINTS = [
-  "Bring your own Anthropic key on every plan",
+  "Free to use with your own Anthropic API key",
   "Repo maps, blank canvases, and PRD uploads start from the same editor",
   "Node locking keeps approved choices stable while the rest of the map changes",
   "Exports create a diagram and PRD for client, investor, and engineering review",
@@ -77,12 +74,6 @@ export default function LandingPage() {
           </Link>
           <nav aria-label="Primary navigation" className="flex items-center gap-1">
             <Link
-              href="/pricing"
-              className="hidden min-h-11 items-center rounded-md px-3 py-2 text-sm font-medium text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)] sm:inline-flex"
-            >
-              Pricing
-            </Link>
-            <Link
               href="/login?callbackUrl=/app"
               className="inline-flex min-h-11 items-center rounded-md px-3 py-2 text-sm font-medium text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
             >
@@ -106,6 +97,9 @@ export default function LandingPage() {
               Start from a real repo, PRD, or blank canvas. StackHatch diagrams the system, explains
               tradeoffs, and keeps decisions visible as the product changes.
             </p>
+            <p className="mt-3 text-sm font-semibold text-[var(--foreground)]">
+              Free to use. Bring your own Anthropic API key.
+            </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
                 href="/login?callbackUrl=/app"
@@ -115,10 +109,10 @@ export default function LandingPage() {
                 <ArrowRight className="h-4 w-4" />
               </Link>
               <Link
-                href="/pricing"
+                href="/support"
                 className="inline-flex min-h-11 items-center rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-5 py-2.5 text-sm font-bold hover:bg-[var(--muted)]"
               >
-                Compare plans
+                How BYOK works
               </Link>
             </div>
             <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-sm text-[var(--muted-foreground)]">
@@ -188,8 +182,8 @@ export default function LandingPage() {
                   Three decisions, one shared map.
                 </h2>
                 <p className="mt-4 text-sm leading-6 text-[var(--muted-foreground)]">
-                  The page uses real app recordings because the product has to earn trust with
-                  behavior, not screenshots made for a sales deck.
+                  These are real product views because the product has to earn trust with behavior,
+                  not illustrations made for a sales deck.
                 </p>
               </div>
 
@@ -216,18 +210,14 @@ export default function LandingPage() {
                       </div>
                     </div>
                     <div className="border-t border-[var(--border)] bg-[var(--canvas)] md:border-l md:border-t-0">
-                      <picture>
-                        <source media="(prefers-reduced-motion: reduce)" srcSet={workflow.poster} />
-                        <Image
-                          src={workflow.gif}
-                          alt={workflow.alt}
-                          width={640}
-                          height={400}
-                          loading={workflow.step === "01" ? "eager" : "lazy"}
-                          unoptimized
-                          className="h-full w-full object-cover"
-                        />
-                      </picture>
+                      <Image
+                        src={workflow.poster}
+                        alt={workflow.alt}
+                        width={640}
+                        height={400}
+                        loading={workflow.step === "01" ? "eager" : "lazy"}
+                        className="h-full w-full object-cover"
+                      />
                     </div>
                   </article>
                 ))}
@@ -280,7 +270,7 @@ export default function LandingPage() {
                 Map the stack before it gets expensive.
               </h2>
               <p className="mt-2 text-[var(--muted-foreground)]">
-                Start free with your own key. Upgrade when exports and team workflows matter.
+                Use every feature for free. AI usage is billed directly to your Anthropic account.
               </p>
             </div>
             <Link

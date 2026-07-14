@@ -1,7 +1,7 @@
 {
   "database": "dolt",
-  "jsonl_export": "issues.jsonl",
   "backend": "dolt",
   "dolt_mode": "server",
-  "dolt_database": "beads_stackhatch"
+  "dolt_database": "beads_stackhatch",
+  "project_id": "07c47b06-2c03-4a0b-b2e9-55d92b486215"
 }

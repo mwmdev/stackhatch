@@ -47,6 +47,10 @@ vi.mock("reactflow", () => {
               key: (node as { id: string }).id,
               type: "button",
               "data-testid": `mock-flow-node-${(node as { id: string }).id}`,
+              "data-client-custom-subtypes": JSON.stringify(
+                (node as { data?: { customSubtypes?: { client?: unknown[] } } }).data
+                  ?.customSubtypes?.client ?? []
+              ),
               onClick: (event: React.MouseEvent) => {
                 event.stopPropagation();
                 (
@@ -334,69 +338,20 @@ function mockFetchProject(
   project: unknown,
   options: {
     settings?: Record<string, unknown>;
-    billing?: Record<string, unknown>;
   } = {}
 ) {
   global.fetch = vi.fn((input: RequestInfo | URL, _options?: RequestInit) => {
     const url = String(input);
-    const role = String(options.settings?.role ?? "free");
-    const billingPlan = String(options.billing?.plan ?? role);
-    const effectivePlan =
-      role === "admin"
-        ? "pro"
-        : billingPlan === "pro" || billingPlan === "team"
-          ? "pro"
-          : billingPlan === "starter"
-            ? "starter"
-            : "free";
-    const features = {
-      projects: effectivePlan === "pro" ? "unlimited" : effectivePlan === "starter" ? 5 : 2,
-      messagesPerMonth: "byok",
-      scansPerMonth: effectivePlan === "pro" ? 150 : effectivePlan === "starter" ? 25 : 2,
-      models: effectivePlan === "pro" ? ["sonnet", "opus"] : ["sonnet"],
-      exports:
-        effectivePlan === "pro"
-          ? ["png", "svg", "json", "yaml"]
-          : effectivePlan === "starter"
-            ? ["png", "svg", "json"]
-            : ["json"],
-      nodeDescriptions: true,
-      nodeLocking: true,
-      connectionTypes: effectivePlan === "pro",
-      customSubtypes: effectivePlan === "pro",
-      noteNodes: effectivePlan !== "free",
-      alternatives: effectivePlan === "starter" || effectivePlan === "pro",
-      prdExport: effectivePlan === "pro",
-      serverManagedAi: false,
-      byok: true,
-    };
     if (url === "/api/settings") {
-      return Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve(options.settings ?? { role: "free", isAdmin: false }),
-      } as Response);
-    }
-    if (url === "/api/me/capabilities") {
-      return Promise.resolve({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            plan: effectivePlan,
-            features,
-            isAdmin: role === "admin",
-          }),
-      } as Response);
-    }
-    if (url === "/api/billing/subscription") {
       return Promise.resolve({
         ok: true,
         json: () =>
           Promise.resolve(
-            options.billing ?? {
-              plan: "free",
-              status: null,
-              billingInterval: null,
-              currentPeriodEnd: null,
+            options.settings ?? {
+              role: "user",
+              isAdmin: false,
+              hasAnthropicKey: true,
+              model: "claude-sonnet-4-20250514",
             }
           ),
       } as Response);
@@ -721,24 +676,13 @@ describe("ProjectPage", () => {
       ).toBe(true);
     });
 
-    it("hides PRD export for free users", async () => {
+    it("shows the complete PRD export action for every user", async () => {
       mockFetchProject(projectWithNodes);
       render(<ProjectPage />);
       await waitFor(() => {
         expect(screen.getByTestId("react-flow-canvas")).toHaveAttribute("data-node-count", "2");
       });
-      expect(screen.queryByText("PRD")).not.toBeInTheDocument();
-    });
-
-    it("shows PRD export for active pro users", async () => {
-      mockFetchProject(projectWithNodes, {
-        settings: { role: "pro", isAdmin: false },
-        billing: { plan: "pro", status: "active" },
-      });
-      render(<ProjectPage />);
-      await waitFor(() => {
-        expect(screen.getByText("PRD")).toBeInTheDocument();
-      });
+      expect(screen.getByText("PRD")).toBeInTheDocument();
       const prdButton = screen.getByLabelText("Generate PRD from architecture");
       expect(prdButton.querySelector(".lucide-sparkles")).toBeInTheDocument();
       expect(prdButton).toHaveAttribute("title", "Generate PRD from architecture");
@@ -747,7 +691,6 @@ describe("ProjectPage", () => {
     it("shows PRD export for admin users", async () => {
       mockFetchProject(projectWithNodes, {
         settings: { role: "admin", isAdmin: true },
-        billing: { plan: "free", status: null },
       });
       render(<ProjectPage />);
       await waitFor(() => {
@@ -763,6 +706,25 @@ describe("ProjectPage", () => {
       await waitFor(() => {
         const canvas = screen.getByTestId("react-flow-canvas");
         expect(canvas).toHaveAttribute("data-node-count", "2");
+      });
+    });
+
+    it("applies shared custom subtypes when constructing persisted nodes", async () => {
+      mockFetchProject(projectWithNodes, {
+        settings: {
+          role: "user",
+          isAdmin: false,
+          hasAnthropicKey: true,
+          customSubtypes: '{"client":[{"slug":"kiosk","displayName":"Kiosk","icon":"Box"}]}',
+        },
+      });
+      render(<ProjectPage />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("mock-flow-node-n1")).toHaveAttribute(
+          "data-client-custom-subtypes",
+          '[{"slug":"kiosk","displayName":"Kiosk","icon":"Box"}]'
+        );
       });
     });
 
@@ -830,21 +792,8 @@ describe("ProjectPage", () => {
       expect(screen.getByTestId("node-detail-panel")).toHaveAttribute("data-open", "false");
     });
 
-    it("hides alternatives for free users", async () => {
+    it("enables alternatives for every user", async () => {
       mockFetchProject(projectWithNodes);
-      render(<ProjectPage />);
-      await waitFor(() => {
-        expect(screen.getByTestId("node-detail-panel")).toHaveAttribute(
-          "data-can-suggest-alternatives",
-          "false"
-        );
-      });
-    });
-
-    it("enables alternatives for Builder users", async () => {
-      mockFetchProject(projectWithNodes, {
-        settings: { role: "starter", isAdmin: false },
-      });
       render(<ProjectPage />);
       await waitFor(() => {
         expect(screen.getByTestId("node-detail-panel")).toHaveAttribute(
@@ -863,25 +812,22 @@ describe("ProjectPage", () => {
       expect(screen.queryByText("No architecture yet")).not.toBeInTheDocument();
     });
 
-    it("does not open connection type editing for free users", async () => {
+    it("opens connection type editing for every user", async () => {
       mockFetchProject(projectWithNodes);
       render(<ProjectPage />);
       await waitFor(() => {
         expect(screen.getByTestId("mock-flow-edge-e1")).toHaveAttribute(
           "data-connection-types-enabled",
-          "false"
+          "true"
         );
       });
 
       fireEvent.click(screen.getByTestId("mock-flow-edge-e1"));
-      expect(screen.queryByTestId("connection-type-selector")).not.toBeInTheDocument();
+      expect(screen.getByTestId("connection-type-selector")).toBeInTheDocument();
     });
 
-    it("opens connection type editing from an edge click for Studio users", async () => {
-      mockFetchProject(projectWithNodes, {
-        settings: { role: "pro", isAdmin: false },
-        billing: { plan: "pro", status: "active" },
-      });
+    it("changes the connection type from an edge click for every user", async () => {
+      mockFetchProject(projectWithNodes);
       render(<ProjectPage />);
       await waitFor(() => {
         expect(screen.getByTestId("mock-flow-edge-e1")).toHaveAttribute(
@@ -906,10 +852,7 @@ describe("ProjectPage", () => {
     });
 
     it("does not open connection type editing from an edge label click", async () => {
-      mockFetchProject(projectWithNodes, {
-        settings: { role: "pro", isAdmin: false },
-        billing: { plan: "pro", status: "active" },
-      });
+      mockFetchProject(projectWithNodes);
       render(<ProjectPage />);
       await waitFor(() => {
         expect(screen.getByTestId("mock-flow-edge-e1")).toHaveAttribute(
@@ -950,24 +893,13 @@ describe("ProjectPage", () => {
       expect(screen.queryByTestId("react-flow-minimap")).not.toBeInTheDocument();
     });
 
-    it("hides EdgeLegend when connection types are not included in the plan", async () => {
+    it("renders EdgeLegend for every user", async () => {
       mockFetchProject(emptyProject);
       render(<ProjectPage />);
       await waitFor(() => {
         expect(screen.getByTestId("react-flow-canvas")).toBeInTheDocument();
       });
-      expect(screen.queryByTestId("edge-legend")).not.toBeInTheDocument();
-    });
-
-    it("renders EdgeLegend when connection types are included in the plan", async () => {
-      mockFetchProject(projectWithNodes, {
-        settings: { role: "pro", isAdmin: false },
-        billing: { plan: "pro", status: "active" },
-      });
-      render(<ProjectPage />);
-      await waitFor(() => {
-        expect(screen.getByTestId("edge-legend")).toBeInTheDocument();
-      });
+      expect(screen.getByTestId("edge-legend")).toBeInTheDocument();
     });
   });
 

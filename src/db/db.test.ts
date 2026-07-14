@@ -17,7 +17,7 @@ function createTestDb() {
       email TEXT,
       name TEXT,
       avatar_url TEXT,
-      role TEXT DEFAULT 'free' NOT NULL,
+      role TEXT DEFAULT 'user' NOT NULL,
       created_at INTEGER NOT NULL
     );
     CREATE TABLE projects (
@@ -57,7 +57,7 @@ const testUser = {
   email: "test@example.com",
   name: "Test User",
   avatarUrl: "https://example.com/avatar.png",
-  role: "free" as const,
+  role: "user" as const,
   createdAt: Date.now(),
 };
 
@@ -212,30 +212,30 @@ describe("messages", () => {
 
 describe("settings", () => {
   it("inserts and retrieves a setting", () => {
-    db.insert(settings).values({ key: "apiKey", value: "sk-ant-test" }).run();
+    db.insert(settings).values({ key: "theme", value: "dark" }).run();
 
-    const result = db.select().from(settings).where(eq(settings.key, "apiKey")).get();
-    expect(result?.value).toBe("sk-ant-test");
+    const result = db.select().from(settings).where(eq(settings.key, "theme")).get();
+    expect(result?.value).toBe("dark");
   });
 
   it("upserts a setting (update on conflict)", () => {
-    db.insert(settings).values({ key: "model", value: "claude-sonnet-4-20250514" }).run();
+    db.insert(settings).values({ key: "prompt_chat", value: "old prompt" }).run();
 
     // Upsert with onConflictDoUpdate
     db.insert(settings)
-      .values({ key: "model", value: "claude-opus-4-20250514" })
-      .onConflictDoUpdate({ target: settings.key, set: { value: "claude-opus-4-20250514" } })
+      .values({ key: "prompt_chat", value: "new prompt" })
+      .onConflictDoUpdate({ target: settings.key, set: { value: "new prompt" } })
       .run();
 
-    const result = db.select().from(settings).where(eq(settings.key, "model")).get();
-    expect(result?.value).toBe("claude-opus-4-20250514");
+    const result = db.select().from(settings).where(eq(settings.key, "prompt_chat")).get();
+    expect(result?.value).toBe("new prompt");
   });
 
   it("retrieves all settings as key-value pairs", () => {
     db.insert(settings)
       .values([
-        { key: "apiKey", value: "sk-ant-test" },
-        { key: "model", value: "claude-sonnet-4-20250514" },
+        { key: "prompt_chat", value: "chat prompt" },
+        { key: "customSubtypes", value: "{}" },
         { key: "theme", value: "dark" },
       ])
       .run();
@@ -244,8 +244,8 @@ describe("settings", () => {
     const kv = Object.fromEntries(rows.map((r) => [r.key, r.value]));
 
     expect(kv).toEqual({
-      apiKey: "sk-ant-test",
-      model: "claude-sonnet-4-20250514",
+      prompt_chat: "chat prompt",
+      customSubtypes: "{}",
       theme: "dark",
     });
   });

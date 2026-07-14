@@ -9,6 +9,7 @@ interface Template {
   canvasState: string; // JSON string
   createdBy: string;
   createdAt: number;
+  teamId?: string;
 }
 
 interface Team {
@@ -103,8 +104,8 @@ export default function TemplatePicker({ onSelectTemplate, onCancel }: TemplateP
         <div className="w-96 rounded-lg bg-[var(--card)] p-6 shadow-xl">
           <h3 className="mb-4 text-lg font-semibold">Start from Template</h3>
           <p className="mb-4 text-[var(--muted-foreground)]">
-            Templates are only available for team projects. Join a team or upgrade to access shared
-            templates.
+            Templates are available in team workspaces. Create or join a team to build a shared
+            template library.
           </p>
           <div className="flex justify-end">
             <button
@@ -161,7 +162,7 @@ export default function TemplatePicker({ onSelectTemplate, onCancel }: TemplateP
                 <div
                   key={template.id}
                   className="cursor-pointer rounded border border-[var(--border)] p-4 hover:bg-[var(--muted)] transition-colors"
-                  onClick={() => onSelectTemplate(template)}
+                  onClick={() => onSelectTemplate({ ...template, teamId: selectedTeamId })}
                 >
                   <h4 className="font-medium mb-2">{template.name}</h4>
                   {template.description && (

@@ -5,7 +5,6 @@ import { z } from "zod";
 import { streamChat } from "@/lib/ai/stream-chat";
 import { chatCanvasStateSchema } from "@/lib/ai/request-context";
 import { getAuthenticatedUser } from "@/lib/auth";
-import { incrementMessages } from "@/lib/usage";
 import { getAccessibleProject } from "@/lib/project-access";
 
 const chatSchema = z.object({
@@ -54,32 +53,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     });
   }
 
-  // Enforce usage limits for free users
-  let usageRemaining: number | null = null;
-  if (user.role !== "admin") {
-    const result = incrementMessages(userId, user.role);
-    if (!result.allowed) {
-      return new Response(
-        JSON.stringify({
-          error: `Monthly message limit reached (${result.limit})`,
-          limit: result.limit,
-          used: result.used,
-          upgradeUrl: "/pricing",
-        }),
-        {
-          status: 429,
-          headers: { "Content-Type": "application/json" },
-        }
-      );
-    }
-    usageRemaining = typeof result.limit === "number" ? result.limit - result.used : null;
-  }
-
-  const response = streamChat(db, id, parsed.data.message, undefined, user, {
+  return streamChat(db, id, parsed.data.message, undefined, user, {
     contextArchitecture: parsed.data.canvasState,
   });
-  if (usageRemaining !== null) {
-    response.headers.set("X-Usage-Remaining", String(usageRemaining));
-  }
-  return response;
 }

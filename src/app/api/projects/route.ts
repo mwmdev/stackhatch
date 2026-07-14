@@ -3,9 +3,8 @@ import { getDb } from "@/db";
 import { projects, teamMembers, teams } from "@/db/schema";
 import { runMigrations } from "@/db/migrate";
 import { z } from "zod";
-import { desc, eq, and, or, inArray, count } from "drizzle-orm";
+import { desc, eq, and, or, inArray } from "drizzle-orm";
 import { getAuthenticatedUser, getAuthenticatedUserId } from "@/lib/auth";
-import { getActivePlan, getPlanCatalog, isUnlimited } from "@/lib/plans";
 import { createId } from "@/lib/id";
 
 const createProjectSchema = z.object({
@@ -48,30 +47,6 @@ export async function POST(request: NextRequest) {
 
     const db = getDb();
     runMigrations(db);
-
-    const plan = getActivePlan(db, userId, user.role);
-    const catalog = getPlanCatalog(db);
-    const planConfig = catalog[plan];
-    const projectLimit = planConfig.features.projects;
-    if (!isUnlimited(projectLimit)) {
-      const [{ total }] = db
-        .select({ total: count() })
-        .from(projects)
-        .where(eq(projects.userId, userId))
-        .all();
-      if (total >= projectLimit) {
-        return NextResponse.json(
-          {
-            error: `${planConfig.name} is limited to ${projectLimit} projects`,
-            upgradeRequired: true,
-            limit: projectLimit,
-            used: total,
-            upgradeUrl: "/pricing",
-          },
-          { status: 403 }
-        );
-      }
-    }
 
     // If teamId is provided, verify user is a team member
     if (parsed.data.teamId) {

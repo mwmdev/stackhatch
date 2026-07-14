@@ -7,8 +7,8 @@ import { z } from "zod";
 import { analyzeRepo, formatRepoAnalysis } from "@/lib/github-analyzer";
 import { streamChat, sseEvent, SSE_HEADERS } from "@/lib/ai/stream-chat";
 import { getAuthenticatedUser } from "@/lib/auth";
-import { checkScans, incrementScans } from "@/lib/usage";
 import { getAccessibleProject } from "@/lib/project-access";
+import { getApiKey } from "@/lib/ai/settings";
 
 const scanSchema = z.object({
   repoUrl: z.string().min(1, "Repository URL is required"),
@@ -58,24 +58,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const { repoUrl } = parsed.data;
 
-  // Enforce usage limits before doing external work, but only consume quota after analysis succeeds.
-  let scansRemaining: number | null = null;
-  if (user.role !== "admin") {
-    const result = checkScans(userId, user.role);
-    if (!result.allowed) {
-      return new Response(
-        JSON.stringify({
-          error: `Monthly scan limit reached (${result.limit})`,
-          limit: result.limit,
-          used: result.used,
-          upgradeUrl: "/pricing",
-        }),
-        {
-          status: 429,
-          headers: { "Content-Type": "application/json" },
-        }
-      );
-    }
+  if (!getApiKey(db, userId)) {
+    return new Response(
+      JSON.stringify({
+        error: "Add your Anthropic API key in Settings to analyze a repository.",
+        code: "AI_NOT_CONFIGURED",
+        settingsUrl: "/settings",
+      }),
+      {
+        status: 503,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
   }
 
   // Analyze the repo
@@ -89,25 +83,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     });
   }
 
-  if (user.role !== "admin") {
-    const result = incrementScans(userId, user.role);
-    if (!result.allowed) {
-      return new Response(
-        JSON.stringify({
-          error: `Monthly scan limit reached (${result.limit})`,
-          limit: result.limit,
-          used: result.used,
-          upgradeUrl: "/pricing",
-        }),
-        {
-          status: 429,
-          headers: { "Content-Type": "application/json" },
-        }
-      );
-    }
-    scansRemaining = typeof result.limit === "number" ? result.limit - result.used : null;
-  }
-
   db.transaction((tx) => {
     tx.update(projects)
       .set({ repoUrl, canvasState: null, updatedAt: Date.now() })
@@ -117,9 +92,5 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   });
 
   const initMessage = formatRepoAnalysis(analysis);
-  const response = streamChat(db, id, null, initMessage, user);
-  if (scansRemaining !== null) {
-    response.headers.set("X-Usage-Remaining", String(scansRemaining));
-  }
-  return response;
+  return streamChat(db, id, null, initMessage, user);
 }

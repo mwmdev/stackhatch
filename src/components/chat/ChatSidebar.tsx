@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import Link from "next/link";
 import ReactMarkdown from "react-markdown";
 import { Loader2, MessageSquareText, SendHorizontal } from "lucide-react";
-import UpgradePrompt from "@/components/UpgradePrompt";
 import type { StackArchitecture } from "@/types/stack";
 
 function stripStackTags(text: string): string {
@@ -33,10 +33,8 @@ interface ChatSidebarProps {
   onStreaming?: (streaming: boolean) => void;
 }
 
-type AiAction = "init" | "scan" | "message";
-
 function isMissingApiKeyError(message: string) {
-  return /anthropic api key|api key not configured/i.test(message);
+  return /AI_NOT_CONFIGURED|anthropic api key|api key not configured/i.test(message);
 }
 
 function normalizeRepoUrl(repoUrl?: string | null) {
@@ -63,16 +61,10 @@ export default function ChatSidebar({
   const [streaming, setStreaming] = useState(false);
   const [streamText, setStreamText] = useState("");
   const [error, setError] = useState("");
-  const [upgradeFeature, setUpgradeFeature] = useState<string | null>(null);
-  const [apiKeyInput, setApiKeyInput] = useState("");
-  const [savingApiKey, setSavingApiKey] = useState(false);
-  const [apiKeySaveError, setApiKeySaveError] = useState("");
-  const [apiKeyRetryAction, setApiKeyRetryAction] = useState<AiAction | null>(null);
   const [initialized, setInitialized] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const initCalledRef = useRef(false);
-  const lastFailedMessageRef = useRef<string | null>(null);
   const open = controlledOpen ?? uncontrolledOpen;
   const normalizedRepoUrl = normalizeRepoUrl(repoUrl);
 
@@ -150,7 +142,7 @@ export default function ChatSidebar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scanTrigger]);
 
-  async function processSSEStream(response: Response, action?: AiAction) {
+  async function processSSEStream(response: Response) {
     const reader = response.body?.getReader();
     if (!reader) return;
 
@@ -180,9 +172,6 @@ export default function ChatSidebar({
               onArchitecture?.(event.content);
             } else if (event.type === "error") {
               setError(event.content);
-              if (typeof event.content === "string" && isMissingApiKeyError(event.content)) {
-                setApiKeyRetryAction(action ?? null);
-              }
               setStreaming(false);
               return;
             } else if (event.type === "done") {
@@ -201,8 +190,6 @@ export default function ChatSidebar({
               setStreamText("");
               setStreaming(false);
               setInitialized(true);
-              setApiKeyRetryAction(null);
-              lastFailedMessageRef.current = null;
               return;
             }
           } catch {
@@ -225,12 +212,17 @@ export default function ChatSidebar({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(canvasState ? { canvasState } : {}),
       });
-      if (res.status === 403) {
-        setUpgradeFeature("access AI chat");
+      if (!res.ok && !res.headers.get("content-type")?.includes("text/event-stream")) {
+        const data = await res.json().catch(() => ({ error: "Failed to start conversation" }));
+        setError(
+          data.code === "AI_NOT_CONFIGURED"
+            ? "AI_NOT_CONFIGURED"
+            : data.error || "Failed to start conversation"
+        );
         setStreaming(false);
         return;
       }
-      await processSSEStream(res, "init");
+      await processSSEStream(res);
     } catch {
       setError("Failed to start conversation");
       setStreaming(false);
@@ -248,21 +240,17 @@ export default function ChatSidebar({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ repoUrl: normalizedRepoUrl }),
       });
-      if (res.status === 403) {
-        setUpgradeFeature("access repo scanning");
-        setStreaming(false);
-        return;
-      }
       if (!res.ok && !res.headers.get("content-type")?.includes("text/event-stream")) {
         const data = await res.json().catch(() => ({ error: "Failed to scan repository" }));
-        setError(data.error || "Failed to scan repository");
-        if (typeof data.error === "string" && isMissingApiKeyError(data.error)) {
-          setApiKeyRetryAction("scan");
-        }
+        setError(
+          data.code === "AI_NOT_CONFIGURED"
+            ? "AI_NOT_CONFIGURED"
+            : data.error || "Failed to scan repository"
+        );
         setStreaming(false);
         return;
       }
-      await processSSEStream(res, "scan");
+      await processSSEStream(res);
     } catch {
       setError("Failed to scan repository");
       setStreaming(false);
@@ -284,8 +272,6 @@ export default function ChatSidebar({
     setInput("");
     setStreaming(true);
     setError("");
-    setApiKeySaveError("");
-    lastFailedMessageRef.current = text;
 
     // Reset textarea height
     if (textareaRef.current) {
@@ -298,12 +284,17 @@ export default function ChatSidebar({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(canvasState ? { message: text, canvasState } : { message: text }),
       });
-      if (res.status === 403) {
-        setUpgradeFeature("continue chatting");
+      if (!res.ok && !res.headers.get("content-type")?.includes("text/event-stream")) {
+        const data = await res.json().catch(() => ({ error: "Failed to send message" }));
+        setError(
+          data.code === "AI_NOT_CONFIGURED"
+            ? "AI_NOT_CONFIGURED"
+            : data.error || "Failed to send message"
+        );
         setStreaming(false);
         return;
       }
-      await processSSEStream(res, "message");
+      await processSSEStream(res);
     } catch {
       setError("Failed to send message");
       setStreaming(false);
@@ -313,48 +304,6 @@ export default function ChatSidebar({
   async function sendMessage() {
     const text = input.trim();
     await sendMessageText(text, true);
-  }
-
-  async function saveApiKeyInline(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const trimmed = apiKeyInput.trim();
-    if (!trimmed) {
-      setApiKeySaveError("Enter an Anthropic API key first.");
-      return;
-    }
-
-    setSavingApiKey(true);
-    setApiKeySaveError("");
-    try {
-      const res = await fetch("/api/settings", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ apiKey: trimmed }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setApiKeySaveError(data.error || "Failed to save API key.");
-        return;
-      }
-
-      const retryAction = apiKeyRetryAction;
-      const retryMessage = lastFailedMessageRef.current;
-      setApiKeyInput("");
-      setError("");
-      setApiKeyRetryAction(null);
-
-      if (retryAction === "scan" && normalizedRepoUrl) {
-        await scanRepo();
-      } else if (retryAction === "message" && retryMessage) {
-        await sendMessageText(retryMessage, false);
-      } else if (retryAction === "init") {
-        await initChat();
-      }
-    } catch {
-      setApiKeySaveError("Failed to save API key.");
-    } finally {
-      setSavingApiKey(false);
-    }
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -372,7 +321,7 @@ export default function ChatSidebar({
     el.style.height = Math.min(el.scrollHeight, 120) + "px";
   }
 
-  const showApiKeyForm = Boolean(error && !upgradeFeature && isMissingApiKeyError(error));
+  const showApiKeyPrompt = Boolean(error && isMissingApiKeyError(error));
 
   if (!open) {
     if (!showCollapsedButton) return null;
@@ -467,50 +416,24 @@ export default function ChatSidebar({
             </div>
           )}
 
-          {upgradeFeature && (
-            <div>
-              <UpgradePrompt feature={upgradeFeature} onDismiss={() => setUpgradeFeature(null)} />
+          {showApiKeyPrompt && (
+            <div className="rounded-lg border border-[var(--warning-border)] bg-[var(--warning-surface)] p-3 text-sm shadow-sm shadow-[var(--shadow-color)]">
+              <p className="font-medium text-[var(--foreground)]">
+                Connect your Anthropic account to use AI features.
+              </p>
+              <p className="mt-1 text-xs leading-5 text-[var(--muted-foreground)]">
+                Your API key is encrypted and stored with your account.
+              </p>
+              <Link
+                href="/settings?setup=anthropic"
+                className="mt-3 inline-flex min-h-10 items-center rounded-md bg-[var(--brand)] px-3 py-2 text-sm font-bold text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)]"
+              >
+                Open Settings
+              </Link>
             </div>
           )}
 
-          {showApiKeyForm && (
-            <form
-              onSubmit={saveApiKeyInline}
-              className="rounded-lg border border-[var(--warning-border)] bg-[var(--warning-surface)] p-3 text-sm shadow-sm shadow-[var(--shadow-color)]"
-            >
-              <p className="font-medium text-[var(--foreground)]">{error}</p>
-              <div className="mt-3 flex flex-col gap-2">
-                <label
-                  className="text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)]"
-                  htmlFor="chat-anthropic-api-key"
-                >
-                  Anthropic API key
-                </label>
-                <input
-                  id="chat-anthropic-api-key"
-                  type="password"
-                  value={apiKeyInput}
-                  onChange={(e) => setApiKeyInput(e.target.value)}
-                  placeholder="sk-ant-..."
-                  autoComplete="off"
-                  disabled={savingApiKey}
-                  className="min-h-10 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] transition-colors focus:border-[var(--ring)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)] disabled:bg-[var(--muted)] disabled:text-[var(--muted-foreground)]"
-                />
-                <button
-                  type="submit"
-                  disabled={savingApiKey || !apiKeyInput.trim()}
-                  className="min-h-10 rounded-md bg-[var(--brand)] px-3 py-2 text-sm font-bold text-[var(--brand-foreground)] transition-colors hover:bg-[var(--brand-hover)] disabled:cursor-not-allowed disabled:bg-[var(--muted)] disabled:text-[var(--muted-foreground)]"
-                >
-                  {savingApiKey ? "Saving..." : "Save and retry"}
-                </button>
-              </div>
-              {apiKeySaveError && (
-                <p className="mt-2 text-xs font-medium text-[var(--danger)]">{apiKeySaveError}</p>
-              )}
-            </form>
-          )}
-
-          {error && !upgradeFeature && !showApiKeyForm && (
+          {error && !showApiKeyPrompt && (
             <div className="rounded-lg border border-[var(--danger-border)] bg-[var(--danger-surface)] px-3 py-2 text-sm text-[var(--danger)]">
               {error}
             </div>

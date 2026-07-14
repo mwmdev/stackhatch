@@ -6,18 +6,49 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { getAuthenticatedUser } from "@/lib/auth";
 import { encryptSecret } from "@/lib/secrets";
+import { AI_MODEL_IDS, DEFAULT_AI_MODEL, normalizeAiModel } from "@/lib/ai/models";
 
 const VALID_THEMES = ["light", "dark", "system"] as const;
-
-const VALID_KEYS = new Set(["theme"]);
+const DEFAULT_THEME = "system";
 
 const updateSettingsSchema = z
   .object({
     apiKey: z.string().min(20).max(300).optional(),
     clearApiKey: z.boolean().optional(),
+    model: z.enum(AI_MODEL_IDS).optional(),
     theme: z.enum(VALID_THEMES).optional(),
   })
   .strict();
+
+type Db = ReturnType<typeof getDb>;
+
+function getPublicSettings(db: Db, user: { userId: string; role: "user" | "admin" }) {
+  const customSubtypesRow = db
+    .select()
+    .from(settings)
+    .where(eq(settings.key, "customSubtypes"))
+    .get();
+  const userConfig = db
+    .select({
+      anthropicApiKey: userSettings.anthropicApiKey,
+      model: userSettings.model,
+      theme: userSettings.theme,
+    })
+    .from(userSettings)
+    .where(eq(userSettings.userId, user.userId))
+    .get();
+
+  return {
+    hasAnthropicKey: Boolean(userConfig?.anthropicApiKey),
+    model: normalizeAiModel(userConfig?.model),
+    theme: VALID_THEMES.includes(userConfig?.theme as (typeof VALID_THEMES)[number])
+      ? userConfig!.theme
+      : DEFAULT_THEME,
+    customSubtypes: customSubtypesRow?.value ?? "{}",
+    role: user.role,
+    isAdmin: user.role === "admin",
+  };
+}
 
 export async function GET() {
   try {
@@ -28,29 +59,7 @@ export async function GET() {
 
     const db = getDb();
     runMigrations(db);
-
-    const rows = db.select().from(settings).all();
-    const result: Record<string, string> = {};
-    for (const row of rows) {
-      if (VALID_KEYS.has(row.key)) {
-        result[row.key] = row.value;
-      }
-    }
-
-    delete result.apiKey;
-
-    const userConfig = db
-      .select({ anthropicApiKey: userSettings.anthropicApiKey })
-      .from(userSettings)
-      .where(eq(userSettings.userId, user.userId))
-      .get();
-    return NextResponse.json({
-      ...result,
-      hasAnthropicKey: Boolean(userConfig?.anthropicApiKey),
-      hasUserAnthropicKey: Boolean(userConfig?.anthropicApiKey),
-      role: user.role,
-      isAdmin: user.role === "admin",
-    });
+    return NextResponse.json(getPublicSettings(db, user));
   } catch {
     return NextResponse.json({ error: "Failed to fetch settings" }, { status: 500 });
   }
@@ -75,41 +84,54 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
     }
 
-    if (parsed.data.apiKey && parsed.data.clearApiKey) {
+    if (parsed.data.apiKey !== undefined && parsed.data.clearApiKey === true) {
       return NextResponse.json(
         { error: "Provide apiKey or clearApiKey, not both" },
         { status: 400 }
       );
     }
 
-    if (Object.keys(parsed.data).length === 0) {
+    const hasUserConfigUpdate =
+      parsed.data.apiKey !== undefined ||
+      parsed.data.clearApiKey === true ||
+      parsed.data.model !== undefined ||
+      parsed.data.theme !== undefined;
+    if (!hasUserConfigUpdate) {
       return NextResponse.json({ error: "No settings to update" }, { status: 400 });
     }
 
     const db = getDb();
     runMigrations(db);
-    db.delete(settings).where(eq(settings.key, "apiKey")).run();
 
     const now = Date.now();
-    if (parsed.data.clearApiKey) {
-      db.delete(userSettings).where(eq(userSettings.userId, user.userId)).run();
-    } else if (parsed.data.apiKey) {
+    if (hasUserConfigUpdate) {
       const existing = db
         .select({ userId: userSettings.userId })
         .from(userSettings)
         .where(eq(userSettings.userId, user.userId))
         .get();
-      const encrypted = encryptSecret(parsed.data.apiKey);
+
+      const encrypted = parsed.data.apiKey ? encryptSecret(parsed.data.apiKey) : undefined;
       if (existing) {
-        db.update(userSettings)
-          .set({ anthropicApiKey: encrypted, updatedAt: now })
-          .where(eq(userSettings.userId, user.userId))
-          .run();
+        const updates: {
+          anthropicApiKey?: string | null;
+          model?: (typeof AI_MODEL_IDS)[number];
+          theme?: (typeof VALID_THEMES)[number];
+          updatedAt: number;
+        } = { updatedAt: now };
+        if (encrypted !== undefined) updates.anthropicApiKey = encrypted;
+        if (parsed.data.clearApiKey === true) updates.anthropicApiKey = null;
+        if (parsed.data.model !== undefined) updates.model = parsed.data.model;
+        if (parsed.data.theme !== undefined) updates.theme = parsed.data.theme;
+
+        db.update(userSettings).set(updates).where(eq(userSettings.userId, user.userId)).run();
       } else {
         db.insert(userSettings)
           .values({
             userId: user.userId,
-            anthropicApiKey: encrypted,
+            anthropicApiKey: encrypted ?? null,
+            model: parsed.data.model ?? DEFAULT_AI_MODEL,
+            theme: parsed.data.theme ?? DEFAULT_THEME,
             createdAt: now,
             updatedAt: now,
           })
@@ -117,42 +139,7 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
-    // Upsert each setting
-    for (const [key, value] of Object.entries(parsed.data)) {
-      if (key === "apiKey" || key === "clearApiKey") continue;
-      if (typeof value !== "string") continue;
-      const existing = db.select().from(settings).where(eq(settings.key, key)).get();
-
-      if (existing) {
-        db.update(settings).set({ value }).where(eq(settings.key, key)).run();
-      } else {
-        db.insert(settings).values({ key, value }).run();
-      }
-    }
-
-    // Return all settings (same as GET)
-    const rows = db.select().from(settings).all();
-    const result: Record<string, string> = {};
-    for (const row of rows) {
-      if (VALID_KEYS.has(row.key)) {
-        result[row.key] = row.value;
-      }
-    }
-
-    delete result.apiKey;
-
-    const userConfig = db
-      .select({ anthropicApiKey: userSettings.anthropicApiKey })
-      .from(userSettings)
-      .where(eq(userSettings.userId, user.userId))
-      .get();
-    return NextResponse.json({
-      ...result,
-      hasAnthropicKey: Boolean(userConfig?.anthropicApiKey),
-      hasUserAnthropicKey: Boolean(userConfig?.anthropicApiKey),
-      role: user.role,
-      isAdmin: user.role === "admin",
-    });
+    return NextResponse.json(getPublicSettings(db, user));
   } catch {
     return NextResponse.json({ error: "Failed to update settings" }, { status: 500 });
   }

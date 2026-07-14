@@ -2,6 +2,8 @@ import { defineConfig, devices } from "@playwright/test";
 import { existsSync } from "node:fs";
 
 const port = Number(process.env.PLAYWRIGHT_TEST_PORT) || 3099;
+const testDatabaseUrl =
+  process.env.E2E_DATABASE_URL || `file:/tmp/stackhatch-playwright-${process.pid}.db`;
 const nixChromium = "/run/current-system/sw/bin/chromium";
 const chromiumExecutable =
   process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ||
@@ -36,7 +38,9 @@ export default defineConfig({
       STACKHATCH_DEV_AUTH: "1",
       STACKHATCH_DEV_ROLE: "admin",
       NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET || "test-secret",
-      ANTHROPIC_API_KEY: process.env.E2E_ANTHROPIC_API_KEY || "sk-ant-e2e-placeholder",
+      STACKHATCH_ENCRYPTION_KEY:
+        process.env.STACKHATCH_ENCRYPTION_KEY || "playwright-encryption-key",
+      DATABASE_URL: testDatabaseUrl,
     },
     url: `http://localhost:${port}`,
     reuseExistingServer: !process.env.CI,

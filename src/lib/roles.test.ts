@@ -1,30 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { getRoleForPlan, getRoleLabel, normalizeUserRole, USER_ROLE_OPTIONS } from "@/lib/roles";
+import { getRoleLabel, normalizeUserRole, USER_ROLE_OPTIONS, USER_ROLE_VALUES } from "@/lib/roles";
 
 describe("roles", () => {
-  it("exposes tier roles plus admin in the admin selector order", () => {
+  it("exposes only user and admin roles", () => {
+    expect(USER_ROLE_VALUES).toEqual(["user", "admin"]);
     expect(USER_ROLE_OPTIONS).toEqual([
-      { value: "free", label: "Free plan" },
-      { value: "starter", label: "Builder" },
-      { value: "pro", label: "Studio" },
+      { value: "user", label: "User" },
       { value: "admin", label: "Admin" },
     ]);
   });
 
-  it("normalizes legacy role values", () => {
-    expect(normalizeUserRole("free-user")).toBe("free");
-    expect(normalizeUserRole("paid-user")).toBe("pro");
+  it("defaults every non-admin value to user", () => {
+    expect(normalizeUserRole("user")).toBe("user");
+    expect(normalizeUserRole(undefined)).toBe("user");
+    expect(normalizeUserRole("unexpected")).toBe("user");
   });
 
-  it("maps billing plans to tier roles", () => {
-    expect(getRoleForPlan("starter")).toBe("starter");
-    expect(getRoleForPlan("pro")).toBe("pro");
-    expect(getRoleForPlan("team")).toBe("pro");
-  });
-
-  it("uses plan labels for tier roles", () => {
-    expect(getRoleLabel("starter")).toBe("Builder");
-    expect(getRoleLabel("pro")).toBe("Studio");
+  it("uses permission labels", () => {
+    expect(getRoleLabel("user")).toBe("User");
     expect(getRoleLabel("admin")).toBe("Admin");
   });
 });

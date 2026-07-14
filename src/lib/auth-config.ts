@@ -48,7 +48,7 @@ export const {
               email: profile.email || null,
               name: profile.name || null,
               avatarUrl: (profile as any).avatar_url || null,
-              role: isAdmin ? "admin" : "free",
+              role: isAdmin ? "admin" : "user",
               createdAt: Date.now(),
             });
           } else {

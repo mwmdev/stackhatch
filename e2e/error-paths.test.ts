@@ -13,10 +13,14 @@ test.describe("Error Paths", () => {
 
     await createProjectAndNavigate(page, "No API Key Test");
 
-    // Error message should appear in the chat
-    await expect(page.getByText("Add your Anthropic API key").first()).toBeVisible({
+    // Missing-key errors should become guided BYOK setup instead of a raw error.
+    await expect(page.getByText("Connect your Anthropic account").first()).toBeVisible({
       timeout: 10000,
     });
+    await expect(page.getByRole("link", { name: "Open Settings" })).toHaveAttribute(
+      "href",
+      "/settings?setup=anthropic"
+    );
   });
 
   test("shows error when Anthropic API fails during chat", async ({ page }) => {

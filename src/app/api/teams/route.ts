@@ -5,15 +5,13 @@ import { runMigrations } from "@/db/migrate";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { getAuthenticatedUser } from "@/lib/auth";
-import { getStripe, getPriceId } from "@/lib/stripe";
+import { createId } from "@/lib/id";
 
 const createTeamSchema = z.object({
-  name: z.string().min(1).max(100),
-  plan: z.enum(["team5", "team15"]),
-  interval: z.enum(["monthly", "annual"]).default("monthly"),
+  name: z.string().trim().min(1).max(100),
 });
 
-// POST /api/teams - Create a team (triggers Stripe checkout)
+// POST /api/teams - Create a team and its owner membership
 export async function POST(request: NextRequest) {
   try {
     const user = await getAuthenticatedUser();
@@ -21,14 +19,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Authentication required" }, { status: 401 });
     }
 
-    if (user.role === "free") {
-      return NextResponse.json(
-        { error: "Upgrade to a paid plan to create teams", upgradeRequired: true },
-        { status: 403 }
-      );
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
     }
-
-    const body = await request.json();
     const parsed = createTeamSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
@@ -36,60 +32,27 @@ export async function POST(request: NextRequest) {
 
     const db = getDb();
     runMigrations(db);
-    const { name, plan, interval } = parsed.data;
-    const priceId = getPriceId(plan, interval, db);
+    const now = Date.now();
+    const team = {
+      id: createId(),
+      name: parsed.data.name,
+      ownerId: user.userId,
+      createdAt: now,
+    };
 
-    // Get or create Stripe customer
-    const { subscriptions, users } = await import("@/db/schema");
-    const dbUser = db.select().from(users).where(eq(users.id, user.userId)).get();
-    if (!dbUser) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
-
-    const existingSub = db
-      .select()
-      .from(subscriptions)
-      .where(eq(subscriptions.userId, user.userId))
-      .get();
-
-    let customerId = existingSub?.stripeCustomerId;
-    if (!customerId) {
-      const customer = await getStripe().customers.create({
-        email: dbUser.email || undefined,
-        name: dbUser.name || undefined,
-        metadata: { userId: user.userId },
-      });
-      customerId = customer.id;
-    }
-
-    // Create Stripe checkout session for team plan
-    const session = await getStripe().checkout.sessions.create({
-      customer: customerId,
-      payment_method_types: ["card"],
-      mode: "subscription",
-      line_items: [{ price: priceId, quantity: 1 }],
-      success_url: `${process.env.NEXTAUTH_URL}/billing/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.NEXTAUTH_URL}/pricing`,
-      metadata: {
-        userId: user.userId,
-        plan,
-        interval,
-        teamName: name,
-      },
-      subscription_data: {
-        metadata: {
+    db.transaction((tx) => {
+      tx.insert(teams).values(team).run();
+      tx.insert(teamMembers)
+        .values({
+          teamId: team.id,
           userId: user.userId,
-          plan,
-          interval,
-          teamName: name,
-        },
-      },
+          role: "owner",
+          joinedAt: now,
+        })
+        .run();
     });
 
-    return NextResponse.json({
-      checkoutUrl: session.url,
-      sessionId: session.id,
-    });
+    return NextResponse.json(team, { status: 201 });
   } catch (error) {
     console.error("POST /api/teams error:", error);
     return NextResponse.json({ error: "Failed to create team" }, { status: 500 });
@@ -111,7 +74,6 @@ export async function GET() {
       .select({
         id: teams.id,
         name: teams.name,
-        plan: teams.plan,
         ownerId: teams.ownerId,
         createdAt: teams.createdAt,
       })

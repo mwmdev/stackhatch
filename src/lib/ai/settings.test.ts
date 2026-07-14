@@ -1,0 +1,74 @@
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import Database from "better-sqlite3";
+import { drizzle } from "drizzle-orm/better-sqlite3";
+import * as schema from "@/db/schema";
+import { userSettings } from "@/db/schema";
+import type { AppDatabase } from "@/db";
+import { DEFAULT_AI_MODEL } from "@/lib/ai/models";
+import { getApiKey, getModel } from "@/lib/ai/settings";
+import { encryptSecret } from "@/lib/secrets";
+
+let testDb: AppDatabase;
+
+beforeEach(() => {
+  const sqlite = new Database(":memory:");
+  sqlite.exec(`
+    CREATE TABLE user_settings (
+      user_id TEXT PRIMARY KEY NOT NULL,
+      anthropic_api_key TEXT,
+      model TEXT DEFAULT '${DEFAULT_AI_MODEL}' NOT NULL,
+      theme TEXT DEFAULT 'system' NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+  `);
+  testDb = drizzle(sqlite, { schema });
+  process.env.ANTHROPIC_API_KEY = "sk-ant-server-key";
+  process.env.ANTHROPIC_MODEL = "claude-opus-4-1-20250805";
+});
+
+afterEach(() => {
+  delete process.env.ANTHROPIC_API_KEY;
+  delete process.env.ANTHROPIC_MODEL;
+});
+
+describe("user AI settings", () => {
+  it("does not fall back to a server API key", () => {
+    expect(getApiKey(testDb, "missing-user")).toBeNull();
+  });
+
+  it("decrypts only the requested user's stored key", () => {
+    testDb
+      .insert(userSettings)
+      .values({
+        userId: "user-1",
+        anthropicApiKey: encryptSecret("sk-ant-user-key"),
+        model: DEFAULT_AI_MODEL,
+        createdAt: 1,
+        updatedAt: 1,
+      })
+      .run();
+
+    expect(getApiKey(testDb, "user-1")).toBe("sk-ant-user-key");
+    expect(getApiKey(testDb, "user-2")).toBeNull();
+  });
+
+  it("defaults to Sonnet without using the server model", () => {
+    expect(getModel(testDb, "missing-user")).toBe(DEFAULT_AI_MODEL);
+  });
+
+  it("returns the requested user's supported model", () => {
+    testDb
+      .insert(userSettings)
+      .values({
+        userId: "user-1",
+        anthropicApiKey: null,
+        model: "claude-opus-4-20250514",
+        createdAt: 1,
+        updatedAt: 1,
+      })
+      .run();
+
+    expect(getModel(testDb, "user-1")).toBe("claude-opus-4-20250514");
+  });
+});

@@ -18,7 +18,7 @@ function createTestDb() {
       email TEXT,
       name TEXT,
       avatar_url TEXT,
-      role TEXT DEFAULT 'free' NOT NULL,
+      role TEXT DEFAULT 'user' NOT NULL,
       created_at INTEGER NOT NULL
     );
     CREATE TABLE projects (
@@ -63,7 +63,7 @@ vi.mock("@/lib/auth", () => {
     requireRole: vi.fn((role: string, allowed: string[]) =>
       allowed.includes(role)
         ? null
-        : new Response(JSON.stringify({ error: "Upgrade required" }), {
+        : new Response(JSON.stringify({ error: "Access denied" }), {
             status: 403,
             headers: { "Content-Type": "application/json" },
           })
@@ -73,7 +73,6 @@ vi.mock("@/lib/auth", () => {
 
 const usersRoute = await import("@/app/api/admin/users/route");
 const impersonationRoute = await import("@/app/api/admin/impersonation/route");
-const plansRoute = await import("@/app/api/admin/plans/route");
 const adminSettingsRoute = await import("@/app/api/admin/settings/route");
 
 function makeRequest(path: string, body?: unknown) {
@@ -122,7 +121,7 @@ describe("admin users API", () => {
     const req = makeRequest("/api/admin/users", {
       name: "QA User",
       email: "qa@example.com",
-      role: "starter",
+      role: "user",
     });
 
     const res = await usersRoute.POST(req as never);
@@ -131,16 +130,16 @@ describe("admin users API", () => {
     expect(res.status).toBe(201);
     expect(data.name).toBe("QA User");
     expect(data.email).toBe("qa@example.com");
-    expect(data.role).toBe("starter");
+    expect(data.role).toBe("user");
     expect(data.githubId).toMatch(/^manual:/);
     expect(data.isCurrent).toBe(false);
   });
 
   it("blocks non-admin user creation", async () => {
-    mockUserRole = "free";
+    mockUserRole = "user";
     const req = makeRequest("/api/admin/users", {
       name: "QA User",
-      role: "free",
+      role: "user",
     });
 
     const res = await usersRoute.POST(req as never);
@@ -152,7 +151,7 @@ describe("admin users API", () => {
     const req = makeRequest("/api/admin/users", {
       name: "Duplicate",
       githubId: "github-admin",
-      role: "free",
+      role: "user",
     });
 
     const res = await usersRoute.POST(req as never);
@@ -161,55 +160,11 @@ describe("admin users API", () => {
   });
 });
 
-describe("admin plans API", () => {
-  it("returns the saved plan catalog to admins", async () => {
-    const res = await plansRoute.GET();
-    const data = await res.json();
-
-    expect(res.status).toBe(200);
-    expect(data.plans.starter.name).toBe("Builder");
-    expect(data.plans.starter.features.projects).toBe(5);
-    expect(data.plans.free.features.connectionTypes).toBe(false);
-    expect(data.plans.starter.features.connectionTypes).toBe(false);
-    expect(data.plans.pro.features.connectionTypes).toBe(true);
-  });
-
-  it("saves an updated plan catalog", async () => {
-    const getRes = await plansRoute.GET();
-    const { plans } = await getRes.json();
-    plans.starter.name = "Launch";
-    plans.starter.features.projects = 7;
-    plans.starter.features.connectionTypes = true;
-    plans.starter.billing.monthlyStripePriceId = "price_launch_monthly";
-
-    const res = await plansRoute.PATCH(makeRequest("/api/admin/plans", { plans }) as never);
-    const data = await res.json();
-
-    expect(res.status).toBe(200);
-    expect(data.plans.starter.name).toBe("Launch");
-    expect(data.plans.starter.features.projects).toBe(7);
-    expect(data.plans.starter.features.connectionTypes).toBe(true);
-
-    const persisted = await plansRoute.GET();
-    const persistedData = await persisted.json();
-    expect(persistedData.plans.starter.billing.monthlyStripePriceId).toBe("price_launch_monthly");
-  });
-
-  it("blocks non-admin plan updates", async () => {
-    mockUserRole = "free";
-
-    const res = await plansRoute.PATCH(makeRequest("/api/admin/plans", { plans: {} }) as never);
-
-    expect(res.status).toBe(403);
-  });
-});
-
 describe("admin settings API", () => {
-  it("returns global AI settings to admins", async () => {
+  it("returns shared AI settings to admins", async () => {
     testDb
       .insert(schema.settings)
       .values([
-        { key: "model", value: "claude-opus-4-20250514" },
         { key: "prompt_chat", value: "custom chat" },
         { key: "theme", value: "dark" },
       ])
@@ -219,15 +174,13 @@ describe("admin settings API", () => {
     const data = await res.json();
 
     expect(res.status).toBe(200);
-    expect(data.model).toBe("claude-opus-4-20250514");
     expect(data.prompt_chat).toBe("custom chat");
     expect(data.theme).toBeUndefined();
   });
 
-  it("saves global AI settings", async () => {
+  it("saves shared AI settings", async () => {
     const res = await adminSettingsRoute.PATCH(
       makeRequest("/api/admin/settings", {
-        model: "claude-opus-4-1-20250805",
         customSubtypes: '{"client":[{"slug":"kiosk","displayName":"Kiosk","icon":"Box"}]}',
         prompt_prd: "custom prd",
       }) as never
@@ -235,7 +188,6 @@ describe("admin settings API", () => {
     const data = await res.json();
 
     expect(res.status).toBe(200);
-    expect(data.model).toBe("claude-opus-4-1-20250805");
     expect(data.customSubtypes).toContain("kiosk");
     expect(data.prompt_prd).toBe("custom prd");
   });
@@ -259,7 +211,7 @@ describe("admin settings API", () => {
   });
 
   it("blocks non-admin global AI settings", async () => {
-    mockUserRole = "free";
+    mockUserRole = "user";
 
     const res = await adminSettingsRoute.PATCH(
       makeRequest("/api/admin/settings", { prompt_chat: "blocked" }) as never
@@ -268,7 +220,7 @@ describe("admin settings API", () => {
     expect(res.status).toBe(403);
   });
 
-  it("rejects invalid model values", async () => {
+  it("rejects user-owned model values", async () => {
     const res = await adminSettingsRoute.PATCH(
       makeRequest("/api/admin/settings", { model: "gpt-4" }) as never
     );
@@ -287,7 +239,7 @@ describe("admin impersonation API", () => {
         email: "target@example.com",
         name: "Target User",
         avatarUrl: null,
-        role: "free",
+        role: "user",
         createdAt: 2000,
       })
       .run();

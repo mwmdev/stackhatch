@@ -50,8 +50,6 @@ import { DEFAULT_NOTE_COLOR, getSubtypeConfig } from "@/lib/node-config";
 import { applyDagreLayout } from "@/lib/layout";
 import { mergeArchitecture } from "@/lib/merge-architecture";
 import { parseCustomSubtypes, type CustomSubtypesMap } from "@/lib/custom-subtypes";
-import UpgradePrompt from "@/components/UpgradePrompt";
-import { DEFAULT_PLAN_CATALOG, type PlanFeatures } from "@/lib/plan-config";
 
 interface Project {
   id: string;
@@ -78,15 +76,8 @@ type ConnectionTypePopover =
     };
 
 interface SettingsResponse {
-  role?: string;
-  isAdmin?: boolean;
   customSubtypes?: string;
-}
-
-interface CapabilitiesResponse {
-  plan?: string;
-  features?: PlanFeatures;
-  isAdmin?: boolean;
+  hasAnthropicKey?: boolean;
 }
 
 /** Stored canvasState extends StackArchitecture with persisted positions */
@@ -133,11 +124,8 @@ export default function ProjectPage() {
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
   const [activeCommentNodeId, setActiveCommentNodeId] = useState<string | null>(null);
   const [commentsPanelOpenTrigger, setCommentsPanelOpenTrigger] = useState(0);
-  const [upgradeFeature, setUpgradeFeature] = useState<string | null>(null);
-  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
-  const [planFeatures, setPlanFeatures] = useState<PlanFeatures>(
-    DEFAULT_PLAN_CATALOG.free.features
-  );
+  const [hasAnthropicKey, setHasAnthropicKey] = useState<boolean | null>(null);
+  const [aiSetupRequired, setAiSetupRequired] = useState(false);
   const [editorDisplaySettings, setEditorDisplaySettings] = useState<EditorDisplaySettings>(() => {
     if (typeof window === "undefined") return DEFAULT_EDITOR_DISPLAY_SETTINGS;
     try {
@@ -170,8 +158,7 @@ export default function ProjectPage() {
   const projectRef = useRef<Project | null>(null);
   const initializedRef = useRef(false);
   const alternativesRef = useRef<Record<string, AlternativeNode[]>>({});
-  const isAdmin = currentUserRole === "admin";
-  const canUseConnectionTypes = isAdmin || planFeatures.connectionTypes;
+  const canUseConnectionTypes = true;
 
   // Keep refs in sync for use in stable callbacks
   projectRef.current = project;
@@ -341,8 +328,8 @@ export default function ProjectPage() {
           customSubtypes,
           commentCount: commentCounts[n.id] ?? 0,
           onLockToggle: handleLockToggle,
-          showDescription: planFeatures.nodeDescriptions,
-          canUseNodeLocking: planFeatures.nodeLocking || currentUserRole === "admin",
+          showDescription: true,
+          canUseNodeLocking: true,
           onDelete: handleNodeDelete,
           onAddComment: handleAddComment,
           onCommentBadgeClick: handleCommentBadgeClick,
@@ -356,9 +343,6 @@ export default function ProjectPage() {
       handleCommentBadgeClick,
       customSubtypes,
       commentCounts,
-      planFeatures.nodeDescriptions,
-      planFeatures.nodeLocking,
-      currentUserRole,
     ]
   );
 
@@ -575,17 +559,21 @@ export default function ProjectPage() {
 
   const handleExportPrd = useCallback(async () => {
     if (!project) return;
+    if (hasAnthropicKey === false) {
+      setAiSetupRequired(true);
+      return;
+    }
     setPrdLoading(true);
     try {
       const res = await fetch(`/api/projects/${projectId}/export-prd`, {
         method: "POST",
       });
-      if (res.status === 403) {
-        setUpgradeFeature("export PRD");
-        return;
-      }
       if (!res.ok) {
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
+        if (data.code === "AI_NOT_CONFIGURED") {
+          setAiSetupRequired(true);
+          return;
+        }
         setToast(data.error || "Failed to generate PRD");
         return;
       }
@@ -602,16 +590,12 @@ export default function ProjectPage() {
     } finally {
       setPrdLoading(false);
     }
-  }, [project, projectId]);
+  }, [project, projectId, hasAnthropicKey]);
 
   // --- Add node ---
 
   const handleAddNode = useCallback(
     (category: NodeCategory, subtype: NodeSubtype) => {
-      if (category === "note" && currentUserRole !== "admin" && !planFeatures.noteNodes) {
-        setUpgradeFeature("Note nodes");
-        return;
-      }
       const subtypeConfig = getSubtypeConfig(category, subtype, customSubtypes);
       const id = crypto.randomUUID();
       const newStackNode: StackNode = {
@@ -646,8 +630,8 @@ export default function ProjectPage() {
           locked: newStackNode.locked,
           ...(newStackNode.noteColor ? { noteColor: newStackNode.noteColor } : {}),
           customSubtypes,
-          showDescription: planFeatures.nodeDescriptions,
-          canUseNodeLocking: planFeatures.nodeLocking || currentUserRole === "admin",
+          showDescription: true,
+          canUseNodeLocking: true,
           onLockToggle: handleLockToggle,
           onDelete: handleNodeDelete,
           onAddComment: handleAddComment,
@@ -678,10 +662,6 @@ export default function ProjectPage() {
       setRfNodes,
       customSubtypes,
       openNodePanel,
-      planFeatures.nodeDescriptions,
-      planFeatures.nodeLocking,
-      planFeatures.noteNodes,
-      currentUserRole,
     ]
   );
 
@@ -716,6 +696,10 @@ export default function ProjectPage() {
   const handleSuggestAlternatives = useCallback(async () => {
     const node = selectedNode;
     if (!node) return;
+    if (hasAnthropicKey === false) {
+      setAiSetupRequired(true);
+      return;
+    }
     setAltLoading(true);
     try {
       const res = await fetch(`/api/projects/${projectId}/alternatives`, {
@@ -731,11 +715,12 @@ export default function ProjectPage() {
           },
         }),
       });
-      if (res.status === 403) {
-        setUpgradeFeature("use alternatives");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (data.code === "AI_NOT_CONFIGURED") setAiSetupRequired(true);
+        else setToast(data.error || "Failed to suggest alternatives");
         return;
       }
-      if (!res.ok) return;
       const data = await res.json();
       if (data.alternatives) {
         setAlternatives((prev) => ({ ...prev, [node.id]: data.alternatives }));
@@ -743,7 +728,7 @@ export default function ProjectPage() {
     } finally {
       setAltLoading(false);
     }
-  }, [selectedNode, projectId]);
+  }, [selectedNode, projectId, hasAnthropicKey]);
 
   // --- Swap alternative ---
 
@@ -859,7 +844,7 @@ export default function ProjectPage() {
             position: n.position,
           }));
           const result = mergeArchitecture(currentCanvas, incoming, currentPositions, {
-            nodeLockingEnabled: planFeatures.nodeLocking || currentUserRole === "admin",
+            nodeLockingEnabled: true,
           });
           finalArch = result.architecture;
           const positions = applyDagreLayout(
@@ -882,7 +867,7 @@ export default function ProjectPage() {
         setToast("Failed to update canvas");
       }
     },
-    [rfNodes, buildRfNodes, setRfNodes, setRfEdges, planFeatures.nodeLocking, currentUserRole]
+    [rfNodes, buildRfNodes, setRfNodes, setRfEdges]
   );
 
   // --- Load project ---
@@ -890,21 +875,18 @@ export default function ProjectPage() {
   useEffect(() => {
     async function loadProject() {
       try {
-        // Fetch effective user capabilities in parallel. These endpoints use impersonation-aware auth.
-        fetch("/api/settings")
-          .then((r) => r.json())
-          .then((s: SettingsResponse) => {
-            setCurrentUserRole(s.role ?? null);
-            if (s.customSubtypes) setCustomSubtypes(parseCustomSubtypes(s.customSubtypes));
-          })
-          .catch(() => {});
-        fetch("/api/me/capabilities")
-          .then((r) => (r.ok ? r.json() : null))
-          .then((s: CapabilitiesResponse | null) => {
-            if (s?.features) setPlanFeatures(s.features);
-          })
-          .catch(() => {});
-        const res = await fetch(`/api/projects/${projectId}`);
+        // Resolve shared subtype configuration before constructing persisted node data.
+        const [settingsResponse, res] = await Promise.all([
+          fetch("/api/settings")
+            .then((response) =>
+              response.ok ? (response.json() as Promise<SettingsResponse>) : null
+            )
+            .catch(() => null),
+          fetch(`/api/projects/${projectId}`),
+        ]);
+        const loadedCustomSubtypes = parseCustomSubtypes(settingsResponse?.customSubtypes);
+        if (settingsResponse) setHasAnthropicKey(Boolean(settingsResponse.hasAnthropicKey));
+        setCustomSubtypes(loadedCustomSubtypes);
         if (!res.ok) {
           setError("Project not found");
           return;
@@ -934,9 +916,9 @@ export default function ProjectPage() {
             ...n,
             data: {
               ...n.data,
-              customSubtypes,
-              showDescription: planFeatures.nodeDescriptions,
-              canUseNodeLocking: planFeatures.nodeLocking || currentUserRole === "admin",
+              customSubtypes: loadedCustomSubtypes,
+              showDescription: true,
+              canUseNodeLocking: true,
               onLockToggle: handleLockToggle,
               onDelete: handleNodeDelete,
               onAddComment: handleAddComment,
@@ -965,19 +947,6 @@ export default function ProjectPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
-  useEffect(() => {
-    setRfNodes((nds) =>
-      nds.map((n) => ({
-        ...n,
-        data: {
-          ...n.data,
-          showDescription: planFeatures.nodeDescriptions,
-          canUseNodeLocking: planFeatures.nodeLocking || currentUserRole === "admin",
-        },
-      }))
-    );
-  }, [planFeatures.nodeDescriptions, planFeatures.nodeLocking, currentUserRole, setRfNodes]);
-
   // --- Derived state ---
 
   const hasCanvas = useMemo(
@@ -996,10 +965,6 @@ export default function ProjectPage() {
       ? { nodes: project.canvasState.nodes, edges: project.canvasState.edges }
       : null;
   }, [project?.canvasState, rfNodes, rfEdges]);
-  const canUseAlternatives = isAdmin || planFeatures.alternatives;
-  const canExportPrd = isAdmin || planFeatures.prdExport;
-  const canUseNotes = isAdmin || planFeatures.noteNodes;
-
   // Map nodeId → name for comment labels
   const nodeNames = useMemo(() => {
     const map: Record<string, string> = {};
@@ -1088,21 +1053,16 @@ export default function ProjectPage() {
           </Link>
           <h1 className="text-lg font-semibold">{project.name}</h1>
           <div className="ml-auto flex items-center gap-2">
-            <AddNodeDropdown
-              onAddNode={handleAddNode}
-              customSubtypes={customSubtypes}
-              canUseNotes={canUseNotes}
-            />
+            <AddNodeDropdown onAddNode={handleAddNode} customSubtypes={customSubtypes} />
             {nodeCount > 0 && (
               <ExportDropdown
                 rfInstanceRef={rfInstanceRef}
                 projectName={project.name}
                 alternatives={alternatives}
-                formats={planFeatures.exports}
                 onError={setToast}
               />
             )}
-            {nodeCount > 0 && canExportPrd && (
+            {nodeCount > 0 && (
               <button
                 onClick={handleExportPrd}
                 disabled={prdLoading}
@@ -1300,11 +1260,11 @@ export default function ProjectPage() {
             customSubtypes={customSubtypes}
             alternatives={selectedNode ? alternatives[selectedNode.id] : undefined}
             alternativesLoading={altLoading}
-            showDescription={planFeatures.nodeDescriptions}
-            canUseNodeLocking={planFeatures.nodeLocking || isAdmin}
-            canUseNotes={canUseNotes}
-            onSuggestAlternatives={canUseAlternatives ? handleSuggestAlternatives : undefined}
-            onSwapAlternative={canUseAlternatives ? handleSwapAlternative : undefined}
+            showDescription
+            canUseNodeLocking
+            canUseNotes
+            onSuggestAlternatives={handleSuggestAlternatives}
+            onSwapAlternative={handleSwapAlternative}
           />
 
           {/* Save Template Modal */}
@@ -1381,13 +1341,42 @@ export default function ProjectPage() {
             </div>
           )}
 
-          {/* Upgrade Prompt */}
-          {upgradeFeature && (
-            <UpgradePrompt
-              feature={upgradeFeature}
-              variant="modal"
-              onDismiss={() => setUpgradeFeature(null)}
-            />
+          {aiSetupRequired && (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay)]"
+              onClick={() => setAiSetupRequired(false)}
+            >
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="ai-setup-title"
+                className="mx-4 w-full max-w-sm rounded-lg bg-[var(--card)] p-6 shadow-xl"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <h3 id="ai-setup-title" className="text-lg font-semibold">
+                  Connect Anthropic to continue
+                </h3>
+                <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
+                  Add your own Anthropic API key in Settings. It is encrypted at rest and AI usage
+                  is billed directly by Anthropic.
+                </p>
+                <div className="mt-4 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setAiSetupRequired(false)}
+                    className="min-h-11 rounded-md border border-[var(--border)] px-4 py-2 text-sm"
+                  >
+                    Cancel
+                  </button>
+                  <Link
+                    href="/settings?setup=anthropic"
+                    className="inline-flex min-h-11 items-center rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-semibold text-[var(--brand-foreground)]"
+                  >
+                    Open Settings
+                  </Link>
+                </div>
+              </div>
+            </div>
           )}
 
           {/* Toast notification */}

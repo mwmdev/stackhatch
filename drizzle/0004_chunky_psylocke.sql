@@ -1,1 +1,0 @@
-ALTER TABLE `users` ADD `role` text DEFAULT 'free-user' NOT NULL;

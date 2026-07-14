@@ -8,14 +8,14 @@ const SUPPORT_PATHS = [
       "Start with a public GitHub repository or a short Markdown PRD, then open the project and review the generated nodes before asking the assistant for tradeoffs.",
   },
   {
-    title: "Billing and limits",
+    title: "Free BYOK access",
     description:
-      "Every tier uses BYOK for AI. Builder adds export formats and higher limits. Studio adds team collaboration, templates, and richer architecture handoffs.",
+      "StackHatch is free and every feature is available to every user. Add your Anthropic API key in Settings; Anthropic bills AI usage directly to your account.",
   },
   {
     title: "Data handling",
     description:
-      "User Anthropic keys are encrypted before storage. Public repository URLs and project descriptions are only used to generate the requested architecture workspace.",
+      "Your Anthropic key is encrypted before storage and never returned to the browser. Public repository URLs and project descriptions are used only for actions you request.",
   },
 ];
 

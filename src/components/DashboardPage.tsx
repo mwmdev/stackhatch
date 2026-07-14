@@ -5,11 +5,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   AlertCircle,
-  ArrowRight,
   FileText,
   FolderPlus,
   GitBranch,
+  KeyRound,
   LayoutDashboard,
+  Plus,
   RefreshCw,
   Settings,
   Trash2,
@@ -17,39 +18,22 @@ import {
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import UserAvatar from "@/components/UserAvatar";
-import UpgradePrompt from "@/components/UpgradePrompt";
-import {
-  DEFAULT_PLAN_CATALOG,
-  type PlanCatalog,
-  type PlanCatalogEntry,
-  type PublicPlanKey,
-} from "@/lib/plan-config";
 
 interface ProjectSummary {
   id: string;
   name: string;
   description: string | null;
-  teamId: string | null;
-  teamName: string | null;
+  teamId?: string | null;
+  teamName?: string | null;
   createdAt: number;
   updatedAt: number;
 }
 
-interface CurrentUser {
-  role?: string;
-}
-
-interface BillingSummary {
-  plan?: string;
-  billingInterval?: string | null;
-  status?: string | null;
-  currentPeriodEnd?: number | null;
-}
-
-interface CapabilitiesSummary {
-  plan?: PublicPlanKey;
-  planConfig?: PlanCatalogEntry;
-  plans?: PlanCatalog;
+interface TeamSummary {
+  id: string;
+  name: string;
+  ownerId?: string;
+  createdAt?: number;
 }
 
 const ACCEPTED_REQUIREMENT_FILES = [".md", ".txt"];
@@ -60,17 +44,6 @@ function formatDate(timestamp: number): string {
     day: "numeric",
     year: "numeric",
   });
-}
-
-function normalizePlan(plan: string | null | undefined): PublicPlanKey {
-  if (plan === "starter") return "starter";
-  if (plan === "pro" || plan === "team") return "pro";
-  return "free";
-}
-
-function getProjectLimitLabel(planConfig: PlanCatalogEntry) {
-  const limit = planConfig.features.projects;
-  return limit === "unlimited" ? "Unlimited" : String(limit);
 }
 
 function isAcceptedRequirementsFile(file: File) {
@@ -91,6 +64,7 @@ function StartOptionSeparator() {
 export default function Dashboard() {
   const router = useRouter();
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
+  const [teams, setTeams] = useState<TeamSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [projectsError, setProjectsError] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<ProjectSummary | null>(null);
@@ -98,10 +72,10 @@ export default function Dashboard() {
   const [repoUrl, setRepoUrl] = useState("");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
-  const [upgradePrompt, setUpgradePrompt] = useState<string | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
-  const [billing, setBilling] = useState<BillingSummary | null>(null);
-  const [capabilities, setCapabilities] = useState<CapabilitiesSummary | null>(null);
+  const [hasAnthropicKey, setHasAnthropicKey] = useState<boolean | null>(null);
+  const [newTeamName, setNewTeamName] = useState("");
+  const [creatingTeam, setCreatingTeam] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadProjects = useCallback(async () => {
@@ -129,31 +103,38 @@ export default function Dashboard() {
 
   useEffect(() => {
     let cancelled = false;
-
     Promise.allSettled([
       fetch("/api/me").then((res) => (res.ok ? res.json() : null)),
-      fetch("/api/billing/subscription").then((res) => (res.ok ? res.json() : null)),
-      fetch("/api/me/capabilities").then((res) => (res.ok ? res.json() : null)),
-    ]).then(([userResult, billingResult, capabilitiesResult]) => {
+      fetch("/api/settings").then((res) => (res.ok ? res.json() : null)),
+      fetch("/api/teams").then((res) => (res.ok ? res.json() : [])),
+    ]).then(([userResult, settingsResult, teamsResult]) => {
       if (cancelled) return;
-
       if (userResult.status === "fulfilled") {
-        setCurrentUserRole((userResult.value as CurrentUser | null)?.role ?? null);
+        setCurrentUserRole(userResult.value?.role ?? null);
       }
-      if (billingResult.status === "fulfilled") {
-        setBilling(billingResult.value as BillingSummary | null);
+      if (settingsResult.status === "fulfilled" && settingsResult.value) {
+        setHasAnthropicKey(Boolean(settingsResult.value.hasAnthropicKey));
       }
-      if (capabilitiesResult.status === "fulfilled") {
-        setCapabilities(capabilitiesResult.value as CapabilitiesSummary | null);
+      if (teamsResult.status === "fulfilled" && Array.isArray(teamsResult.value)) {
+        setTeams(teamsResult.value);
       }
     });
-
     return () => {
       cancelled = true;
     };
   }, []);
 
+  const requireAnthropicKey = useCallback(() => {
+    if (hasAnthropicKey === false) {
+      router.push("/settings?setup=anthropic");
+      return false;
+    }
+    return true;
+  }, [hasAnthropicKey, router]);
+
   async function createProject(opts?: { repoUrl?: string; description?: string }) {
+    if ((opts?.repoUrl || opts?.description) && !requireAnthropicKey()) return;
+
     setCreating(true);
     setError("");
     try {
@@ -163,9 +144,7 @@ export default function Dashboard() {
         name = match ? match[1].replace(/\.git$/, "") : "Imported Project";
       } else if (opts?.description) {
         const firstLine = opts.description.split("\n").find((line) => line.trim());
-        if (firstLine) {
-          name = firstLine.replace(/^#\s*/, "").trim().slice(0, 80) || name;
-        }
+        if (firstLine) name = firstLine.replace(/^#\s*/, "").trim().slice(0, 80) || name;
       }
 
       const res = await fetch("/api/projects", {
@@ -178,9 +157,9 @@ export default function Dashboard() {
         }),
       });
       if (!res.ok) {
-        const data = await res.json();
-        if (data.upgradeRequired) {
-          setUpgradePrompt(data.error || "create more projects");
+        const data = await res.json().catch(() => ({}));
+        if (data.code === "AI_NOT_CONFIGURED") {
+          router.push("/settings?setup=anthropic");
           return;
         }
         setError(data.error || "Failed to create project");
@@ -198,20 +177,18 @@ export default function Dashboard() {
   function handleRepoSubmit(e: React.FormEvent) {
     e.preventDefault();
     const url = repoUrl.trim();
-    if (!url) return;
-    createProject({ repoUrl: url });
+    if (url) createProject({ repoUrl: url });
   }
 
   function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-
+    if (!requireAnthropicKey()) return;
     if (!isAcceptedRequirementsFile(file)) {
       setError("Upload a Markdown or text requirements file.");
       return;
     }
-
     const reader = new FileReader();
     reader.onload = () => {
       const text = String(reader.result || "").trim();
@@ -225,13 +202,38 @@ export default function Dashboard() {
     reader.readAsText(file);
   }
 
+  async function handleCreateTeam(e: React.FormEvent) {
+    e.preventDefault();
+    const name = newTeamName.trim();
+    if (!name) return;
+    setCreatingTeam(true);
+    setError("");
+    try {
+      const res = await fetch("/api/teams", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error || "Failed to create team");
+        return;
+      }
+      setTeams((current) => [...current, data]);
+      setNewTeamName("");
+      router.push(`/team/${data.id}`);
+    } catch {
+      setError("Failed to create team");
+    } finally {
+      setCreatingTeam(false);
+    }
+  }
+
   const handleDelete = useCallback(async () => {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      const res = await fetch(`/api/projects/${deleteTarget.id}`, {
-        method: "DELETE",
-      });
+      const res = await fetch(`/api/projects/${deleteTarget.id}`, { method: "DELETE" });
       if (res.ok) {
         setProjects((prev) => prev.filter((project) => project.id !== deleteTarget.id));
       }
@@ -242,9 +244,6 @@ export default function Dashboard() {
   }, [deleteTarget]);
 
   const isAdmin = currentUserRole === "admin";
-  const activePlan = capabilities?.plan ?? normalizePlan(billing?.plan);
-  const activePlanConfig = capabilities?.planConfig ?? DEFAULT_PLAN_CATALOG[activePlan];
-  const projectLimit = activePlanConfig.features.projects;
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
@@ -258,12 +257,6 @@ export default function Dashboard() {
             StackHatch
           </Link>
           <div className="flex items-center gap-1">
-            <Link
-              href="/pricing"
-              className="hidden rounded-md px-3 py-2 text-sm font-medium text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)] sm:inline-flex"
-            >
-              Pricing
-            </Link>
             <ThemeToggle />
             {isAdmin && (
               <Link
@@ -288,202 +281,267 @@ export default function Dashboard() {
         </div>
       </nav>
 
-      <main className="mx-auto max-w-7xl px-6 py-8">
-        <div className="min-w-0 space-y-8">
-          <section className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm shadow-[var(--shadow-color)]">
-            <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-center">
-              <div className="min-w-0">
-                <p className="text-sm font-bold uppercase tracking-[0.14em] text-[var(--color-data)]">
-                  Architecture workspace
+      <main className="mx-auto max-w-7xl space-y-8 px-6 py-8">
+        {hasAnthropicKey === false && (
+          <section
+            className="flex flex-col gap-4 rounded-lg border border-[var(--warning-border)] bg-[var(--warning-surface)] p-5 sm:flex-row sm:items-center sm:justify-between"
+            data-testid="byok-setup-prompt"
+          >
+            <div className="flex items-start gap-3">
+              <KeyRound className="mt-0.5 h-5 w-5 flex-none text-[var(--color-data)]" />
+              <div>
+                <h2 className="font-semibold">Connect Anthropic to use AI</h2>
+                <p className="mt-1 text-sm leading-6 text-[var(--muted-foreground)]">
+                  Add your own Anthropic API key to analyze repositories, generate architectures,
+                  and use chat. Your key is encrypted at rest and never returned to the browser.
                 </p>
-                <h1 className="font-display mt-2 max-w-3xl text-3xl font-extrabold tracking-tight md:text-4xl">
-                  Map the stack before the build hardens.
-                </h1>
-                <p className="mt-4 max-w-2xl text-sm leading-6 text-[var(--muted-foreground)]">
-                  Start from a public repo, a short PRD, or a blank canvas. Every path lands in the
-                  same editor, where decisions stay visible.
-                </p>
-              </div>
-              <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] p-4">
-                <div className="text-sm font-semibold">{activePlanConfig.name}</div>
-                <p className="mt-1 text-xs text-[var(--muted-foreground)]">
-                  {projects.length}/{getProjectLimitLabel(activePlanConfig)} projects used
-                </p>
-                {projectLimit !== "unlimited" && projects.length >= projectLimit && (
-                  <Link
-                    href="/pricing"
-                    className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-md bg-[var(--brand)] px-3 py-2 text-sm font-bold text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)]"
-                  >
-                    Upgrade plan
-                    <ArrowRight className="h-4 w-4" />
-                  </Link>
-                )}
               </div>
             </div>
-          </section>
-
-          <section
-            id="start"
-            className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto_minmax(0,1fr)]"
-          >
-            <form
-              onSubmit={handleRepoSubmit}
-              className="entry-card flex min-w-0 flex-col rounded-lg border border-[var(--border)] bg-[var(--card)] p-5"
+            <Link
+              href="/settings?setup=anthropic"
+              className="inline-flex min-h-11 flex-none items-center justify-center rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-bold text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)]"
             >
-              <GitBranch className="h-5 w-5 text-[var(--color-client)]" />
-              <h2 className="mt-3 font-semibold">Analyze a repository</h2>
-              <p className="mt-1 flex-1 text-sm leading-6 text-[var(--muted-foreground)]">
-                Use a public GitHub URL to create the first architecture map.
+              Add API key
+            </Link>
+          </section>
+        )}
+
+        <section className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm shadow-[var(--shadow-color)]">
+          <p className="text-sm font-bold uppercase tracking-[0.14em] text-[var(--color-data)]">
+            Architecture workspace
+          </p>
+          <h1 className="font-display mt-2 max-w-3xl text-3xl font-extrabold tracking-tight md:text-4xl">
+            Map the stack before the build hardens.
+          </h1>
+          <p className="mt-4 max-w-2xl text-sm leading-6 text-[var(--muted-foreground)]">
+            Start from a public repo, a short PRD, or a blank canvas. StackHatch is free to use; AI
+            requests run on your Anthropic account.
+          </p>
+        </section>
+
+        <section
+          id="start"
+          className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto_minmax(0,1fr)]"
+        >
+          <form
+            onSubmit={handleRepoSubmit}
+            className="entry-card flex min-w-0 flex-col rounded-lg border border-[var(--border)] bg-[var(--card)] p-5"
+          >
+            <GitBranch className="h-5 w-5 text-[var(--color-client)]" />
+            <h2 className="mt-3 font-semibold">Analyze a repository</h2>
+            <p className="mt-1 flex-1 text-sm leading-6 text-[var(--muted-foreground)]">
+              Use a public GitHub URL to create the first architecture map.
+            </p>
+            <input
+              type="url"
+              value={repoUrl}
+              onChange={(e) => setRepoUrl(e.target.value)}
+              placeholder="https://github.com/owner/repo"
+              disabled={creating}
+              className="mt-4 w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)] disabled:opacity-50"
+            />
+            <button
+              type="submit"
+              disabled={creating || !repoUrl.trim()}
+              className="mt-3 min-h-11 rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-bold text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)] disabled:opacity-50"
+            >
+              {creating ? "Creating..." : "Analyze"}
+            </button>
+          </form>
+          <StartOptionSeparator />
+          <div className="entry-card flex min-w-0 flex-col rounded-lg border border-[var(--border)] bg-[var(--card)] p-5">
+            <FileText className="h-5 w-5 text-[var(--color-services)]" />
+            <h2 className="mt-3 font-semibold">Upload requirements</h2>
+            <p className="mt-1 flex-1 text-sm leading-6 text-[var(--muted-foreground)]">
+              Start from a Markdown or text PRD and refine the generated architecture.
+            </p>
+            <button
+              onClick={() => (requireAnthropicKey() ? fileInputRef.current?.click() : undefined)}
+              disabled={creating}
+              className="mt-4 min-h-11 rounded-md border border-dashed border-[var(--border)] px-4 py-2 text-sm font-semibold hover:border-[var(--color-services)] hover:bg-[var(--muted)] disabled:opacity-50"
+            >
+              Choose file...
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".md,.txt,text/markdown,text/plain"
+              onChange={handleFileUpload}
+              className="hidden"
+            />
+            <p className="mt-2 text-xs text-[var(--muted-foreground)]">.md or .txt</p>
+          </div>
+          <StartOptionSeparator />
+          <div className="entry-card flex min-w-0 flex-col rounded-lg border border-[var(--border)] bg-[var(--card)] p-5">
+            <FolderPlus className="h-5 w-5 text-[var(--color-api)]" />
+            <h2 className="mt-3 font-semibold">Start fresh</h2>
+            <p className="mt-1 flex-1 text-sm leading-6 text-[var(--muted-foreground)]">
+              Open a blank canvas and work manually. No API key is required.
+            </p>
+            <button
+              onClick={() => createProject()}
+              disabled={creating}
+              className="mt-4 min-h-11 rounded-md border border-[var(--border)] px-4 py-2 text-sm font-semibold hover:bg-[var(--muted)] disabled:opacity-50"
+            >
+              Start from scratch
+            </button>
+          </div>
+        </section>
+
+        {error && (
+          <div
+            className="flex items-start gap-3 rounded-lg border border-[var(--danger-border)] bg-[var(--danger-surface)] p-4 text-sm text-[var(--danger)]"
+            role="alert"
+          >
+            <AlertCircle className="mt-0.5 h-4 w-4 flex-none" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        <section className="rounded-lg border border-[var(--border)] bg-[var(--card)]">
+          <div className="flex flex-col gap-4 border-b border-[var(--border)] p-5 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <h2 className="font-semibold">Teams</h2>
+              <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+                Share projects, comments, and reusable architecture templates.
               </p>
+            </div>
+            <form onSubmit={handleCreateTeam} className="flex w-full gap-2 sm:w-auto">
+              <label htmlFor="new-team-name" className="sr-only">
+                Team name
+              </label>
               <input
-                type="url"
-                value={repoUrl}
-                onChange={(e) => setRepoUrl(e.target.value)}
-                placeholder="https://github.com/owner/repo"
-                disabled={creating}
-                className="mt-4 w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)] disabled:opacity-50"
+                id="new-team-name"
+                value={newTeamName}
+                onChange={(e) => setNewTeamName(e.target.value)}
+                placeholder="New team name"
+                maxLength={100}
+                className="min-h-11 min-w-0 flex-1 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm sm:w-56"
               />
               <button
                 type="submit"
-                disabled={creating || !repoUrl.trim()}
-                className="mt-3 min-h-11 rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-bold text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)] disabled:opacity-50"
+                disabled={creatingTeam || !newTeamName.trim()}
+                className="inline-flex min-h-11 items-center gap-2 rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-semibold text-[var(--brand-foreground)] disabled:opacity-50"
               >
-                {creating ? "Creating..." : "Analyze"}
+                <Plus className="h-4 w-4" />
+                {creatingTeam ? "Creating..." : "Create team"}
               </button>
             </form>
-
-            <StartOptionSeparator />
-
-            <div className="entry-card flex min-w-0 flex-col rounded-lg border border-[var(--border)] bg-[var(--card)] p-5">
-              <FileText className="h-5 w-5 text-[var(--color-services)]" />
-              <h2 className="mt-3 font-semibold">Upload requirements</h2>
-              <p className="mt-1 flex-1 text-sm leading-6 text-[var(--muted-foreground)]">
-                Start from a Markdown or text PRD and refine the generated architecture.
-              </p>
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={creating}
-                className="mt-4 min-h-11 rounded-md border border-dashed border-[var(--border)] px-4 py-2 text-sm font-semibold hover:border-[var(--color-services)] hover:bg-[var(--muted)] disabled:opacity-50"
-              >
-                Choose file...
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".md,.txt,text/markdown,text/plain"
-                onChange={handleFileUpload}
-                className="hidden"
-              />
-              <p className="mt-2 text-xs text-[var(--muted-foreground)]">.md or .txt</p>
-            </div>
-
-            <StartOptionSeparator />
-
-            <div className="entry-card flex min-w-0 flex-col rounded-lg border border-[var(--border)] bg-[var(--card)] p-5">
-              <FolderPlus className="h-5 w-5 text-[var(--color-api)]" />
-              <h2 className="mt-3 font-semibold">Start fresh</h2>
-              <p className="mt-1 flex-1 text-sm leading-6 text-[var(--muted-foreground)]">
-                Open a blank canvas when the architecture is still forming.
-              </p>
-              <button
-                onClick={() => createProject()}
-                disabled={creating}
-                className="mt-4 min-h-11 rounded-md border border-[var(--border)] px-4 py-2 text-sm font-semibold hover:bg-[var(--muted)] disabled:opacity-50"
-              >
-                Start from scratch
-              </button>
-            </div>
-          </section>
-
-          {error && (
-            <div
-              className="flex items-start gap-3 rounded-lg border border-[var(--danger-border)] bg-[var(--danger-surface)] p-4 text-sm text-[var(--danger)]"
-              role="alert"
-            >
-              <AlertCircle className="mt-0.5 h-4 w-4 flex-none" />
-              <span>{error}</span>
+          </div>
+          {teams.length === 0 ? (
+            <p className="p-5 text-sm text-[var(--muted-foreground)]">
+              No teams yet. Create one to start a shared workspace.
+            </p>
+          ) : (
+            <div className="grid gap-3 p-5 sm:grid-cols-2 xl:grid-cols-3">
+              {teams.map((team) => (
+                <div
+                  key={team.id}
+                  className="rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] p-4"
+                >
+                  <Link
+                    href={`/team/${team.id}`}
+                    className="font-semibold hover:text-[var(--color-client)]"
+                  >
+                    {team.name}
+                  </Link>
+                  <div className="mt-3 flex gap-2">
+                    <Link
+                      href={`/team/${team.id}`}
+                      className="inline-flex min-h-10 items-center rounded-md border border-[var(--border)] px-3 py-2 text-sm hover:bg-[var(--muted)]"
+                    >
+                      Manage
+                    </Link>
+                    <Link
+                      href={`/project/new?teamId=${team.id}`}
+                      className="inline-flex min-h-10 items-center rounded-md bg-[var(--brand)] px-3 py-2 text-sm font-semibold text-[var(--brand-foreground)]"
+                    >
+                      New project
+                    </Link>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
+        </section>
 
-          <section className="rounded-lg border border-[var(--border)] bg-[var(--card)]">
-            <div className="flex flex-col gap-3 border-b border-[var(--border)] p-5 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="font-semibold">Recent projects</h2>
-                <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-                  Continue from the latest architecture decision.
-                </p>
-              </div>
-              {projectsError && (
-                <button
-                  onClick={loadProjects}
-                  className="inline-flex min-h-10 items-center gap-2 rounded-md border border-[var(--border)] px-3 py-2 text-sm font-semibold hover:bg-[var(--muted)]"
-                >
-                  <RefreshCw className="h-4 w-4" />
-                  Retry
-                </button>
-              )}
+        <section className="rounded-lg border border-[var(--border)] bg-[var(--card)]">
+          <div className="flex flex-col gap-3 border-b border-[var(--border)] p-5 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="font-semibold">Recent projects</h2>
+              <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+                Continue from the latest architecture decision.
+              </p>
             </div>
-
-            {loading ? (
-              <div className="p-8 text-center text-[var(--muted-foreground)]">
-                Loading projects...
-              </div>
-            ) : projectsError ? (
-              <div className="p-8 text-center text-sm text-[var(--muted-foreground)]">
-                {projectsError}
-              </div>
-            ) : projects.length === 0 ? (
-              <div className="p-8 text-center text-sm text-[var(--muted-foreground)]">
-                No projects yet. Use one of the start options above to create the first map.
-              </div>
-            ) : (
-              <div className="grid gap-4 p-5 sm:grid-cols-2 xl:grid-cols-3">
-                {projects.map((project) => (
-                  <div
-                    key={project.id}
-                    className="group relative min-w-0 rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] p-4 transition-shadow hover:shadow-md hover:shadow-[var(--shadow-color)]"
-                  >
-                    <button
-                      onClick={() => router.push(`/project/${project.id}`)}
-                      className="block w-full min-w-0 text-left"
-                      data-testid={`project-card-${project.id}`}
-                    >
-                      <div className="flex min-w-0 items-center gap-2 pr-10">
-                        <h3 className="min-w-0 truncate font-medium text-[var(--card-foreground)]">
-                          {project.name}
-                        </h3>
-                        {project.teamName && (
-                          <span className="inline-flex max-w-28 flex-none truncate rounded-full bg-[var(--color-services)]/15 px-2 py-0.5 text-[10px] font-medium text-[var(--color-services)]">
-                            {project.teamName}
-                          </span>
-                        )}
-                      </div>
-                      {project.description && (
-                        <p className="mt-2 line-clamp-2 text-sm leading-6 text-[var(--muted-foreground)]">
-                          {project.description}
-                        </p>
-                      )}
-                      <p className="mt-3 text-xs text-[var(--muted-foreground)]">
-                        Updated {formatDate(project.updatedAt)}
-                      </p>
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDeleteTarget(project);
-                      }}
-                      className="absolute right-3 top-3 flex h-11 w-11 items-center justify-center rounded-md text-[var(--muted-foreground)] hover:bg-[var(--danger-surface)] hover:text-[var(--danger)]"
-                      title="Delete project"
-                      aria-label={`Delete ${project.name}`}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
+            {projectsError && (
+              <button
+                onClick={loadProjects}
+                className="inline-flex min-h-10 items-center gap-2 rounded-md border border-[var(--border)] px-3 py-2 text-sm font-semibold hover:bg-[var(--muted)]"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Retry
+              </button>
             )}
-          </section>
-        </div>
+          </div>
+          {loading ? (
+            <div className="p-8 text-center text-[var(--muted-foreground)]">
+              Loading projects...
+            </div>
+          ) : projectsError ? (
+            <div className="p-8 text-center text-sm text-[var(--muted-foreground)]">
+              {projectsError}
+            </div>
+          ) : projects.length === 0 ? (
+            <div className="p-8 text-center text-sm text-[var(--muted-foreground)]">
+              No projects yet. Use one of the start options above to create the first map.
+            </div>
+          ) : (
+            <div className="grid gap-4 p-5 sm:grid-cols-2 xl:grid-cols-3">
+              {projects.map((project) => (
+                <div
+                  key={project.id}
+                  className="group relative min-w-0 rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] p-4 transition-shadow hover:shadow-md hover:shadow-[var(--shadow-color)]"
+                >
+                  <button
+                    onClick={() => router.push(`/project/${project.id}`)}
+                    className="block w-full min-w-0 text-left"
+                    data-testid={`project-card-${project.id}`}
+                  >
+                    <div className="flex min-w-0 items-center gap-2 pr-10">
+                      <h3 className="min-w-0 truncate font-medium text-[var(--card-foreground)]">
+                        {project.name}
+                      </h3>
+                      {project.teamName && (
+                        <span className="inline-flex max-w-28 flex-none truncate rounded-full bg-[var(--color-services)]/15 px-2 py-0.5 text-[10px] font-medium text-[var(--color-services)]">
+                          {project.teamName}
+                        </span>
+                      )}
+                    </div>
+                    {project.description && (
+                      <p className="mt-2 line-clamp-2 text-sm leading-6 text-[var(--muted-foreground)]">
+                        {project.description}
+                      </p>
+                    )}
+                    <p className="mt-3 text-xs text-[var(--muted-foreground)]">
+                      Updated {formatDate(project.updatedAt)}
+                    </p>
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDeleteTarget(project);
+                    }}
+                    className="absolute right-3 top-3 flex h-11 w-11 items-center justify-center rounded-md text-[var(--muted-foreground)] hover:bg-[var(--danger-surface)] hover:text-[var(--danger)]"
+                    title="Delete project"
+                    aria-label={`Delete ${project.name}`}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
       </main>
 
       <footer className="border-t border-[var(--border)] py-6">
@@ -511,14 +569,6 @@ export default function Dashboard() {
           </nav>
         </div>
       </footer>
-
-      {upgradePrompt && (
-        <UpgradePrompt
-          feature={upgradePrompt}
-          variant="modal"
-          onDismiss={() => setUpgradePrompt(null)}
-        />
-      )}
 
       {deleteTarget && (
         <div

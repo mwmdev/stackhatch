@@ -36,7 +36,7 @@ describe("SettingsPage", () => {
     mockTheme = "light";
   });
 
-  it("renders server-managed settings sections", async () => {
+  it("renders per-user BYOK, model, and theme settings", async () => {
     mockFetchSettings({ hasAnthropicKey: false });
     render(<SettingsPage />);
 
@@ -45,7 +45,7 @@ describe("SettingsPage", () => {
     });
 
     expect(screen.getByText("Theme")).toBeInTheDocument();
-    expect(screen.queryByText("Claude Model")).not.toBeInTheDocument();
+    expect(screen.getByText("Claude Model")).toBeInTheDocument();
     expect(screen.queryByText("Node Subtypes")).not.toBeInTheDocument();
     expect(screen.queryByText("AI Prompts")).not.toBeInTheDocument();
   });
@@ -71,8 +71,24 @@ describe("SettingsPage", () => {
     await waitFor(() => {
       expect(screen.getByTestId("key-status-set")).toBeInTheDocument();
     });
-    expect(screen.getByText("Saved")).toBeInTheDocument();
     expect(screen.getByLabelText("API Key")).toBeInTheDocument();
+  });
+
+  it("persists the selected Claude model", async () => {
+    mockFetchSettings({ model: "claude-sonnet-4-20250514" });
+    render(<SettingsPage />);
+
+    const model = await screen.findByLabelText("Model");
+    fireEvent.change(model, { target: { value: "claude-opus-4-20250514" } });
+
+    await waitFor(() => {
+      const call = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.find(
+        (item: unknown[]) =>
+          (item[1] as RequestInit)?.method === "PATCH" &&
+          JSON.parse((item[1] as RequestInit).body as string).model
+      );
+      expect(call).toBeTruthy();
+    });
   });
 
   it("renders theme buttons and highlights current theme", async () => {

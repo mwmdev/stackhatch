@@ -18,6 +18,7 @@ npm-debug.log*
 # IDEs
 .idea/
 .vscode/
+.codex/
 *.swp
 
 # OS
@@ -36,3 +37,9 @@ coverage/
 
 # ralph-tui
 .ralph-tui/
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
+.beads/proxieddb/

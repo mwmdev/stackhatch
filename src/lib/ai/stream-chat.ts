@@ -12,7 +12,6 @@ import { DEFAULT_CHAT_PROMPT } from "@/lib/ai/default-prompts";
 import type { ChatMessage } from "@/types/chat";
 import type { StackArchitecture } from "@/types/stack";
 import type { AuthenticatedUser } from "@/lib/auth";
-import { getActivePlan, getPlanCatalog } from "@/lib/plans";
 
 export function sseEvent(data: object): string {
   return `data: ${JSON.stringify(data)}\n\n`;
@@ -78,25 +77,36 @@ export function streamChat(
   options: { contextArchitecture?: StackArchitecture | null } = {}
 ): Response {
   const settingsMap = getSettings(db);
-  const apiKey = getApiKey(db, user?.userId);
+  if (!user) {
+    return new Response(
+      sseEvent({
+        type: "error",
+        code: "AI_NOT_CONFIGURED",
+        content: "Add your Anthropic API key in Settings to use StackHatch AI.",
+        settingsUrl: "/settings",
+      }),
+      { headers: SSE_HEADERS, status: 503 }
+    );
+  }
+
+  const apiKey = getApiKey(db, user.userId);
   if (!apiKey) {
     return new Response(
       sseEvent({
         type: "error",
         code: "AI_NOT_CONFIGURED",
         content: "Add your Anthropic API key in Settings to use StackHatch AI.",
+        settingsUrl: "/settings",
       }),
       { headers: SSE_HEADERS, status: 503 }
     );
   }
 
-  const model = getModel(settingsMap);
-  const plan = user ? getActivePlan(db, user.userId, user.role) : "free";
-  const features = getPlanCatalog(db)[plan].features;
+  const model = getModel(db, user.userId);
   const customSubtypes = parseCustomSubtypes(settingsMap.customSubtypes);
   const chatBase = getPrompt(settingsMap, "prompt_chat", DEFAULT_CHAT_PROMPT);
   const systemPrompt = buildSystemPrompt(customSubtypes, chatBase, {
-    includeNoteNodes: features.noteNodes,
+    includeNoteNodes: true,
   });
 
   // Save user message if present
@@ -149,7 +159,7 @@ export function streamChat(
 
   // Build Anthropic messages with architecture context
   let anthropicMessages = buildMessages(chatHistory, currentArchitecture, {
-    nodeLockingEnabled: user?.role === "admin" || features.nodeLocking,
+    nodeLockingEnabled: true,
   });
 
   // For init (no user message and no history), add init instruction as user message
@@ -193,7 +203,7 @@ export function streamChat(
         }
 
         // Parse the full response for architecture
-        const parsed = parseAIResponse(fullResponse, { allowNoteNodes: features.noteNodes });
+        const parsed = parseAIResponse(fullResponse, { allowNoteNodes: true });
 
         // Save assistant message (with the full response including <stack> block)
         const saveTimestamp = Date.now();

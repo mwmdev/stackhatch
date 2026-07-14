@@ -17,7 +17,7 @@ function createTestDb() {
       email TEXT,
       name TEXT,
       avatar_url TEXT,
-      role TEXT DEFAULT 'free' NOT NULL,
+      role TEXT DEFAULT 'user' NOT NULL,
       created_at INTEGER NOT NULL
     );
     CREATE TABLE projects (
@@ -47,9 +47,7 @@ function createTestDb() {
     CREATE TABLE teams (
       id TEXT PRIMARY KEY NOT NULL,
       name TEXT NOT NULL,
-      plan TEXT NOT NULL,
       owner_id TEXT NOT NULL,
-      stripe_subscription_id TEXT,
       created_at INTEGER NOT NULL,
       FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
     );
@@ -216,6 +214,36 @@ describe("POST /api/projects", () => {
     const data = await res.json();
     expect(data.name).toBe("Minimal");
     expect(data.description).toBeNull();
+  });
+
+  it("creates projects without a product quota", async () => {
+    const now = Date.now();
+    testDb
+      .insert(projects)
+      .values(
+        Array.from({ length: 25 }, (_, index) => ({
+          id: `existing-${index}`,
+          name: `Existing ${index}`,
+          description: null,
+          repoUrl: null,
+          canvasState: null,
+          userId: "test-user-id",
+          teamId: null,
+          createdAt: now,
+          updatedAt: now,
+        }))
+      )
+      .run();
+
+    const response = await projectsRoute.POST(
+      makeRequest("/api/projects", {
+        method: "POST",
+        body: { name: "Another project" },
+      }) as never
+    );
+
+    expect(response.status).toBe(201);
+    expect(testDb.select().from(projects).all()).toHaveLength(26);
   });
 
   it("normalizes blank repo URLs to scratch projects", async () => {

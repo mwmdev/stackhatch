@@ -55,7 +55,10 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       .all();
 
     return NextResponse.json({
-      ...team,
+      id: team.id,
+      name: team.name,
+      ownerId: team.ownerId,
+      createdAt: team.createdAt,
       members,
       isOwner: team.ownerId === userId,
     });

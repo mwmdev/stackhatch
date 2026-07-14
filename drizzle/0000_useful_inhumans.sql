@@ -10,17 +10,44 @@ CREATE TABLE `comments` (
 	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-CREATE TABLE `subscriptions` (
+CREATE TABLE `diagram_templates` (
 	`id` text PRIMARY KEY NOT NULL,
-	`user_id` text NOT NULL,
-	`stripe_customer_id` text,
-	`stripe_subscription_id` text,
-	`plan` text DEFAULT 'free' NOT NULL,
-	`status` text NOT NULL,
-	`current_period_end` integer,
+	`team_id` text NOT NULL,
+	`name` text NOT NULL,
+	`description` text,
+	`canvas_state` text NOT NULL,
+	`created_by` text NOT NULL,
+	`created_at` integer NOT NULL,
+	FOREIGN KEY (`team_id`) REFERENCES `teams`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`created_by`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE TABLE `messages` (
+	`id` text PRIMARY KEY NOT NULL,
+	`project_id` text NOT NULL,
+	`role` text NOT NULL,
+	`content` text NOT NULL,
+	`created_at` integer NOT NULL,
+	FOREIGN KEY (`project_id`) REFERENCES `projects`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE TABLE `projects` (
+	`id` text PRIMARY KEY NOT NULL,
+	`name` text NOT NULL,
+	`description` text,
+	`repo_url` text,
+	`canvas_state` text,
+	`user_id` text,
+	`team_id` text,
 	`created_at` integer NOT NULL,
 	`updated_at` integer NOT NULL,
-	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
+	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`team_id`) REFERENCES `teams`(`id`) ON UPDATE no action ON DELETE set null
+);
+--> statement-breakpoint
+CREATE TABLE `settings` (
+	`key` text PRIMARY KEY NOT NULL,
+	`value` text NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE `team_invites` (
@@ -41,6 +68,7 @@ CREATE TABLE `team_members` (
 	`user_id` text NOT NULL,
 	`role` text NOT NULL,
 	`joined_at` integer NOT NULL,
+	PRIMARY KEY(`team_id`, `user_id`),
 	FOREIGN KEY (`team_id`) REFERENCES `teams`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
 );
@@ -48,21 +76,29 @@ CREATE TABLE `team_members` (
 CREATE TABLE `teams` (
 	`id` text PRIMARY KEY NOT NULL,
 	`name` text NOT NULL,
-	`plan` text NOT NULL,
 	`owner_id` text NOT NULL,
-	`stripe_subscription_id` text,
 	`created_at` integer NOT NULL,
 	FOREIGN KEY (`owner_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-CREATE TABLE `usage` (
-	`id` text PRIMARY KEY NOT NULL,
-	`user_id` text NOT NULL,
-	`message_count` integer DEFAULT 0 NOT NULL,
-	`scan_count` integer DEFAULT 0 NOT NULL,
-	`period_start` integer NOT NULL,
-	`period_end` integer NOT NULL,
+CREATE TABLE `user_settings` (
+	`user_id` text PRIMARY KEY NOT NULL,
+	`anthropic_api_key` text,
+	`model` text DEFAULT 'claude-sonnet-4-20250514' NOT NULL,
+	`theme` text DEFAULT 'system' NOT NULL,
+	`created_at` integer NOT NULL,
+	`updated_at` integer NOT NULL,
 	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-ALTER TABLE `projects` ADD `team_id` text;
+CREATE TABLE `users` (
+	`id` text PRIMARY KEY NOT NULL,
+	`github_id` text NOT NULL,
+	`email` text,
+	`name` text,
+	`avatar_url` text,
+	`role` text DEFAULT 'user' NOT NULL,
+	`created_at` integer NOT NULL
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `users_github_id_unique` ON `users` (`github_id`);

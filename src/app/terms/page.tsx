@@ -24,28 +24,30 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-[var(--foreground)]">Accounts and Billing</h2>
+            <h2 className="text-lg font-semibold text-[var(--foreground)]">
+              Accounts and AI Usage
+            </h2>
             <p className="mt-2">
-              All plans use bring-your-own Anthropic keys for AI. Free accounts are subject to
-              product limits. Paid plans renew through Stripe unless canceled before the next
-              billing period. Plan limits and included features are shown on the pricing page.
+              StackHatch is free to use. AI features require a user-provided Anthropic API key, and
+              Anthropic bills that usage directly to the user&apos;s Anthropic account. Users are
+              responsible for securing their Anthropic account and complying with its terms.
             </p>
           </section>
 
           <section>
             <h2 className="text-lg font-semibold text-[var(--foreground)]">Acceptable Use</h2>
             <p className="mt-2">
-              Users may not attempt to bypass access controls, abuse AI or repository scanning
-              limits, upload content they do not have permission to use, or use StackHatch to
-              violate applicable law.
+              Users may not attempt to bypass access controls, abuse AI or repository scanning,
+              upload content they do not have permission to use, or use StackHatch to violate
+              applicable law.
             </p>
           </section>
 
           <section>
             <h2 className="text-lg font-semibold text-[var(--foreground)]">Support</h2>
             <p className="mt-2">
-              For account, billing, or product support, contact support@stackhatch.app from the
-              email associated with the account.
+              For account or product support, contact support@stackhatch.app from the email
+              associated with the account.
             </p>
           </section>
         </div>

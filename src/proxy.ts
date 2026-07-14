@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 
-const PUBLIC_PATHS = new Set(["/", "/login", "/pricing", "/privacy", "/support", "/terms"]);
+const PUBLIC_PATHS = new Set(["/", "/login", "/privacy", "/support", "/terms"]);
 
 function isDevAuthEnabled() {
   return process.env.NODE_ENV !== "production" && process.env.STACKHATCH_DEV_AUTH === "1";

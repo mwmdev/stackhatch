@@ -18,6 +18,7 @@ interface Member {
 interface Invite {
   id: string;
   email: string;
+  inviteUrl: string;
   status: string;
   expiresAt: number;
 }
@@ -25,13 +26,10 @@ interface Invite {
 interface TeamData {
   id: string;
   name: string;
-  plan: string;
   ownerId: string;
   members: Member[];
   isOwner: boolean;
 }
-
-const SEAT_LIMITS: Record<string, number> = { team5: 5, team15: 15 };
 
 export default function TeamPage() {
   const params = useParams();
@@ -107,7 +105,7 @@ export default function TeamPage() {
       }
 
       setInviteEmail("");
-      showToast("success", `Invite sent to ${data.email}`);
+      showToast("success", `Invite link created for ${data.email}`);
       await fetchInvites();
     } catch {
       showToast("error", "Failed to send invite");
@@ -126,6 +124,15 @@ export default function TeamPage() {
       }
     } catch {
       showToast("error", "Failed to revoke invite");
+    }
+  }
+
+  async function handleCopyInvite(inviteUrl: string) {
+    try {
+      await navigator.clipboard.writeText(inviteUrl);
+      showToast("success", "Invite link copied");
+    } catch {
+      showToast("error", "Copy failed. Select and copy the invite link manually.");
     }
   }
 
@@ -212,8 +219,6 @@ export default function TeamPage() {
     );
   }
 
-  const seatLimit = SEAT_LIMITS[team.plan] ?? 5;
-
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
       <header className="border-b border-[var(--border)]">
@@ -240,59 +245,64 @@ export default function TeamPage() {
         )}
 
         {/* Team Header */}
-        <div className="mb-8">
-          <div className="flex items-center gap-3">
-            {editingName ? (
-              <form onSubmit={handleRename} className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  autoFocus
-                  className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-1 text-2xl font-bold focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
-                  onKeyDown={(e) => {
-                    if (e.key === "Escape") setEditingName(false);
-                  }}
-                />
-                <button
-                  type="submit"
-                  disabled={renaming}
-                  className="rounded-lg bg-[var(--brand)] px-3 py-1 text-sm font-medium text-[var(--brand-foreground)] transition-opacity hover:bg-[var(--brand-hover)] disabled:opacity-50"
-                >
-                  {renaming ? "Saving..." : "Save"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEditingName(false)}
-                  className="rounded-lg px-3 py-1 text-sm text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
-                >
-                  Cancel
-                </button>
-              </form>
-            ) : (
-              <>
-                <h1 className="text-2xl font-bold">{team.name}</h1>
-                {team.isOwner && (
-                  <button
-                    onClick={() => {
-                      setNewName(team.name);
-                      setEditingName(true);
+        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="flex items-center gap-3">
+              {editingName ? (
+                <form onSubmit={handleRename} className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    autoFocus
+                    className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-1 text-2xl font-bold focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
+                    onKeyDown={(e) => {
+                      if (e.key === "Escape") setEditingName(false);
                     }}
-                    className="rounded px-2 py-1 text-xs text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
-                    title="Rename team"
+                  />
+                  <button
+                    type="submit"
+                    disabled={renaming}
+                    className="rounded-lg bg-[var(--brand)] px-3 py-1 text-sm font-medium text-[var(--brand-foreground)] transition-opacity hover:bg-[var(--brand-hover)] disabled:opacity-50"
                   >
-                    Rename
+                    {renaming ? "Saving..." : "Save"}
                   </button>
-                )}
-              </>
-            )}
-            <span className="rounded-full bg-[var(--muted)] px-3 py-0.5 text-xs font-medium text-[var(--muted-foreground)]">
-              {team.plan === "team5" ? "Team (5)" : "Team (15)"}
-            </span>
+                  <button
+                    type="button"
+                    onClick={() => setEditingName(false)}
+                    className="rounded-lg px-3 py-1 text-sm text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
+                  >
+                    Cancel
+                  </button>
+                </form>
+              ) : (
+                <>
+                  <h1 className="text-2xl font-bold">{team.name}</h1>
+                  {team.isOwner && (
+                    <button
+                      onClick={() => {
+                        setNewName(team.name);
+                        setEditingName(true);
+                      }}
+                      className="rounded px-2 py-1 text-xs text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
+                      title="Rename team"
+                    >
+                      Rename
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+            <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+              {team.members.length} {team.members.length === 1 ? "member" : "members"}
+            </p>
           </div>
-          <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-            {team.members.length} / {seatLimit} seats used
-          </p>
+          <Link
+            href={`/project/new?teamId=${team.id}`}
+            className="inline-flex min-h-11 items-center justify-center rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-semibold text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)]"
+          >
+            New project
+          </Link>
         </div>
 
         {/* Members */}
@@ -344,6 +354,9 @@ export default function TeamPage() {
         {team.isOwner && (
           <section className="mb-10">
             <h2 className="mb-4 text-lg font-semibold">Invite Members</h2>
+            <p className="mb-3 text-sm text-[var(--muted-foreground)]">
+              Create a private link, then share it with the invited person.
+            </p>
             <form onSubmit={handleInvite} className="flex gap-3">
               <input
                 type="email"
@@ -357,7 +370,7 @@ export default function TeamPage() {
                 disabled={inviting || !inviteEmail.trim()}
                 className="rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-medium text-[var(--brand-foreground)] transition-opacity hover:bg-[var(--brand-hover)] disabled:opacity-50"
               >
-                {inviting ? "Sending..." : "Send Invite"}
+                {inviting ? "Creating..." : "Create Invite Link"}
               </button>
             </form>
 
@@ -369,19 +382,39 @@ export default function TeamPage() {
                 </h3>
                 <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] divide-y divide-[var(--border)]">
                   {invites.map((invite) => (
-                    <div key={invite.id} className="flex items-center justify-between px-4 py-3">
-                      <div>
+                    <div
+                      key={invite.id}
+                      className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div className="min-w-0 flex-1">
                         <div className="text-sm">{invite.email}</div>
                         <div className="text-xs text-[var(--muted-foreground)]">
                           Expires {new Date(invite.expiresAt).toLocaleDateString()}
                         </div>
+                        <input
+                          aria-label={`Invite link for ${invite.email}`}
+                          readOnly
+                          value={invite.inviteUrl}
+                          onFocus={(event) => event.currentTarget.select()}
+                          className="mt-2 w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-2 py-1.5 text-xs text-[var(--muted-foreground)]"
+                        />
                       </div>
-                      <button
-                        onClick={() => handleRevokeInvite(invite.id)}
-                        className="rounded px-2 py-1 text-xs text-[var(--danger)] transition-colors hover:bg-[var(--danger-surface)]"
-                      >
-                        Revoke
-                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleCopyInvite(invite.inviteUrl)}
+                          className="rounded border border-[var(--border)] px-2 py-1 text-xs transition-colors hover:bg-[var(--muted)]"
+                        >
+                          Copy link
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRevokeInvite(invite.id)}
+                          className="rounded px-2 py-1 text-xs text-[var(--danger)] transition-colors hover:bg-[var(--danger-surface)]"
+                        >
+                          Revoke
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>

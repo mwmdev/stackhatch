@@ -3,9 +3,10 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import Database from "better-sqlite3";
 import { eq, asc } from "drizzle-orm";
 import * as schema from "@/db/schema";
-import { projects, messages, settings, users, userSettings } from "@/db/schema";
+import { projects, messages, users, userSettings } from "@/db/schema";
 import type { AppDatabase } from "@/db";
 import type { StackArchitecture } from "@/types/stack";
+import { encryptSecret } from "@/lib/secrets";
 
 // Mock the Anthropic SDK
 vi.mock("@anthropic-ai/sdk", () => {
@@ -29,7 +30,7 @@ function createTestDb(): AppDatabase {
       email TEXT,
       name TEXT,
       avatar_url TEXT,
-      role TEXT DEFAULT 'free' NOT NULL,
+      role TEXT DEFAULT 'user' NOT NULL,
       created_at INTEGER NOT NULL
     );
     CREATE TABLE projects (
@@ -59,18 +60,8 @@ function createTestDb(): AppDatabase {
     CREATE TABLE user_settings (
       user_id TEXT PRIMARY KEY NOT NULL,
       anthropic_api_key TEXT,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    );
-    CREATE TABLE subscriptions (
-      id TEXT PRIMARY KEY NOT NULL,
-      user_id TEXT NOT NULL,
-      stripe_customer_id TEXT,
-      stripe_subscription_id TEXT,
-      plan TEXT DEFAULT 'free' NOT NULL,
-      billing_interval TEXT DEFAULT 'monthly',
-      status TEXT NOT NULL,
-      current_period_end INTEGER,
+      model TEXT DEFAULT 'claude-sonnet-4-20250514' NOT NULL,
+      theme TEXT DEFAULT 'system' NOT NULL,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );
@@ -111,9 +102,14 @@ function mockAnthropicStream(text: string) {
 /** Helper to read the full SSE response body as parsed events */
 async function readSSEEvents(
   response: Response
-): Promise<Array<{ type: string; content?: unknown; code?: string }>> {
+): Promise<Array<{ type: string; content?: unknown; code?: string; settingsUrl?: string }>> {
   const text = await response.text();
-  const events: Array<{ type: string; content?: unknown; code?: string }> = [];
+  const events: Array<{
+    type: string;
+    content?: unknown;
+    code?: string;
+    settingsUrl?: string;
+  }> = [];
   const lines = text.split("\n");
   for (const line of lines) {
     if (line.startsWith("data: ")) {
@@ -135,8 +131,15 @@ const testUser = {
   email: "test@example.com",
   name: "Test User",
   avatarUrl: "https://example.com/avatar.png",
-  role: "free" as const,
+  role: "user" as const,
   createdAt: Date.now(),
+};
+const authenticatedUser = {
+  userId: testUser.id,
+  role: testUser.role,
+  name: testUser.name,
+  email: testUser.email,
+  image: testUser.avatarUrl,
 };
 
 beforeEach(() => {
@@ -159,7 +162,15 @@ beforeEach(() => {
     })
     .run();
 
-  process.env.ANTHROPIC_API_KEY = "sk-ant-test123";
+  db.insert(userSettings)
+    .values({
+      userId: testUser.id,
+      anthropicApiKey: encryptSecret("sk-ant-test123"),
+      model: "claude-sonnet-4-20250514",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    })
+    .run();
 });
 
 describe("streamChat", () => {
@@ -167,7 +178,7 @@ describe("streamChat", () => {
     const mockClient = mockAnthropicStream("Hello, world!");
     vi.mocked(Anthropic).mockImplementation(() => mockClient as unknown as Anthropic);
 
-    const response = streamChat(db, projectId, "Hi there");
+    const response = streamChat(db, projectId, "Hi there", undefined, authenticatedUser);
     const events = await readSSEEvents(response);
 
     // Should have text events + done
@@ -186,7 +197,7 @@ describe("streamChat", () => {
     const mockClient = mockAnthropicStream("Response");
     vi.mocked(Anthropic).mockImplementation(() => mockClient as unknown as Anthropic);
 
-    const response = streamChat(db, projectId, "My test message");
+    const response = streamChat(db, projectId, "My test message", undefined, authenticatedUser);
     await response.text(); // consume stream
 
     const msgs = db
@@ -205,7 +216,7 @@ describe("streamChat", () => {
     const mockClient = mockAnthropicStream("AI response text");
     vi.mocked(Anthropic).mockImplementation(() => mockClient as unknown as Anthropic);
 
-    const response = streamChat(db, projectId, "Hello");
+    const response = streamChat(db, projectId, "Hello", undefined, authenticatedUser);
     await response.text();
 
     const msgs = db
@@ -241,7 +252,7 @@ describe("streamChat", () => {
     const mockClient = mockAnthropicStream(responseText);
     vi.mocked(Anthropic).mockImplementation(() => mockClient as unknown as Anthropic);
 
-    const response = streamChat(db, projectId, "Build a React app");
+    const response = streamChat(db, projectId, "Build a React app", undefined, authenticatedUser);
     const events = await readSSEEvents(response);
 
     // Should emit architecture event
@@ -261,7 +272,13 @@ describe("streamChat", () => {
     const mockClient = mockAnthropicStream("What kind of app are you building?");
     vi.mocked(Anthropic).mockImplementation(() => mockClient as unknown as Anthropic);
 
-    const response = streamChat(db, projectId, "I want to build an app");
+    const response = streamChat(
+      db,
+      projectId,
+      "I want to build an app",
+      undefined,
+      authenticatedUser
+    );
     const events = await readSSEEvents(response);
 
     // No architecture event
@@ -274,80 +291,9 @@ describe("streamChat", () => {
   });
 
   it("returns error when API key is not configured", async () => {
-    const original = process.env.ANTHROPIC_API_KEY;
-    delete process.env.ANTHROPIC_API_KEY;
+    db.delete(userSettings).where(eq(userSettings.userId, testUser.id)).run();
 
-    try {
-      const response = streamChat(db, projectId, "Hello");
-      const events = await readSSEEvents(response);
-
-      expect(events).toHaveLength(1);
-      expect(events[0].type).toBe("error");
-      expect(events[0].code).toBe("AI_NOT_CONFIGURED");
-      expect(events[0].content).toContain("Add your Anthropic API key");
-    } finally {
-      if (original) process.env.ANTHROPIC_API_KEY = original;
-    }
-  });
-
-  it("uses env var for API key", async () => {
-    const original = process.env.ANTHROPIC_API_KEY;
-    process.env.ANTHROPIC_API_KEY = "sk-ant-env-key";
-
-    try {
-      const mockClient = mockAnthropicStream("Response");
-      vi.mocked(Anthropic).mockImplementation(() => mockClient as unknown as Anthropic);
-
-      const response = streamChat(db, projectId, "Hello");
-      await response.text();
-
-      // Verify Anthropic was called with the env key
-      expect(Anthropic).toHaveBeenCalledWith({ apiKey: "sk-ant-env-key" });
-    } finally {
-      if (original) {
-        process.env.ANTHROPIC_API_KEY = original;
-      } else {
-        delete process.env.ANTHROPIC_API_KEY;
-      }
-    }
-  });
-
-  it("uses the authenticated user's BYOK key even when a server key exists", async () => {
-    process.env.ANTHROPIC_API_KEY = "sk-ant-env-key";
-    db.insert(userSettings)
-      .values({
-        userId: testUser.id,
-        anthropicApiKey: "sk-ant-user-key",
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      })
-      .run();
-
-    const mockClient = mockAnthropicStream("Response");
-    vi.mocked(Anthropic).mockImplementation(() => mockClient as unknown as Anthropic);
-
-    const response = streamChat(db, projectId, "Hello", undefined, {
-      userId: testUser.id,
-      role: "pro",
-      name: testUser.name,
-      email: testUser.email,
-      image: testUser.avatarUrl,
-    });
-    await response.text();
-
-    expect(Anthropic).toHaveBeenCalledWith({ apiKey: "sk-ant-user-key" });
-  });
-
-  it("requires BYOK for authenticated paid users when only the server key exists", async () => {
-    process.env.ANTHROPIC_API_KEY = "sk-ant-env-key";
-
-    const response = streamChat(db, projectId, "Hello", undefined, {
-      userId: testUser.id,
-      role: "pro",
-      name: testUser.name,
-      email: testUser.email,
-      image: testUser.avatarUrl,
-    });
+    const response = streamChat(db, projectId, "Hello", undefined, authenticatedUser);
     const events = await readSSEEvents(response);
 
     expect(response.status).toBe(503);
@@ -355,7 +301,41 @@ describe("streamChat", () => {
     expect(events[0].type).toBe("error");
     expect(events[0].code).toBe("AI_NOT_CONFIGURED");
     expect(events[0].content).toContain("Add your Anthropic API key");
+    expect(events[0].settingsUrl).toBe("/settings");
     expect(Anthropic).not.toHaveBeenCalled();
+  });
+
+  it("does not fall back to a server API key", async () => {
+    db.delete(userSettings).where(eq(userSettings.userId, testUser.id)).run();
+    process.env.ANTHROPIC_API_KEY = "sk-ant-env-key";
+
+    try {
+      const response = streamChat(db, projectId, "Hello", undefined, authenticatedUser);
+      const events = await readSSEEvents(response);
+
+      expect(response.status).toBe(503);
+      expect(events[0].code).toBe("AI_NOT_CONFIGURED");
+      expect(Anthropic).not.toHaveBeenCalled();
+    } finally {
+      delete process.env.ANTHROPIC_API_KEY;
+    }
+  });
+
+  it("uses the authenticated user's encrypted BYOK key", async () => {
+    process.env.ANTHROPIC_API_KEY = "sk-ant-env-key";
+    db.update(userSettings)
+      .set({ anthropicApiKey: encryptSecret("sk-ant-user-key"), updatedAt: Date.now() })
+      .where(eq(userSettings.userId, testUser.id))
+      .run();
+
+    const mockClient = mockAnthropicStream("Response");
+    vi.mocked(Anthropic).mockImplementation(() => mockClient as unknown as Anthropic);
+
+    const response = streamChat(db, projectId, "Hello", undefined, authenticatedUser);
+    await response.text();
+
+    expect(Anthropic).toHaveBeenCalledWith({ apiKey: "sk-ant-user-key" });
+    delete process.env.ANTHROPIC_API_KEY;
   });
 
   it("handles Anthropic API errors gracefully", async () => {
@@ -372,7 +352,7 @@ describe("streamChat", () => {
     };
     vi.mocked(Anthropic).mockImplementation(() => mockClient as unknown as Anthropic);
 
-    const response = streamChat(db, projectId, "Hello");
+    const response = streamChat(db, projectId, "Hello", undefined, authenticatedUser);
     const events = await readSSEEvents(response);
 
     const errorEvent = events.find((e) => e.type === "error");
@@ -398,7 +378,7 @@ describe("streamChat", () => {
     };
     vi.mocked(Anthropic).mockImplementation(() => mockClient as unknown as Anthropic);
 
-    const response = streamChat(db, projectId, "Hello");
+    const response = streamChat(db, projectId, "Hello", undefined, authenticatedUser);
     const events = await readSSEEvents(response);
 
     const errorEvent = events.find((e) => e.type === "error");
@@ -429,7 +409,7 @@ describe("streamChat", () => {
     };
     vi.mocked(Anthropic).mockImplementation(() => mockClient as unknown as Anthropic);
 
-    const response = streamChat(db, projectId, "Hello");
+    const response = streamChat(db, projectId, "Hello", undefined, authenticatedUser);
     const events = await readSSEEvents(response);
 
     const errorEvent = events.find((e) => e.type === "error");
@@ -444,7 +424,7 @@ describe("streamChat", () => {
     const mockClient = mockAnthropicStream("Welcome! What are you building?");
     vi.mocked(Anthropic).mockImplementation(() => mockClient as unknown as Anthropic);
 
-    const response = streamChat(db, projectId, null);
+    const response = streamChat(db, projectId, null, undefined, authenticatedUser);
     const events = await readSSEEvents(response);
 
     const textEvents = events.filter((e) => e.type === "text");
@@ -466,8 +446,11 @@ describe("streamChat", () => {
     expect(msgs[1].content).toBe("Welcome! What are you building?");
   });
 
-  it("uses model from settings", async () => {
-    db.insert(settings).values({ key: "model", value: "claude-opus-4-20250514" }).run();
+  it("uses the authenticated user's selected model", async () => {
+    db.update(userSettings)
+      .set({ model: "claude-opus-4-20250514", updatedAt: Date.now() })
+      .where(eq(userSettings.userId, testUser.id))
+      .run();
 
     const mockClient = mockAnthropicStream("Response");
     const streamFn = vi.fn().mockReturnValue({
@@ -480,7 +463,7 @@ describe("streamChat", () => {
     (mockClient.messages as { stream: typeof streamFn }).stream = streamFn;
     vi.mocked(Anthropic).mockImplementation(() => mockClient as unknown as Anthropic);
 
-    const response = streamChat(db, projectId, "Hello");
+    const response = streamChat(db, projectId, "Hello", undefined, authenticatedUser);
     await response.text();
 
     expect(streamFn).toHaveBeenCalledWith(
@@ -488,9 +471,7 @@ describe("streamChat", () => {
     );
   });
 
-  it("falls back to Sonnet when settings contain an unsupported model", async () => {
-    db.insert(settings).values({ key: "model", value: "claude-haiku-235-20241022" }).run();
-
+  it("uses Sonnet by default", async () => {
     const mockClient = mockAnthropicStream("Response");
     const streamFn = vi.fn().mockReturnValue({
       [Symbol.asyncIterator]: () => ({
@@ -502,7 +483,7 @@ describe("streamChat", () => {
     (mockClient.messages as { stream: typeof streamFn }).stream = streamFn;
     vi.mocked(Anthropic).mockImplementation(() => mockClient as unknown as Anthropic);
 
-    const response = streamChat(db, projectId, "Hello");
+    const response = streamChat(db, projectId, "Hello", undefined, authenticatedUser);
     await response.text();
 
     expect(streamFn).toHaveBeenCalledWith(
@@ -543,7 +524,7 @@ describe("streamChat", () => {
     const mockClient = { messages: { stream: streamFn } };
     vi.mocked(Anthropic).mockImplementation(() => mockClient as unknown as Anthropic);
 
-    const response = streamChat(db, projectId, "Add a cache layer");
+    const response = streamChat(db, projectId, "Add a cache layer", undefined, authenticatedUser);
     await response.text();
 
     // Verify that the messages include architecture context
@@ -601,7 +582,7 @@ describe("streamChat", () => {
     const mockClient = { messages: { stream: streamFn } };
     vi.mocked(Anthropic).mockImplementation(() => mockClient as unknown as Anthropic);
 
-    const response = streamChat(db, projectId, "Use the note", undefined, undefined, {
+    const response = streamChat(db, projectId, "Use the note", undefined, authenticatedUser, {
       contextArchitecture: liveArch,
     });
     await response.text();
@@ -623,7 +604,7 @@ describe("streamChat", () => {
     const mockClient = mockAnthropicStream("Response");
     vi.mocked(Anthropic).mockImplementation(() => mockClient as unknown as Anthropic);
 
-    const response = streamChat(db, projectId, "Hello");
+    const response = streamChat(db, projectId, "Hello", undefined, authenticatedUser);
     const events = await readSSEEvents(response);
 
     // Should still work — just no architecture context
@@ -638,7 +619,7 @@ describe("streamChat", () => {
     const mockClient = mockAnthropicStream(responseText);
     vi.mocked(Anthropic).mockImplementation(() => mockClient as unknown as Anthropic);
 
-    const response = streamChat(db, projectId, "Build something");
+    const response = streamChat(db, projectId, "Build something", undefined, authenticatedUser);
     const events = await readSSEEvents(response);
 
     // No architecture event for malformed JSON
