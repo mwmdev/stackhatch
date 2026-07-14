@@ -38,6 +38,10 @@ function createTestDb(): AppDatabase {
       name TEXT NOT NULL,
       description TEXT,
       repo_url TEXT,
+      repo_commit_sha TEXT,
+      repo_scanned_at INTEGER,
+      repo_analysis_status TEXT,
+      repo_analysis_warning TEXT,
       canvas_state TEXT,
       user_id TEXT,
       team_id TEXT,
@@ -60,7 +64,7 @@ function createTestDb(): AppDatabase {
     CREATE TABLE user_settings (
       user_id TEXT PRIMARY KEY NOT NULL,
       anthropic_api_key TEXT,
-      model TEXT DEFAULT 'claude-sonnet-4-20250514' NOT NULL,
+      model TEXT DEFAULT 'claude-sonnet-5' NOT NULL,
       theme TEXT DEFAULT 'system' NOT NULL,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
@@ -166,7 +170,7 @@ beforeEach(() => {
     .values({
       userId: testUser.id,
       anthropicApiKey: encryptSecret("sk-ant-test123"),
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-5",
       createdAt: Date.now(),
       updatedAt: Date.now(),
     })
@@ -448,7 +452,7 @@ describe("streamChat", () => {
 
   it("uses the authenticated user's selected model", async () => {
     db.update(userSettings)
-      .set({ model: "claude-opus-4-20250514", updatedAt: Date.now() })
+      .set({ model: "claude-opus-4-8", updatedAt: Date.now() })
       .where(eq(userSettings.userId, testUser.id))
       .run();
 
@@ -466,9 +470,7 @@ describe("streamChat", () => {
     const response = streamChat(db, projectId, "Hello", undefined, authenticatedUser);
     await response.text();
 
-    expect(streamFn).toHaveBeenCalledWith(
-      expect.objectContaining({ model: "claude-opus-4-20250514" })
-    );
+    expect(streamFn).toHaveBeenCalledWith(expect.objectContaining({ model: "claude-opus-4-8" }));
   });
 
   it("uses Sonnet by default", async () => {
@@ -486,9 +488,7 @@ describe("streamChat", () => {
     const response = streamChat(db, projectId, "Hello", undefined, authenticatedUser);
     await response.text();
 
-    expect(streamFn).toHaveBeenCalledWith(
-      expect.objectContaining({ model: "claude-sonnet-4-20250514" })
-    );
+    expect(streamFn).toHaveBeenCalledWith(expect.objectContaining({ model: "claude-sonnet-5" }));
   });
 
   it("includes architecture context when canvasState exists", async () => {
@@ -631,5 +631,134 @@ describe("streamChat", () => {
 
     // Should still emit done
     expect(events.some((e) => e.type === "done")).toBe(true);
+  });
+
+  it("keeps the current map and conversation when repository output is invalid", async () => {
+    const existingArchitecture: StackArchitecture = {
+      nodes: [
+        {
+          id: "existing",
+          category: "client",
+          subtype: "web-app",
+          name: "Existing map",
+          technology: "React",
+          description: "Keep this map",
+          reasoning: "It is the last valid scan",
+          locked: false,
+        },
+      ],
+      edges: [],
+    };
+    db.update(projects)
+      .set({
+        repoUrl: "https://github.com/acme/old",
+        canvasState: JSON.stringify(existingArchitecture),
+      })
+      .where(eq(projects.id, projectId))
+      .run();
+    db.insert(messages)
+      .values({
+        id: "old-message",
+        projectId,
+        role: "assistant",
+        content: "Existing conversation",
+        createdAt: 1,
+      })
+      .run();
+
+    vi.mocked(Anthropic).mockImplementation(
+      () => mockAnthropicStream("No structured map was returned") as unknown as Anthropic
+    );
+
+    const response = streamChat(db, projectId, null, "Analyze new evidence", authenticatedUser, {
+      repositoryScanReplacement: {
+        repoUrl: "https://github.com/acme/new",
+        commitSha: "newsha",
+        scannedAt: 200,
+        analysisStatus: "complete",
+        analysisWarning: null,
+      },
+    });
+    const events = await readSSEEvents(response);
+
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "error", code: "AI_INVALID_OUTPUT" }),
+      ])
+    );
+    expect(events.some((event) => event.type === "done")).toBe(false);
+    expect(db.select().from(projects).where(eq(projects.id, projectId)).get()).toMatchObject({
+      repoUrl: "https://github.com/acme/old",
+      canvasState: JSON.stringify(existingArchitecture),
+    });
+    expect(db.select().from(messages).where(eq(messages.projectId, projectId)).all()).toEqual([
+      expect.objectContaining({ id: "old-message" }),
+    ]);
+  });
+
+  it("atomically replaces a repository map, conversation, and provenance after valid output", async () => {
+    const replacement: StackArchitecture = {
+      nodes: [
+        {
+          id: "new-api",
+          category: "api",
+          subtype: "rest-api",
+          name: "New API",
+          technology: "Next.js",
+          description: "Replacement map",
+          reasoning: "Observed in the new revision",
+          locked: false,
+        },
+      ],
+      edges: [],
+    };
+    db.update(projects)
+      .set({ canvasState: JSON.stringify({ nodes: [], edges: [] }) })
+      .where(eq(projects.id, projectId))
+      .run();
+    db.insert(messages)
+      .values({
+        id: "old-message",
+        projectId,
+        role: "assistant",
+        content: "Old conversation",
+        createdAt: 1,
+      })
+      .run();
+    const responseText = `<stack>${JSON.stringify(replacement)}</stack>`;
+    vi.mocked(Anthropic).mockImplementation(
+      () => mockAnthropicStream(responseText) as unknown as Anthropic
+    );
+
+    const response = streamChat(db, projectId, null, "Analyze new evidence", authenticatedUser, {
+      repositoryScanReplacement: {
+        repoUrl: "https://github.com/acme/new",
+        commitSha: "newsha",
+        scannedAt: 200,
+        analysisStatus: "partial",
+        analysisWarning: "README was shortened.",
+      },
+    });
+    const events = await readSSEEvents(response);
+
+    expect(events.find((event) => event.type === "architecture")).toMatchObject({
+      content: replacement,
+    });
+    expect(db.select().from(projects).where(eq(projects.id, projectId)).get()).toMatchObject({
+      repoUrl: "https://github.com/acme/new",
+      repoCommitSha: "newsha",
+      repoScannedAt: 200,
+      repoAnalysisStatus: "partial",
+      repoAnalysisWarning: "README was shortened.",
+      canvasState: JSON.stringify(replacement),
+    });
+    const savedMessages = db
+      .select()
+      .from(messages)
+      .where(eq(messages.projectId, projectId))
+      .orderBy(asc(messages.createdAt))
+      .all();
+    expect(savedMessages).toHaveLength(2);
+    expect(savedMessages.some((message) => message.id === "old-message")).toBe(false);
   });
 });

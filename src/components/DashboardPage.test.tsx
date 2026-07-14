@@ -4,8 +4,9 @@ import Dashboard from "./DashboardPage";
 
 // Mock next/navigation
 const mockPush = vi.fn();
+const mockReplace = vi.fn();
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: mockPush }),
+  useRouter: () => ({ push: mockPush, replace: mockReplace }),
 }));
 
 // Mock next-themes
@@ -85,6 +86,9 @@ function mockFetch(
 describe("Dashboard", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.history.replaceState({}, "", "/app");
+    window.sessionStorage.clear();
+    delete window.umami;
   });
 
   it("renders project list with name, description, and date", async () => {
@@ -104,12 +108,12 @@ describe("Dashboard", () => {
     render(<Dashboard />);
 
     await waitFor(() => {
-      expect(screen.getByPlaceholderText("https://github.com/owner/repo")).toBeInTheDocument();
+      expect(screen.getByLabelText("GitHub repository")).toBeInTheDocument();
     });
 
     expect(screen.getByText("Start from scratch")).toBeInTheDocument();
-    expect(screen.getByText("Analyze")).toBeInTheDocument();
-    expect(screen.getAllByText("OR")).toHaveLength(2);
+    expect(screen.getByText("Map repository")).toBeInTheDocument();
+    expect(screen.getByText("Other ways to start")).toBeInTheDocument();
   });
 
   it("shows BYOK setup without blocking blank canvases", async () => {
@@ -163,12 +167,12 @@ describe("Dashboard", () => {
     render(<Dashboard />);
 
     await waitFor(() => {
-      expect(screen.getByPlaceholderText("https://github.com/owner/repo")).toBeInTheDocument();
+      expect(screen.getByLabelText("GitHub repository")).toBeInTheDocument();
     });
 
-    const input = screen.getByPlaceholderText("https://github.com/owner/repo");
+    const input = screen.getByLabelText("GitHub repository");
     fireEvent.change(input, { target: { value: "https://github.com/acme/my-repo" } });
-    fireEvent.click(screen.getByText("Analyze"));
+    fireEvent.click(screen.getByText("Map repository"));
 
     await waitFor(() => {
       expect(mockPush).toHaveBeenCalledWith("/project/new-1");
@@ -288,5 +292,48 @@ describe("Dashboard", () => {
     mockFetch(mockProjects);
     render(<Dashboard />);
     expect(screen.getByText("Loading projects...")).toBeInTheDocument();
+  });
+
+  it("prefills a preserved repository and keeps submission explicit", async () => {
+    window.history.replaceState({}, "", "/app?repo=acme%2Fapi");
+    mockFetch([]);
+    render(<Dashboard />);
+
+    const input = await screen.findByLabelText("GitHub repository");
+    expect(input).toHaveValue("acme/api");
+    expect(global.fetch).not.toHaveBeenCalledWith(
+      "/api/projects",
+      expect.objectContaining({ method: "POST" })
+    );
+  });
+
+  it("sends a preserved repository to key setup when the key is missing", async () => {
+    window.history.replaceState({}, "", "/app?repo=acme%2Fapi");
+    mockFetch([], { hasAnthropicKey: false });
+    render(<Dashboard />);
+
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith("/settings?setup=anthropic&repo=acme%2Fapi");
+    });
+  });
+
+  it("records authentication completion without repository context", async () => {
+    const track = vi.fn();
+    window.umami = { track };
+    window.sessionStorage.setItem("stackhatch:auth-pending", "1");
+    mockFetch([]);
+    render(<Dashboard />);
+
+    await waitFor(() => {
+      expect(track).toHaveBeenCalledOnce();
+    });
+    const builder = track.mock.calls[0][0] as (payload: Record<string, unknown>) => unknown;
+    expect(builder({ website: "site-id" })).toEqual({
+      website: "site-id",
+      url: "/app",
+      name: "github_auth_completed",
+      data: { location: "dashboard" },
+    });
+    expect(window.sessionStorage.getItem("stackhatch:auth-pending")).toBeNull();
   });
 });

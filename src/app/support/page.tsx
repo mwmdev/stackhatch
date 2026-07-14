@@ -1,21 +1,31 @@
 import Link from "next/link";
-import { ArrowRight, BookOpen, LifeBuoy, Mail, ShieldCheck } from "lucide-react";
+import { ArrowRight, BookOpen, GitBranch, LifeBuoy, Mail, ShieldCheck, Star } from "lucide-react";
+import TrackedSourceLink from "@/components/public/TrackedSourceLink";
+
+export const metadata = {
+  title: "Support",
+  description: "Help with repository maps, bring-your-own-key setup, and scan evidence.",
+  alternates: { canonical: "/support" },
+};
 
 const SUPPORT_PATHS = [
   {
-    title: "First architecture map",
+    id: "first-map",
+    title: "Map a repository",
     description:
       "Start with a public GitHub repository or a short Markdown PRD, then open the project and review the generated nodes before asking the assistant for tradeoffs.",
   },
   {
-    title: "Free BYOK access",
+    id: "byok",
+    title: "Bring your Anthropic key",
     description:
       "StackHatch is free and every feature is available to every user. Add your Anthropic API key in Settings; Anthropic bills AI usage directly to your account.",
   },
   {
-    title: "Data handling",
+    id: "evidence",
+    title: "Understand the evidence",
     description:
-      "Your Anthropic key is encrypted before storage and never returned to the browser. Public repository URLs and project descriptions are used only for actions you request.",
+      "Repository maps are inferred from bounded public evidence. The editor shows the scanned commit and marks partial analysis when a repository exceeds those limits.",
   },
 ];
 
@@ -36,11 +46,11 @@ export default function SupportPage() {
               Support
             </p>
             <h1 className="mt-3 max-w-3xl text-4xl font-bold tracking-tight md:text-5xl">
-              Get from first input to shareable architecture without extra setup.
+              Get from repository to a map you can reason about.
             </h1>
             <p className="mt-5 max-w-2xl text-lg leading-8 text-[var(--muted-foreground)]">
-              StackHatch is built for founders, freelance developers, and small product teams who
-              need architecture decisions they can explain to customers, investors, and engineers.
+              StackHatch helps developers see the pieces of a codebase, follow how they connect, and
+              keep the architecture visible while the project changes.
             </p>
           </div>
 
@@ -48,14 +58,15 @@ export default function SupportPage() {
             <LifeBuoy className="h-5 w-5 text-[var(--color-client)]" />
             <h2 className="mt-3 font-semibold">Contact support</h2>
             <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
-              Include your account email, project name, browser, and the action that failed.
+              Include your account email, browser, and the action that failed. Never email an API
+              key or private project content.
             </p>
             <a
-              href="mailto:support@stackhatch.app"
+              href="mailto:support@stackhatch.io"
               className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-semibold text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)]"
             >
               <Mail className="h-4 w-4" />
-              support@stackhatch.app
+              support@stackhatch.io
             </a>
           </div>
         </section>
@@ -64,6 +75,7 @@ export default function SupportPage() {
           {SUPPORT_PATHS.map((item) => (
             <article
               key={item.title}
+              id={item.id}
               className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-5"
             >
               <BookOpen className="h-5 w-5 text-[var(--color-api)]" />
@@ -102,6 +114,33 @@ export default function SupportPage() {
               </Link>
             </div>
           </div>
+        </section>
+
+        <section className="mt-8 flex flex-wrap items-center gap-3 border-t border-[var(--border)] pt-8">
+          <p className="mr-auto text-sm text-[var(--muted-foreground)]">
+            StackHatch is open source and developed in public.
+          </p>
+          <TrackedSourceLink
+            href="https://github.com/mwmdev/stackhatch"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex min-h-11 items-center gap-2 rounded-md border border-[var(--border)] px-4 py-2 text-sm font-semibold hover:bg-[var(--muted)]"
+            location="navigation"
+          >
+            <GitBranch className="h-4 w-4" />
+            View source
+          </TrackedSourceLink>
+          <TrackedSourceLink
+            href="https://github.com/mwmdev/stackhatch"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex min-h-11 items-center gap-2 rounded-md border border-[var(--border)] px-4 py-2 text-sm font-semibold hover:bg-[var(--muted)]"
+            location="navigation"
+            intent="star"
+          >
+            <Star className="h-4 w-4" />
+            Star on GitHub
+          </TrackedSourceLink>
         </section>
       </div>
     </main>

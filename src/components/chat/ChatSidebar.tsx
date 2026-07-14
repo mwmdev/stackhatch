@@ -5,6 +5,7 @@ import Link from "next/link";
 import ReactMarkdown from "react-markdown";
 import { Loader2, MessageSquareText, SendHorizontal } from "lucide-react";
 import type { StackArchitecture } from "@/types/stack";
+import { trackEvent, type AnalyticsErrorCategory } from "@/lib/analytics";
 
 function stripStackTags(text: string): string {
   return text
@@ -20,6 +21,19 @@ interface Message {
   createdAt: number;
 }
 
+export interface RepositoryScanProvenance {
+  repoUrl: string;
+  commitSha: string;
+  scannedAt: number;
+  analysisStatus: "complete" | "partial";
+  analysisWarning: string | null;
+}
+
+export interface ArchitectureUpdateMeta {
+  source: "scan";
+  provenance?: RepositoryScanProvenance;
+}
+
 interface ChatSidebarProps {
   projectId: string;
   repoUrl?: string | null;
@@ -29,8 +43,9 @@ interface ChatSidebarProps {
   showCollapsedButton?: boolean;
   scanTrigger?: number;
   canvasState?: StackArchitecture | null;
-  onArchitecture?: (architecture: StackArchitecture) => void;
+  onArchitecture?: (architecture: StackArchitecture, meta?: ArchitectureUpdateMeta) => void;
   onStreaming?: (streaming: boolean) => void;
+  onScanStateChange?: (scanning: boolean) => void;
 }
 
 function isMissingApiKeyError(message: string) {
@@ -41,6 +56,33 @@ function normalizeRepoUrl(repoUrl?: string | null) {
   const value = repoUrl?.trim();
   if (!value || value === "null" || value === "undefined") return "";
   return value;
+}
+
+function scanErrorCategory(code?: string): AnalyticsErrorCategory {
+  switch (code) {
+    case "invalid_url":
+      return "invalid_url";
+    case "not_found_or_private":
+      return "not_found_or_private";
+    case "github_rate_limited":
+      return "github_rate_limit";
+    case "github_unavailable":
+      return "provider_unavailable";
+    case "analysis_limit":
+      return "analysis_limit";
+    case "AI_NOT_CONFIGURED":
+      return "missing_key";
+    case "AI_AUTH_FAILED":
+      return "provider_auth";
+    case "AI_RATE_LIMITED":
+      return "provider_rate_limit";
+    case "AI_MODEL_UNAVAILABLE":
+      return "provider_unavailable";
+    case "AI_REQUEST_FAILED":
+      return "provider_unavailable";
+    default:
+      return "unknown";
+  }
 }
 
 export default function ChatSidebar({
@@ -54,6 +96,7 @@ export default function ChatSidebar({
   canvasState,
   onArchitecture,
   onStreaming,
+  onScanStateChange,
 }: ChatSidebarProps) {
   const [uncontrolledOpen, setUncontrolledOpen] = useState(defaultOpen);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -142,13 +185,22 @@ export default function ChatSidebar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scanTrigger]);
 
-  async function processSSEStream(response: Response) {
+  async function processSSEStream(response: Response, context?: "scan") {
     const reader = response.body?.getReader();
-    if (!reader) return;
+    if (!reader) {
+      if (context === "scan") {
+        trackEvent("repository_scan_failed", {
+          location: "editor",
+          error_category: "server",
+        });
+      }
+      return;
+    }
 
     const decoder = new TextDecoder();
     let accumulated = "";
     let buffer = "";
+    let receivedArchitecture = false;
 
     try {
       while (true) {
@@ -169,12 +221,49 @@ export default function ChatSidebar({
               accumulated += event.content;
               setStreamText(accumulated);
             } else if (event.type === "architecture") {
-              onArchitecture?.(event.content);
+              const usableArchitecture =
+                event.content &&
+                Array.isArray(event.content.nodes) &&
+                event.content.nodes.length > 0 &&
+                Array.isArray(event.content.edges);
+              if (context === "scan" && !usableArchitecture) {
+                setError("StackHatch could not produce a usable map. Your current map was kept.");
+                trackEvent("repository_scan_failed", {
+                  location: "editor",
+                  error_category: "unknown",
+                });
+                setStreaming(false);
+                return;
+              }
+              if (usableArchitecture) {
+                receivedArchitecture = true;
+                if (context === "scan") setMessages([]);
+                onArchitecture?.(
+                  event.content,
+                  context === "scan" ? { source: "scan", provenance: event.provenance } : undefined
+                );
+              }
             } else if (event.type === "error") {
               setError(event.content);
+              if (context === "scan") {
+                trackEvent("repository_scan_failed", {
+                  location: "editor",
+                  error_category: scanErrorCategory(event.code),
+                });
+              }
               setStreaming(false);
               return;
             } else if (event.type === "done") {
+              if (context === "scan" && !receivedArchitecture) {
+                setError("StackHatch could not produce a usable map. Your current map was kept.");
+                trackEvent("repository_scan_failed", {
+                  location: "editor",
+                  error_category: "unknown",
+                });
+                setStreamText("");
+                setStreaming(false);
+                return;
+              }
               // Add the completed message to messages list
               if (accumulated) {
                 setMessages((prev) => [
@@ -190,6 +279,9 @@ export default function ChatSidebar({
               setStreamText("");
               setStreaming(false);
               setInitialized(true);
+              if (context === "scan") {
+                trackEvent("repository_scan_succeeded", { location: "editor" });
+              }
               return;
             }
           } catch {
@@ -230,10 +322,11 @@ export default function ChatSidebar({
   }
 
   async function scanRepo() {
-    setMessages([]);
     setStreaming(true);
     setSidebarOpen(true);
     setError("");
+    onScanStateChange?.(true);
+    trackEvent("repository_scan_started", { location: "editor" });
     try {
       const res = await fetch(`/api/projects/${projectId}/repo-scan`, {
         method: "POST",
@@ -247,13 +340,23 @@ export default function ChatSidebar({
             ? "AI_NOT_CONFIGURED"
             : data.error || "Failed to scan repository"
         );
+        trackEvent("repository_scan_failed", {
+          location: "editor",
+          error_category: scanErrorCategory(data.code),
+        });
         setStreaming(false);
         return;
       }
-      await processSSEStream(res);
+      await processSSEStream(res, "scan");
     } catch {
       setError("Failed to scan repository");
+      trackEvent("repository_scan_failed", {
+        location: "editor",
+        error_category: "network",
+      });
       setStreaming(false);
+    } finally {
+      onScanStateChange?.(false);
     }
   }
 
@@ -261,6 +364,7 @@ export default function ChatSidebar({
     if (!text || streaming) return;
 
     if (appendUserMessage) {
+      trackEvent("architecture_question_sent", { location: "editor" });
       const userMsg: Message = {
         id: `user-${Date.now()}`,
         role: "user",

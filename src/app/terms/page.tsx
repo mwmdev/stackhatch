@@ -1,5 +1,11 @@
 import Link from "next/link";
 
+export const metadata = {
+  title: "Terms",
+  description: "The terms for using StackHatch and its generated architecture maps.",
+  alternates: { canonical: "/terms" },
+};
+
 export default function TermsPage() {
   return (
     <main className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
@@ -11,15 +17,16 @@ export default function TermsPage() {
           Back to StackHatch
         </Link>
         <h1 className="mt-10 text-4xl font-bold tracking-tight">Terms of Service</h1>
-        <p className="mt-4 text-sm text-[var(--muted-foreground)]">Effective May 4, 2026</p>
+        <p className="mt-4 text-sm text-[var(--muted-foreground)]">Effective July 14, 2026</p>
 
         <div className="mt-8 space-y-8 text-sm leading-7 text-[var(--muted-foreground)]">
           <section>
             <h2 className="text-lg font-semibold text-[var(--foreground)]">Use of StackHatch</h2>
             <p className="mt-2">
               StackHatch helps users generate architecture diagrams, tradeoff notes, comments, and
-              handoff artifacts. Users are responsible for reviewing AI-generated output before
-              relying on it for production engineering decisions.
+              handoff artifacts from bounded repository evidence and user input. Generated maps are
+              explanations, not a complete audit of a codebase. Users are responsible for reviewing
+              output before relying on it for production engineering decisions.
             </p>
           </section>
 
@@ -46,7 +53,7 @@ export default function TermsPage() {
           <section>
             <h2 className="text-lg font-semibold text-[var(--foreground)]">Support</h2>
             <p className="mt-2">
-              For account or product support, contact support@stackhatch.app from the email
+              For account or product support, contact support@stackhatch.io from the email
               associated with the account.
             </p>
           </section>

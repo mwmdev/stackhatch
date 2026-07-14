@@ -97,10 +97,9 @@ export default function NewProjectPage() {
         >
           &larr; Back to Dashboard
         </Link>
-        <h1 className="mb-2 text-2xl font-bold">New Project</h1>
+        <h1 className="mb-2 text-2xl font-bold">Map a project</h1>
         <p className="mb-8 text-[var(--muted-foreground)]">
-          Create a personal project or share it with a team. You can work manually or use your
-          Anthropic key for AI assistance.
+          Start from a public repository, an existing team template, or a blank architecture map.
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -194,15 +193,15 @@ export default function NewProjectPage() {
           </div>
           <div>
             <label htmlFor="repoUrl" className="mb-1 block text-sm font-medium">
-              GitHub Repository URL{" "}
+              Public GitHub repository{" "}
               <span className="text-[var(--muted-foreground)]">(optional)</span>
             </label>
             <input
               id="repoUrl"
-              type="url"
+              type="text"
               value={repoUrl}
               onChange={(e) => setRepoUrl(e.target.value)}
-              placeholder="https://github.com/owner/repo"
+              placeholder="owner/repo"
               className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
             />
             <p className="mt-1 text-xs text-[var(--muted-foreground)]">

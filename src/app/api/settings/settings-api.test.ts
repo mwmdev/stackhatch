@@ -89,7 +89,7 @@ describe("GET /api/settings", () => {
       .values({
         userId: "test-user-id",
         anthropicApiKey: "encrypted-key",
-        model: "claude-opus-4-20250514",
+        model: "claude-opus-4-8",
         theme: "dark",
         createdAt: 1,
         updatedAt: 1,
@@ -106,7 +106,7 @@ describe("GET /api/settings", () => {
 
     expect(data).toEqual({
       hasAnthropicKey: true,
-      model: "claude-opus-4-20250514",
+      model: "claude-opus-4-8",
       theme: "dark",
       customSubtypes: '{"client":[{"slug":"kiosk"}]}',
       role: "user",
@@ -116,12 +116,12 @@ describe("GET /api/settings", () => {
 
   it("ignores server and global AI configuration", async () => {
     process.env.ANTHROPIC_API_KEY = "sk-ant-env-key";
-    process.env.ANTHROPIC_MODEL = "claude-opus-4-1-20250805";
+    process.env.ANTHROPIC_MODEL = "claude-opus-4-8";
     testDb
       .insert(settings)
       .values([
         { key: "apiKey", value: "sk-ant-global-key" },
-        { key: "model", value: "claude-opus-4-20250514" },
+        { key: "model", value: "claude-opus-4-8" },
         { key: "prompt_chat", value: "private prompt" },
       ])
       .run();
@@ -153,13 +153,13 @@ describe("PATCH /api/settings", () => {
 
   it("stores a supported model per user", async () => {
     const res = await settingsRoute.PATCH(
-      makeRequest({ model: "claude-opus-4-1-20250805" }) as never
+      makeRequest({ model: "claude-haiku-4-5-20251001" }) as never
     );
     const data = await res.json();
 
     expect(res.status).toBe(200);
-    expect(data.model).toBe("claude-opus-4-1-20250805");
-    expect(testDb.select().from(userSettings).get()?.model).toBe("claude-opus-4-1-20250805");
+    expect(data.model).toBe("claude-haiku-4-5-20251001");
+    expect(testDb.select().from(userSettings).get()?.model).toBe("claude-haiku-4-5-20251001");
   });
 
   it("clears a key without clearing the selected model", async () => {
@@ -168,7 +168,7 @@ describe("PATCH /api/settings", () => {
       .values({
         userId: "test-user-id",
         anthropicApiKey: "old-encrypted-key",
-        model: "claude-opus-4-20250514",
+        model: "claude-opus-4-8",
         createdAt: 1,
         updatedAt: 1,
       })
@@ -180,9 +180,9 @@ describe("PATCH /api/settings", () => {
 
     expect(res.status).toBe(200);
     expect(data.hasAnthropicKey).toBe(false);
-    expect(data.model).toBe("claude-opus-4-20250514");
+    expect(data.model).toBe("claude-opus-4-8");
     expect(stored?.anthropicApiKey).toBeNull();
-    expect(stored?.model).toBe("claude-opus-4-20250514");
+    expect(stored?.model).toBe("claude-opus-4-8");
   });
 
   it("stores the theme per user while preserving the BYOK response contract", async () => {

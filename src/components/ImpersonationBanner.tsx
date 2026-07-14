@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import { getRoleLabel } from "@/lib/roles";
 
 interface MeResponse {
@@ -14,11 +15,25 @@ interface MeResponse {
 }
 
 export default function ImpersonationBanner() {
+  const pathname = usePathname();
   const [me, setMe] = useState<MeResponse | null>(null);
   const [stopping, setStopping] = useState(false);
   const bannerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    const isPublicRoute =
+      pathname === "/" ||
+      pathname === "/demo" ||
+      pathname === "/login" ||
+      pathname === "/support" ||
+      pathname === "/privacy" ||
+      pathname === "/terms";
+
+    if (isPublicRoute) {
+      setMe(null);
+      return;
+    }
+
     let cancelled = false;
     fetch("/api/me")
       .then((res) => (res.ok ? res.json() : null))
@@ -31,7 +46,7 @@ export default function ImpersonationBanner() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [pathname]);
 
   useEffect(() => {
     if (!me?.impersonatedBy) {

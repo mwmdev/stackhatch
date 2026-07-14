@@ -44,6 +44,10 @@ function createTestDb() {
       name TEXT NOT NULL,
       description TEXT,
       repo_url TEXT,
+      repo_commit_sha TEXT,
+      repo_scanned_at INTEGER,
+      repo_analysis_status TEXT,
+      repo_analysis_warning TEXT,
       canvas_state TEXT,
       user_id TEXT,
       team_id TEXT,
@@ -66,7 +70,7 @@ function createTestDb() {
     CREATE TABLE user_settings (
       user_id TEXT PRIMARY KEY NOT NULL,
       anthropic_api_key TEXT,
-      model TEXT DEFAULT 'claude-sonnet-4-20250514' NOT NULL,
+      model TEXT DEFAULT 'claude-sonnet-5' NOT NULL,
       theme TEXT DEFAULT 'system' NOT NULL,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
@@ -164,7 +168,7 @@ beforeEach(() => {
     .values({
       userId: "test-user-id",
       anthropicApiKey: encryptSecret("sk-ant-test-key"),
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-5",
       createdAt: Date.now(),
       updatedAt: Date.now(),
     })
@@ -188,7 +192,11 @@ beforeEach(() => {
 
 describe("POST /api/projects/[id]/repo-scan", () => {
   it("returns repository analysis failures without mutating the project", async () => {
-    githubMocks.analyzeRepo.mockRejectedValue(new Error("Repository not found or is private"));
+    githubMocks.analyzeRepo.mockRejectedValue(
+      Object.assign(new Error("Repository not found or is private."), {
+        code: "not_found_or_private",
+      })
+    );
 
     const res = await repoScanRoute.POST(
       makeRequest({ repoUrl: "https://github.com/acme/missing" }) as never,
@@ -196,20 +204,44 @@ describe("POST /api/projects/[id]/repo-scan", () => {
     );
 
     expect(res.status).toBe(200);
-    expect(await res.text()).toContain("Repository not found or is private");
+    const body = await res.text();
+    expect(body).toContain("Repository not found or is private");
+    expect(body).toContain('"code":"not_found_or_private"');
     expect(testDb.select().from(projects).get()?.repoUrl).toBeNull();
+    expect(testDb.select().from(projects).get()?.repoCommitSha).toBeNull();
     expect(streamMocks.streamChat).not.toHaveBeenCalled();
   });
 
-  it("analyzes repositories without usage accounting", async () => {
+  it("does not expose unexpected analyzer error details", async () => {
+    githubMocks.analyzeRepo.mockRejectedValue(new Error("secret upstream detail"));
+
+    const response = await repoScanRoute.POST(
+      makeRequest({ repoUrl: "acme/app" }) as never,
+      makeParams()
+    );
+    const body = await response.text();
+
+    expect(body).toContain('"code":"github_unavailable"');
+    expect(body).not.toContain("secret upstream detail");
+    expect(testDb.select().from(projects).get()?.repoUrl).toBeNull();
+  });
+
+  it("defers replacement until a valid architecture is generated", async () => {
     githubMocks.analyzeRepo.mockResolvedValue({
       owner: "acme",
       repo: "app",
+      normalizedUrl: "https://github.com/acme/app",
       description: null,
       primaryLanguage: "TypeScript",
       languages: { TypeScript: 1000 },
       topics: [],
-      packageFiles: [],
+      defaultBranch: "main",
+      commitSha: "abc123",
+      treePaths: ["package.json", "src/index.ts"],
+      readme: null,
+      evidenceFiles: [],
+      status: "partial",
+      warnings: ["GitHub returned a truncated repository tree."],
     });
 
     const res = await repoScanRoute.POST(
@@ -220,6 +252,28 @@ describe("POST /api/projects/[id]/repo-scan", () => {
     expect(res.status).toBe(200);
     expect(res.headers.get("X-Usage-Remaining")).toBeNull();
     expect(streamMocks.streamChat).toHaveBeenCalledOnce();
+    expect(streamMocks.streamChat).toHaveBeenCalledWith(
+      testDb,
+      "p1",
+      null,
+      "formatted repository analysis",
+      expect.objectContaining({ userId: "test-user-id" }),
+      {
+        contextArchitecture: null,
+        repositoryScanReplacement: {
+          repoUrl: "https://github.com/acme/app",
+          commitSha: "abc123",
+          scannedAt: expect.any(Number),
+          analysisStatus: "partial",
+          analysisWarning: "GitHub returned a truncated repository tree.",
+        },
+      }
+    );
+    expect(testDb.select().from(projects).get()).toMatchObject({
+      repoUrl: null,
+      repoCommitSha: null,
+      canvasState: null,
+    });
   });
 
   it("requires a BYOK key before repository analysis", async () => {

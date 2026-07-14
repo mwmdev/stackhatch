@@ -47,11 +47,8 @@ test.describe("New Project Flow", () => {
     await expect(page.locator("h1")).toHaveText("Test Architecture");
   });
 
-  test("AI sends first interview message for new projects", async ({
-    page,
-  }) => {
-    const aiMessage =
-      "Welcome! Let's design your application architecture. What are you building?";
+  test("AI sends first interview message for new projects", async ({ page }) => {
+    const aiMessage = "Welcome! Let's design your application architecture. What are you building?";
 
     // Mock the chat init
     await page.route("**/api/projects/*/chat/init", async (route) => {
@@ -116,8 +113,6 @@ test.describe("New Project Flow", () => {
     await expect(page.locator('button[aria-label="Hide chat sidebar"]')).toBeVisible();
 
     // Empty canvas message should be visible
-    await expect(
-      page.getByText("Start a conversation or add nodes manually"),
-    ).toBeVisible();
+    await expect(page.getByText("Ask an architecture question or add a component")).toBeVisible();
   });
 });

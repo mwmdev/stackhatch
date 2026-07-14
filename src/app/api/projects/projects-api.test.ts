@@ -25,6 +25,10 @@ function createTestDb() {
       name TEXT NOT NULL,
       description TEXT,
       repo_url TEXT,
+      repo_commit_sha TEXT,
+      repo_scanned_at INTEGER,
+      repo_analysis_status TEXT,
+      repo_analysis_warning TEXT,
       canvas_state TEXT,
       user_id TEXT,
       team_id TEXT,
@@ -344,6 +348,38 @@ describe("GET /api/projects/[id]", () => {
     );
     const data = await res.json();
     expect(data.canvasState).toBeNull();
+  });
+
+  it("returns repository scan provenance", async () => {
+    const scannedAt = Date.now();
+    testDb
+      .insert(projects)
+      .values({
+        id: "p1",
+        name: "Mapped repository",
+        repoUrl: "https://github.com/acme/app",
+        repoCommitSha: "abc123",
+        repoScannedAt: scannedAt,
+        repoAnalysisStatus: "partial",
+        repoAnalysisWarning: "GitHub returned a truncated repository tree.",
+        canvasState: null,
+        userId: "test-user-id",
+        createdAt: scannedAt,
+        updatedAt: scannedAt,
+      })
+      .run();
+
+    const response = await projectIdRoute.GET(
+      makeRequest("/api/projects/p1") as never,
+      makeParams("p1")
+    );
+
+    expect(await response.json()).toMatchObject({
+      repoCommitSha: "abc123",
+      repoScannedAt: scannedAt,
+      repoAnalysisStatus: "partial",
+      repoAnalysisWarning: "GitHub returned a truncated repository tree.",
+    });
   });
 
   it("returns 404 for nonexistent project", async () => {

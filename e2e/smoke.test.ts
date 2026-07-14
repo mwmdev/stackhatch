@@ -2,5 +2,5 @@ import { test, expect } from "@playwright/test";
 
 test("homepage has correct title", async ({ page }) => {
   await page.goto("/");
-  await expect(page).toHaveTitle("StackHatch - Architecture Maps for Product Teams");
+  await expect(page).toHaveTitle("StackHatch — See how your codebase fits together");
 });

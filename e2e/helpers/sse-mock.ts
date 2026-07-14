@@ -170,7 +170,7 @@ export async function createProjectAndNavigate(page: Page, name: string, descrip
   const settingsResponse = await page.request.patch("/api/settings", {
     data: {
       apiKey: "sk-ant-playwright-placeholder-key",
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-5",
     },
   });
   if (!settingsResponse.ok()) {

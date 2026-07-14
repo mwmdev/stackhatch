@@ -2,6 +2,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import ChatSidebar from "./ChatSidebar";
 
+const { mockTrackEvent } = vi.hoisted(() => ({ mockTrackEvent: vi.fn() }));
+
+vi.mock("@/lib/analytics", () => ({
+  trackEvent: mockTrackEvent,
+}));
+
 // Mock react-markdown to render plain text (avoids ESM issues in jsdom)
 vi.mock("react-markdown", () => ({
   default: ({ children }: { children: string }) => <span>{children}</span>,
@@ -10,7 +16,9 @@ vi.mock("react-markdown", () => ({
 // jsdom doesn't implement scrollIntoView
 Element.prototype.scrollIntoView = vi.fn();
 
-function createSSEResponse(events: Array<{ type: string; content?: string }>) {
+function createSSEResponse(
+  events: Array<{ type: string; content?: unknown; code?: string; provenance?: unknown }>
+) {
   const lines = events.map((e) => `data: ${JSON.stringify(e)}`).join("\n\n");
   const stream = new ReadableStream({
     start(controller) {
@@ -69,6 +77,7 @@ const messagesWithHistory = () =>
 describe("ChatSidebar", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    mockTrackEvent.mockClear();
   });
 
   it("renders collapsed state with open button when defaultOpen is false", () => {
@@ -481,6 +490,97 @@ describe("ChatSidebar", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Welcome! What are you building?")).toBeInTheDocument();
+    });
+  });
+
+  it("tracks a successful repository scan without repository details", async () => {
+    const onScanStateChange = vi.fn();
+    global.fetch = mockFetch({
+      "/messages": emptyMessagesResponse,
+      "/repo-scan": () =>
+        createSSEResponse([
+          { type: "text", content: "Mapped the repository." },
+          {
+            type: "architecture",
+            content: {
+              nodes: [
+                {
+                  id: "api",
+                  category: "api",
+                  subtype: "rest-api",
+                  name: "API",
+                  technology: "Next.js",
+                  description: "Routes",
+                  reasoning: "Observed",
+                  locked: false,
+                },
+              ],
+              edges: [],
+            },
+          },
+          { type: "done" },
+        ]),
+    });
+
+    render(
+      <ChatSidebar
+        projectId="p1"
+        repoUrl="owner/repo"
+        defaultOpen={true}
+        onScanStateChange={onScanStateChange}
+      />
+    );
+
+    await screen.findByText("Mapped the repository.");
+    expect(mockTrackEvent).toHaveBeenCalledWith("repository_scan_started", {
+      location: "editor",
+    });
+    expect(mockTrackEvent).toHaveBeenCalledWith("repository_scan_succeeded", {
+      location: "editor",
+    });
+    expect(JSON.stringify(mockTrackEvent.mock.calls)).not.toContain("owner/repo");
+    expect(onScanStateChange.mock.calls).toEqual([[true], [false]]);
+  });
+
+  it("treats a completed scan without architecture as a recoverable failure", async () => {
+    global.fetch = mockFetch({
+      "/messages": messagesWithHistory,
+      "/repo-scan": () =>
+        createSSEResponse([{ type: "text", content: "No structured map." }, { type: "done" }]),
+    });
+
+    render(<ChatSidebar projectId="p1" repoUrl="owner/repo" defaultOpen={true} scanTrigger={1} />);
+
+    await screen.findByText(
+      "StackHatch could not produce a usable map. Your current map was kept."
+    );
+    expect(mockTrackEvent).toHaveBeenCalledWith("repository_scan_failed", {
+      location: "editor",
+      error_category: "unknown",
+    });
+    expect(mockTrackEvent).not.toHaveBeenCalledWith("repository_scan_succeeded", expect.anything());
+    expect(screen.getByText("Welcome! What are you building?")).toBeInTheDocument();
+  });
+
+  it("tracks a typed repository scan failure", async () => {
+    global.fetch = mockFetch({
+      "/messages": emptyMessagesResponse,
+      "/repo-scan": () =>
+        createSSEResponse([
+          {
+            type: "error",
+            code: "github_rate_limited",
+            content: "GitHub's API limit was reached.",
+          },
+        ]),
+    });
+
+    render(<ChatSidebar projectId="p1" repoUrl="owner/repo" defaultOpen={true} />);
+
+    await screen.findByText("GitHub's API limit was reached.");
+    expect(mockTrackEvent).toHaveBeenCalledWith("repository_scan_failed", {
+      location: "editor",
+      error_category: "github_rate_limit",
     });
   });
 

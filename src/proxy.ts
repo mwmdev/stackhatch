@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 
-const PUBLIC_PATHS = new Set(["/", "/login", "/privacy", "/support", "/terms"]);
+const PUBLIC_PATHS = new Set(["/", "/demo", "/login", "/privacy", "/support", "/terms"]);
 
 function isDevAuthEnabled() {
   return process.env.NODE_ENV !== "production" && process.env.STACKHATCH_DEV_AUTH === "1";
@@ -24,7 +24,7 @@ export async function proxy(request: NextRequest) {
   }
 
   const loginUrl = new URL("/login", request.url);
-  loginUrl.searchParams.set("callbackUrl", request.nextUrl.href);
+  loginUrl.searchParams.set("callbackUrl", `${request.nextUrl.pathname}${request.nextUrl.search}`);
   return NextResponse.redirect(loginUrl);
 }
 

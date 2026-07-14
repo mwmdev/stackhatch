@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useTheme } from "next-themes";
 import { AI_MODELS, DEFAULT_AI_MODEL } from "@/lib/ai/models";
+import { trackEvent } from "@/lib/analytics";
 
 const subscribe = () => () => {};
 const getSnapshot = () => true;
@@ -24,7 +25,17 @@ export default function SettingsPage() {
   const [model, setModel] = useState(DEFAULT_AI_MODEL);
   const [savingApiKey, setSavingApiKey] = useState(false);
   const [savingModel, setSavingModel] = useState(false);
+  const [setupRepo, setSetupRepo] = useState<string | null>(null);
+  const [isAnthropicSetup, setIsAnthropicSetup] = useState(false);
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const setupStartTracked = useRef(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const repo = params.get("repo")?.trim() || "";
+    setIsAnthropicSetup(params.get("setup") === "anthropic");
+    if (/^[A-Za-z0-9_-]+\/[A-Za-z0-9_.-]+$/.test(repo)) setSetupRepo(repo);
+  }, []);
 
   useEffect(() => {
     fetch("/api/settings")
@@ -43,6 +54,12 @@ export default function SettingsPage() {
       .finally(() => setLoading(false));
   }, [setTheme]);
 
+  useEffect(() => {
+    if (loading || !isAnthropicSetup || hasAnthropicKey || setupStartTracked.current) return;
+    setupStartTracked.current = true;
+    trackEvent("anthropic_setup_started", { location: "settings" });
+  }, [hasAnthropicKey, isAnthropicSetup, loading]);
+
   const showToast = useCallback((type: "success" | "error", message: string) => {
     setToast({ type, message });
     setTimeout(() => setToast(null), 3000);
@@ -54,6 +71,7 @@ export default function SettingsPage() {
       showToast("error", "Enter an Anthropic API key first");
       return;
     }
+    const completingSetup = !hasAnthropicKey;
     setSavingApiKey(true);
     try {
       const res = await fetch("/api/settings", {
@@ -68,13 +86,16 @@ export default function SettingsPage() {
       }
       setApiKey("");
       setHasAnthropicKey(Boolean(data.hasAnthropicKey));
+      if (completingSetup && data.hasAnthropicKey) {
+        trackEvent("anthropic_setup_completed", { location: "settings" });
+      }
       showToast("success", "Anthropic API key saved");
     } catch {
       showToast("error", "Failed to save API key");
     } finally {
       setSavingApiKey(false);
     }
-  }, [apiKey, showToast]);
+  }, [apiKey, hasAnthropicKey, showToast]);
 
   const handleClearApiKey = useCallback(async () => {
     setSavingApiKey(true);
@@ -151,10 +172,10 @@ export default function SettingsPage() {
       <header className="border-b border-[var(--border)]">
         <div className="mx-auto flex max-w-2xl items-center gap-4 px-6 py-4">
           <Link
-            href="/app"
+            href={setupRepo ? `/app?repo=${encodeURIComponent(setupRepo)}` : "/app"}
             className="text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
           >
-            &larr; Back to Dashboard
+            &larr; Back to your maps
           </Link>
           <h1 className="text-xl font-bold">Settings</h1>
         </div>
@@ -167,6 +188,31 @@ export default function SettingsPage() {
           </div>
         ) : (
           <div className="space-y-8">
+            {isAnthropicSetup && (
+              <section>
+                <p className="text-sm font-bold uppercase tracking-[0.14em] text-[var(--color-data)]">
+                  One-time setup
+                </p>
+                <h2 className="font-display mt-2 text-3xl font-extrabold tracking-tight">
+                  {setupRepo
+                    ? "Connect Anthropic to map this repository."
+                    : "Connect Anthropic to use StackHatch."}
+                </h2>
+                <p className="mt-3 max-w-xl text-sm leading-6 text-[var(--muted-foreground)]">
+                  StackHatch is free and bring-your-own-key. Your key stays encrypted on the server
+                  and AI usage is billed directly to your Anthropic account.
+                </p>
+                <a
+                  href="https://console.anthropic.com/settings/keys"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-3 inline-flex text-sm font-semibold text-[var(--brand)] underline-offset-4 hover:underline"
+                >
+                  Open Anthropic API key settings
+                </a>
+              </section>
+            )}
+
             <section className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-6">
               <div className="mb-4 flex items-center gap-2">
                 <h2 className="text-lg font-semibold text-[var(--card-foreground)]">
@@ -217,9 +263,19 @@ export default function SettingsPage() {
                   </button>
                 )}
               </div>
+              {setupRepo && hasAnthropicKey && (
+                <Link
+                  href={`/app?repo=${encodeURIComponent(setupRepo)}`}
+                  className="mt-5 inline-flex min-h-11 items-center justify-center rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-bold text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)]"
+                >
+                  Continue to {setupRepo}
+                </Link>
+              )}
             </section>
 
-            <section className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-6">
+            <section
+              className={`rounded-lg border border-[var(--border)] bg-[var(--card)] p-6 ${isAnthropicSetup ? "opacity-80" : ""}`}
+            >
               <h2 className="text-lg font-semibold text-[var(--card-foreground)]">Claude Model</h2>
               <p className="mt-2 text-sm text-[var(--muted-foreground)]">
                 Choose the model used for your chat, repository analysis, alternatives, and PRD
@@ -248,7 +304,9 @@ export default function SettingsPage() {
               </p>
             </section>
 
-            <section className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-6">
+            <section
+              className={`rounded-lg border border-[var(--border)] bg-[var(--card)] p-6 ${isAnthropicSetup ? "opacity-80" : ""}`}
+            >
               <h2 className="text-lg font-semibold text-[var(--card-foreground)]">Theme</h2>
               <p className="mb-3 mt-2 text-sm text-[var(--muted-foreground)]">
                 Choose your preferred appearance.

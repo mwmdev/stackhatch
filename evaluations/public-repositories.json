@@ -1,0 +1,163 @@
+{
+  "schemaVersion": 1,
+  "evaluatedAt": "2026-07-14",
+  "model": "claude-sonnet-5",
+  "method": "Actual bounded GitHub analyzer output and production system prompt, followed by manual source review.",
+  "fixtures": [
+    {
+      "repository": "pocketbase/pocketbase",
+      "repositoryUrl": "https://github.com/pocketbase/pocketbase",
+      "defaultBranch": "master",
+      "commitSha": "089ca8ae412a1dbe29d2ae90d74f3866429d9c52",
+      "analysisStatus": "complete",
+      "warnings": [],
+      "expectedMainComponents": [
+        "Admin dashboard",
+        "Go REST API",
+        "Realtime subscriptions",
+        "Built-in authentication",
+        "Embedded SQLite",
+        "Local/S3 file storage",
+        "Embedded JavaScript hooks"
+      ],
+      "generatedComponents": [
+        "admin-ui",
+        "sdk-client",
+        "pb-api",
+        "realtime-server",
+        "auth-service",
+        "file-processing",
+        "jsvm-plugin",
+        "cron-scheduler",
+        "sqlite-db",
+        "local-storage",
+        "s3-storage",
+        "smtp-service",
+        "oauth-providers"
+      ],
+      "generatedConnections": [
+        "e1:admin-ui->pb-api:http",
+        "e2:sdk-client->pb-api:http",
+        "e3:sdk-client->realtime-server:websocket",
+        "e4:admin-ui->realtime-server:websocket",
+        "e5:pb-api->auth-service:http",
+        "e6:pb-api->file-processing:http",
+        "e7:pb-api->sqlite-db:file-io",
+        "e8:auth-service->sqlite-db:file-io",
+        "e9:file-processing->local-storage:file-io",
+        "e10:file-processing->s3-storage:file-io",
+        "e11:auth-service->oauth-providers:http",
+        "e12:pb-api->smtp-service:tcp",
+        "e13:cron-scheduler->sqlite-db:file-io",
+        "e14:jsvm-plugin->pb-api:http",
+        "e15:realtime-server->sqlite-db:file-io"
+      ],
+      "score": {
+        "mainComponentCoverage": {
+          "matched": 7,
+          "expected": 7,
+          "percent": 100,
+          "missing": []
+        },
+        "unsupportedComponents": [],
+        "incorrectConnections": [
+          {
+            "id": "e3",
+            "reason": "PocketBase realtime is Server-Sent Events over HTTP, not WebSocket."
+          },
+          {
+            "id": "e4",
+            "reason": "PocketBase realtime is Server-Sent Events over HTTP, not WebSocket."
+          },
+          {
+            "id": "e5",
+            "reason": "Authentication is an in-process Go module, not an HTTP service boundary."
+          },
+          {
+            "id": "e6",
+            "reason": "File processing is an in-process Go module, not an HTTP service boundary."
+          },
+          {
+            "id": "e10",
+            "reason": "The S3-compatible backend is accessed with the S3 HTTP API, not file I/O."
+          },
+          {
+            "id": "e14",
+            "reason": "The embedded JavaScript VM registers in-process hooks; it does not call the API over HTTP."
+          },
+          {
+            "id": "e15",
+            "reason": "Realtime events are published by in-process record hooks; the realtime endpoint does not watch SQLite directly."
+          }
+        ]
+      }
+    },
+    {
+      "repository": "umami-software/umami",
+      "repositoryUrl": "https://github.com/umami-software/umami",
+      "defaultBranch": "master",
+      "commitSha": "af1b6c6efcadd65136a9ec3db6b8ec20962a8a69",
+      "analysisStatus": "partial",
+      "warnings": ["Some configuration files were shortened to fit analysis limits."],
+      "expectedMainComponents": [
+        "Analytics dashboard",
+        "Tracker script",
+        "Session recorder",
+        "Unified Next.js API/server",
+        "PostgreSQL",
+        "Optional ClickHouse",
+        "Optional Redis",
+        "Optional Kafka"
+      ],
+      "generatedComponents": [
+        "web-client",
+        "tracker-script",
+        "recorder-script",
+        "next-api",
+        "postgres-db",
+        "clickhouse-db",
+        "redis-cache",
+        "kafka-queue",
+        "object-storage",
+        "geo-data",
+        "sso-provider"
+      ],
+      "generatedConnections": [
+        "e1:web-client->next-api:http",
+        "e2:tracker-script->next-api:http",
+        "e3:recorder-script->next-api:http",
+        "e4:next-api->postgres-db:tcp",
+        "e5:next-api->clickhouse-db:tcp",
+        "e6:next-api->redis-cache:tcp",
+        "e7:next-api->kafka-queue:pub-sub",
+        "e8:next-api->object-storage:file-io",
+        "e9:next-api->geo-data:file-io",
+        "e10:next-api->sso-provider:http"
+      ],
+      "score": {
+        "mainComponentCoverage": {
+          "matched": 8,
+          "expected": 8,
+          "percent": 100,
+          "missing": []
+        },
+        "unsupportedComponents": [
+          {
+            "id": "object-storage",
+            "reason": "src/lib/storage.ts is a browser localStorage helper. Replay records are persisted through application queries; the evidence does not establish an object-storage service."
+          }
+        ],
+        "incorrectConnections": [
+          {
+            "id": "e5",
+            "reason": "@clickhouse/client uses the configured ClickHouse HTTP URL; this edge should be HTTP rather than TCP."
+          },
+          {
+            "id": "e8",
+            "reason": "This connection depends on the unsupported object-storage component."
+          }
+        ]
+      }
+    }
+  ]
+}

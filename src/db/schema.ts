@@ -19,6 +19,10 @@ export const projects = sqliteTable("projects", {
   name: text("name").notNull(),
   description: text("description"),
   repoUrl: text("repo_url"),
+  repoCommitSha: text("repo_commit_sha"),
+  repoScannedAt: integer("repo_scanned_at", { mode: "number" }),
+  repoAnalysisStatus: text("repo_analysis_status", { enum: ["complete", "partial"] }),
+  repoAnalysisWarning: text("repo_analysis_warning"),
   canvasState: text("canvas_state"),
   userId: text("user_id").references(() => users.id, { onDelete: "cascade" }),
   teamId: text("team_id").references(() => teams.id, { onDelete: "set null" }),
@@ -47,10 +51,10 @@ export const userSettings = sqliteTable("user_settings", {
     .references(() => users.id, { onDelete: "cascade" }),
   anthropicApiKey: text("anthropic_api_key"),
   model: text("model", {
-    enum: ["claude-sonnet-4-20250514", "claude-opus-4-20250514", "claude-opus-4-1-20250805"],
+    enum: ["claude-sonnet-5", "claude-opus-4-8", "claude-haiku-4-5-20251001"],
   })
     .notNull()
-    .default("claude-sonnet-4-20250514"),
+    .default("claude-sonnet-5"),
   theme: text("theme", { enum: ["light", "dark", "system"] })
     .notNull()
     .default("system"),

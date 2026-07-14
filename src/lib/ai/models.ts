@@ -1,9 +1,9 @@
-export const DEFAULT_AI_MODEL = "claude-sonnet-4-20250514";
+export const DEFAULT_AI_MODEL = "claude-sonnet-5";
 
 export const AI_MODELS = [
-  { id: DEFAULT_AI_MODEL, name: "Sonnet 4" },
-  { id: "claude-opus-4-20250514", name: "Opus 4" },
-  { id: "claude-opus-4-1-20250805", name: "Opus 4.1" },
+  { id: DEFAULT_AI_MODEL, name: "Sonnet 5" },
+  { id: "claude-opus-4-8", name: "Opus 4.8" },
+  { id: "claude-haiku-4-5-20251001", name: "Haiku 4.5" },
 ] as const;
 
 export type AiModelId = (typeof AI_MODELS)[number]["id"];
@@ -16,4 +16,8 @@ export function isSupportedAiModel(value: string | undefined): value is AiModelI
 
 export function normalizeAiModel(value: string | undefined): AiModelId {
   return isSupportedAiModel(value) ? value : DEFAULT_AI_MODEL;
+}
+
+export function modelSupportsEffort(model: AiModelId) {
+  return model !== "claude-haiku-4-5-20251001";
 }

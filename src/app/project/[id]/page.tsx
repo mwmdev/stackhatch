@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { FolderPlus, MessageSquareText, PanelLeftClose, RefreshCw, Sparkles } from "lucide-react";
@@ -16,7 +17,7 @@ import ReactFlow, {
   type ReactFlowInstance,
 } from "reactflow";
 import "reactflow/dist/style.css";
-import ChatSidebar from "@/components/chat/ChatSidebar";
+import ChatSidebar, { type ArchitectureUpdateMeta } from "@/components/chat/ChatSidebar";
 import NodeDetailPanel from "@/components/canvas/NodeDetailPanel";
 import AddNodeDropdown from "@/components/canvas/AddNodeDropdown";
 import ConnectionTypeSelector from "@/components/canvas/ConnectionTypeSelector";
@@ -50,12 +51,17 @@ import { DEFAULT_NOTE_COLOR, getSubtypeConfig } from "@/lib/node-config";
 import { applyDagreLayout } from "@/lib/layout";
 import { mergeArchitecture } from "@/lib/merge-architecture";
 import { parseCustomSubtypes, type CustomSubtypesMap } from "@/lib/custom-subtypes";
+import { trackEvent } from "@/lib/analytics";
 
 interface Project {
   id: string;
   name: string;
   description: string | null;
   repoUrl: string | null;
+  repoCommitSha?: string | null;
+  repoScannedAt?: number | string | null;
+  repoAnalysisStatus?: "complete" | "partial" | null;
+  repoAnalysisWarning?: string | null;
   canvasState: StackArchitecture | null;
   teamId: string | null;
   createdAt: number;
@@ -89,6 +95,12 @@ interface StoredCanvasState extends StackArchitecture {
 const nodeTypes = { stackNode: StackNodeComponent };
 const edgeTypes = { stackEdge: StackEdgeComponent };
 const EDITOR_DISPLAY_SETTINGS_STORAGE_KEY = "stackhatch:editor-display-settings:v1";
+
+function handleReactFlowError(id: string, message: string) {
+  // React Flow 11 can emit 002 under React 19 strict-mode remounts even when
+  // these objects are module constants. Keep every other diagnostic visible.
+  if (id !== "002") console.warn(`[React Flow ${id}] ${message}`);
+}
 
 function getDefaultConnectionLabel(type: ConnectionType) {
   return edgeStyles[type].displayName;
@@ -126,6 +138,7 @@ export default function ProjectPage() {
   const [commentsPanelOpenTrigger, setCommentsPanelOpenTrigger] = useState(0);
   const [hasAnthropicKey, setHasAnthropicKey] = useState<boolean | null>(null);
   const [aiSetupRequired, setAiSetupRequired] = useState(false);
+  const [rescanConfirmOpen, setRescanConfirmOpen] = useState(false);
   const [editorDisplaySettings, setEditorDisplaySettings] = useState<EditorDisplaySettings>(() => {
     if (typeof window === "undefined") return DEFAULT_EDITOR_DISPLAY_SETTINGS;
     try {
@@ -150,6 +163,9 @@ export default function ProjectPage() {
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<StackEdgeData>([]);
   const rfInstanceRef = useRef<ReactFlowInstance | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const repositoryScanPendingRef = useRef(false);
+  const rescanDialogRef = useRef<HTMLDivElement | null>(null);
+  const rescanInvokerRef = useRef<HTMLButtonElement | null>(null);
   const nodePanelCloseTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const latestFlowRef = useRef<{
     nodes: Node<StackNodeData>[];
@@ -158,7 +174,17 @@ export default function ProjectPage() {
   const projectRef = useRef<Project | null>(null);
   const initializedRef = useRef(false);
   const alternativesRef = useRef<Record<string, AlternativeNode[]>>({});
+  const firstMapTrackedRef = useRef(false);
   const canUseConnectionTypes = true;
+
+  const startRepositoryRescan = useCallback(() => {
+    repositoryScanPendingRef.current = true;
+    clearTimeout(saveTimerRef.current);
+    setRescanConfirmOpen(false);
+    setChatOpen(true);
+    trackEvent("repository_rescan_started", { location: "editor" });
+    setScanTrigger((trigger) => trigger + 1);
+  }, []);
 
   // Keep refs in sync for use in stable callbacks
   projectRef.current = project;
@@ -284,6 +310,7 @@ export default function ProjectPage() {
     (nodes: Node<StackNodeData>[], edges: Edge<StackEdgeData>[]) => {
       latestFlowRef.current = { nodes, edges };
       clearTimeout(saveTimerRef.current);
+      if (repositoryScanPendingRef.current) return;
       saveTimerRef.current = setTimeout(() => {
         saveCanvas(nodes, edges).catch(() => {
           setToast("Failed to save canvas");
@@ -302,7 +329,8 @@ export default function ProjectPage() {
   // Flush a pending save on unmount so fast navigation does not drop edits.
   useEffect(() => {
     return () => {
-      if (!saveTimerRef.current || !initializedRef.current) return;
+      if (!saveTimerRef.current || !initializedRef.current || repositoryScanPendingRef.current)
+        return;
       clearTimeout(saveTimerRef.current);
       void saveCanvas(latestFlowRef.current.nodes, latestFlowRef.current.edges, {
         keepalive: true,
@@ -313,6 +341,59 @@ export default function ProjectPage() {
   useEffect(() => {
     return () => clearTimeout(nodePanelCloseTimerRef.current);
   }, []);
+
+  useEffect(() => {
+    if (!rescanConfirmOpen) return;
+    const previousFocused =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const rescanInvoker = rescanInvokerRef.current;
+    const editorShell = document.querySelector<HTMLElement>("[data-testid='project-editor-shell']");
+    const previousAriaHidden = editorShell?.getAttribute("aria-hidden");
+    editorShell?.setAttribute("inert", "");
+    editorShell?.setAttribute("aria-hidden", "true");
+
+    const focusDialog = window.requestAnimationFrame(() => {
+      const preferred = rescanDialogRef.current?.querySelector<HTMLElement>("[data-autofocus]");
+      const first = rescanDialogRef.current?.querySelector<HTMLElement>(
+        "a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex='-1'])"
+      );
+      (preferred ?? first)?.focus();
+    });
+
+    const handleDialogKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setRescanConfirmOpen(false);
+        return;
+      }
+      if (event.key !== "Tab" || !rescanDialogRef.current) return;
+
+      const focusable = Array.from(
+        rescanDialogRef.current.querySelectorAll<HTMLElement>(
+          "a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex='-1'])"
+        )
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener("keydown", handleDialogKeyDown);
+    return () => {
+      window.cancelAnimationFrame(focusDialog);
+      window.removeEventListener("keydown", handleDialogKeyDown);
+      editorShell?.removeAttribute("inert");
+      if (previousAriaHidden == null) editorShell?.removeAttribute("aria-hidden");
+      else editorShell?.setAttribute("aria-hidden", previousAriaHidden);
+      (rescanInvoker ?? previousFocused)?.focus();
+    };
+  }, [rescanConfirmOpen]);
 
   // --- Build React Flow nodes with injected callbacks ---
 
@@ -696,6 +777,7 @@ export default function ProjectPage() {
   const handleSuggestAlternatives = useCallback(async () => {
     const node = selectedNode;
     if (!node) return;
+    trackEvent("alternatives_opened", { location: "editor" });
     if (hasAnthropicKey === false) {
       setAiSetupRequired(true);
       return;
@@ -819,7 +901,7 @@ export default function ProjectPage() {
   // --- AI architecture handler ---
 
   const handleArchitecture = useCallback(
-    (incoming: StackArchitecture) => {
+    (incoming: StackArchitecture, meta?: ArchitectureUpdateMeta) => {
       try {
         if (!incoming?.nodes || !Array.isArray(incoming.nodes)) {
           setToast("Failed to update canvas: invalid architecture data");
@@ -828,11 +910,12 @@ export default function ProjectPage() {
 
         const currentCanvas = projectRef.current?.canvasState;
         const isFirst = !currentCanvas || currentCanvas.nodes.length === 0;
+        const isRepositoryReplacement = meta?.source === "scan";
 
         let finalArch: StackArchitecture;
         let posMap: Map<string, { x: number; y: number }>;
 
-        if (isFirst) {
+        if (isFirst || isRepositoryReplacement) {
           finalArch = incoming;
           const positions = applyDagreLayout(incoming.nodes, incoming.edges);
           posMap = new Map(positions.map((p) => [p.id, p.position]));
@@ -858,9 +941,39 @@ export default function ProjectPage() {
         const newRfNodes = buildRfNodes(finalArch.nodes, posMap);
         const newRfEdges = toReactFlowEdges(finalArch.edges);
 
+        if (isRepositoryReplacement) {
+          clearTimeout(saveTimerRef.current);
+          alternativesRef.current = {};
+          setAlternatives({});
+          setSelectedNode(null);
+          setNodePanelOpen(false);
+          setConnectionTypePopover(null);
+          setActiveCommentNodeId(null);
+          setCommentCounts({});
+        }
         setRfNodes(newRfNodes);
         setRfEdges(newRfEdges);
-        setProject((prev) => (prev ? { ...prev, canvasState: finalArch } : prev));
+        setProject((prev) =>
+          prev
+            ? {
+                ...prev,
+                canvasState: finalArch,
+                ...(meta?.provenance
+                  ? {
+                      repoUrl: meta.provenance.repoUrl,
+                      repoCommitSha: meta.provenance.commitSha,
+                      repoScannedAt: meta.provenance.scannedAt,
+                      repoAnalysisStatus: meta.provenance.analysisStatus,
+                      repoAnalysisWarning: meta.provenance.analysisWarning,
+                    }
+                  : {}),
+              }
+            : prev
+        );
+        if (isFirst && !firstMapTrackedRef.current) {
+          firstMapTrackedRef.current = true;
+          trackEvent("first_map_viewed", { location: "editor" });
+        }
 
         setTimeout(() => rfInstanceRef.current?.fitView({ padding: 0.2, duration: 300 }), 100);
       } catch {
@@ -869,6 +982,11 @@ export default function ProjectPage() {
     },
     [rfNodes, buildRfNodes, setRfNodes, setRfEdges]
   );
+
+  const handleScanStateChange = useCallback((scanning: boolean) => {
+    repositoryScanPendingRef.current = scanning;
+    if (scanning) clearTimeout(saveTimerRef.current);
+  }, []);
 
   // --- Load project ---
 
@@ -1032,6 +1150,7 @@ export default function ProjectPage() {
           canvasState={liveCanvasState}
           onArchitecture={handleArchitecture}
           onStreaming={setChatStreaming}
+          onScanStateChange={handleScanStateChange}
         />
       </div>
 
@@ -1051,7 +1170,23 @@ export default function ProjectPage() {
           >
             <FolderPlus className="h-[18px] w-[18px]" aria-hidden="true" />
           </Link>
-          <h1 className="text-lg font-semibold">{project.name}</h1>
+          <div className="min-w-0">
+            <h1 className="truncate text-lg font-semibold">{project.name}</h1>
+            {project.repoUrl && (
+              <p className="text-[11px] text-[var(--muted-foreground)]">
+                Generated architecture overview · not verified source truth
+              </p>
+            )}
+            {project.repoCommitSha && (
+              <p className="font-mono text-[11px] text-[var(--muted-foreground)]">
+                Scanned {project.repoCommitSha.slice(0, 7)}
+                {project.repoAnalysisStatus === "partial" ? " · partial analysis" : ""}
+                {project.repoScannedAt
+                  ? ` · ${new Date(project.repoScannedAt).toLocaleDateString()}`
+                  : ""}
+              </p>
+            )}
+          </div>
           <div className="ml-auto flex items-center gap-2">
             <AddNodeDropdown onAddNode={handleAddNode} customSubtypes={customSubtypes} />
             {nodeCount > 0 && (
@@ -1085,7 +1220,11 @@ export default function ProjectPage() {
             )}
             {project.repoUrl ? (
               <button
-                onClick={() => setScanTrigger((t) => t + 1)}
+                ref={rescanInvokerRef}
+                onClick={() => {
+                  if (nodeCount > 0) setRescanConfirmOpen(true);
+                  else startRepositoryRescan();
+                }}
                 className="group relative flex h-11 w-11 items-center justify-center rounded-md border border-[var(--border)] text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
                 aria-label={`Re-scan repository: ${project.repoUrl}`}
                 title={`Re-scan: ${project.repoUrl}`}
@@ -1100,9 +1239,9 @@ export default function ProjectPage() {
                 <button
                   onClick={() => setShowScanInput((v) => !v)}
                   className="min-h-11 rounded-md border border-[var(--border)] px-3 py-2 text-xs text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
-                  title="Scan a GitHub repository"
+                  title="Map a public GitHub repository"
                 >
-                  Scan Repo
+                  Map repository
                 </button>
                 {showScanInput && (
                   <form
@@ -1118,10 +1257,11 @@ export default function ProjectPage() {
                     }}
                   >
                     <input
-                      type="url"
+                      type="text"
+                      inputMode="url"
                       value={scanUrlInput}
                       onChange={(e) => setScanUrlInput(e.target.value)}
-                      placeholder="https://github.com/owner/repo"
+                      placeholder="owner/repo"
                       className="min-h-11 w-56 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--ring)]"
                       autoFocus
                     />
@@ -1130,7 +1270,7 @@ export default function ProjectPage() {
                       disabled={!scanUrlInput.trim()}
                       className="min-h-11 rounded-md bg-[var(--brand)] px-3 py-2 text-xs text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)] disabled:opacity-50"
                     >
-                      Go
+                      Map
                     </button>
                   </form>
                 )}
@@ -1165,6 +1305,7 @@ export default function ProjectPage() {
               snapToGrid
               snapGrid={[20, 20]}
               deleteKeyCode={null}
+              onError={handleReactFlowError}
               data-testid="react-flow-canvas"
             >
               <Background
@@ -1191,8 +1332,8 @@ export default function ProjectPage() {
                 >
                   <path d="M21 12a9 9 0 1 1-6.219-8.56" />
                 </svg>
-                <p className="text-lg font-medium">Generating architecture...</p>
-                <p className="mt-1 text-sm">The AI is designing your stack</p>
+                <p className="text-lg font-medium">Mapping the architecture...</p>
+                <p className="mt-1 text-sm">Reading the evidence and connecting the pieces</p>
               </div>
             </div>
           )}
@@ -1215,8 +1356,8 @@ export default function ProjectPage() {
                   <line x1="8.5" y1="10" x2="12" y2="14" />
                   <line x1="15.5" y1="10" x2="12" y2="14" />
                 </svg>
-                <p className="text-lg font-medium">No architecture yet</p>
-                <p className="mt-1 text-sm">Start a conversation or add nodes manually</p>
+                <p className="text-lg font-medium">No architecture map yet</p>
+                <p className="mt-1 text-sm">Ask an architecture question or add a component</p>
               </div>
             </div>
           )}
@@ -1340,6 +1481,68 @@ export default function ProjectPage() {
               </div>
             </div>
           )}
+
+          {rescanConfirmOpen &&
+            typeof document !== "undefined" &&
+            createPortal(
+              <div
+                data-rescan-modal-root
+                className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay)]"
+                onClick={() => setRescanConfirmOpen(false)}
+              >
+                <div
+                  ref={rescanDialogRef}
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="rescan-title"
+                  className="mx-4 w-full max-w-md rounded-md border border-[var(--border)] bg-[var(--card)] p-6 shadow-xl"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <p className="font-mono text-xs uppercase tracking-[0.16em] text-[var(--color-api)]">
+                    Repository update
+                  </p>
+                  <h3 id="rescan-title" className="mt-2 text-xl font-semibold">
+                    Replace this architecture map?
+                  </h3>
+                  <p className="mt-3 text-sm leading-6 text-[var(--muted-foreground)]">
+                    Re-scanning reads the latest public repository state and replaces the generated
+                    map and architecture chat. Manual canvas changes are not merged into the new
+                    map.
+                  </p>
+                  {project.repoAnalysisWarning && (
+                    <p className="mt-3 rounded-md bg-[var(--muted)] px-3 py-2 text-xs text-[var(--muted-foreground)]">
+                      Current scan note: {project.repoAnalysisWarning}
+                    </p>
+                  )}
+                  <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+                    <a
+                      href={`mailto:support@stackhatch.io?subject=${encodeURIComponent("Incorrect architecture map")}&body=${encodeURIComponent(`Public repository: ${project.repoUrl ?? "Not attached"}\nScanned commit: ${project.repoCommitSha ?? "Unknown"}\n\nWhat looks incorrect?\n`)}`}
+                      className="text-sm text-[var(--muted-foreground)] underline-offset-4 hover:text-[var(--foreground)] hover:underline"
+                    >
+                      Report an incorrect map
+                    </a>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setRescanConfirmOpen(false)}
+                        data-autofocus
+                        className="min-h-11 rounded-md border border-[var(--border)] px-4 py-2 text-sm font-semibold hover:bg-[var(--muted)]"
+                      >
+                        Keep current map
+                      </button>
+                      <button
+                        type="button"
+                        onClick={startRepositoryRescan}
+                        className="min-h-11 rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-semibold text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)]"
+                      >
+                        Re-scan repository
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>,
+              document.body
+            )}
 
           {aiSetupRequired && (
             <div

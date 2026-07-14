@@ -173,12 +173,30 @@ vi.mock("@/components/chat/ChatSidebar", () => ({
     open,
     onOpenChange,
     canvasState,
+    scanTrigger,
+    onArchitecture,
+    onScanStateChange,
   }: {
     projectId: string;
     defaultOpen: boolean;
     open?: boolean;
     onOpenChange?: (open: boolean) => void;
     canvasState?: { nodes?: unknown[]; edges?: unknown[] } | null;
+    scanTrigger?: number;
+    onArchitecture?: (
+      architecture: { nodes: unknown[]; edges: unknown[] },
+      meta?: {
+        source: "scan";
+        provenance?: {
+          repoUrl: string;
+          commitSha: string;
+          scannedAt: number;
+          analysisStatus: "complete" | "partial";
+          analysisWarning: string | null;
+        };
+      }
+    ) => void;
+    onScanStateChange?: (scanning: boolean) => void;
   }) => (
     <div
       data-testid="chat-sidebar"
@@ -187,10 +205,47 @@ vi.mock("@/components/chat/ChatSidebar", () => ({
       data-open={String(open)}
       data-canvas-node-count={String(canvasState?.nodes?.length ?? 0)}
       data-canvas-edge-count={String(canvasState?.edges?.length ?? 0)}
+      data-scan-trigger={String(scanTrigger ?? 0)}
     >
       Chat Sidebar
       <button type="button" onClick={() => onOpenChange?.(!open)}>
         Mock Chat Toggle
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          onScanStateChange?.(true);
+          onArchitecture?.(
+            {
+              nodes: [
+                {
+                  id: "replacement-api",
+                  category: "api",
+                  subtype: "rest-api",
+                  name: "Replacement API",
+                  technology: "Next.js",
+                  description: "Fresh scan",
+                  reasoning: "Observed",
+                  locked: false,
+                },
+              ],
+              edges: [],
+            },
+            {
+              source: "scan",
+              provenance: {
+                repoUrl: "https://github.com/example/repo",
+                commitSha: "replacement-sha",
+                scannedAt: 2000000,
+                analysisStatus: "partial",
+                analysisWarning: "One file was truncated.",
+              },
+            }
+          );
+          onScanStateChange?.(false);
+        }}
+      >
+        Mock scan replacement
       </button>
     </div>
   ),
@@ -201,10 +256,12 @@ vi.mock("@/components/canvas/NodeDetailPanel", () => ({
     node,
     open,
     onSuggestAlternatives,
+    alternatives,
   }: {
     node: { id?: string; name?: string } | null;
     open?: boolean;
     onSuggestAlternatives?: () => void;
+    alternatives?: unknown[];
   }) => (
     <div
       data-testid="node-detail-panel"
@@ -212,6 +269,7 @@ vi.mock("@/components/canvas/NodeDetailPanel", () => ({
       data-open={String(!!open)}
       data-node-id={node?.id ?? ""}
       data-can-suggest-alternatives={String(!!onSuggestAlternatives)}
+      data-alternative-count={String(alternatives?.length ?? 0)}
     >
       Detail Panel {node?.name ?? ""}
     </div>
@@ -323,6 +381,25 @@ const projectWithRepo = {
   repoUrl: "https://github.com/example/repo",
 };
 
+const projectWithRepoAlternatives = {
+  ...projectWithRepo,
+  canvasState: {
+    ...projectWithRepo.canvasState,
+    alternatives: {
+      n1: [
+        {
+          name: "Svelte frontend",
+          technology: "Svelte",
+          description: "An old suggestion",
+          reasoning: "Saved before the repository changed",
+          category: "client",
+          subtype: "web-app",
+        },
+      ],
+    },
+  },
+};
+
 const projectWithPositions = {
   ...emptyProject,
   canvasState: {
@@ -351,7 +428,7 @@ function mockFetchProject(
               role: "user",
               isAdmin: false,
               hasAnthropicKey: true,
-              model: "claude-sonnet-4-20250514",
+              model: "claude-sonnet-5",
             }
           ),
       } as Response);
@@ -447,9 +524,11 @@ describe("ProjectPage", () => {
       mockFetchProject(emptyProject);
       render(<ProjectPage />);
       await waitFor(() => {
-        expect(screen.getByText("No architecture yet")).toBeInTheDocument();
+        expect(screen.getByText("No architecture map yet")).toBeInTheDocument();
       });
-      expect(screen.getByText("Start a conversation or add nodes manually")).toBeInTheDocument();
+      expect(
+        screen.getByText("Ask an architecture question or add a component")
+      ).toBeInTheDocument();
     });
 
     it("opens chat sidebar by default for new projects", async () => {
@@ -634,7 +713,7 @@ describe("ProjectPage", () => {
       expect(screen.queryByText(/2 node/)).not.toBeInTheDocument();
     });
 
-    it("renders repo re-scan as an icon button with hover tooltip text", async () => {
+    it("confirms before replacing an existing repository map", async () => {
       mockFetchProject(projectWithRepo);
       render(<ProjectPage />);
       await waitFor(() => {
@@ -647,6 +726,93 @@ describe("ProjectPage", () => {
       expect(rescanButton).toHaveAttribute("title", "Re-scan: https://github.com/example/repo");
       expect(rescanButton.querySelector("svg")).toBeInTheDocument();
       expect(screen.getByText("Re-scan Repo")).toHaveClass("opacity-0");
+
+      fireEvent.click(rescanButton);
+      expect(screen.getByRole("dialog", { name: "Replace this architecture map?" })).toBeVisible();
+      expect(screen.getByTestId("project-editor-shell")).toHaveAttribute("inert");
+      await waitFor(() => {
+        expect(screen.getByRole("button", { name: "Keep current map" })).toHaveFocus();
+      });
+      expect(screen.getByTestId("chat-sidebar")).toHaveAttribute("data-scan-trigger", "0");
+
+      fireEvent.click(screen.getByRole("button", { name: "Re-scan repository" }));
+      await waitFor(() => {
+        expect(screen.getByTestId("chat-sidebar")).toHaveAttribute("data-scan-trigger", "1");
+      });
+    });
+
+    it("traps focus in the re-scan dialog and restores the invoking control", async () => {
+      mockFetchProject(projectWithRepo);
+      render(<ProjectPage />);
+      const rescanButton = await screen.findByLabelText(
+        "Re-scan repository: https://github.com/example/repo"
+      );
+
+      fireEvent.click(rescanButton);
+      const keepButton = screen.getByRole("button", { name: "Keep current map" });
+      const replaceButton = screen.getByRole("button", { name: "Re-scan repository" });
+      await waitFor(() => expect(keepButton).toHaveFocus());
+
+      replaceButton.focus();
+      fireEvent.keyDown(window, { key: "Tab" });
+      expect(screen.getByRole("link", { name: "Report an incorrect map" })).toHaveFocus();
+
+      fireEvent.keyDown(window, { key: "Escape" });
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(rescanButton).toHaveFocus();
+      expect(screen.getByTestId("project-editor-shell")).not.toHaveAttribute("inert");
+    });
+
+    it("replaces rather than merges a re-scanned map and updates its provenance", async () => {
+      mockFetchProject(projectWithRepo);
+      render(<ProjectPage />);
+      await waitFor(() => {
+        expect(screen.getByTestId("react-flow-canvas")).toHaveAttribute("data-node-count", "2");
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: "Mock scan replacement" }));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("react-flow-canvas")).toHaveAttribute("data-node-count", "1");
+      });
+      expect(screen.getByText(/Scanned replace/)).toBeInTheDocument();
+      expect(screen.getByText(/partial analysis/)).toBeInTheDocument();
+      expect(
+        screen.getByText("Generated architecture overview · not verified source truth")
+      ).toBeInTheDocument();
+    });
+
+    it("clears stale selection and alternatives when a repository map is replaced", async () => {
+      mockFetchProject(projectWithRepoAlternatives);
+      render(<ProjectPage />);
+      await screen.findByTestId("mock-flow-node-n1");
+
+      fireEvent.click(screen.getByTestId("mock-flow-node-n1"));
+      await waitFor(() => {
+        expect(screen.getByTestId("node-detail-panel")).toHaveAttribute("data-open", "true");
+      });
+      expect(screen.getByTestId("node-detail-panel")).toHaveAttribute(
+        "data-alternative-count",
+        "1"
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "Mock scan replacement" }));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("node-detail-panel")).toHaveAttribute("data-has-node", "false");
+      });
+      expect(screen.getByTestId("node-detail-panel")).toHaveAttribute(
+        "data-alternative-count",
+        "0"
+      );
+      await waitFor(() => {
+        const patchCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.find(
+          (call) => (call[1] as RequestInit | undefined)?.method === "PATCH"
+        );
+        expect(patchCall).toBeTruthy();
+        const body = JSON.parse((patchCall?.[1] as RequestInit).body as string);
+        expect(JSON.parse(body.canvasState).alternatives).toEqual({});
+      });
     });
 
     it("shows back to dashboard link", async () => {

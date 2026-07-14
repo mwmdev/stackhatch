@@ -23,9 +23,7 @@ test.describe("Full E2E Interview-to-Canvas Flow", () => {
     await expect(page.locator('button[aria-label="Hide chat sidebar"]')).toBeVisible();
 
     // 4. Verify AI sends first interview message
-    await expect(
-      page.getByText(/What are you building/).first(),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/What are you building/).first()).toBeVisible({ timeout: 10000 });
     expect(tracker.initCalled).toBe(true);
 
     // 5. Send first user message describing the app
@@ -33,14 +31,12 @@ test.describe("Full E2E Interview-to-Canvas Flow", () => {
     await page.click('button[aria-label="Send message"]');
 
     // 6. Verify user message appears in chat
-    await expect(
-      page.getByText("I want to build a real-time chat application"),
-    ).toBeVisible();
+    await expect(page.getByText("I want to build a real-time chat application")).toBeVisible();
 
     // 7. Verify AI response about language preference
-    await expect(
-      page.getByText(/language or framework ecosystem/).first(),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/language or framework ecosystem/).first()).toBeVisible({
+      timeout: 10000,
+    });
 
     // 8. Send second user message
     await page.fill("textarea", "I prefer TypeScript and Node.js");
@@ -64,16 +60,13 @@ test.describe("Full E2E Interview-to-Canvas Flow", () => {
     // 12. Verify all exchanges happened
     expect(tracker.chatCallCount).toBe(3);
 
-    // 13. Verify the empty canvas message is still visible (canvas not yet implemented)
-    await expect(
-      page.getByText("Start a conversation or add nodes manually"),
-    ).toBeVisible();
+    // 13. Verify the editor still gives a clear next action before architecture arrives.
+    await expect(page.getByText("Ask an architecture question or add a component")).toBeVisible();
   });
 
   test("chat messages persist across page reloads", async ({ page }) => {
     const aiWelcome = "Welcome! What are you building?";
-    const aiResponse =
-      "Great choice! Tell me more about your tech preferences.";
+    const aiResponse = "Great choice! Tell me more about your tech preferences.";
 
     // Use a single route handler to avoid priority conflicts
     await page.route("**/api/projects/*/chat/**", async (route) => {
@@ -172,10 +165,7 @@ test.describe("Full E2E Interview-to-Canvas Flow", () => {
     // Track chat message count separately from init (React Strict Mode may
     // double-invoke the init effect in development)
     let chatCallCount = 0;
-    const chatResponses = [
-      "Second question: What tech stack?",
-      "Third question: What scale?",
-    ];
+    const chatResponses = ["Second question: What tech stack?", "Third question: What scale?"];
 
     // Single route handler to avoid Playwright route priority issues
     await page.route("**/api/projects/*/chat**", async (route) => {
@@ -183,10 +173,7 @@ test.describe("Full E2E Interview-to-Canvas Flow", () => {
       const method = route.request().method();
 
       if (url.includes("/chat/init") && method === "POST") {
-        await fulfillSSE(
-          route,
-          textSSE("First question: What are you building?"),
-        );
+        await fulfillSSE(route, textSSE("First question: What are you building?"));
       } else if (url.endsWith("/chat") && method === "POST") {
         const idx = Math.min(chatCallCount, chatResponses.length - 1);
         await fulfillSSE(route, textSSE(chatResponses[idx]));
@@ -199,9 +186,9 @@ test.describe("Full E2E Interview-to-Canvas Flow", () => {
     await createProjectAndNavigate(page, "Order Test");
 
     // Wait for init message
-    await expect(
-      page.getByText("First question: What are you building?").first(),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText("First question: What are you building?").first()).toBeVisible({
+      timeout: 10000,
+    });
 
     // Send messages
     const textarea = page.locator("textarea");
@@ -209,15 +196,15 @@ test.describe("Full E2E Interview-to-Canvas Flow", () => {
     await textarea.fill("A web app");
     await textarea.press("Enter");
 
-    await expect(
-      page.getByText("Second question: What tech stack?").first(),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText("Second question: What tech stack?").first()).toBeVisible({
+      timeout: 10000,
+    });
 
     await textarea.fill("React and Node");
     await textarea.press("Enter");
-    await expect(
-      page.getByText("Third question: What scale?").first(),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText("Third question: What scale?").first()).toBeVisible({
+      timeout: 10000,
+    });
 
     // Verify all messages visible and in order
     const allMessages = page.locator('[data-testid^="chat-message-"]');
@@ -243,9 +230,9 @@ test.describe("Full E2E Interview-to-Canvas Flow", () => {
     });
 
     await createProjectAndNavigate(page, "Typing Indicator Test");
-    await expect(
-      page.getByText("Hello! What are you building?").first(),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText("Hello! What are you building?").first()).toBeVisible({
+      timeout: 10000,
+    });
 
     // Send a message
     await page.fill("textarea", "A blog platform");
@@ -272,9 +259,7 @@ test.describe("Full E2E Interview-to-Canvas Flow", () => {
     });
 
     await createProjectAndNavigate(page, "Keyboard Test");
-    await expect(
-      page.getByText("What are you building?").first(),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText("What are you building?").first()).toBeVisible({ timeout: 10000 });
 
     const textarea = page.locator("textarea");
 
@@ -333,8 +318,8 @@ test.describe("Full E2E Interview-to-Canvas Flow", () => {
           "Here are your options:\n\n" +
             "**Option 1:** Use PostgreSQL\n\n" +
             "**Option 2:** Use MongoDB\n\n" +
-            "- Fast queries\n- ACID compliance",
-        ),
+            "- Fast queries\n- ACID compliance"
+        )
       );
     });
 
