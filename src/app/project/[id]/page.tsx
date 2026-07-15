@@ -52,6 +52,7 @@ import { applyDagreLayout } from "@/lib/layout";
 import { mergeArchitecture } from "@/lib/merge-architecture";
 import { parseCustomSubtypes, type CustomSubtypesMap } from "@/lib/custom-subtypes";
 import { trackEvent } from "@/lib/analytics";
+import { consumePendingProjectStart, getPendingProjectStart } from "@/lib/project-start";
 
 interface Project {
   id: string;
@@ -1012,7 +1013,11 @@ export default function ProjectPage() {
         );
         if (isFirst && !firstMapTrackedRef.current) {
           firstMapTrackedRef.current = true;
-          trackEvent("first_map_viewed", { location: "editor" });
+          const startMethod = consumePendingProjectStart();
+          trackEvent("first_map_viewed", {
+            location: "editor",
+            ...(startMethod ? { start_method: startMethod } : {}),
+          });
         }
 
         setTimeout(() => rfInstanceRef.current?.fitView({ padding: 0.2, duration: 300 }), 100);
@@ -1051,7 +1056,21 @@ export default function ProjectPage() {
         }
         const data = await res.json();
         setProject(data);
-        setChatOpen(!((data.canvasState?.nodes?.length ?? 0) > 0));
+        const hasLoadedCanvas = (data.canvasState?.nodes?.length ?? 0) > 0;
+        setChatOpen(!hasLoadedCanvas);
+
+        const pendingStartMethod = getPendingProjectStart();
+        const tracksOnLoad =
+          (pendingStartMethod === "blank" && !hasLoadedCanvas) ||
+          (pendingStartMethod === "template" && hasLoadedCanvas);
+        if (tracksOnLoad && !firstMapTrackedRef.current) {
+          firstMapTrackedRef.current = true;
+          const startMethod = consumePendingProjectStart();
+          trackEvent("first_map_viewed", {
+            location: "editor",
+            ...(startMethod ? { start_method: startMethod } : {}),
+          });
+        }
 
         // Initialize React Flow state from loaded canvas
         if (data.canvasState?.nodes?.length) {

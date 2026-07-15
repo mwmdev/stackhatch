@@ -130,17 +130,25 @@ describe("SettingsPage", () => {
   });
 
   it("preserves repository context through BYOK setup", async () => {
-    window.history.replaceState({}, "", "/settings?setup=anthropic&repo=acme%2Fapi");
+    window.history.replaceState(
+      {},
+      "",
+      "/settings?setup=anthropic&returnTo=%2Fproject%2Fnew%3Fmode%3Drepository%26repo%3Dacme%252Fapi"
+    );
     mockFetchSettings({ hasAnthropicKey: true });
     render(<SettingsPage />);
 
     const continueLink = await screen.findByRole("link", { name: "Continue to acme/api" });
-    expect(continueLink).toHaveAttribute("href", "/app?repo=acme%2Fapi");
+    expect(continueLink).toHaveAttribute("href", "/project/new?mode=repository&repo=acme%2Fapi");
     expect(screen.getByText("Connect Anthropic to map this repository.")).toBeInTheDocument();
   });
 
   it("reveals the continue action after a key is saved", async () => {
-    window.history.replaceState({}, "", "/settings?setup=anthropic&repo=acme%2Fapi");
+    window.history.replaceState(
+      {},
+      "",
+      "/settings?setup=anthropic&returnTo=%2Fproject%2Fnew%3Fmode%3Drepository%26repo%3Dacme%252Fapi"
+    );
     mockFetchSettings({ hasAnthropicKey: false });
     render(<SettingsPage />);
 
@@ -155,5 +163,38 @@ describe("SettingsPage", () => {
     expect(mockTrackEvent).toHaveBeenNthCalledWith(2, "anthropic_setup_completed", {
       location: "settings",
     });
+  });
+
+  it("returns requirements setup to its exact internal mode", async () => {
+    window.history.replaceState(
+      {},
+      "",
+      "/settings?setup=anthropic&returnTo=%2Fproject%2Fnew%3Fmode%3Drequirements"
+    );
+    mockFetchSettings({ hasAnthropicKey: true });
+    render(<SettingsPage />);
+
+    expect(
+      await screen.findByText("Connect Anthropic to map your requirements.")
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Continue to your project" })).toHaveAttribute(
+      "href",
+      "/project/new?mode=requirements"
+    );
+  });
+
+  it("rejects external setup return paths", async () => {
+    window.history.replaceState(
+      {},
+      "",
+      "/settings?setup=anthropic&returnTo=https%3A%2F%2Fevil.example%2Fsteal"
+    );
+    mockFetchSettings({ hasAnthropicKey: true });
+    render(<SettingsPage />);
+
+    expect(await screen.findByRole("link", { name: "Continue to your project" })).toHaveAttribute(
+      "href",
+      "/app"
+    );
   });
 });

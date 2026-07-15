@@ -2,10 +2,8 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { ArrowRight, GitBranch, KeyRound, Star } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
-import LazyArchitectureDemo from "@/components/public/LazyArchitectureDemo";
-import RepositoryIntentForm from "@/components/public/RepositoryIntentForm";
+import PublicStartLaunchpad from "@/components/public/PublicStartLaunchpad";
 import TrackedSourceLink from "@/components/public/TrackedSourceLink";
-import { STACKHATCH_DEMO } from "@/content/stackhatch-demo";
 import { formatGitHubStarCount, getGitHubStarCount } from "@/lib/github-stars";
 
 export const metadata = {
@@ -15,25 +13,26 @@ export const metadata = {
 const WORKFLOW = [
   {
     number: "01",
-    title: "Map the system.",
-    description:
-      "Start from a public repository and get a visual overview of the main components and connections.",
+    title: "Bring what you have.",
+    description: "Begin with a blank canvas, requirements, a public repository, or a saved map.",
   },
   {
     number: "02",
-    title: "Ask in context.",
-    description: "Ask how a part works or why it connects to the rest of the system.",
+    title: "Shape the system.",
+    description:
+      "See the components and connections, then edit the map until it matches your view.",
   },
   {
     number: "03",
-    title: "Test another direction.",
+    title: "Ask and compare.",
     description:
-      "Open a component and compare practical alternatives without losing the current map.",
+      "Question the architecture in context and test practical alternatives for any part.",
   },
   {
     number: "04",
-    title: "Re-scan when the code changes.",
-    description: "Generate a fresh view when the repository evolves.",
+    title: "Keep it current.",
+    description:
+      "Attach private notes, save reusable templates, and re-scan as the repository changes.",
   },
 ];
 
@@ -44,11 +43,40 @@ const USE_MOMENTS = [
   },
   {
     title: "A project you joined",
-    description: "Form a useful mental model before making your first change.",
+    description: "Build a useful mental model before making your first change.",
   },
   {
     title: "An open-source project",
     description: "Understand the architecture before choosing where to contribute.",
+  },
+];
+
+const PRODUCT_STORIES = [
+  {
+    number: "01",
+    title: "See the whole system.",
+    description:
+      "Components, technologies, and the connections between them stay in one editable map.",
+    desktop: "/screenshots/architecture-overview.webp",
+    mobile: "/screenshots/architecture-overview-mobile.webp",
+    alt: "StackHatch architecture map of its own Next.js codebase with a component detail panel open",
+  },
+  {
+    number: "02",
+    title: "Ask the architecture.",
+    description:
+      "Ask how a path works in context, then compare practical alternatives for the selected component.",
+    desktop: "/screenshots/ask-and-compare.webp",
+    mobile: "/screenshots/ask-and-compare-mobile.webp",
+    alt: "StackHatch answering what the AI Analysis Engine does and showing real alternatives for the selected component",
+  },
+  {
+    number: "03",
+    title: "Keep decisions close.",
+    description: "Attach private notes to the map and re-scan a repository when the code changes.",
+    desktop: "/screenshots/notes-and-rescan.webp",
+    mobile: "/screenshots/notes-and-rescan-mobile.webp",
+    alt: "StackHatch map with a private component note and repository re-scan controls visible",
   },
 ];
 
@@ -68,12 +96,12 @@ export default async function LandingPage() {
             StackHatch
           </Link>
           <nav aria-label="Primary navigation" className="public-nav">
-            <a href="#demo" className="hide-compact">
-              Explore demo
+            <a href="#features" className="hide-compact">
+              Features
             </a>
-            <Link href="/demo" className="show-compact">
-              Demo
-            </Link>
+            <a href="#workflow" className="hide-compact">
+              How it works
+            </a>
             <TrackedSourceLink
               href="https://github.com/mwmdev/stackhatch"
               target="_blank"
@@ -97,59 +125,59 @@ export default async function LandingPage() {
       </header>
 
       <main>
-        <section className="hero-section">
-          <div className="hero-copy">
-            <p className="public-eyebrow">Visual architecture for GitHub repositories</p>
-            <h1>See how your codebase fits together.</h1>
+        <section id="start" className="hero-section" aria-labelledby="hero-heading">
+          <div className="hero-intro">
+            <p className="public-eyebrow">Visual architecture, however you begin</p>
+            <h1 id="hero-heading">Start with what you have.</h1>
             <p className="hero-description">
-              Paste a public GitHub repository. StackHatch maps the system, lets you ask
-              architecture questions, and helps you compare other ways to build it.
+              Open a blank canvas, upload requirements, map a public repository, or reuse a
+              template. StackHatch keeps the architecture visible while you build.
             </p>
-            <div className="hero-action">
-              <RepositoryIntentForm location="hero" />
-              <div className="hero-action-notes">
-                <p>Free to use · AI features use your Anthropic API key</p>
-                <a href="#demo">
-                  Explore the StackHatch map
-                  <ArrowRight aria-hidden="true" className="h-4 w-4" />
-                </a>
-              </div>
-            </div>
+          </div>
+          <PublicStartLaunchpad />
+          <p className="start-trust-line">
+            Free to use <span aria-hidden="true">·</span> Blank maps and templates need no API key{" "}
+            <span aria-hidden="true">·</span> AI starts use your Anthropic key
+          </p>
+        </section>
+
+        <section
+          id="features"
+          className="product-stories-section"
+          aria-labelledby="features-heading"
+        >
+          <div className="product-stories-intro">
+            <p className="public-eyebrow">Inside the workspace</p>
+            <h2 id="features-heading">See the system. Ask why. Keep it current.</h2>
+          </div>
+          <div className="product-story-list">
+            {PRODUCT_STORIES.map((story) => (
+              <article key={story.number} className="product-story">
+                <div className="product-story-copy">
+                  <span className="product-story-number">{story.number}</span>
+                  <h3>{story.title}</h3>
+                  <p>{story.description}</p>
+                </div>
+                <picture className="product-shot">
+                  <source media="(max-width: 760px)" srcSet={story.mobile} />
+                  <img
+                    src={story.desktop}
+                    width="1600"
+                    height="1000"
+                    loading="lazy"
+                    decoding="async"
+                    alt={story.alt}
+                  />
+                </picture>
+              </article>
+            ))}
           </div>
         </section>
 
-        <section id="demo" className="self-map-section" aria-labelledby="self-map-heading">
-          <div className="self-map-intro">
-            <div>
-              <p className="public-eyebrow">The product is the proof</p>
-              <h2 id="self-map-heading">StackHatch, mapped by StackHatch.</h2>
-            </div>
-            <div>
-              <p>
-                This is a real, read-only map generated from the public repository. Open a
-                component, follow a connection, or see how StackHatch answers a question about
-                itself.
-              </p>
-              <p className="self-map-provenance">
-                {STACKHATCH_DEMO.repository} · mapped from {STACKHATCH_DEMO.sourceCommit} ·{" "}
-                {STACKHATCH_DEMO.mappedAtLabel}
-              </p>
-            </div>
-          </div>
-          <LazyArchitectureDemo />
-          <div className="self-map-footer">
-            <Link href="/demo" className="text-action">
-              Explore the full map
-              <ArrowRight aria-hidden="true" className="h-4 w-4" />
-            </Link>
-            <span>No sign-in or API key required</span>
-          </div>
-        </section>
-
-        <section className="workflow-section" aria-labelledby="workflow-heading">
+        <section id="workflow" className="workflow-section" aria-labelledby="workflow-heading">
           <div className="section-heading-row">
             <p className="public-eyebrow">One working loop</p>
-            <h2 id="workflow-heading">Keep the architecture in view as the code changes.</h2>
+            <h2 id="workflow-heading">Keep the architecture in view as the project changes.</h2>
           </div>
           <ol className="workflow-line">
             {WORKFLOW.map((step) => (
@@ -185,8 +213,8 @@ export default async function LandingPage() {
             <h2 id="byok-heading">Free product. Your model. Your key.</h2>
             <p>
               StackHatch has no plans, quotas, or feature gates. Connect an Anthropic API key for
-              repository analysis, questions, and alternatives. Your key is encrypted at rest and
-              never returned to the browser.
+              requirements, repository analysis, questions, and alternatives. Your key is encrypted
+              at rest and never returned to the browser.
             </p>
             <p className="trust-note">Anthropic bills model usage directly to your account.</p>
             <Link href="/support#byok" className="text-action">
@@ -226,10 +254,18 @@ export default async function LandingPage() {
 
         <section className="final-cta" aria-labelledby="final-cta-heading">
           <div>
-            <p className="public-eyebrow">Public repositories</p>
-            <h2 id="final-cta-heading">Put your codebase on the map.</h2>
+            <p className="public-eyebrow">Four ways in</p>
+            <h2 id="final-cta-heading">Start from where you are.</h2>
           </div>
-          <RepositoryIntentForm location="final" />
+          <div className="final-cta-actions">
+            <a href="#start" className="final-primary-action">
+              Choose a starting point
+              <ArrowRight aria-hidden="true" className="h-4 w-4" />
+            </a>
+            <Link href="/login?callbackUrl=/app" className="text-action">
+              Sign in to StackHatch
+            </Link>
+          </div>
         </section>
       </main>
 
@@ -239,7 +275,8 @@ export default async function LandingPage() {
           <p>Architecture you can see, question, and revisit.</p>
         </div>
         <nav aria-label="Footer navigation">
-          <Link href="/demo">Demo</Link>
+          <a href="#start">Start a map</a>
+          <a href="#features">Features</a>
           <TrackedSourceLink
             href="https://github.com/mwmdev/stackhatch"
             target="_blank"

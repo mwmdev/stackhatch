@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 
-const PUBLIC_PATHS = new Set(["/", "/demo", "/login", "/privacy", "/support", "/terms"]);
+const PUBLIC_PATHS = new Set(["/", "/login", "/privacy", "/support", "/terms"]);
 
 function isDevAuthEnabled() {
   return process.env.NODE_ENV !== "production" && process.env.STACKHATCH_DEV_AUTH === "1";
@@ -9,6 +9,10 @@ function isDevAuthEnabled() {
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  if (pathname === "/demo") {
+    return new NextResponse(null, { status: 404 });
+  }
 
   if (PUBLIC_PATHS.has(pathname) || isDevAuthEnabled()) {
     return NextResponse.next();

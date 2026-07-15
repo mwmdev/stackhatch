@@ -1,12 +1,15 @@
 # StackHatch
 
-See how your codebase fits together.
+Keep your architecture in view.
 
-StackHatch turns a public GitHub repository into a visual architecture map. You can inspect the pieces, follow their relationships, ask architecture questions, compare technology alternatives, and re-scan as the code changes.
+StackHatch turns what you already have into a visual architecture map. Start with a blank canvas,
+upload requirements, map a public GitHub repository, or reuse a personal template—then inspect the
+pieces, ask architecture questions, compare alternatives, and keep the map current as the system
+changes.
 
-[Try StackHatch](https://stackhatch.io) · [Open the public self-map](https://stackhatch.io/demo) · [Support](https://stackhatch.io/support) · [Privacy](https://stackhatch.io/privacy) · [Terms](https://stackhatch.io/terms)
+[Try StackHatch](https://stackhatch.io) · [Support](https://stackhatch.io/support) · [Privacy](https://stackhatch.io/privacy) · [Terms](https://stackhatch.io/terms)
 
-![The StackHatch codebase shown as an architecture map](public/demos/stackhatch-self-map-poster.png)
+![The StackHatch codebase shown as an architecture map](public/screenshots/architecture-overview-og.png)
 
 ## Why it exists
 
@@ -16,7 +19,7 @@ The generated map is an explanation built from bounded repository evidence. It i
 
 ## How it works
 
-1. Map a public GitHub repository.
+1. Start fresh, upload requirements, map a public GitHub repository, or use a personal template.
 2. Inspect components and the relationships between them.
 3. Ask questions about flows, boundaries, and decisions.
 4. Compare suggested alternatives for a component.
@@ -34,8 +37,6 @@ StackHatch is free and bring-your-own-key. AI requests use your Anthropic API ke
 - **Drizzle and SQLite** persist users, settings, personal projects, maps, messages, private notes,
   personal templates, and scan provenance.
 - **Docker** packages the standalone Next.js runtime for deployment.
-
-The interactive `/demo` route is a versioned static snapshot of StackHatch itself. It does not require authentication, create a project, or call GitHub or Anthropic.
 
 ## Local development
 

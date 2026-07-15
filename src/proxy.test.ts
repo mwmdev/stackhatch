@@ -13,7 +13,7 @@ function makeRequest(pathname: string) {
 }
 
 describe("proxy", () => {
-  it.each(["/", "/demo", "/login", "/support", "/privacy", "/terms"])(
+  it.each(["/", "/login", "/support", "/privacy", "/terms"])(
     "allows public path %s",
     async (pathname) => {
       const response = await proxy(makeRequest(pathname));
@@ -22,6 +22,15 @@ describe("proxy", () => {
       expect(getToken).not.toHaveBeenCalled();
     }
   );
+
+  it("returns a true 404 for the retired demo", async () => {
+    const response = await proxy(makeRequest("/demo"));
+
+    expect(response.status).toBe(404);
+    expect(response.headers.get("location")).toBeNull();
+    expect(response.headers.get("x-middleware-next")).toBeNull();
+    expect(getToken).not.toHaveBeenCalled();
+  });
 
   it("redirects protected paths to login when unauthenticated", async () => {
     getToken.mockResolvedValueOnce(null);

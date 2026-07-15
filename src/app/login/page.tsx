@@ -2,37 +2,38 @@ import { redirect } from "next/navigation";
 import { auth, signIn } from "@/lib/auth-config";
 import AuthStartForm from "@/components/AuthStartForm";
 import ThemeToggle from "@/components/ThemeToggle";
-
-const REPO_SLUG_PATTERN = /^[A-Za-z0-9_-]+\/[A-Za-z0-9_.-]+$/;
+import {
+  projectStartMethodFromPath,
+  repositoryFromProjectStartPath,
+  safeInternalPath,
+} from "@/lib/project-start";
 
 export function safeCallbackUrl(value: string | undefined, siteOrigin?: string) {
-  if (!value) return "/app";
-
-  const configuredOrigin =
-    siteOrigin || process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXTAUTH_URL;
-  try {
-    if (value.startsWith("/") && !value.startsWith("//")) {
-      const parsed = new URL(value, configuredOrigin || "https://stackhatch.io");
-      return `${parsed.pathname}${parsed.search}${parsed.hash}`;
-    }
-
-    if (!configuredOrigin) return "/app";
-    const parsed = new URL(value);
-    if (parsed.origin !== new URL(configuredOrigin).origin) return "/app";
-    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
-  } catch {
-    return "/app";
-  }
+  return safeInternalPath(value, "/app", siteOrigin);
 }
 
 export function repoFromCallbackUrl(callbackUrl: string) {
-  try {
-    const repo = new URL(callbackUrl, "https://stackhatch.io").searchParams.get("repo")?.trim();
-    return repo && REPO_SLUG_PATTERN.test(repo) ? repo : null;
-  } catch {
-    return null;
-  }
+  return repositoryFromProjectStartPath(callbackUrl);
 }
+
+const START_CONTEXT = {
+  blank: {
+    title: "Blank canvas ready",
+    description: "Sign in with GitHub and StackHatch will open a new blank architecture map.",
+  },
+  requirements: {
+    title: "Requirements upload ready",
+    description: "Sign in with GitHub, then return to upload your Markdown or text brief.",
+  },
+  repository: {
+    title: "Repository mapping ready",
+    description: "Sign in with GitHub, then return to enter the public repository you want to map.",
+  },
+  template: {
+    title: "Template selection ready",
+    description: "Sign in with GitHub, then return to choose one of your saved architecture maps.",
+  },
+} as const;
 
 export default async function LoginPage({
   searchParams,
@@ -42,6 +43,8 @@ export default async function LoginPage({
   const params = await searchParams;
   const callbackUrl = safeCallbackUrl(params?.callbackUrl);
   const repo = repoFromCallbackUrl(callbackUrl);
+  const startMethod = projectStartMethodFromPath(callbackUrl);
+  const startContext = startMethod ? START_CONTEXT[startMethod] : null;
 
   // Check if user is already authenticated
   const session = await auth();
@@ -66,7 +69,7 @@ export default async function LoginPage({
             {/* App Logo/Name */}
             <div className="mb-8">
               <h1 className="text-2xl font-bold tracking-tight">
-                Map a repository with StackHatch.
+                Turn what you have into an architecture map.
               </h1>
               <p className="mt-2 text-[var(--muted-foreground)]">
                 Sign in with GitHub to save the map, ask questions, and revisit it as the project
@@ -77,16 +80,20 @@ export default async function LoginPage({
             {/* Sign in card */}
             <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
               <h2 className="text-lg font-semibold text-[var(--card-foreground)]">
-                {repo ? `Repository ready: ${repo}` : "Continue to your maps"}
+                {repo
+                  ? `Repository ready: ${repo}`
+                  : (startContext?.title ?? "Continue to your maps")}
               </h2>
               <p className="mb-4 mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
                 {repo
                   ? "Your repository is ready. Sign in with GitHub, then connect your own Anthropic key to generate its architecture map."
-                  : "Use GitHub to keep your architecture maps connected to your account."}
+                  : (startContext?.description ??
+                    "Use GitHub to keep your architecture maps connected to your account.")}
               </p>
 
               {/* GitHub Sign In Button */}
               <AuthStartForm
+                startMethod={startMethod ?? undefined}
                 action={async () => {
                   "use server";
                   await signIn("github", { redirectTo: callbackUrl });

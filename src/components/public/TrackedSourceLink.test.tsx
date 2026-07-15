@@ -11,7 +11,7 @@ describe("TrackedSourceLink", () => {
     render(
       <TrackedSourceLink
         href="https://github.com/mwmdev/stackhatch"
-        location="demo"
+        location="navigation"
         onClick={(event) => event.preventDefault()}
       >
         Source
@@ -20,7 +20,7 @@ describe("TrackedSourceLink", () => {
 
     fireEvent.click(screen.getByRole("link", { name: "Source" }));
 
-    expect(trackEvent).toHaveBeenCalledWith("github_source_clicked", { location: "demo" });
+    expect(trackEvent).toHaveBeenCalledWith("github_source_clicked", { location: "navigation" });
     expect(JSON.stringify(trackEvent.mock.calls)).not.toContain("github.com");
   });
 

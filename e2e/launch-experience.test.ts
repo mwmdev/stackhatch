@@ -5,77 +5,62 @@ test.describe("launch experience", () => {
     await page.goto("/");
 
     await expect(
-      page.getByRole("heading", { level: 1, name: "See how your codebase fits together." })
+      page.getByRole("heading", { level: 1, name: "Start with what you have." })
     ).toBeVisible();
 
-    const repository = page.locator('[data-repository-form="hero"]');
+    const repository = page.getByRole("article").filter({ hasText: "Map a repo" });
     await repository.getByRole("textbox", { name: "Public GitHub repository" }).fill("not a repo");
-    await repository.getByRole("button", { name: "Map this repository" }).click();
+    await repository.getByRole("button", { name: "Map repository" }).click();
     await expect(repository.getByRole("alert")).toContainText("public GitHub repository");
 
     await repository
       .getByRole("textbox", { name: "Public GitHub repository" })
       .fill("mwmdev/stackhatch");
-    await repository.getByRole("button", { name: "Map this repository" }).click();
+    await repository.getByRole("button", { name: "Map repository" }).click();
 
     await expect(page).toHaveURL(/\/login\?callbackUrl=/);
     const callback = new URL(page.url()).searchParams.get("callbackUrl");
-    expect(callback).toBe("/app?repo=mwmdev%2Fstackhatch");
+    expect(callback).toBe("/project/new?mode=repository&repo=mwmdev%2Fstackhatch");
     await expect(
       page.getByRole("heading", { name: "Repository ready: mwmdev/stackhatch" })
     ).toBeVisible();
   });
 
-  test("opens the self-map anonymously without product API requests", async ({ page }) => {
-    const apiRequests: string[] = [];
-    page.on("request", (request) => {
-      if (new URL(request.url()).pathname.startsWith("/api/")) apiRequests.push(request.url());
-    });
+  test("presents all four starts as equal entry points", async ({ page }) => {
+    await page.goto("/");
 
-    await page.goto("/demo");
-    await expect(
-      page.getByRole("heading", { level: 1, name: "StackHatch, mapped by StackHatch." })
-    ).toBeVisible();
-    await expect(page.getByText("Read-only architecture overview")).toBeVisible();
+    const launchpad = page.getByLabel("Ways to start a StackHatch map");
+    await expect(launchpad.getByRole("heading", { name: "Start fresh" })).toBeVisible();
+    await expect(launchpad.getByRole("heading", { name: "Upload requirements" })).toBeVisible();
+    await expect(launchpad.getByRole("heading", { name: "Map a repo" })).toBeVisible();
+    await expect(launchpad.getByRole("heading", { name: "Use a template" })).toBeVisible();
+    await expect(page.getByText("One architecture map")).toBeAttached();
 
-    const question = page.getByRole("button", { name: "Where is project data stored?" });
-    await question.click();
-    await expect(question).toHaveAttribute("aria-pressed", "true");
-    await expect(page.getByText(/through Drizzle into SQLite/i)).toBeVisible();
-
-    const authenticationNode = page.getByRole("button", {
-      name: "Open component Authentication, Auth.js · GitHub OAuth",
-    });
-    await authenticationNode.focus();
-    await authenticationNode.press("Enter");
-    await expect(page.locator(".demo-detail h2")).toHaveText("Authentication");
-
-    const sessionConnection = page.getByRole("button", {
-      name: "Inspect connection from Route handlers to Authentication: session checks",
-    });
-    await sessionConnection.focus();
-    await sessionConnection.press("Enter");
-    await expect(page.locator(".demo-detail h2")).toHaveText("Route handlers → Authentication");
-
-    expect(apiRequests).toEqual([]);
+    await page.getByRole("button", { name: "Choose a template" }).click();
+    await expect(page).toHaveURL(/\/login\?callbackUrl=/);
+    const callback = new URL(page.url()).searchParams.get("callbackUrl");
+    expect(callback).toBe("/project/new?mode=template");
   });
 
-  test("keeps the dark, reduced-motion launch experience usable at 320px", async ({ page }) => {
+  test("retires the former demo URL with a real 404", async ({ page }) => {
+    const response = await page.request.get("/demo");
+
+    expect(response.status()).toBe(404);
+    expect(await response.text()).toBe("");
+  });
+
+  test("keeps the dark, reduced-motion launchpad usable at 320px", async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 720 });
     await page.emulateMedia({ colorScheme: "dark", reducedMotion: "reduce" });
     await page.goto("/");
 
-    await expect(page.getByRole("link", { name: "Demo" }).first()).toBeVisible();
-    expect(
-      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)
-    ).toBe(true);
-
-    await page.getByRole("link", { name: "Demo" }).first().click();
-    await expect(
-      page.getByRole("heading", { level: 1, name: "StackHatch, mapped by StackHatch." })
-    ).toBeVisible();
-    await expect(page.getByText("Read-only architecture overview")).toBeVisible();
+    const launchpad = page.getByLabel("Ways to start a StackHatch map");
+    for (const heading of ["Start fresh", "Upload requirements", "Map a repo", "Use a template"]) {
+      await expect(launchpad.getByRole("heading", { name: heading })).toBeVisible();
+    }
+    await expect(page.getByRole("link", { name: /demo/i })).toHaveCount(0);
     await expect(page.locator("html")).toHaveClass(/dark/);
+
     const layout = await page.evaluate(() => ({
       viewport: window.innerWidth,
       scrollWidth: document.documentElement.scrollWidth,

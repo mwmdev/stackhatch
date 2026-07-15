@@ -6,7 +6,8 @@ bills that usage directly to the user.
 
 ## Architecture Workflow
 
-- Start from a public GitHub repository, a Markdown or text PRD, or a blank canvas.
+- Start fresh with a blank canvas, upload a Markdown or text requirements file, map a public GitHub
+  repository, or reuse a personal template.
 - Use architecture chat to generate and revise a system map.
 - Add and edit nodes, descriptions, notes, locks, and typed connections manually.
 - Compare technology alternatives without losing the current decision.

@@ -5,6 +5,12 @@ import Link from "next/link";
 import { useTheme } from "next-themes";
 import { AI_MODELS, DEFAULT_AI_MODEL } from "@/lib/ai/models";
 import { trackEvent } from "@/lib/analytics";
+import {
+  projectStartMethodFromPath,
+  repositoryFromProjectStartPath,
+  safeInternalPath,
+  type ProjectStartMethod,
+} from "@/lib/project-start";
 
 const subscribe = () => () => {};
 const getSnapshot = () => true;
@@ -25,7 +31,9 @@ export default function SettingsPage() {
   const [model, setModel] = useState(DEFAULT_AI_MODEL);
   const [savingApiKey, setSavingApiKey] = useState(false);
   const [savingModel, setSavingModel] = useState(false);
+  const [returnTo, setReturnTo] = useState("/app");
   const [setupRepo, setSetupRepo] = useState<string | null>(null);
+  const [setupMethod, setSetupMethod] = useState<ProjectStartMethod | null>(null);
   const [isAnthropicSetup, setIsAnthropicSetup] = useState(false);
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const setupStartTracked = useRef(false);
@@ -33,8 +41,16 @@ export default function SettingsPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const repo = params.get("repo")?.trim() || "";
+    const legacyReturnTo = /^[A-Za-z0-9_-]+\/[A-Za-z0-9_.-]+$/.test(repo)
+      ? `/app?repo=${encodeURIComponent(repo)}`
+      : "/app";
+    const safeReturnTo = safeInternalPath(params.get("returnTo"), legacyReturnTo);
+    setReturnTo(safeReturnTo);
+    setSetupMethod(projectStartMethodFromPath(safeReturnTo));
     setIsAnthropicSetup(params.get("setup") === "anthropic");
-    if (/^[A-Za-z0-9_-]+\/[A-Za-z0-9_.-]+$/.test(repo)) setSetupRepo(repo);
+    setSetupRepo(
+      repositoryFromProjectStartPath(safeReturnTo) || (legacyReturnTo !== "/app" ? repo : null)
+    );
   }, []);
 
   useEffect(() => {
@@ -172,7 +188,7 @@ export default function SettingsPage() {
       <header className="border-b border-[var(--border)]">
         <div className="mx-auto flex max-w-2xl items-center gap-4 px-6 py-4">
           <Link
-            href={setupRepo ? `/app?repo=${encodeURIComponent(setupRepo)}` : "/app"}
+            href={returnTo}
             className="text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
           >
             &larr; Back to your maps
@@ -196,7 +212,9 @@ export default function SettingsPage() {
                 <h2 className="font-display mt-2 text-3xl font-extrabold tracking-tight">
                   {setupRepo
                     ? "Connect Anthropic to map this repository."
-                    : "Connect Anthropic to use StackHatch."}
+                    : setupMethod === "requirements"
+                      ? "Connect Anthropic to map your requirements."
+                      : "Connect Anthropic to use StackHatch."}
                 </h2>
                 <p className="mt-3 max-w-xl text-sm leading-6 text-[var(--muted-foreground)]">
                   StackHatch is free and bring-your-own-key. Your key stays encrypted on the server
@@ -263,12 +281,12 @@ export default function SettingsPage() {
                   </button>
                 )}
               </div>
-              {setupRepo && hasAnthropicKey && (
+              {isAnthropicSetup && hasAnthropicKey && (
                 <Link
-                  href={`/app?repo=${encodeURIComponent(setupRepo)}`}
+                  href={returnTo}
                   className="mt-5 inline-flex min-h-11 items-center justify-center rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-bold text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)]"
                 >
-                  Continue to {setupRepo}
+                  {setupRepo ? `Continue to ${setupRepo}` : "Continue to your project"}
                 </Link>
               )}
             </section>

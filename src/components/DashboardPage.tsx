@@ -19,6 +19,13 @@ import {
 import ThemeToggle from "@/components/ThemeToggle";
 import UserAvatar from "@/components/UserAvatar";
 import { consumeAuthenticationStarted, trackEvent } from "@/lib/analytics";
+import { parseGitHubRepoReference } from "@/lib/github-analyzer";
+import {
+  consumeBlankAutoCreateIntent,
+  getPendingProjectStart,
+  markProjectStart,
+  type ProjectStartMethod,
+} from "@/lib/project-start";
 
 interface ProjectSummary {
   id: string;
@@ -43,36 +50,9 @@ function isAcceptedRequirementsFile(file: File) {
   return ACCEPTED_REQUIREMENT_FILES.some((extension) => name.endsWith(extension));
 }
 
-function normalizeGitHubRepository(value: string) {
-  const input = value.trim().replace(/\/$/, "");
-  if (!input) return null;
-
-  let path = input;
-  if (/^https?:\/\//i.test(input)) {
-    try {
-      const parsed = new URL(input);
-      if (parsed.hostname.toLowerCase() !== "github.com" || parsed.search || parsed.hash)
-        return null;
-      path = parsed.pathname.replace(/^\//, "");
-    } catch {
-      return null;
-    }
-  } else {
-    path = path.replace(/^github\.com\//i, "");
-  }
-
-  path = path.replace(/\.git$/i, "");
-  const parts = path.split("/");
-  if (
-    parts.length !== 2 ||
-    !/^[A-Za-z0-9_-]+$/.test(parts[0]) ||
-    !/^[A-Za-z0-9_.-]+$/.test(parts[1])
-  ) {
-    return null;
-  }
-
-  const slug = `${parts[0]}/${parts[1]}`;
-  return { slug, url: `https://github.com/${slug}` };
+function anthropicSetupHref(repository?: string) {
+  const returnTo = repository ? `/app?repo=${encodeURIComponent(repository)}#start` : "/app#start";
+  return `/settings?setup=anthropic&returnTo=${encodeURIComponent(returnTo)}`;
 }
 
 export default function Dashboard() {
@@ -86,10 +66,12 @@ export default function Dashboard() {
   const [requestedRepo, setRequestedRepo] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
+  const [blankAutoCreateFailed, setBlankAutoCreateFailed] = useState(false);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [hasAnthropicKey, setHasAnthropicKey] = useState<boolean | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const routedToSetup = useRef(false);
+  const blankAutoCreateAttempted = useRef(false);
 
   const loadProjects = useCallback(async () => {
     setLoading(true);
@@ -116,14 +98,18 @@ export default function Dashboard() {
 
   useEffect(() => {
     const repo = new URLSearchParams(window.location.search).get("repo");
-    const normalized = repo ? normalizeGitHubRepository(repo) : null;
+    const normalized = repo ? parseGitHubRepoReference(repo) : null;
     if (normalized) {
       setRequestedRepo(normalized.slug);
       setRepoUrl(normalized.slug);
     }
 
     if (consumeAuthenticationStarted()) {
-      trackEvent("github_auth_completed", { location: "dashboard" });
+      const startMethod = getPendingProjectStart();
+      trackEvent("github_auth_completed", {
+        location: "dashboard",
+        ...(startMethod ? { start_method: startMethod } : {}),
+      });
     }
   }, []);
 
@@ -149,14 +135,13 @@ export default function Dashboard() {
   useEffect(() => {
     if (!requestedRepo || hasAnthropicKey !== false || routedToSetup.current) return;
     routedToSetup.current = true;
-    router.replace(`/settings?setup=anthropic&repo=${encodeURIComponent(requestedRepo)}`);
+    router.replace(anthropicSetupHref(requestedRepo));
   }, [hasAnthropicKey, requestedRepo, router]);
 
   const requireAnthropicKey = useCallback(
     (repo?: string) => {
       if (hasAnthropicKey === false) {
-        const suffix = repo ? `&repo=${encodeURIComponent(repo)}` : "";
-        router.push(`/settings?setup=anthropic${suffix}`);
+        router.push(anthropicSetupHref(repo));
         return false;
       }
       return true;
@@ -164,53 +149,81 @@ export default function Dashboard() {
     [hasAnthropicKey, router]
   );
 
-  async function createProject(opts?: { repoUrl?: string; description?: string }) {
-    if ((opts?.repoUrl || opts?.description) && !requireAnthropicKey()) return;
+  const createProject = useCallback(
+    async (
+      opts?: { repoUrl?: string; description?: string },
+      context?: { blankAutoCreate?: boolean }
+    ) => {
+      if ((opts?.repoUrl || opts?.description) && !requireAnthropicKey()) return false;
 
-    setCreating(true);
-    setError("");
-    try {
-      let name = "Untitled Project";
-      if (opts?.repoUrl) {
-        const repository = normalizeGitHubRepository(opts.repoUrl);
-        name = repository?.slug.split("/")[1] || "Imported Project";
-      } else if (opts?.description) {
-        const firstLine = opts.description.split("\n").find((line) => line.trim());
-        if (firstLine) name = firstLine.replace(/^#\s*/, "").trim().slice(0, 80) || name;
-      }
-
-      const res = await fetch("/api/projects", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          repoUrl: opts?.repoUrl || undefined,
-          description: opts?.description || undefined,
-        }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        if (data.code === "AI_NOT_CONFIGURED") {
-          const repository = opts?.repoUrl ? normalizeGitHubRepository(opts.repoUrl) : null;
-          const suffix = repository ? `&repo=${encodeURIComponent(repository.slug)}` : "";
-          router.push(`/settings?setup=anthropic${suffix}`);
-          return;
+      setCreating(true);
+      setError("");
+      setBlankAutoCreateFailed(false);
+      try {
+        let name = "Untitled Project";
+        if (opts?.repoUrl) {
+          const repository = parseGitHubRepoReference(opts.repoUrl);
+          name = repository?.repo || "Imported Project";
+        } else if (opts?.description) {
+          const firstLine = opts.description.split("\n").find((line) => line.trim());
+          if (firstLine) name = firstLine.replace(/^#\s*/, "").trim().slice(0, 80) || name;
         }
-        setError(data.error || "Failed to create project");
-        return;
+
+        const res = await fetch("/api/projects", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name,
+            repoUrl: opts?.repoUrl || undefined,
+            description: opts?.description || undefined,
+          }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          if (data.code === "AI_NOT_CONFIGURED") {
+            const repository = opts?.repoUrl ? parseGitHubRepoReference(opts.repoUrl) : null;
+            router.push(anthropicSetupHref(repository?.slug));
+            return false;
+          }
+          setError(data.error || "Failed to create project");
+          setBlankAutoCreateFailed(Boolean(context?.blankAutoCreate));
+          return false;
+        }
+        const project = await res.json();
+        router.push(`/project/${project.id}`);
+        return true;
+      } catch {
+        setError("Failed to create project");
+        setBlankAutoCreateFailed(Boolean(context?.blankAutoCreate));
+        return false;
+      } finally {
+        setCreating(false);
       }
-      const project = await res.json();
-      router.push(`/project/${project.id}`);
-    } catch {
-      setError("Failed to create project");
-    } finally {
-      setCreating(false);
-    }
+    },
+    [requireAnthropicKey, router]
+  );
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("start") !== "blank" || blankAutoCreateAttempted.current) return;
+
+    blankAutoCreateAttempted.current = true;
+    const shouldCreate = consumeBlankAutoCreateIntent();
+    router.replace("/app#start");
+    if (shouldCreate) void createProject(undefined, { blankAutoCreate: true });
+  }, [createProject, router]);
+
+  function recordStartSelection(startMethod: ProjectStartMethod) {
+    markProjectStart(startMethod);
+    trackEvent("project_start_selected", {
+      location: "dashboard",
+      start_method: startMethod,
+    });
   }
 
   function handleRepoSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const repository = normalizeGitHubRepository(repoUrl);
+    const repository = parseGitHubRepoReference(repoUrl);
     if (!repository) {
       setError("Enter a public GitHub repository as owner/repo or a full GitHub URL.");
       trackEvent("repository_intent_submitted", {
@@ -219,16 +232,16 @@ export default function Dashboard() {
       });
       return;
     }
+    recordStartSelection("repository");
     trackEvent("repository_intent_submitted", { location: "dashboard" });
     if (!requireAnthropicKey(repository.slug)) return;
-    createProject({ repoUrl: repository.url });
+    createProject({ repoUrl: repository.normalizedUrl });
   }
 
   function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    if (!requireAnthropicKey()) return;
     if (!isAcceptedRequirementsFile(file)) {
       setError("Upload a Markdown or text requirements file.");
       return;
@@ -244,6 +257,17 @@ export default function Dashboard() {
     };
     reader.onerror = () => setError("The requirements file could not be read.");
     reader.readAsText(file);
+  }
+
+  function handleRequirementsStart() {
+    recordStartSelection("requirements");
+    if (requireAnthropicKey()) fileInputRef.current?.click();
+  }
+
+  function handleBlankStart() {
+    recordStartSelection("blank");
+    consumeBlankAutoCreateIntent();
+    void createProject();
   }
 
   const handleDelete = useCallback(async () => {
@@ -315,7 +339,7 @@ export default function Dashboard() {
               </div>
             </div>
             <Link
-              href={`/settings?setup=anthropic${requestedRepo ? `&repo=${encodeURIComponent(requestedRepo)}` : ""}`}
+              href={anthropicSetupHref(requestedRepo || undefined)}
               className="inline-flex min-h-11 flex-none items-center justify-center rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-bold text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)]"
             >
               Add API key
@@ -323,109 +347,106 @@ export default function Dashboard() {
           </section>
         )}
 
-        <section className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm shadow-[var(--shadow-color)]">
-          <h1 className="font-display mt-2 max-w-3xl text-3xl font-extrabold tracking-tight md:text-4xl">
-            What do you want to map?
-          </h1>
-          <p className="mt-4 max-w-2xl text-sm leading-6 text-[var(--muted-foreground)]">
-            Turn a public repository into a visual architecture you can explore, question, and keep
-            in focus as the code changes.
-          </p>
-        </section>
+        <section id="start" aria-labelledby="start-title">
+          <div className="mb-6">
+            <h1
+              id="start-title"
+              className="font-display max-w-3xl text-3xl font-extrabold tracking-tight md:text-4xl"
+            >
+              Start with what you have.
+            </h1>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--muted-foreground)]">
+              Open a blank canvas, upload requirements, map a public repository, or reuse a saved
+              template.
+            </p>
+          </div>
 
-        <section id="start" className="space-y-8">
-          <form
-            onSubmit={handleRepoSubmit}
-            className="entry-card rounded-lg border border-[var(--border)] bg-[var(--card)] p-6"
-          >
-            <div className="flex items-start gap-3">
-              <GitBranch className="mt-0.5 h-5 w-5 flex-none text-[var(--color-client)]" />
-              <div>
-                <h2 className="font-semibold">Map a GitHub repository</h2>
-                <p className="mt-1 text-sm leading-6 text-[var(--muted-foreground)]">
-                  Enter a public repository. You will review it before StackHatch starts the scan.
-                </p>
-              </div>
-            </div>
-            <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-              <label className="sr-only" htmlFor="repository-reference">
-                GitHub repository
-              </label>
-              <input
-                id="repository-reference"
-                type="text"
-                inputMode="url"
-                value={repoUrl}
-                onChange={(e) => setRepoUrl(e.target.value)}
-                placeholder="owner/repo or https://github.com/owner/repo"
-                disabled={creating}
-                className="min-h-11 min-w-0 flex-1 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)] disabled:opacity-50"
-              />
+          <div className="start-launchpad grid gap-px overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--border)] md:grid-cols-2">
+            <article className="start-cell start-cell-fresh flex min-w-0 flex-col bg-[var(--card)] p-6">
+              <FolderPlus className="h-5 w-5 text-[var(--color-client)]" aria-hidden="true" />
+              <h2 className="mt-3 font-semibold">Start fresh</h2>
+              <p className="mt-1 flex-1 text-sm leading-6 text-[var(--muted-foreground)]">
+                Open a blank architecture map and shape it manually. No API key required.
+              </p>
               <button
-                type="submit"
-                disabled={creating || !repoUrl.trim()}
-                className="min-h-11 rounded-md bg-[var(--brand)] px-5 py-2 text-sm font-bold text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)] disabled:opacity-50"
+                type="button"
+                onClick={handleBlankStart}
+                disabled={creating}
+                className="mt-5 min-h-11 rounded-md border border-[var(--border)] px-4 py-2 text-sm font-semibold hover:bg-[var(--muted)] disabled:opacity-50"
               >
-                {creating ? "Creating map..." : "Map repository"}
+                {creating ? "Creating map..." : "Start fresh"}
               </button>
-            </div>
-          </form>
+            </article>
 
-          <div>
-            <h2 className="font-display text-xl font-bold">Other ways to start</h2>
-            <div className="mt-4 grid gap-4 md:grid-cols-3">
-              <div className="entry-card flex min-w-0 flex-col rounded-lg border border-[var(--border)] bg-[var(--card)] p-5">
-                <FileText className="h-5 w-5 text-[var(--color-services)]" />
-                <h3 className="mt-3 font-semibold">Upload requirements</h3>
-                <p className="mt-1 flex-1 text-sm leading-6 text-[var(--muted-foreground)]">
-                  Start from a Markdown or text PRD and refine the generated architecture.
-                </p>
-                <button
-                  onClick={() =>
-                    requireAnthropicKey() ? fileInputRef.current?.click() : undefined
-                  }
-                  disabled={creating}
-                  className="mt-4 min-h-11 rounded-md border border-dashed border-[var(--border)] px-4 py-2 text-sm font-semibold hover:border-[var(--color-services)] hover:bg-[var(--muted)] disabled:opacity-50"
-                >
-                  Choose file...
-                </button>
+            <article className="start-cell start-cell-requirements flex min-w-0 flex-col bg-[var(--card)] p-6">
+              <FileText className="h-5 w-5 text-[var(--color-services)]" aria-hidden="true" />
+              <h2 className="mt-3 font-semibold">Upload requirements</h2>
+              <p className="mt-1 flex-1 text-sm leading-6 text-[var(--muted-foreground)]">
+                Turn a Markdown or text requirements document into an architecture map.
+              </p>
+              <button
+                type="button"
+                onClick={handleRequirementsStart}
+                disabled={creating}
+                className="mt-5 min-h-11 rounded-md border border-[var(--border)] px-4 py-2 text-sm font-semibold hover:bg-[var(--muted)] disabled:opacity-50"
+              >
+                Choose requirements
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".md,.txt,text/markdown,text/plain"
+                onChange={handleFileUpload}
+                className="hidden"
+                aria-label="Requirements file"
+              />
+              <p className="mt-2 text-xs text-[var(--muted-foreground)]">Accepts .md and .txt</p>
+            </article>
+
+            <article className="start-cell start-cell-repository flex min-w-0 flex-col bg-[var(--card)] p-6">
+              <GitBranch className="h-5 w-5 text-[var(--color-client)]" aria-hidden="true" />
+              <h2 className="mt-3 font-semibold">Map a repo</h2>
+              <p className="mt-1 text-sm leading-6 text-[var(--muted-foreground)]">
+                Scan a public GitHub repository and make its moving pieces visible.
+              </p>
+              <form onSubmit={handleRepoSubmit} className="mt-5 flex flex-1 flex-col justify-end">
+                <label className="sr-only" htmlFor="repository-reference">
+                  GitHub repository
+                </label>
                 <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".md,.txt,text/markdown,text/plain"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                />
-                <p className="mt-2 text-xs text-[var(--muted-foreground)]">.md or .txt</p>
-              </div>
-              <div className="entry-card flex min-w-0 flex-col rounded-lg border border-[var(--border)] bg-[var(--card)] p-5">
-                <LayoutTemplate className="h-5 w-5 text-[var(--color-api)]" />
-                <h3 className="mt-3 font-semibold">Use a template</h3>
-                <p className="mt-1 flex-1 text-sm leading-6 text-[var(--muted-foreground)]">
-                  Reuse one of your saved architecture maps as the starting point for a new project.
-                </p>
-                <Link
-                  href="/project/new?templates=1"
-                  className="mt-4 inline-flex min-h-11 items-center justify-center rounded-md border border-[var(--border)] px-4 py-2 text-sm font-semibold hover:bg-[var(--muted)]"
-                >
-                  Use a template
-                </Link>
-              </div>
-              <div className="entry-card flex min-w-0 flex-col rounded-lg border border-[var(--border)] bg-[var(--card)] p-5">
-                <FolderPlus className="h-5 w-5 text-[var(--color-client)]" />
-                <h3 className="mt-3 font-semibold">Start fresh</h3>
-                <p className="mt-1 flex-1 text-sm leading-6 text-[var(--muted-foreground)]">
-                  Open a blank canvas and work manually. No API key is required.
-                </p>
-                <button
-                  onClick={() => createProject()}
+                  id="repository-reference"
+                  type="text"
+                  inputMode="url"
+                  value={repoUrl}
+                  onChange={(e) => setRepoUrl(e.target.value)}
+                  placeholder="owner/repo"
                   disabled={creating}
-                  className="mt-4 min-h-11 rounded-md border border-[var(--border)] px-4 py-2 text-sm font-semibold hover:bg-[var(--muted)] disabled:opacity-50"
+                  className="min-h-11 min-w-0 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)] disabled:opacity-50"
+                />
+                <button
+                  type="submit"
+                  disabled={creating || !repoUrl.trim()}
+                  className="mt-3 min-h-11 rounded-md border border-[var(--border)] bg-[var(--background)] px-4 py-2 text-sm font-semibold text-[var(--foreground)] hover:bg-[var(--muted)] disabled:opacity-50"
                 >
-                  Start from scratch
+                  {creating ? "Creating map..." : "Map repository"}
                 </button>
-              </div>
-            </div>
+              </form>
+            </article>
+
+            <article className="start-cell start-cell-template flex min-w-0 flex-col bg-[var(--card)] p-6">
+              <LayoutTemplate className="h-5 w-5 text-[var(--color-api)]" aria-hidden="true" />
+              <h2 className="mt-3 font-semibold">Use a template</h2>
+              <p className="mt-1 flex-1 text-sm leading-6 text-[var(--muted-foreground)]">
+                Reuse one of your saved architecture maps as a new starting point.
+              </p>
+              <Link
+                href="/project/new?mode=template"
+                onClick={() => recordStartSelection("template")}
+                className="mt-5 inline-flex min-h-11 items-center justify-center rounded-md border border-[var(--border)] px-4 py-2 text-sm font-semibold hover:bg-[var(--muted)]"
+              >
+                Choose a template
+              </Link>
+            </article>
           </div>
         </section>
 
@@ -435,7 +456,19 @@ export default function Dashboard() {
             role="alert"
           >
             <AlertCircle className="mt-0.5 h-4 w-4 flex-none" />
-            <span>{error}</span>
+            <div>
+              <span>{error}</span>
+              {blankAutoCreateFailed && (
+                <button
+                  type="button"
+                  onClick={() => void createProject(undefined, { blankAutoCreate: true })}
+                  disabled={creating}
+                  className="ml-3 font-semibold underline underline-offset-2 disabled:opacity-50"
+                >
+                  Retry creating the blank map
+                </button>
+              )}
+            </div>
           </div>
         )}
 

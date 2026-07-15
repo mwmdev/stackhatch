@@ -326,6 +326,24 @@ vi.mock("@/components/canvas/EdgeLegend", () => ({
   default: () => <div data-testid="edge-legend">Edge Legend</div>,
 }));
 
+const { mockTrackEvent, mockConsumePendingProjectStart, mockGetPendingProjectStart } = vi.hoisted(
+  () => ({
+    mockTrackEvent: vi.fn(),
+    mockConsumePendingProjectStart: vi.fn<
+      () => null | "blank" | "requirements" | "repository" | "template"
+    >(() => null),
+    mockGetPendingProjectStart: vi.fn<
+      () => null | "blank" | "requirements" | "repository" | "template"
+    >(() => null),
+  })
+);
+
+vi.mock("@/lib/analytics", () => ({ trackEvent: mockTrackEvent }));
+vi.mock("@/lib/project-start", () => ({
+  consumePendingProjectStart: mockConsumePendingProjectStart,
+  getPendingProjectStart: mockGetPendingProjectStart,
+}));
+
 import ProjectPage from "./page";
 
 // --- Test data ---
@@ -477,6 +495,8 @@ describe("ProjectPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     window.localStorage.clear();
+    mockConsumePendingProjectStart.mockReturnValue(null);
+    mockGetPendingProjectStart.mockReturnValue(null);
   });
 
   afterEach(() => {
@@ -548,9 +568,56 @@ describe("ProjectPage", () => {
         expect(screen.getByTestId("react-flow-canvas")).toBeInTheDocument();
       });
     });
+
+    it("attaches the pending start method to first-map activation once", async () => {
+      mockConsumePendingProjectStart.mockReturnValue("repository");
+      mockFetchProject(emptyProject);
+      render(<ProjectPage />);
+      await screen.findByText("No architecture map yet");
+
+      fireEvent.click(screen.getByRole("button", { name: "Mock scan replacement" }));
+
+      await waitFor(() => {
+        expect(mockTrackEvent).toHaveBeenCalledWith("first_map_viewed", {
+          location: "editor",
+          start_method: "repository",
+        });
+      });
+      expect(mockConsumePendingProjectStart).toHaveBeenCalledTimes(1);
+    });
+
+    it("tracks a blank map on successful project load", async () => {
+      mockGetPendingProjectStart.mockReturnValue("blank");
+      mockConsumePendingProjectStart.mockReturnValue("blank");
+      mockFetchProject(emptyProject);
+
+      render(<ProjectPage />);
+      await screen.findByText("No architecture map yet");
+
+      expect(mockTrackEvent).toHaveBeenCalledWith("first_map_viewed", {
+        location: "editor",
+        start_method: "blank",
+      });
+      expect(mockConsumePendingProjectStart).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe("toolbar", () => {
+    it("tracks a template map on successful project load", async () => {
+      mockGetPendingProjectStart.mockReturnValue("template");
+      mockConsumePendingProjectStart.mockReturnValue("template");
+      mockFetchProject(projectWithNodes);
+
+      render(<ProjectPage />);
+      await screen.findByTestId("mock-flow-node-n1");
+
+      expect(mockTrackEvent).toHaveBeenCalledWith("first_map_viewed", {
+        location: "editor",
+        start_method: "template",
+      });
+      expect(mockConsumePendingProjectStart).toHaveBeenCalledTimes(1);
+    });
+
     it("displays project name", async () => {
       mockFetchProject(emptyProject);
       render(<ProjectPage />);

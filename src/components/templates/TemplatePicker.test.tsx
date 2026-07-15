@@ -50,6 +50,29 @@ describe("TemplatePicker", () => {
     expect(screen.getByText(/Save any architecture map as a template/)).toBeInTheDocument();
   });
 
+  it("retries when personal templates fail to load", async () => {
+    let attempts = 0;
+    global.fetch = vi.fn(() => {
+      attempts += 1;
+      return Promise.resolve(
+        attempts === 1
+          ? ({
+              ok: false,
+              json: () => Promise.resolve({ error: "Templates unavailable" }),
+            } as Response)
+          : ({ ok: true, json: () => Promise.resolve([template]) } as Response)
+      );
+    }) as unknown as typeof global.fetch;
+
+    render(<TemplatePicker onSelectTemplate={vi.fn()} onCancel={vi.fn()} />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Templates unavailable");
+    fireEvent.click(screen.getByRole("button", { name: "Retry templates" }));
+
+    expect(await screen.findByRole("button", { name: /API boundary map/ })).toBeInTheDocument();
+    expect(attempts).toBe(2);
+  });
+
   it("keeps keyboard focus inside the dialog, closes on Escape, and restores focus", async () => {
     global.fetch = vi.fn(() =>
       Promise.resolve({ ok: true, json: () => Promise.resolve([]) } as Response)

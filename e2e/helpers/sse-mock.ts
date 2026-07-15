@@ -166,7 +166,6 @@ export async function mockInterviewFlow(page: Page) {
  * Helper to create a project and navigate to its page.
  */
 export async function createProjectAndNavigate(page: Page, name: string, description?: string) {
-  await page.goto("/project/new");
   const settingsResponse = await page.request.patch("/api/settings", {
     data: {
       apiKey: "sk-ant-playwright-placeholder-key",
@@ -176,10 +175,13 @@ export async function createProjectAndNavigate(page: Page, name: string, descrip
   if (!settingsResponse.ok()) {
     throw new Error(`Unable to configure BYOK for E2E: ${settingsResponse.status()}`);
   }
-  await page.fill("#name", name);
-  if (description) {
-    await page.fill("#description", description);
+
+  const projectResponse = await page.request.post("/api/projects", {
+    data: { name, ...(description ? { description } : {}) },
+  });
+  if (!projectResponse.ok()) {
+    throw new Error(`Unable to create E2E project: ${projectResponse.status()}`);
   }
-  await page.click('button[type="submit"]');
-  await page.waitForURL(/\/project\/[a-f0-9-]+$/);
+  const project = (await projectResponse.json()) as { id: string };
+  await page.goto(`/project/${project.id}`);
 }

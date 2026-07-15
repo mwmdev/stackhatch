@@ -1,7 +1,11 @@
+import {
+  isProjectStartMethod,
+  markProjectStart,
+  type ProjectStartMethod,
+} from "@/lib/project-start";
+
 export const ANALYTICS_EVENT_NAMES = [
-  "demo_opened",
-  "demo_node_opened",
-  "demo_question_opened",
+  "project_start_selected",
   "repository_intent_submitted",
   "github_auth_started",
   "github_auth_completed",
@@ -24,7 +28,6 @@ export const ANALYTICS_LOCATIONS = [
   "hero",
   "final",
   "navigation",
-  "demo",
   "login",
   "dashboard",
   "settings",
@@ -52,6 +55,7 @@ export type AnalyticsErrorCategory = (typeof ANALYTICS_ERROR_CATEGORIES)[number]
 export interface AnalyticsProperties {
   location?: AnalyticsLocation;
   error_category?: AnalyticsErrorCategory;
+  start_method?: ProjectStartMethod;
 }
 
 type UmamiPayload = Record<string, unknown>;
@@ -81,6 +85,9 @@ function sanitizeProperties(properties?: AnalyticsProperties): Record<string, st
   }
   if (properties.error_category && errorCategories.has(properties.error_category)) {
     safe.error_category = properties.error_category;
+  }
+  if (properties.start_method && isProjectStartMethod(properties.start_method)) {
+    safe.start_method = properties.start_method;
   }
 
   return Object.keys(safe).length > 0 ? safe : undefined;
@@ -125,8 +132,9 @@ export function trackPageView(pathname: string) {
 
 const AUTH_PENDING_KEY = "stackhatch:auth-pending";
 
-export function markAuthenticationStarted() {
+export function markAuthenticationStarted(startMethod?: ProjectStartMethod) {
   if (typeof window === "undefined") return;
+  if (startMethod) markProjectStart(startMethod);
   window.sessionStorage.setItem(AUTH_PENDING_KEY, "1");
 }
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 
 interface Template {
   id: string;
@@ -13,6 +14,10 @@ interface Template {
 interface TemplatePickerProps {
   onSelectTemplate: (template: Template) => void;
   onCancel: () => void;
+  busyTemplateId?: string | null;
+  selectionError?: string;
+  onRetrySelection?: () => void;
+  emptyStateHref?: string;
 }
 
 interface TemplateCanvas {
@@ -42,10 +47,18 @@ function summarizeTemplate(canvasState: string): string {
   }
 }
 
-export default function TemplatePicker({ onSelectTemplate, onCancel }: TemplatePickerProps) {
+export default function TemplatePicker({
+  onSelectTemplate,
+  onCancel,
+  busyTemplateId,
+  selectionError,
+  onRetrySelection,
+  emptyStateHref,
+}: TemplatePickerProps) {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const dialogRef = useRef<HTMLDivElement>(null);
   const onCancelRef = useRef(onCancel);
 
@@ -104,6 +117,8 @@ export default function TemplatePicker({ onSelectTemplate, onCancel }: TemplateP
     let cancelled = false;
 
     async function loadTemplates() {
+      setLoading(true);
+      setError("");
       try {
         const res = await fetch("/api/templates");
         if (!res.ok) {
@@ -125,7 +140,7 @@ export default function TemplatePicker({ onSelectTemplate, onCancel }: TemplateP
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [loadAttempt]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay)] px-4">
@@ -151,15 +166,32 @@ export default function TemplatePicker({ onSelectTemplate, onCancel }: TemplateP
               Loading templates...
             </p>
           ) : error ? (
-            <p className="py-8 text-center text-sm text-[var(--danger)]" role="alert">
-              {error}
-            </p>
+            <div className="py-8 text-center">
+              <p className="text-sm text-[var(--danger)]" role="alert">
+                {error}
+              </p>
+              <button
+                type="button"
+                onClick={() => setLoadAttempt((attempt) => attempt + 1)}
+                className="mt-3 min-h-11 rounded-md border border-[var(--danger-border)] px-4 py-2 text-sm font-semibold text-[var(--danger)]"
+              >
+                Retry templates
+              </button>
+            </div>
           ) : templates.length === 0 ? (
             <div className="py-8 text-center">
               <p className="font-medium">No templates yet.</p>
               <p className="mt-1 text-sm text-[var(--muted-foreground)]">
                 Save any architecture map as a template, then reuse it here.
               </p>
+              {emptyStateHref && (
+                <Link
+                  href={emptyStateHref}
+                  className="mt-4 inline-flex min-h-11 items-center rounded-md border border-[var(--border)] px-4 py-2 text-sm font-semibold hover:bg-[var(--muted)]"
+                >
+                  Choose another starting point
+                </Link>
+              )}
             </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2">
@@ -168,7 +200,9 @@ export default function TemplatePicker({ onSelectTemplate, onCancel }: TemplateP
                   key={template.id}
                   type="button"
                   onClick={() => onSelectTemplate(template)}
-                  className="rounded-md border border-[var(--border)] p-4 text-left transition-colors hover:bg-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
+                  disabled={Boolean(busyTemplateId)}
+                  aria-busy={busyTemplateId === template.id || undefined}
+                  className="rounded-md border border-[var(--border)] p-4 text-left transition-colors hover:bg-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)] disabled:cursor-wait disabled:opacity-60"
                 >
                   <h4 className="font-medium">{template.name}</h4>
                   {template.description && (
@@ -182,17 +216,47 @@ export default function TemplatePicker({ onSelectTemplate, onCancel }: TemplateP
                   <p className="mt-2 text-xs text-[var(--muted-foreground)]">
                     Saved {new Date(template.createdAt).toLocaleDateString()}
                   </p>
+                  {busyTemplateId === template.id && (
+                    <p
+                      className="mt-3 text-sm font-semibold text-[var(--color-client)]"
+                      role="status"
+                    >
+                      Creating your copy...
+                    </p>
+                  )}
                 </button>
               ))}
             </div>
           )}
         </div>
 
-        <div className="flex justify-end border-t border-[var(--border)] p-6">
+        <div className="flex flex-col gap-3 border-t border-[var(--border)] p-6 sm:flex-row sm:items-center sm:justify-between">
+          {selectionError ? (
+            <div className="flex-1">
+              <p className="text-sm text-[var(--danger)]" role="alert">
+                {selectionError}
+              </p>
+              {onRetrySelection && (
+                <button
+                  type="button"
+                  onClick={onRetrySelection}
+                  disabled={Boolean(busyTemplateId)}
+                  className="mt-2 min-h-11 rounded-md border border-[var(--danger-border)] px-4 py-2 text-sm font-semibold text-[var(--danger)] disabled:opacity-50"
+                >
+                  Retry selected template
+                </button>
+              )}
+            </div>
+          ) : (
+            <span />
+          )}
           <button
             type="button"
-            onClick={onCancel}
-            className="min-h-11 rounded-md border border-[var(--border)] px-4 py-2 text-sm font-semibold hover:bg-[var(--muted)]"
+            onClick={() => {
+              if (!busyTemplateId) onCancel();
+            }}
+            aria-disabled={Boolean(busyTemplateId)}
+            className="min-h-11 rounded-md border border-[var(--border)] px-4 py-2 text-sm font-semibold hover:bg-[var(--muted)] aria-disabled:cursor-wait aria-disabled:opacity-50"
           >
             Cancel
           </button>

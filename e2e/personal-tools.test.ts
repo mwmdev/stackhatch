@@ -75,17 +75,16 @@ test.describe("personal workspace tools", () => {
     );
 
     await page.goto("/app");
-    await page.getByRole("link", { name: "Use a template" }).click();
-    await page.waitForURL("/project/new?templates=1");
+    await page.getByRole("link", { name: "Choose a template" }).click();
+    await page.waitForURL("/project/new?mode=template");
     await expect(page.getByRole("dialog", { name: "Start from Template" })).toBeVisible();
     await page.getByRole("button", { name: new RegExp(templateName) }).click();
 
-    const copyName = `Template copy ${Date.now()}`;
-    await page.getByLabel(/Project Name/).fill(copyName);
-    await page.getByRole("button", { name: "Create Project" }).click();
     await page.waitForURL(/\/project\/[a-f0-9-]+$/);
 
-    await expect(page.getByRole("heading", { level: 1, name: copyName })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { level: 1, name: `${templateName} – Copy` })
+    ).toBeVisible();
     await expect(page.getByTestId("stack-node-api-gateway")).toBeVisible();
 
     const copyId = page.url().split("/project/")[1];

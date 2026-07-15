@@ -58,12 +58,12 @@ test.describe("tierless BYOK experience", () => {
     await expect(setupPrompt).toContainText("Connect Anthropic to use AI");
     await expect(setupPrompt.getByRole("link", { name: "Add API key" })).toHaveAttribute(
       "href",
-      "/settings?setup=anthropic"
+      "/settings?setup=anthropic&returnTo=%2Fapp%23start"
     );
 
     const manualCard = page.getByRole("heading", { name: "Start fresh" }).locator("..");
-    await expect(manualCard).toContainText("No API key is required");
-    await page.getByRole("button", { name: "Start from scratch" }).click();
+    await expect(manualCard).toContainText("No API key required");
+    await page.getByRole("button", { name: "Start fresh" }).click();
 
     await page.waitForURL(/\/project\/[a-f0-9-]+$/);
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Untitled Project");
