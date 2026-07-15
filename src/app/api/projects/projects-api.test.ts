@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import Database from "better-sqlite3";
 import * as schema from "@/db/schema";
@@ -30,8 +31,7 @@ function createTestDb() {
       repo_analysis_status TEXT,
       repo_analysis_warning TEXT,
       canvas_state TEXT,
-      user_id TEXT,
-      team_id TEXT,
+      user_id TEXT NOT NULL,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -47,22 +47,6 @@ function createTestDb() {
     CREATE TABLE settings (
       key TEXT PRIMARY KEY NOT NULL,
       value TEXT NOT NULL
-    );
-    CREATE TABLE teams (
-      id TEXT PRIMARY KEY NOT NULL,
-      name TEXT NOT NULL,
-      owner_id TEXT NOT NULL,
-      created_at INTEGER NOT NULL,
-      FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
-    );
-    CREATE TABLE team_members (
-      team_id TEXT NOT NULL,
-      user_id TEXT NOT NULL,
-      role TEXT NOT NULL,
-      joined_at INTEGER NOT NULL,
-      PRIMARY KEY(team_id, user_id),
-      FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
   `);
   return drizzle(sqlite, { schema });
@@ -185,6 +169,38 @@ describe("GET /api/projects", () => {
 
     expect(data[0]).not.toHaveProperty("canvasState");
   });
+
+  it("returns only projects owned by the authenticated user", async () => {
+    const now = Date.now();
+    testDb
+      .insert(users)
+      .values({ id: "other-user", githubId: "987654321", role: "user", createdAt: now })
+      .run();
+    testDb
+      .insert(projects)
+      .values([
+        {
+          id: "owned",
+          name: "Owned",
+          userId: "test-user-id",
+          createdAt: now,
+          updatedAt: now,
+        },
+        {
+          id: "other",
+          name: "Other",
+          userId: "other-user",
+          createdAt: now,
+          updatedAt: now,
+        },
+      ])
+      .run();
+
+    const response = await projectsRoute.GET();
+    expect(await response.json()).toEqual([
+      expect.objectContaining({ id: "owned", name: "Owned" }),
+    ]);
+  });
 });
 
 describe("POST /api/projects", () => {
@@ -232,7 +248,6 @@ describe("POST /api/projects", () => {
           repoUrl: null,
           canvasState: null,
           userId: "test-user-id",
-          teamId: null,
           createdAt: now,
           updatedAt: now,
         }))
@@ -275,6 +290,18 @@ describe("POST /api/projects", () => {
 
     const data = await res.json();
     expect(data.error).toBeDefined();
+  });
+
+  it("rejects the removed teamId field", async () => {
+    const response = await projectsRoute.POST(
+      makeRequest("/api/projects", {
+        method: "POST",
+        body: { name: "Legacy team project", teamId: "team-1" },
+      }) as never
+    );
+
+    expect(response.status).toBe(400);
+    expect(testDb.select().from(projects).all()).toHaveLength(0);
   });
 
   it("returns 400 when name is empty string", async () => {
@@ -392,6 +419,30 @@ describe("GET /api/projects/[id]", () => {
     const data = await res.json();
     expect(data.error).toBe("Project not found");
   });
+
+  it("returns 404 for another user's project", async () => {
+    const now = Date.now();
+    testDb
+      .insert(users)
+      .values({ id: "other-user", githubId: "other-github", role: "user", createdAt: now })
+      .run();
+    testDb
+      .insert(projects)
+      .values({
+        id: "other-project",
+        name: "Private map",
+        userId: "other-user",
+        createdAt: now,
+        updatedAt: now,
+      })
+      .run();
+
+    const response = await projectIdRoute.GET(
+      makeRequest("/api/projects/other-project") as never,
+      makeParams("other-project")
+    );
+    expect(response.status).toBe(404);
+  });
 });
 
 describe("PATCH /api/projects/[id]", () => {
@@ -468,6 +519,37 @@ describe("PATCH /api/projects/[id]", () => {
 
     const res = await projectIdRoute.PATCH(req as never, makeParams("nonexistent"));
     expect(res.status).toBe(404);
+  });
+
+  it("returns 404 when updating another user's project", async () => {
+    const now = Date.now();
+    testDb
+      .insert(users)
+      .values({ id: "other-user", githubId: "other-patch", role: "user", createdAt: now })
+      .run();
+    testDb
+      .insert(projects)
+      .values({
+        id: "other-project",
+        name: "Other",
+        userId: "other-user",
+        createdAt: now,
+        updatedAt: now,
+      })
+      .run();
+
+    const response = await projectIdRoute.PATCH(
+      makeRequest("/api/projects/other-project", {
+        method: "PATCH",
+        body: { name: "Stolen" },
+      }) as never,
+      makeParams("other-project")
+    );
+
+    expect(response.status).toBe(404);
+    expect(testDb.select().from(projects).where(eq(projects.id, "other-project")).get()?.name).toBe(
+      "Other"
+    );
   });
 
   it("returns 400 when name is empty string", async () => {
@@ -608,6 +690,34 @@ describe("DELETE /api/projects/[id]", () => {
 
     const data = await res.json();
     expect(data.error).toBe("Project not found");
+  });
+
+  it("returns 404 when deleting another user's project", async () => {
+    const now = Date.now();
+    testDb
+      .insert(users)
+      .values({ id: "other-user", githubId: "other-delete", role: "user", createdAt: now })
+      .run();
+    testDb
+      .insert(projects)
+      .values({
+        id: "other-project",
+        name: "Other",
+        userId: "other-user",
+        createdAt: now,
+        updatedAt: now,
+      })
+      .run();
+
+    const response = await projectIdRoute.DELETE(
+      makeRequest("/api/projects/other-project", { method: "DELETE" }) as never,
+      makeParams("other-project")
+    );
+
+    expect(response.status).toBe(404);
+    expect(
+      testDb.select().from(projects).where(eq(projects.id, "other-project")).get()
+    ).toBeDefined();
   });
 });
 

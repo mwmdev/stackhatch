@@ -1,118 +1,122 @@
-import { test, expect } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
-test.describe("New Project Flow", () => {
-  test("validates name is required", async ({ page }) => {
+test.describe("four project starts", () => {
+  test("returns a legacy or unsupported new-project URL to the launchpad", async ({ page }) => {
     await page.goto("/project/new");
 
-    // Click submit without entering a name
-    await page.click('button[type="submit"]');
-
-    // Should show validation error
-    await expect(page.getByText("Project name is required")).toBeVisible();
+    await page.waitForURL(/\/app#start$/);
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Start with what you have." })
+    ).toBeVisible();
   });
 
-  test("creates project and redirects to project page", async ({ page }) => {
-    // Mock the chat init to avoid needing a real API key
-    await page.route("**/api/projects/*/chat/init", async (route) => {
-      const body = [
-        `data: ${JSON.stringify({ type: "text", content: "Welcome! Let's design your application architecture. " })}\n\n`,
-        `data: ${JSON.stringify({ type: "text", content: "What are you building? Tell me about the type of application and the problem it solves." })}\n\n`,
-        `data: ${JSON.stringify({ type: "done" })}\n\n`,
-      ].join("");
+  test("requirements setup preserves the exact continuation", async ({ page }) => {
+    const cleared = await page.request.patch("/api/settings", { data: { clearApiKey: true } });
+    expect(cleared.ok()).toBe(true);
 
-      await route.fulfill({
-        status: 200,
-        headers: {
-          "Content-Type": "text/event-stream",
-          "Cache-Control": "no-cache",
-          Connection: "keep-alive",
-        },
-        body,
-      });
-    });
+    await page.goto("/project/new?mode=requirements");
 
-    await page.goto("/project/new");
-
-    // Fill in project name
-    await page.fill("#name", "Test Architecture");
-    await page.fill("#description", "A test project for E2E");
-
-    // Submit form
-    await page.click('button[type="submit"]');
-
-    // Should redirect to project page
-    await page.waitForURL(/\/project\/[a-f0-9-]+$/);
-
-    // Project name should be visible in toolbar
-    await expect(page.locator("h1")).toHaveText("Test Architecture");
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Upload requirements" })
+    ).toBeVisible();
+    await expect(page.getByRole("link", { name: "Add Anthropic key" })).toHaveAttribute(
+      "href",
+      "/settings?setup=anthropic&returnTo=%2Fproject%2Fnew%3Fmode%3Drequirements"
+    );
   });
 
-  test("AI sends first interview message for new projects", async ({ page }) => {
-    const aiMessage = "Welcome! Let's design your application architecture. What are you building?";
-
-    // Mock the chat init
-    await page.route("**/api/projects/*/chat/init", async (route) => {
-      const chunks = [
-        `data: ${JSON.stringify({ type: "text", content: aiMessage })}\n\n`,
-        `data: ${JSON.stringify({ type: "done" })}\n\n`,
-      ];
-
+  test("a requirements file creates a map and keeps its first heading", async ({ page }) => {
+    const configured = await page.request.patch("/api/settings", {
+      data: { apiKey: "sk-ant-playwright-placeholder-key", model: "claude-sonnet-5" },
+    });
+    expect(configured.ok()).toBe(true);
+    let submitted: Record<string, unknown> | null = null;
+    await page.route("**/api/projects", async (route) => {
+      if (route.request().method() !== "POST") return route.continue();
+      submitted = JSON.parse(route.request().postData() || "{}");
       await route.fulfill({
-        status: 200,
-        headers: {
-          "Content-Type": "text/event-stream",
-          "Cache-Control": "no-cache",
-        },
-        body: chunks.join(""),
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify({ id: "requirements-e2e-project" }),
       });
     });
 
-    // Mock messages endpoint to return empty (new project)
-    await page.route("**/api/projects/*/messages", async (route) => {
-      await route.fulfill({
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify([]),
-      });
+    await page.goto("/project/new?mode=requirements");
+    await page.getByLabel("Choose .md or .txt file").setInputFiles({
+      name: "platform.md",
+      mimeType: "text/markdown",
+      buffer: Buffer.from("# Platform map\n\nKeep the service boundary visible."),
     });
 
-    // First create a project
-    await page.goto("/project/new");
-    await page.fill("#name", "AI Test Project");
-    await page.click('button[type="submit"]');
-    await page.waitForURL(/\/project\/[a-f0-9-]+$/);
-
-    // Chat sidebar should be open by default (no canvas state)
-    await expect(page.locator('button[aria-label="Hide chat sidebar"]')).toBeVisible();
-
-    // AI message should appear (use first() as React may render it in both stream and final state)
-    await expect(page.getByText(aiMessage).first()).toBeVisible({
-      timeout: 10000,
+    await page.waitForURL("/project/requirements-e2e-project");
+    expect(submitted).toEqual({
+      name: "Platform map",
+      description: "# Platform map\n\nKeep the service boundary visible.",
     });
   });
 
-  test("chat sidebar is open by default on new projects", async ({ page }) => {
-    // Mock chat init
-    await page.route("**/api/projects/*/chat/init", async (route) => {
+  test("repository mode preloads and validates the requested repository", async ({ page }) => {
+    const configured = await page.request.patch("/api/settings", {
+      data: { apiKey: "sk-ant-playwright-placeholder-key", model: "claude-sonnet-5" },
+    });
+    expect(configured.ok()).toBe(true);
+
+    await page.goto("/project/new?mode=repository&repo=acme%2Fapi");
+
+    const repository = page.getByRole("textbox", { name: "Public GitHub repository" });
+    await expect(repository).toHaveValue("acme/api");
+    await repository.fill("not a repository");
+    await page.getByRole("button", { name: "Map repository" }).click();
+    await expect(
+      page.getByRole("alert").filter({ hasText: "Enter a public GitHub repository" })
+    ).toContainText("public GitHub repository");
+  });
+
+  test("a valid repository creates a map with its normalized URL", async ({ page }) => {
+    const configured = await page.request.patch("/api/settings", {
+      data: { apiKey: "sk-ant-playwright-placeholder-key", model: "claude-sonnet-5" },
+    });
+    expect(configured.ok()).toBe(true);
+    let submitted: Record<string, unknown> | null = null;
+    await page.route("**/api/projects", async (route) => {
+      if (route.request().method() !== "POST") return route.continue();
+      submitted = JSON.parse(route.request().postData() || "{}");
       await route.fulfill({
-        status: 200,
-        headers: {
-          "Content-Type": "text/event-stream",
-          "Cache-Control": "no-cache",
-        },
-        body: `data: ${JSON.stringify({ type: "text", content: "Hello!" })}\n\ndata: ${JSON.stringify({ type: "done" })}\n\n`,
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify({ id: "repository-e2e-project" }),
       });
     });
 
-    await page.goto("/project/new");
-    await page.fill("#name", "Sidebar Test");
-    await page.click('button[type="submit"]');
-    await page.waitForURL(/\/project\/[a-f0-9-]+$/);
+    await page.goto("/project/new?mode=repository");
+    await page
+      .getByRole("textbox", { name: "Public GitHub repository" })
+      .fill("https://github.com/acme/platform.git");
+    await page.getByRole("button", { name: "Map repository" }).click();
 
-    // Sidebar should be visible with the top-left hide control
-    await expect(page.locator('button[aria-label="Hide chat sidebar"]')).toBeVisible();
+    await page.waitForURL("/project/repository-e2e-project");
+    expect(submitted).toEqual({
+      name: "platform",
+      repoUrl: "https://github.com/acme/platform",
+    });
+  });
 
-    // Empty canvas message should be visible
-    await expect(page.getByText("Ask an architecture question or add a component")).toBeVisible();
+  test("start fresh creates a blank map directly from the dashboard", async ({ page }) => {
+    await page.route("**/api/projects", async (route) => {
+      if (route.request().method() === "POST") {
+        await route.fulfill({
+          status: 201,
+          contentType: "application/json",
+          body: JSON.stringify({ id: "blank-e2e-project", name: "Untitled Project" }),
+        });
+        return;
+      }
+      await route.continue();
+    });
+
+    await page.goto("/app#start");
+    await page.getByRole("button", { name: "Start fresh" }).click();
+
+    await page.waitForURL("/project/blank-e2e-project");
   });
 });

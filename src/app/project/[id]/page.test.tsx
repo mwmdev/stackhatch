@@ -326,6 +326,24 @@ vi.mock("@/components/canvas/EdgeLegend", () => ({
   default: () => <div data-testid="edge-legend">Edge Legend</div>,
 }));
 
+const { mockTrackEvent, mockConsumePendingProjectStart, mockGetPendingProjectStart } = vi.hoisted(
+  () => ({
+    mockTrackEvent: vi.fn(),
+    mockConsumePendingProjectStart: vi.fn<
+      () => null | "blank" | "requirements" | "repository" | "template"
+    >(() => null),
+    mockGetPendingProjectStart: vi.fn<
+      () => null | "blank" | "requirements" | "repository" | "template"
+    >(() => null),
+  })
+);
+
+vi.mock("@/lib/analytics", () => ({ trackEvent: mockTrackEvent }));
+vi.mock("@/lib/project-start", () => ({
+  consumePendingProjectStart: mockConsumePendingProjectStart,
+  getPendingProjectStart: mockGetPendingProjectStart,
+}));
+
 import ProjectPage from "./page";
 
 // --- Test data ---
@@ -477,6 +495,8 @@ describe("ProjectPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     window.localStorage.clear();
+    mockConsumePendingProjectStart.mockReturnValue(null);
+    mockGetPendingProjectStart.mockReturnValue(null);
   });
 
   afterEach(() => {
@@ -548,9 +568,56 @@ describe("ProjectPage", () => {
         expect(screen.getByTestId("react-flow-canvas")).toBeInTheDocument();
       });
     });
+
+    it("attaches the pending start method to first-map activation once", async () => {
+      mockConsumePendingProjectStart.mockReturnValue("repository");
+      mockFetchProject(emptyProject);
+      render(<ProjectPage />);
+      await screen.findByText("No architecture map yet");
+
+      fireEvent.click(screen.getByRole("button", { name: "Mock scan replacement" }));
+
+      await waitFor(() => {
+        expect(mockTrackEvent).toHaveBeenCalledWith("first_map_viewed", {
+          location: "editor",
+          start_method: "repository",
+        });
+      });
+      expect(mockConsumePendingProjectStart).toHaveBeenCalledTimes(1);
+    });
+
+    it("tracks a blank map on successful project load", async () => {
+      mockGetPendingProjectStart.mockReturnValue("blank");
+      mockConsumePendingProjectStart.mockReturnValue("blank");
+      mockFetchProject(emptyProject);
+
+      render(<ProjectPage />);
+      await screen.findByText("No architecture map yet");
+
+      expect(mockTrackEvent).toHaveBeenCalledWith("first_map_viewed", {
+        location: "editor",
+        start_method: "blank",
+      });
+      expect(mockConsumePendingProjectStart).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe("toolbar", () => {
+    it("tracks a template map on successful project load", async () => {
+      mockGetPendingProjectStart.mockReturnValue("template");
+      mockConsumePendingProjectStart.mockReturnValue("template");
+      mockFetchProject(projectWithNodes);
+
+      render(<ProjectPage />);
+      await screen.findByTestId("mock-flow-node-n1");
+
+      expect(mockTrackEvent).toHaveBeenCalledWith("first_map_viewed", {
+        location: "editor",
+        start_method: "template",
+      });
+      expect(mockConsumePendingProjectStart).toHaveBeenCalledTimes(1);
+    });
+
     it("displays project name", async () => {
       mockFetchProject(emptyProject);
       render(<ProjectPage />);
@@ -813,6 +880,55 @@ describe("ProjectPage", () => {
         const body = JSON.parse((patchCall?.[1] as RequestInit).body as string);
         expect(JSON.parse(body.canvasState).alternatives).toEqual({});
       });
+    });
+
+    it("makes private notes available on a personal project", async () => {
+      mockFetchProject(emptyProject);
+      render(<ProjectPage />);
+
+      const notesButton = await screen.findByRole("button", { name: "Notes" });
+      fireEvent.click(notesButton);
+
+      expect(await screen.findByText("No notes yet.")).toBeInTheDocument();
+      expect(global.fetch).toHaveBeenCalledWith("/api/projects/test-project-id/notes");
+      expect(
+        (global.fetch as ReturnType<typeof vi.fn>).mock.calls.some(([input]) =>
+          String(input).includes("/comments")
+        )
+      ).toBe(false);
+    });
+
+    it("saves any non-empty map as a personal template", async () => {
+      mockFetchProject(projectWithNodes);
+      render(<ProjectPage />);
+
+      const saveButton = await screen.findByRole("button", { name: "Save as Template" });
+      expect(saveButton).toHaveAttribute("title", "Save current map as a personal template");
+      fireEvent.click(saveButton);
+
+      expect(screen.getByRole("dialog", { name: "Save as Template" })).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByLabelText(/Template Name/)).toHaveFocus());
+      fireEvent.keyDown(window, { key: "Escape" });
+      expect(screen.queryByRole("dialog", { name: "Save as Template" })).not.toBeInTheDocument();
+      expect(saveButton).toHaveFocus();
+
+      fireEvent.click(saveButton);
+      fireEvent.change(screen.getByLabelText(/Template Name/), {
+        target: { value: "Service boundary" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Save Template" }));
+
+      await waitFor(() => {
+        expect(global.fetch).toHaveBeenCalledWith(
+          "/api/templates",
+          expect.objectContaining({ method: "POST" })
+        );
+      });
+      expect(
+        (global.fetch as ReturnType<typeof vi.fn>).mock.calls.some(([input]) =>
+          String(input).includes("/api/teams")
+        )
+      ).toBe(false);
     });
 
     it("shows back to dashboard link", async () => {

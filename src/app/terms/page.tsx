@@ -23,10 +23,12 @@ export default function TermsPage() {
           <section>
             <h2 className="text-lg font-semibold text-[var(--foreground)]">Use of StackHatch</h2>
             <p className="mt-2">
-              StackHatch helps users generate architecture diagrams, tradeoff notes, comments, and
-              handoff artifacts from bounded repository evidence and user input. Generated maps are
-              explanations, not a complete audit of a codebase. Users are responsible for reviewing
-              output before relying on it for production engineering decisions.
+              StackHatch helps users generate architecture diagrams and tradeoff notes, keep private
+              notes and personal templates, and create handoff artifacts from bounded repository
+              evidence and user input. Projects are accessible only to their account owner;
+              StackHatch does not provide shared project access. Generated maps are explanations,
+              not a complete audit of a codebase. Users are responsible for reviewing output before
+              relying on it for production engineering decisions.
             </p>
           </section>
 

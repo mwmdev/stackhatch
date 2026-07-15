@@ -49,8 +49,7 @@ function createTestDb() {
       repo_analysis_status TEXT,
       repo_analysis_warning TEXT,
       canvas_state TEXT,
-      user_id TEXT,
-      team_id TEXT,
+      user_id TEXT NOT NULL,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -74,22 +73,6 @@ function createTestDb() {
       theme TEXT DEFAULT 'system' NOT NULL,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    );
-    CREATE TABLE teams (
-      id TEXT PRIMARY KEY NOT NULL,
-      name TEXT NOT NULL,
-      owner_id TEXT NOT NULL,
-      created_at INTEGER NOT NULL,
-      FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
-    );
-    CREATE TABLE team_members (
-      team_id TEXT NOT NULL,
-      user_id TEXT NOT NULL,
-      role TEXT NOT NULL,
-      joined_at INTEGER NOT NULL,
-      PRIMARY KEY(team_id, user_id),
-      FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
   `);
@@ -183,7 +166,6 @@ beforeEach(() => {
       repoUrl: null,
       canvasState: null,
       userId: "test-user-id",
-      teamId: null,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     })

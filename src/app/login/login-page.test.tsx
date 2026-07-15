@@ -31,8 +31,10 @@ describe("login callback handling", () => {
   });
 
   it("extracts only a safe owner/repo slug", () => {
-    expect(repoFromCallbackUrl("/app?repo=acme%2Fapi")).toBe("acme/api");
-    expect(repoFromCallbackUrl("/app?repo=https%3A%2F%2Fevil.example")).toBeNull();
+    expect(repoFromCallbackUrl("/project/new?mode=repository&repo=acme%2Fapi")).toBe("acme/api");
+    expect(
+      repoFromCallbackUrl("/project/new?mode=repository&repo=https%3A%2F%2Fevil.example")
+    ).toBeNull();
   });
 
   it("shows the preserved repository context", async () => {
@@ -41,7 +43,29 @@ describe("login callback handling", () => {
     });
     render(page);
 
-    expect(screen.getByText("Repository ready: acme/api")).toBeInTheDocument();
+    expect(screen.getByText("Continue to your maps")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Continue with GitHub" })).toBeInTheDocument();
+  });
+
+  it("shows repository context from the canonical project start callback", async () => {
+    const page = await LoginPage({
+      searchParams: Promise.resolve({
+        callbackUrl: "/project/new?mode=repository&repo=acme%2Fapi",
+      }),
+    });
+    render(page);
+
+    expect(screen.getByText("Repository ready: acme/api")).toBeInTheDocument();
+  });
+
+  it.each([
+    ["blank", "/app?start=blank", "Blank canvas ready"],
+    ["requirements", "/project/new?mode=requirements", "Requirements upload ready"],
+    ["template", "/project/new?mode=template", "Template selection ready"],
+  ])("confirms the preserved %s start", async (_method, callbackUrl, title) => {
+    const page = await LoginPage({ searchParams: Promise.resolve({ callbackUrl }) });
+    render(page);
+
+    expect(screen.getByText(title)).toBeInTheDocument();
   });
 });

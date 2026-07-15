@@ -19,9 +19,7 @@ describe("analytics", () => {
 
   it("keeps the launch funnel event contract explicit", () => {
     expect(ANALYTICS_EVENT_NAMES).toEqual([
-      "demo_opened",
-      "demo_node_opened",
-      "demo_question_opened",
+      "project_start_selected",
       "repository_intent_submitted",
       "github_auth_started",
       "github_auth_completed",
@@ -43,6 +41,7 @@ describe("analytics", () => {
     trackEvent("repository_scan_failed", {
       location: "editor",
       error_category: "github_rate_limit",
+      start_method: "repository",
       repo: "private/repo",
     } as never);
 
@@ -54,6 +53,7 @@ describe("analytics", () => {
       data: {
         location: "editor",
         error_category: "github_rate_limit",
+        start_method: "repository",
       },
     });
   });
@@ -62,6 +62,7 @@ describe("analytics", () => {
     trackEvent("repository_intent_submitted", {
       location: "owner/repo",
       error_category: "raw server response",
+      start_method: "raw requirements",
     } as never);
 
     const builder = track.mock.calls[0][0] as (payload: Record<string, unknown>) => unknown;
@@ -84,10 +85,11 @@ describe("analytics", () => {
     });
   });
 
-  it("records authentication completion without storing context", () => {
-    markAuthenticationStarted();
+  it("records authentication completion with only the start method", () => {
+    markAuthenticationStarted("requirements");
 
     expect(window.sessionStorage.getItem("stackhatch:auth-pending")).toBe("1");
+    expect(window.sessionStorage.getItem("stackhatch:project-start-method")).toBe("requirements");
     expect(consumeAuthenticationStarted()).toBe(true);
     expect(consumeAuthenticationStarted()).toBe(false);
   });

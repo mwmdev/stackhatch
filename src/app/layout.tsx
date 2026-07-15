@@ -27,21 +27,21 @@ export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   applicationName: "StackHatch",
   title: {
-    default: "StackHatch — See how your codebase fits together",
+    default: "StackHatch — Keep your architecture in view",
     template: "%s — StackHatch",
   },
   description:
-    "Turn a public GitHub repository into a visual architecture map. Inspect the pieces, ask questions, compare alternatives, and re-scan as the code changes.",
+    "StackHatch turns repositories and requirements into interactive architecture maps you can explore, question, and keep current while you build.",
   openGraph: {
     type: "website",
     url: "/",
     siteName: "StackHatch",
-    title: "See how your codebase fits together",
+    title: "Keep your architecture in view",
     description:
-      "Map a public GitHub repository, inspect its architecture, ask questions, and compare alternatives.",
+      "StackHatch turns repositories and requirements into interactive architecture maps you can explore, question, and keep current while you build.",
     images: [
       {
-        url: "/demos/stackhatch-self-map-poster.png",
+        url: "/screenshots/architecture-overview-og.png",
         width: 1200,
         height: 630,
         alt: "The StackHatch codebase shown as an architecture map",
@@ -50,9 +50,10 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "See how your codebase fits together",
-    description: "Turn a public GitHub repository into a visual architecture map.",
-    images: ["/demos/stackhatch-self-map-poster.png"],
+    title: "Keep your architecture in view",
+    description:
+      "StackHatch turns repositories and requirements into interactive architecture maps you can explore, question, and keep current while you build.",
+    images: ["/screenshots/architecture-overview-og.png"],
   },
   robots: { index: true, follow: true },
 };
@@ -65,7 +66,7 @@ const softwareApplicationJsonLd = {
   operatingSystem: "Web",
   url: siteUrl,
   description:
-    "A visual architecture mapping tool for public GitHub repositories, with architecture questions and technology alternatives.",
+    "StackHatch turns repositories and requirements into interactive architecture maps you can explore, question, and keep current while you build.",
   offers: {
     "@type": "Offer",
     price: "0",

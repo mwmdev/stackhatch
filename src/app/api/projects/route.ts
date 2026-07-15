@@ -1,19 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/db";
-import { projects, teamMembers, teams } from "@/db/schema";
+import { projects } from "@/db/schema";
 import { runMigrations } from "@/db/migrate";
 import { z } from "zod";
-import { desc, eq, and, or, inArray } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { getAuthenticatedUser, getAuthenticatedUserId } from "@/lib/auth";
 import { createId } from "@/lib/id";
 
-const createProjectSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  description: z.string().optional(),
-  repoUrl: z.string().optional(),
-  canvasState: z.string().optional(), // JSON string for template-based projects
-  teamId: z.string().optional(), // nullable - assign project to a team
-});
+const createProjectSchema = z
+  .object({
+    name: z.string().min(1, "Name is required"),
+    description: z.string().optional(),
+    repoUrl: z.string().optional(),
+    canvasState: z.string().optional(), // JSON string for template-based projects
+  })
+  .strict();
 
 function normalizeOptionalText(value: string | undefined) {
   const trimmed = value?.trim();
@@ -48,19 +49,6 @@ export async function POST(request: NextRequest) {
     const db = getDb();
     runMigrations(db);
 
-    // If teamId is provided, verify user is a team member
-    if (parsed.data.teamId) {
-      const membership = db
-        .select()
-        .from(teamMembers)
-        .where(and(eq(teamMembers.teamId, parsed.data.teamId), eq(teamMembers.userId, userId)))
-        .get();
-
-      if (!membership) {
-        return NextResponse.json({ error: "You are not a member of this team" }, { status: 403 });
-      }
-    }
-
     const now = Date.now();
     const project = {
       id: createId(),
@@ -69,7 +57,6 @@ export async function POST(request: NextRequest) {
       repoUrl: normalizeRepoUrl(parsed.data.repoUrl),
       canvasState: parsed.data.canvasState ?? null,
       userId,
-      teamId: parsed.data.teamId ?? null,
       createdAt: now,
       updatedAt: now,
     };
@@ -92,34 +79,16 @@ export async function GET() {
     const db = getDb();
     runMigrations(db);
 
-    // Get team IDs the user belongs to
-    const userTeams = db
-      .select({ teamId: teamMembers.teamId })
-      .from(teamMembers)
-      .where(eq(teamMembers.userId, userId))
-      .all();
-
-    const teamIds = userTeams.map((t) => t.teamId);
-
-    // Fetch personal projects + team projects in one query
-    const conditions = [eq(projects.userId, userId)];
-    if (teamIds.length > 0) {
-      conditions.push(inArray(projects.teamId, teamIds));
-    }
-
     const userProjects = db
       .select({
         id: projects.id,
         name: projects.name,
         description: projects.description,
-        teamId: projects.teamId,
-        teamName: teams.name,
         createdAt: projects.createdAt,
         updatedAt: projects.updatedAt,
       })
       .from(projects)
-      .leftJoin(teams, eq(projects.teamId, teams.id))
-      .where(or(...conditions))
+      .where(eq(projects.userId, userId))
       .orderBy(desc(projects.updatedAt))
       .all();
 

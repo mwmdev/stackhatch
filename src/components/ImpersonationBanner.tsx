@@ -23,7 +23,6 @@ export default function ImpersonationBanner() {
   useEffect(() => {
     const isPublicRoute =
       pathname === "/" ||
-      pathname === "/demo" ||
       pathname === "/login" ||
       pathname === "/support" ||
       pathname === "/privacy" ||

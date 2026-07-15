@@ -36,6 +36,7 @@ const mockProjects = [
     id: "p1",
     name: "My App",
     description: "A cool app description that might be quite long",
+    teamName: "Legacy workspace",
     createdAt: 1700000000000,
     updatedAt: 1700100000000,
   },
@@ -69,7 +70,6 @@ function mockFetch(
         json: () => Promise.resolve({ hasAnthropicKey: options?.hasAnthropicKey ?? true }),
       });
     }
-    if (url === "/api/teams") return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
     if (url === "/api/projects") {
       return Promise.resolve({
         ok: true,
@@ -101,19 +101,31 @@ describe("Dashboard", () => {
 
     expect(screen.getByText("A cool app description that might be quite long")).toBeInTheDocument();
     expect(screen.getByText("Another Project")).toBeInTheDocument();
+    expect(screen.queryByText("Legacy workspace")).not.toBeInTheDocument();
   });
 
-  it("renders repo URL input and start from scratch when no projects", async () => {
+  it("renders the four equal starts in the intended order", async () => {
     mockFetch([]);
-    render(<Dashboard />);
+    const { container } = render(<Dashboard />);
 
     await waitFor(() => {
       expect(screen.getByLabelText("GitHub repository")).toBeInTheDocument();
     });
 
-    expect(screen.getByText("Start from scratch")).toBeInTheDocument();
-    expect(screen.getByText("Map repository")).toBeInTheDocument();
-    expect(screen.getByText("Other ways to start")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Start fresh" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Map repository" })).toBeInTheDocument();
+    expect(screen.queryByText("Other ways to start")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Choose a template" })).toHaveAttribute(
+      "href",
+      "/project/new?mode=template"
+    );
+    expect(container.querySelector(".start-launchpad")).toBeInTheDocument();
+    expect(
+      Array.from(container.querySelectorAll(".start-cell h2"), (heading) => heading.textContent)
+    ).toEqual(["Start fresh", "Upload requirements", "Map a repo", "Use a template"]);
+    expect(screen.getByText("Your maps")).toBeInTheDocument();
+    expect(screen.queryByText("Teams")).not.toBeInTheDocument();
+    expect(global.fetch).not.toHaveBeenCalledWith("/api/teams");
   });
 
   it("shows BYOK setup without blocking blank canvases", async () => {
@@ -123,7 +135,7 @@ describe("Dashboard", () => {
     await waitFor(() => {
       expect(screen.getByTestId("byok-setup-prompt")).toBeInTheDocument();
     });
-    expect(screen.getByText("Start from scratch")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Start fresh" })).toBeInTheDocument();
     expect(screen.queryByText(/upgrade/i)).not.toBeInTheDocument();
   });
 
@@ -132,7 +144,7 @@ describe("Dashboard", () => {
     render(<Dashboard />);
 
     await waitFor(() => {
-      expect(screen.getByText("Start from scratch")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Start fresh" })).toBeInTheDocument();
     });
 
     expect(screen.queryByText("Activation")).not.toBeInTheDocument();
@@ -156,8 +168,6 @@ describe("Dashboard", () => {
           ok: true,
           json: () => Promise.resolve({ hasAnthropicKey: true }),
         });
-      if (url === "/api/teams")
-        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
       if (url === "/api/projects") {
         return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
       }
@@ -177,6 +187,112 @@ describe("Dashboard", () => {
     await waitFor(() => {
       expect(mockPush).toHaveBeenCalledWith("/project/new-1");
     });
+    expect(window.sessionStorage.getItem("stackhatch:project-start-method")).toBe("repository");
+  });
+
+  it("does not auto-create from a copied blank-start URL without its one-time intent", async () => {
+    window.history.replaceState({}, "", "/app?start=blank");
+    mockFetch([]);
+
+    render(<Dashboard />);
+
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/app#start"));
+    expect(global.fetch).not.toHaveBeenCalledWith(
+      "/api/projects",
+      expect.objectContaining({ method: "POST" })
+    );
+  });
+
+  it("consumes a blank-start intent before creating and cannot create twice", async () => {
+    window.history.replaceState({}, "", "/app?start=blank");
+    window.sessionStorage.setItem("stackhatch:project-start-method", "blank");
+    window.sessionStorage.setItem("stackhatch:blank-auto-create", "1");
+    global.fetch = vi.fn((input: RequestInfo | URL, options?: RequestInit) => {
+      const url = String(input);
+      if (url === "/api/projects" && options?.method === "POST") {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ id: "blank-project" }),
+        } as Response);
+      }
+      if (url === "/api/projects") {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) } as Response);
+      }
+      if (url === "/api/me") {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ role: "user" }),
+        } as Response);
+      }
+      if (url === "/api/settings") {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ hasAnthropicKey: true }),
+        } as Response);
+      }
+      return Promise.resolve({ ok: false, json: () => Promise.resolve({}) } as Response);
+    }) as unknown as typeof global.fetch;
+
+    render(<Dashboard />);
+
+    await waitFor(() => expect(mockPush).toHaveBeenCalledWith("/project/blank-project"));
+    expect(mockReplace).toHaveBeenCalledWith("/app#start");
+    expect(window.sessionStorage.getItem("stackhatch:blank-auto-create")).toBeNull();
+    expect(window.sessionStorage.getItem("stackhatch:project-start-method")).toBe("blank");
+    expect(
+      (global.fetch as ReturnType<typeof vi.fn>).mock.calls.filter(
+        ([input, options]) => String(input) === "/api/projects" && options?.method === "POST"
+      )
+    ).toHaveLength(1);
+  });
+
+  it("offers an explicit retry when automatic blank creation fails", async () => {
+    window.history.replaceState({}, "", "/app?start=blank");
+    window.sessionStorage.setItem("stackhatch:project-start-method", "blank");
+    window.sessionStorage.setItem("stackhatch:blank-auto-create", "1");
+    let postAttempts = 0;
+    global.fetch = vi.fn((input: RequestInfo | URL, options?: RequestInit) => {
+      const url = String(input);
+      if (url === "/api/projects" && options?.method === "POST") {
+        postAttempts += 1;
+        return Promise.resolve(
+          postAttempts === 1
+            ? ({
+                ok: false,
+                json: () => Promise.resolve({ error: "Project service unavailable" }),
+              } as Response)
+            : ({
+                ok: true,
+                json: () => Promise.resolve({ id: "retried-project" }),
+              } as Response)
+        );
+      }
+      if (url === "/api/projects") {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) } as Response);
+      }
+      if (url === "/api/me") {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ role: "user" }),
+        } as Response);
+      }
+      if (url === "/api/settings") {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ hasAnthropicKey: true }),
+        } as Response);
+      }
+      return Promise.resolve({ ok: false, json: () => Promise.resolve({}) } as Response);
+    }) as unknown as typeof global.fetch;
+
+    render(<Dashboard />);
+
+    const retry = await screen.findByRole("button", { name: "Retry creating the blank map" });
+    expect(screen.getByRole("alert")).toHaveTextContent("Project service unavailable");
+    fireEvent.click(retry);
+
+    await waitFor(() => expect(mockPush).toHaveBeenCalledWith("/project/retried-project"));
+    expect(postAttempts).toBe(2);
   });
 
   it("navigates to project page when clicking a project card", async () => {
@@ -239,7 +355,7 @@ describe("Dashboard", () => {
     render(<Dashboard />);
 
     await waitFor(() => {
-      expect(screen.getByText("Start from scratch")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Start fresh" })).toBeInTheDocument();
     });
 
     const settingsLink = screen.getByLabelText("Settings");
@@ -251,7 +367,7 @@ describe("Dashboard", () => {
     render(<Dashboard />);
 
     await waitFor(() => {
-      expect(screen.getByText("Start from scratch")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Start fresh" })).toBeInTheDocument();
     });
 
     expect(screen.queryByLabelText("Admin")).not.toBeInTheDocument();
@@ -282,7 +398,7 @@ describe("Dashboard", () => {
     render(<Dashboard />);
 
     await waitFor(() => {
-      expect(screen.getByText("Start from scratch")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Start fresh" })).toBeInTheDocument();
     });
 
     expect(screen.getByLabelText("Theme: light")).toBeInTheDocument();
@@ -313,7 +429,9 @@ describe("Dashboard", () => {
     render(<Dashboard />);
 
     await waitFor(() => {
-      expect(mockReplace).toHaveBeenCalledWith("/settings?setup=anthropic&repo=acme%2Fapi");
+      expect(mockReplace).toHaveBeenCalledWith(
+        "/settings?setup=anthropic&returnTo=%2Fapp%3Frepo%3Dacme%252Fapi%23start"
+      );
     });
   });
 
@@ -335,5 +453,23 @@ describe("Dashboard", () => {
       data: { location: "dashboard" },
     });
     expect(window.sessionStorage.getItem("stackhatch:auth-pending")).toBeNull();
+  });
+
+  it("includes the pending start method when authentication completes", async () => {
+    const track = vi.fn();
+    window.umami = { track };
+    window.sessionStorage.setItem("stackhatch:auth-pending", "1");
+    window.sessionStorage.setItem("stackhatch:project-start-method", "requirements");
+    mockFetch([]);
+
+    render(<Dashboard />);
+
+    await waitFor(() => expect(track).toHaveBeenCalledOnce());
+    const builder = track.mock.calls[0][0] as (payload: Record<string, unknown>) => unknown;
+    expect(builder({ website: "site-id" })).toMatchObject({
+      name: "github_auth_completed",
+      data: { location: "dashboard", start_method: "requirements" },
+    });
+    expect(window.sessionStorage.getItem("stackhatch:project-start-method")).toBe("requirements");
   });
 });

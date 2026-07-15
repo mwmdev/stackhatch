@@ -1,13 +1,8 @@
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
 import LandingPage from "./page";
-import { normalizePublicGitHubRepository } from "@/components/public/RepositoryIntentForm";
 
-const push = vi.fn();
-
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push }),
-}));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
 vi.mock("next-themes", () => ({
   useTheme: () => ({ theme: "light", setTheme: vi.fn() }),
@@ -23,85 +18,99 @@ async function renderLandingPage() {
 }
 
 describe("LandingPage", () => {
-  it("leads with the launch promise and a repository action", async () => {
+  it("leads with the product outcome before the four ways to start", async () => {
     await renderLandingPage();
 
+    const heroHeading = screen.getByRole("heading", {
+      level: 1,
+      name: "Keep the whole system in view.",
+    });
+    const hero = heroHeading.closest("section");
+    const launchpad = screen.getByRole("group", { name: "Ways to start a StackHatch map" });
+
+    expect(hero).not.toBeNull();
+    expect(hero).toHaveTextContent(
+      "StackHatch turns repositories and requirements into interactive architecture maps"
+    );
+    expect(within(hero!).getByRole("link", { name: "See StackHatch in action" })).toHaveAttribute(
+      "href",
+      "#features"
+    );
+    expect(within(hero!).getByRole("link", { name: "Start a map" })).toHaveAttribute(
+      "href",
+      "#start"
+    );
     expect(
-      screen.getByRole("heading", { name: "See how your codebase fits together." })
-    ).toBeInTheDocument();
-    expect(screen.getAllByPlaceholderText("github.com/owner/repo")).toHaveLength(2);
-    expect(screen.getAllByRole("button", { name: "Map this repository" })).toHaveLength(2);
+      within(hero!).getByRole("img", { name: /architecture map of its own/i })
+    ).toHaveAttribute("src", "/screenshots/architecture-overview.webp");
     expect(
-      screen.getByText("Free to use · AI features use your Anthropic API key")
+      hero!.compareDocumentPosition(launchpad) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+
+    const startHeading = screen.getByRole("heading", {
+      level: 2,
+      name: "Start from wherever you are.",
+    });
+    const startSection = startHeading.closest("section");
+    expect(startSection).not.toBeNull();
+    expect(startSection).toContainElement(launchpad);
+    for (const name of ["Start fresh", "Upload requirements", "Map a repo", "Use a template"]) {
+      expect(within(launchpad).getByRole("heading", { level: 3, name })).toBeInTheDocument();
+    }
+    expect(screen.getByText("One architecture map")).toBeInTheDocument();
+  });
+
+  it("uses three unique real-product screenshots without repeating the hero proof", async () => {
+    await renderLandingPage();
+
+    expect(screen.getByRole("heading", { name: "Ask why. Keep it current." })).toBeInTheDocument();
+    const screenshots = screen
+      .getAllByRole("img")
+      .filter((image) => image.getAttribute("src")?.startsWith("/screenshots/"));
+    const screenshotSources = screenshots.map((image) => image.getAttribute("src"));
+
+    expect(screen.getByRole("img", { name: /architecture map of its own/i })).toHaveAttribute(
+      "src",
+      "/screenshots/architecture-overview.webp"
+    );
+    expect(
+      screen.getByRole("img", { name: /answering what the AI Analysis Engine does/i })
     ).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: /pricing|plans/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /private component note/i })).toBeInTheDocument();
+    expect(screenshotSources).toEqual([
+      "/screenshots/architecture-overview.webp",
+      "/screenshots/ask-and-compare.webp",
+      "/screenshots/notes-and-rescan.webp",
+    ]);
+    expect(new Set(screenshotSources).size).toBe(3);
+    expect(screen.queryByRole("link", { name: /demo/i })).not.toBeInTheDocument();
+  });
+
+  it("keeps the full working loop, use cases, trust, and final start action", async () => {
+    await renderLandingPage();
+
+    expect(screen.getByRole("heading", { name: "Bring what you have." })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Shape the system." })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Ask and compare." })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Keep it current." })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Your project" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "A project you joined" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "An open-source project" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Free product. Your model. Your key." })
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Choose a starting point" })).toHaveAttribute(
+      "href",
+      "#start"
+    );
+  });
+
+  it("keeps GitHub adoption visible without pricing claims", async () => {
+    await renderLandingPage();
+
     expect(
       screen.getByRole("link", { name: /Star StackHatch on GitHub — 128 stars/i })
     ).toHaveAttribute("href", "https://github.com/mwmdev/stackhatch");
-  });
-
-  it("shows the real self-map fallback and links to the full public demo", async () => {
-    await renderLandingPage();
-
-    expect(
-      screen.getByRole("heading", { name: "StackHatch, mapped by StackHatch." })
-    ).toBeInTheDocument();
-    expect(screen.getByText(/mwmdev\/stackhatch · mapped from 5d05e8a/)).toBeInTheDocument();
-    expect(
-      screen.getByRole("img", { name: /Read-only StackHatch architecture map/i })
-    ).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Explore the full map" })).toHaveAttribute(
-      "href",
-      "/demo"
-    );
-  });
-
-  it("presents map, ask, compare, and re-scan as one ordered workflow", async () => {
-    await renderLandingPage();
-
-    expect(screen.getByRole("heading", { name: "Map the system." })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Ask in context." })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Test another direction." })).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { name: "Re-scan when the code changes." })
-    ).toBeInTheDocument();
-  });
-
-  it("validates and preserves repository intent through sign-in", async () => {
-    await renderLandingPage();
-
-    const input = screen.getAllByPlaceholderText("github.com/owner/repo")[0];
-    const submit = screen.getAllByRole("button", { name: "Map this repository" })[0];
-
-    fireEvent.change(input, { target: { value: "https://github.com/mwmdev/stackhatch.git" } });
-    fireEvent.click(submit);
-
-    expect(push).toHaveBeenCalledWith("/login?callbackUrl=%2Fapp%3Frepo%3Dmwmdev%252Fstackhatch");
-
-    fireEvent.change(input, { target: { value: "https://gitlab.com/mwmdev/stackhatch" } });
-    fireEvent.click(submit);
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "Enter a public GitHub repository as github.com/owner/repo or owner/repo."
-    );
-  });
-});
-
-describe("normalizePublicGitHubRepository", () => {
-  it.each([
-    ["mwmdev/stackhatch", "mwmdev/stackhatch"],
-    ["github.com/mwmdev/stackhatch", "mwmdev/stackhatch"],
-    ["https://github.com/mwmdev/stackhatch.git", "mwmdev/stackhatch"],
-    ["http://github.com/mwmdev/stackhatch/", "mwmdev/stackhatch"],
-  ])("normalizes %s", (input, expected) => {
-    expect(normalizePublicGitHubRepository(input)).toBe(expected);
-  });
-
-  it.each([
-    "",
-    "github.com/mwmdev/stackhatch/issues",
-    "https://gitlab.com/mwmdev/stackhatch",
-    "not a repository",
-  ])("rejects %s", (input) => {
-    expect(normalizePublicGitHubRepository(input)).toBeNull();
+    expect(screen.queryByRole("link", { name: /pricing|plans/i })).not.toBeInTheDocument();
   });
 });

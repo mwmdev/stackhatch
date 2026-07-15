@@ -58,12 +58,12 @@ test.describe("tierless BYOK experience", () => {
     await expect(setupPrompt).toContainText("Connect Anthropic to use AI");
     await expect(setupPrompt.getByRole("link", { name: "Add API key" })).toHaveAttribute(
       "href",
-      "/settings?setup=anthropic"
+      "/settings?setup=anthropic&returnTo=%2Fapp%23start"
     );
 
     const manualCard = page.getByRole("heading", { name: "Start fresh" }).locator("..");
-    await expect(manualCard).toContainText("No API key is required");
-    await page.getByRole("button", { name: "Start from scratch" }).click();
+    await expect(manualCard).toContainText("No API key required");
+    await page.getByRole("button", { name: "Start fresh" }).click();
 
     await page.waitForURL(/\/project\/[a-f0-9-]+$/);
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Untitled Project");
@@ -130,68 +130,16 @@ test.describe("tierless BYOK experience", () => {
     }
   });
 
-  test("a user creates a tierless team and a project in its preselected workspace", async ({
-    page,
-  }) => {
-    await clearAnthropicKey(page);
-    await preventChatFromCallingAnthropic(page);
-    const teamName = `Tierless E2E ${Date.now()}`;
-
+  test("the personal dashboard has no team or invitation surface", async ({ page }) => {
     await page.goto("/app");
-    await page.getByLabel("Team name").fill(teamName);
-    await page.getByRole("button", { name: "Create team" }).click();
-    await page.waitForURL(/\/team\/[a-f0-9-]+$/);
 
-    const teamId = page.url().split("/team/")[1];
-    await expect(page.getByRole("heading", { level: 1 })).toHaveText(teamName);
-    await expect(page.getByRole("main")).not.toContainText(
-      /seats? used|upgrade|subscription|billing|Team \((?:5|15)\)/i
-    );
+    await expect(page.getByRole("heading", { name: "Teams" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /create team/i })).toHaveCount(0);
+    await expect(page.getByLabel("Team name")).toHaveCount(0);
 
-    await page.getByRole("link", { name: "New project" }).click();
-    await page.waitForURL(`/project/new?teamId=${teamId}`);
-
-    const workspace = page.getByLabel("Workspace");
-    await expect(workspace).toHaveValue(teamId);
-    await expect(workspace.locator("option:checked")).toHaveText(teamName);
-
-    const projectName = `Team project ${Date.now()}`;
-    await page.getByLabel(/Project Name/).fill(projectName);
-    await page.getByRole("button", { name: "Create Project" }).click();
-    await page.waitForURL(/\/project\/[a-f0-9-]+$/);
-
-    const projectId = page.url().split("/project/")[1];
-    await expect(page.getByRole("heading", { level: 1 })).toHaveText(projectName);
-    const projectResponse = await page.request.get(`/api/projects/${projectId}`);
-    expect(projectResponse.status()).toBe(200);
-    expect(await projectResponse.json()).toMatchObject({
-      id: projectId,
-      name: projectName,
-      teamId,
-    });
-  });
-
-  test("a team owner can create, copy, and open a working invite link", async ({ page }) => {
-    const teamName = `Invite E2E ${Date.now()}`;
-    const inviteEmail = `invite-${Date.now()}@example.com`;
-
-    await page.goto("/app");
-    await page.getByLabel("Team name").fill(teamName);
-    await page.getByRole("button", { name: "Create team" }).click();
-    await page.waitForURL(/\/team\/[a-f0-9-]+$/);
-
-    await page.getByPlaceholder("colleague@example.com").fill(inviteEmail);
-    await page.getByRole("button", { name: "Create Invite Link" }).click();
-
-    const inviteLink = page.getByLabel(`Invite link for ${inviteEmail}`);
-    await expect(inviteLink).toBeVisible();
-    const inviteUrl = await inviteLink.inputValue();
-    expect(inviteUrl).toMatch(/\/invite\/[a-f0-9]{64}$/);
-
-    await page.goto(inviteUrl);
-    await expect(page.getByRole("heading", { name: "Team Invite" })).toBeVisible();
-    await expect(page.getByText(teamName)).toBeVisible();
-    await page.getByRole("button", { name: "Accept Invite" }).click();
-    await expect(page.getByRole("heading", { name: "You're in!" })).toBeVisible();
+    const teamsResponse = await page.request.get("/api/teams");
+    expect(teamsResponse.status()).toBe(404);
+    const invitesResponse = await page.request.get("/api/invites/retired-token");
+    expect(invitesResponse.status()).toBe(404);
   });
 });

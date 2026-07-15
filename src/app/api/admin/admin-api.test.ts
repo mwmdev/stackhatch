@@ -31,8 +31,7 @@ function createTestDb() {
       repo_analysis_status TEXT,
       repo_analysis_warning TEXT,
       canvas_state TEXT,
-      user_id TEXT,
-      team_id TEXT,
+      user_id TEXT NOT NULL,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );

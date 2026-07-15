@@ -3,7 +3,7 @@ import { eq, desc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import Database from "better-sqlite3";
 import * as schema from "./schema";
-import { projects, messages, settings, users } from "./schema";
+import { messages, notes, projects, settings, templates, users } from "./schema";
 
 function createTestDb() {
   const sqlite = new Database(":memory:");
@@ -30,8 +30,7 @@ function createTestDb() {
       repo_analysis_status TEXT,
       repo_analysis_warning TEXT,
       canvas_state TEXT,
-      user_id TEXT,
-      team_id TEXT,
+      user_id TEXT NOT NULL,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -47,6 +46,24 @@ function createTestDb() {
     CREATE TABLE settings (
       key TEXT PRIMARY KEY NOT NULL,
       value TEXT NOT NULL
+    );
+    CREATE TABLE notes (
+      id TEXT PRIMARY KEY NOT NULL,
+      project_id TEXT NOT NULL,
+      content TEXT NOT NULL,
+      node_id TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+    );
+    CREATE TABLE templates (
+      id TEXT PRIMARY KEY NOT NULL,
+      user_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      description TEXT,
+      canvas_state TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
   `);
 
@@ -211,6 +228,63 @@ describe("messages", () => {
         })
         .run();
     }).toThrow();
+  });
+});
+
+describe("personal project resources", () => {
+  it("stores attribution-free notes and cascades them with their project", () => {
+    const now = Date.now();
+    db.insert(projects)
+      .values({
+        id: "notes-project",
+        name: "Notes project",
+        userId: testUser.id,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .run();
+    db.insert(notes)
+      .values({
+        id: "note-1",
+        projectId: "notes-project",
+        content: "Keep this boundary explicit",
+        nodeId: "api",
+        createdAt: now,
+        updatedAt: now,
+      })
+      .run();
+
+    expect(db.select().from(notes).get()).toEqual({
+      id: "note-1",
+      projectId: "notes-project",
+      content: "Keep this boundary explicit",
+      nodeId: "api",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    db.delete(projects).where(eq(projects.id, "notes-project")).run();
+    expect(db.select().from(notes).all()).toEqual([]);
+  });
+
+  it("stores templates under their user owner", () => {
+    const now = Date.now();
+    db.insert(templates)
+      .values({
+        id: "template-1",
+        userId: testUser.id,
+        name: "Service map",
+        canvasState: '{"nodes":[],"edges":[]}',
+        createdAt: now,
+      })
+      .run();
+
+    expect(db.select().from(templates).get()).toMatchObject({
+      id: "template-1",
+      userId: testUser.id,
+      name: "Service map",
+      createdAt: now,
+    });
   });
 });
 

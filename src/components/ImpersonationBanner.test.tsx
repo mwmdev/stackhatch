@@ -2,7 +2,7 @@ import { render, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import ImpersonationBanner from "./ImpersonationBanner";
 
-const { pathname } = vi.hoisted(() => ({ pathname: { current: "/demo" } }));
+const { pathname } = vi.hoisted(() => ({ pathname: { current: "/" } }));
 
 vi.mock("next/navigation", () => ({
   usePathname: () => pathname.current,
@@ -10,11 +10,11 @@ vi.mock("next/navigation", () => ({
 
 describe("ImpersonationBanner", () => {
   afterEach(() => {
-    pathname.current = "/demo";
+    pathname.current = "/";
     vi.unstubAllGlobals();
   });
 
-  it.each(["/", "/demo", "/login", "/support", "/privacy", "/terms"])(
+  it.each(["/", "/login", "/support", "/privacy", "/terms"])(
     "does not request user data on the public route %s",
     async (route) => {
       pathname.current = route;
