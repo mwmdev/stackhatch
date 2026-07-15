@@ -59,7 +59,7 @@ export const STACKHATCH_DEMO = {
       category: "client",
       subtype: "web-app",
       description:
-        "The interactive canvas renders architecture nodes, connections, details, comments, and export controls.",
+        "The interactive canvas renders architecture nodes, connections, details, private notes, and export controls.",
       reasoning:
         "React Flow provides the spatial interaction model while StackHatch owns the architecture vocabulary.",
       position: { x: 520, y: 0 },
@@ -71,7 +71,7 @@ export const STACKHATCH_DEMO = {
       category: "api",
       subtype: "rest-api",
       description:
-        "Authenticated endpoints manage projects, settings, teams, repository scans, and streamed architecture chat.",
+        "Authenticated endpoints manage personal projects, settings, repository scans, and streamed architecture chat.",
       reasoning:
         "Co-locating the API with the application keeps the current deployment and permission model compact.",
       position: { x: 390, y: 185 },
@@ -83,7 +83,7 @@ export const STACKHATCH_DEMO = {
       category: "services",
       subtype: "auth",
       description:
-        "GitHub sign-in establishes the user session used to protect projects, teams, settings, and administration.",
+        "GitHub sign-in establishes the user session used to protect personal projects, settings, and administrative operations.",
       reasoning:
         "GitHub is a natural identity provider for a product centered on public repositories.",
       position: { x: 0, y: 370 },
@@ -119,7 +119,7 @@ export const STACKHATCH_DEMO = {
       category: "data",
       subtype: "sql-db",
       description:
-        "Projects, map state, chat history, encrypted provider settings, users, and teams live in a relational store.",
+        "Personal projects, map state, chat history, encrypted provider settings, private notes, personal templates, and users live in a relational store.",
       reasoning:
         "SQLite keeps the self-hosted single-instance deployment simple while Drizzle supplies typed queries and migrations.",
       position: { x: 780, y: 185 },
@@ -266,7 +266,7 @@ export const STACKHATCH_DEMO = {
       id: "data-storage",
       label: "Where is project data stored?",
       answer:
-        "Route handlers persist projects, map state, chat history, users, teams, and encrypted provider settings through Drizzle into SQLite. The database stays on a persistent Docker volume.",
+        "Route handlers persist personal projects, map state, chat history, users, private notes, personal templates, and encrypted provider settings through Drizzle into SQLite. The database stays on a persistent Docker volume.",
       nodeIds: ["route-handlers", "sqlite", "docker"],
       edgeIds: ["routes-db", "docker-db"],
     },

@@ -73,7 +73,7 @@ describe("StackNode", () => {
 
     expect(screen.queryByTestId("node-description-tooltip")).not.toBeInTheDocument();
     expect(nodeDiv).not.toHaveAttribute("aria-describedby");
-    expect(nodeDiv).not.toHaveAttribute("tabindex");
+    expect(nodeDiv).toHaveAttribute("tabindex", "0");
   });
 
   it("sanitizes HTML descriptions in the tooltip", () => {
@@ -274,6 +274,39 @@ describe("StackNode", () => {
     fireEvent.contextMenu(nodeDiv);
     fireEvent.click(screen.getByTestId("context-menu-delete"));
     expect(onDelete).toHaveBeenCalledWith("node-1");
+  });
+
+  it("opens private notes from the context action", () => {
+    const onAddNote = vi.fn();
+    const { container } = renderNode({ onAddNote });
+    fireEvent.contextMenu(container.querySelector(".stack-node")!);
+
+    expect(screen.getByText("Add note")).toBeInTheDocument();
+    expect(screen.queryByText(/comment/i)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("context-menu-add-note"));
+
+    expect(onAddNote).toHaveBeenCalledWith("node-1");
+  });
+
+  it("opens node actions from the keyboard context-menu shortcut", () => {
+    const { container } = renderNode({ description: "" });
+    const nodeDiv = container.querySelector(".stack-node")!;
+
+    fireEvent.keyDown(nodeDiv, { key: "F10", shiftKey: true });
+
+    expect(screen.getByTestId("node-context-menu")).toBeInTheDocument();
+    expect(screen.getByTestId("context-menu-add-note")).toBeInTheDocument();
+  });
+
+  it("shows a note count badge and opens the node notes", () => {
+    const onNoteBadgeClick = vi.fn();
+    renderNode({ noteCount: 2, onNoteBadgeClick });
+
+    const badge = screen.getByTestId("note-badge");
+    expect(badge).toHaveTextContent("2");
+    expect(badge).toHaveAttribute("title", "2 notes");
+    fireEvent.click(badge);
+    expect(onNoteBadgeClick).toHaveBeenCalledWith("node-1");
   });
 
   it("calls onClick when node is clicked", () => {

@@ -31,7 +31,7 @@ import {
   EditorDisplaySettingsProvider,
   type EditorDisplaySettings,
 } from "@/components/canvas/EditorDisplaySettings";
-import CommentsPanel from "@/components/comments/CommentsPanel";
+import NotesPanel from "@/components/notes/NotesPanel";
 import ThemeToggle from "@/components/ThemeToggle";
 import {
   toReactFlowNodes,
@@ -63,7 +63,6 @@ interface Project {
   repoAnalysisStatus?: "complete" | "partial" | null;
   repoAnalysisWarning?: string | null;
   canvasState: StackArchitecture | null;
-  teamId: string | null;
   createdAt: number;
   updatedAt: number;
 }
@@ -133,9 +132,9 @@ export default function ProjectPage() {
   const [prdLoading, setPrdLoading] = useState(false);
   const [saveTemplateModalOpen, setSaveTemplateModalOpen] = useState(false);
   const [templateSaving, setTemplateSaving] = useState(false);
-  const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
-  const [activeCommentNodeId, setActiveCommentNodeId] = useState<string | null>(null);
-  const [commentsPanelOpenTrigger, setCommentsPanelOpenTrigger] = useState(0);
+  const [noteCounts, setNoteCounts] = useState<Record<string, number>>({});
+  const [activeNoteNodeId, setActiveNoteNodeId] = useState<string | null>(null);
+  const [notesPanelOpenTrigger, setNotesPanelOpenTrigger] = useState(0);
   const [hasAnthropicKey, setHasAnthropicKey] = useState<boolean | null>(null);
   const [aiSetupRequired, setAiSetupRequired] = useState(false);
   const [rescanConfirmOpen, setRescanConfirmOpen] = useState(false);
@@ -166,6 +165,8 @@ export default function ProjectPage() {
   const repositoryScanPendingRef = useRef(false);
   const rescanDialogRef = useRef<HTMLDivElement | null>(null);
   const rescanInvokerRef = useRef<HTMLButtonElement | null>(null);
+  const saveTemplateDialogRef = useRef<HTMLDivElement | null>(null);
+  const saveTemplateInvokerRef = useRef<HTMLButtonElement | null>(null);
   const nodePanelCloseTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const latestFlowRef = useRef<{
     nodes: Node<StackNodeData>[];
@@ -250,18 +251,18 @@ export default function ProjectPage() {
     [setRfNodes, setRfEdges]
   );
 
-  const handleAddComment = useCallback((id: string) => {
-    setActiveCommentNodeId(id);
-    setCommentsPanelOpenTrigger((t) => t + 1);
+  const handleAddNote = useCallback((id: string) => {
+    setActiveNoteNodeId(id);
+    setNotesPanelOpenTrigger((trigger) => trigger + 1);
   }, []);
 
-  const handleCommentBadgeClick = useCallback((id: string) => {
-    setActiveCommentNodeId(id);
-    setCommentsPanelOpenTrigger((t) => t + 1);
+  const handleNoteBadgeClick = useCallback((id: string) => {
+    setActiveNoteNodeId(id);
+    setNotesPanelOpenTrigger((trigger) => trigger + 1);
   }, []);
 
-  const handleCommentCountsChange = useCallback((counts: Record<string, number>) => {
-    setCommentCounts(counts);
+  const handleNoteCountsChange = useCallback((counts: Record<string, number>) => {
+    setNoteCounts(counts);
   }, []);
 
   // --- Debounced save ---
@@ -395,6 +396,48 @@ export default function ProjectPage() {
     };
   }, [rescanConfirmOpen]);
 
+  useEffect(() => {
+    if (!saveTemplateModalOpen) return;
+    const previouslyFocused =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const templateInvoker = saveTemplateInvokerRef.current;
+    const focusDialog = window.requestAnimationFrame(() => {
+      saveTemplateDialogRef.current?.querySelector<HTMLElement>("[data-autofocus]")?.focus();
+    });
+
+    const handleDialogKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setSaveTemplateModalOpen(false);
+        return;
+      }
+      if (event.key !== "Tab" || !saveTemplateDialogRef.current) return;
+
+      const focusable = Array.from(
+        saveTemplateDialogRef.current.querySelectorAll<HTMLElement>(
+          "button:not([disabled]), input:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])"
+        )
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    window.addEventListener("keydown", handleDialogKeyDown);
+    return () => {
+      window.cancelAnimationFrame(focusDialog);
+      window.removeEventListener("keydown", handleDialogKeyDown);
+      (templateInvoker ?? previouslyFocused)?.focus();
+    };
+  }, [saveTemplateModalOpen]);
+
   // --- Build React Flow nodes with injected callbacks ---
 
   const buildRfNodes = useCallback(
@@ -407,36 +450,36 @@ export default function ProjectPage() {
         data: {
           ...n.data,
           customSubtypes,
-          commentCount: commentCounts[n.id] ?? 0,
+          noteCount: noteCounts[n.id] ?? 0,
           onLockToggle: handleLockToggle,
           showDescription: true,
           canUseNodeLocking: true,
           onDelete: handleNodeDelete,
-          onAddComment: handleAddComment,
-          onCommentBadgeClick: handleCommentBadgeClick,
+          onAddNote: handleAddNote,
+          onNoteBadgeClick: handleNoteBadgeClick,
         },
       }));
     },
     [
       handleLockToggle,
       handleNodeDelete,
-      handleAddComment,
-      handleCommentBadgeClick,
+      handleAddNote,
+      handleNoteBadgeClick,
       customSubtypes,
-      commentCounts,
+      noteCounts,
     ]
   );
 
-  // Update comment counts on existing nodes when they change
+  // Update note counts on existing nodes when they change.
   useEffect(() => {
     setRfNodes((nds) =>
       nds.map((n) => {
-        const count = commentCounts[n.id] ?? 0;
-        if (n.data.commentCount === count) return n;
-        return { ...n, data: { ...n.data, commentCount: count } };
+        const count = noteCounts[n.id] ?? 0;
+        if (n.data.noteCount === count) return n;
+        return { ...n, data: { ...n.data, noteCount: count } };
       })
     );
-  }, [commentCounts, setRfNodes]);
+  }, [noteCounts, setRfNodes]);
 
   // --- React Flow event handlers ---
 
@@ -715,8 +758,8 @@ export default function ProjectPage() {
           canUseNodeLocking: true,
           onLockToggle: handleLockToggle,
           onDelete: handleNodeDelete,
-          onAddComment: handleAddComment,
-          onCommentBadgeClick: handleCommentBadgeClick,
+          onAddNote: handleAddNote,
+          onNoteBadgeClick: handleNoteBadgeClick,
         },
       };
 
@@ -738,8 +781,8 @@ export default function ProjectPage() {
     [
       handleLockToggle,
       handleNodeDelete,
-      handleAddComment,
-      handleCommentBadgeClick,
+      handleAddNote,
+      handleNoteBadgeClick,
       setRfNodes,
       customSubtypes,
       openNodePanel,
@@ -854,8 +897,6 @@ export default function ProjectPage() {
 
   const handleSaveAsTemplate = useCallback(
     async (templateName: string, templateDescription?: string) => {
-      if (!project?.teamId) return;
-
       setTemplateSaving(true);
       try {
         // Get current canvas state
@@ -871,7 +912,7 @@ export default function ProjectPage() {
           positions,
         };
 
-        const res = await fetch(`/api/teams/${project.teamId}/templates`, {
+        const res = await fetch("/api/templates", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -895,7 +936,7 @@ export default function ProjectPage() {
         setTemplateSaving(false);
       }
     },
-    [project?.teamId, rfNodes, rfEdges]
+    [rfNodes, rfEdges]
   );
 
   // --- AI architecture handler ---
@@ -948,8 +989,7 @@ export default function ProjectPage() {
           setSelectedNode(null);
           setNodePanelOpen(false);
           setConnectionTypePopover(null);
-          setActiveCommentNodeId(null);
-          setCommentCounts({});
+          setActiveNoteNodeId(null);
         }
         setRfNodes(newRfNodes);
         setRfEdges(newRfEdges);
@@ -1039,8 +1079,8 @@ export default function ProjectPage() {
               canUseNodeLocking: true,
               onLockToggle: handleLockToggle,
               onDelete: handleNodeDelete,
-              onAddComment: handleAddComment,
-              onCommentBadgeClick: handleCommentBadgeClick,
+              onAddNote: handleAddNote,
+              onNoteBadgeClick: handleNoteBadgeClick,
             },
           }));
           const edges = toReactFlowEdges(stored.edges);
@@ -1083,14 +1123,14 @@ export default function ProjectPage() {
       ? { nodes: project.canvasState.nodes, edges: project.canvasState.edges }
       : null;
   }, [project?.canvasState, rfNodes, rfEdges]);
-  // Map nodeId → name for comment labels
+  // Map live node names so newly added or renamed components label their notes correctly.
   const nodeNames = useMemo(() => {
     const map: Record<string, string> = {};
-    for (const n of project?.canvasState?.nodes ?? []) {
-      map[n.id] = n.name;
+    for (const node of rfNodes) {
+      map[node.id] = node.data.name;
     }
     return map;
-  }, [project?.canvasState?.nodes]);
+  }, [rfNodes]);
 
   if (loading) {
     return (
@@ -1187,7 +1227,7 @@ export default function ProjectPage() {
               </p>
             )}
           </div>
-          <div className="ml-auto flex items-center gap-2">
+          <div className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto sm:justify-end">
             <AddNodeDropdown onAddNode={handleAddNode} customSubtypes={customSubtypes} />
             {nodeCount > 0 && (
               <ExportDropdown
@@ -1209,11 +1249,12 @@ export default function ProjectPage() {
                 <span>{prdLoading ? "Generating..." : "PRD"}</span>
               </button>
             )}
-            {nodeCount > 0 && project?.teamId && (
+            {nodeCount > 0 && (
               <button
+                ref={saveTemplateInvokerRef}
                 onClick={() => setSaveTemplateModalOpen(true)}
                 className="min-h-11 rounded-md border border-[var(--border)] px-3 py-2 text-xs text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
-                title="Save current canvas as team template"
+                title="Save current map as a personal template"
               >
                 Save as Template
               </button>
@@ -1365,15 +1406,14 @@ export default function ProjectPage() {
           {/* Edge Legend */}
           {canUseConnectionTypes && <EdgeLegend />}
 
-          {/* Comments Panel */}
-          <CommentsPanel
+          {/* Private notes */}
+          <NotesPanel
             projectId={projectId}
-            isTeamProject={!!project.teamId}
             nodeNames={nodeNames}
-            activeNodeId={activeCommentNodeId}
-            onClearNodeFilter={() => setActiveCommentNodeId(null)}
-            onCommentCountsChange={handleCommentCountsChange}
-            openTrigger={commentsPanelOpenTrigger}
+            activeNodeId={activeNoteNodeId}
+            onClearNodeFilter={() => setActiveNoteNodeId(null)}
+            onNoteCountsChange={handleNoteCountsChange}
+            openTrigger={notesPanelOpenTrigger}
           />
 
           {/* Connection Type Selector popover */}
@@ -1412,6 +1452,7 @@ export default function ProjectPage() {
           {saveTemplateModalOpen && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay)]">
               <div
+                ref={saveTemplateDialogRef}
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="save-template-title"
@@ -1442,7 +1483,7 @@ export default function ProjectPage() {
                       required
                       className="w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
                       placeholder="e.g., Microservices API Template"
-                      autoFocus
+                      data-autofocus
                     />
                   </div>
                   <div className="mb-4">

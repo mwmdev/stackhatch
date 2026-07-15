@@ -1,4 +1,4 @@
-import { integer, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 export type UserRole = "user" | "admin";
 
@@ -24,8 +24,9 @@ export const projects = sqliteTable("projects", {
   repoAnalysisStatus: text("repo_analysis_status", { enum: ["complete", "partial"] }),
   repoAnalysisWarning: text("repo_analysis_warning"),
   canvasState: text("canvas_state"),
-  userId: text("user_id").references(() => users.id, { onDelete: "cascade" }),
-  teamId: text("team_id").references(() => teams.id, { onDelete: "set null" }),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
   createdAt: integer("created_at", { mode: "number" }).notNull(),
   updatedAt: integer("updated_at", { mode: "number" }).notNull(),
 });
@@ -62,75 +63,24 @@ export const userSettings = sqliteTable("user_settings", {
   updatedAt: integer("updated_at", { mode: "number" }).notNull(),
 });
 
-// Team collaboration tables
-export const teams = sqliteTable("teams", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull(),
-  ownerId: text("owner_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  createdAt: integer("created_at", { mode: "number" }).notNull(),
-});
-
-export const teamMembers = sqliteTable(
-  "team_members",
-  {
-    teamId: text("team_id")
-      .notNull()
-      .references(() => teams.id, { onDelete: "cascade" }),
-    userId: text("user_id")
-      .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
-    role: text("role", { enum: ["owner", "member"] }).notNull(),
-    joinedAt: integer("joined_at", { mode: "number" }).notNull(),
-  },
-  (table) => [
-    primaryKey({
-      columns: [table.teamId, table.userId],
-    }),
-  ]
-);
-
-export const teamInvites = sqliteTable("team_invites", {
-  id: text("id").primaryKey(),
-  teamId: text("team_id")
-    .notNull()
-    .references(() => teams.id, { onDelete: "cascade" }),
-  email: text("email").notNull(),
-  invitedBy: text("invited_by")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  token: text("token").notNull().unique(),
-  expiresAt: integer("expires_at", { mode: "number" }).notNull(),
-  status: text("status", { enum: ["pending", "accepted", "expired"] })
-    .notNull()
-    .default("pending"),
-});
-
-export const comments = sqliteTable("comments", {
+export const notes = sqliteTable("notes", {
   id: text("id").primaryKey(),
   projectId: text("project_id")
     .notNull()
     .references(() => projects.id, { onDelete: "cascade" }),
-  userId: text("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
   content: text("content").notNull(),
-  nodeId: text("node_id"), // nullable for general comments
+  nodeId: text("node_id"),
   createdAt: integer("created_at", { mode: "number" }).notNull(),
   updatedAt: integer("updated_at", { mode: "number" }).notNull(),
 });
 
-export const diagramTemplates = sqliteTable("diagram_templates", {
+export const templates = sqliteTable("templates", {
   id: text("id").primaryKey(),
-  teamId: text("team_id")
-    .notNull()
-    .references(() => teams.id, { onDelete: "cascade" }),
-  name: text("name").notNull(),
-  description: text("description"),
-  canvasState: text("canvas_state").notNull(), // JSON
-  createdBy: text("created_by")
+  userId: text("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description"),
+  canvasState: text("canvas_state").notNull(),
   createdAt: integer("created_at", { mode: "number" }).notNull(),
 });

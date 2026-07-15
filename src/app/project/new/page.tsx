@@ -5,17 +5,11 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import TemplatePicker from "@/components/templates/TemplatePicker";
 
-interface Team {
-  id: string;
-  name: string;
-}
-
 interface Template {
   id: string;
   name: string;
   description: string | null;
   canvasState: string;
-  teamId?: string;
 }
 
 export default function NewProjectPage() {
@@ -23,24 +17,15 @@ export default function NewProjectPage() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [repoUrl, setRepoUrl] = useState("");
-  const [teams, setTeams] = useState<Team[]>([]);
-  const [teamId, setTeamId] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
 
   useEffect(() => {
-    const requestedTeamId = new URLSearchParams(window.location.search).get("teamId") ?? "";
-    fetch("/api/teams")
-      .then((res) => (res.ok ? res.json() : []))
-      .then((data: Team[]) => {
-        setTeams(data);
-        if (requestedTeamId && data.some((team) => team.id === requestedTeamId)) {
-          setTeamId(requestedTeamId);
-        }
-      })
-      .catch(() => {});
+    if (new URLSearchParams(window.location.search).get("templates") === "1") {
+      setShowTemplatePicker(true);
+    }
   }, []);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -60,7 +45,6 @@ export default function NewProjectPage() {
           name: name.trim(),
           description: description.trim() || undefined,
           repoUrl: repoUrl.trim() || undefined,
-          teamId: teamId || undefined,
           canvasState: selectedTemplate?.canvasState,
         }),
       });
@@ -84,7 +68,6 @@ export default function NewProjectPage() {
   function handleSelectTemplate(template: Template) {
     setSelectedTemplate(template);
     setShowTemplatePicker(false);
-    if (template.teamId) setTeamId(template.teamId);
     if (!name.trim()) setName(`${template.name} - Copy`);
   }
 
@@ -99,36 +82,10 @@ export default function NewProjectPage() {
         </Link>
         <h1 className="mb-2 text-2xl font-bold">Map a project</h1>
         <p className="mb-8 text-[var(--muted-foreground)]">
-          Start from a public repository, an existing team template, or a blank architecture map.
+          Start from a public repository, one of your saved maps, or a blank architecture map.
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <label htmlFor="workspace" className="mb-1 block text-sm font-medium">
-              Workspace
-            </label>
-            <select
-              id="workspace"
-              value={teamId}
-              onChange={(e) => {
-                setTeamId(e.target.value);
-                if (selectedTemplate?.teamId && selectedTemplate.teamId !== e.target.value)
-                  setSelectedTemplate(null);
-              }}
-              className="min-h-11 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
-            >
-              <option value="">Personal</option>
-              {teams.map((team) => (
-                <option key={team.id} value={team.id}>
-                  {team.name}
-                </option>
-              ))}
-            </select>
-            <p className="mt-1 text-xs text-[var(--muted-foreground)]">
-              Team projects are visible and editable by that team&apos;s members.
-            </p>
-          </div>
-
           <div className="rounded-lg border border-[var(--border)] bg-[var(--muted)]/20 p-4">
             <div className="mb-2 flex items-center justify-between">
               <h2 className="font-medium">Start from Template</h2>
@@ -137,7 +94,7 @@ export default function NewProjectPage() {
                 onClick={() => setShowTemplatePicker(true)}
                 className="text-sm text-[var(--color-client)] hover:underline"
               >
-                Browse Templates
+                Browse templates
               </button>
             </div>
             {selectedTemplate ? (
@@ -160,7 +117,7 @@ export default function NewProjectPage() {
               </div>
             ) : (
               <p className="text-sm text-[var(--muted-foreground)]">
-                Optionally reuse a template from one of your teams.
+                Optionally reuse one of your saved architecture maps.
               </p>
             )}
           </div>
@@ -174,7 +131,7 @@ export default function NewProjectPage() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="My App Architecture"
-              autoFocus
+              autoFocus={!showTemplatePicker}
               className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
             />
           </div>

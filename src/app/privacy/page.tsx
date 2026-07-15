@@ -24,9 +24,9 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-lg font-semibold text-[var(--foreground)]">Information We Use</h2>
             <p className="mt-2">
-              StackHatch stores account profile details from authentication, project names,
-              descriptions, public repository URLs, generated architecture data, team membership,
-              comments, templates, and user preferences needed to operate the product.
+              StackHatch stores account profile details from authentication, personal project names
+              and descriptions, public repository URLs, generated architecture data, private notes,
+              personal templates, and user preferences needed to operate the product.
             </p>
           </section>
 
@@ -78,8 +78,8 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-lg font-semibold text-[var(--foreground)]">Data Retention</h2>
             <p className="mt-2">
-              Account and project data remain stored until the related project, team, or account is
-              deleted. StackHatch does not currently apply an automatic expiration period.
+              Account and personal project data remain stored until the related project or account
+              is deleted. StackHatch does not currently apply an automatic expiration period.
               Self-hosted operators control their own database backups and retention schedules.
             </p>
           </section>

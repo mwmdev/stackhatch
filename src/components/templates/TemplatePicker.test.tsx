@@ -1,0 +1,75 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import TemplatePicker from "./TemplatePicker";
+
+const template = {
+  id: "template-1",
+  name: "API boundary map",
+  description: "A checked-in service boundary to reuse.",
+  canvasState: JSON.stringify({
+    nodes: [
+      { id: "api", category: "api" },
+      { id: "data", category: "data" },
+    ],
+    edges: [{ id: "edge-1" }],
+  }),
+  createdAt: 1_700_000_000_000,
+};
+
+describe("TemplatePicker", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("loads personal templates and returns the selected saved map", async () => {
+    const onSelectTemplate = vi.fn();
+    global.fetch = vi.fn(() =>
+      Promise.resolve({ ok: true, json: () => Promise.resolve([template]) } as Response)
+    ) as unknown as typeof global.fetch;
+
+    render(<TemplatePicker onSelectTemplate={onSelectTemplate} onCancel={vi.fn()} />);
+
+    expect(screen.getByRole("dialog", { name: "Start from Template" })).toBeInTheDocument();
+    const templateButton = await screen.findByRole("button", { name: /API boundary map/ });
+    expect(global.fetch).toHaveBeenCalledWith("/api/templates");
+    expect(global.fetch).not.toHaveBeenCalledWith(expect.stringContaining("/api/teams"));
+    expect(screen.getByText(/2 nodes, 1 connection/)).toBeInTheDocument();
+
+    fireEvent.click(templateButton);
+    expect(onSelectTemplate).toHaveBeenCalledWith(template);
+  });
+
+  it("explains how to create the first personal template", async () => {
+    global.fetch = vi.fn(() =>
+      Promise.resolve({ ok: true, json: () => Promise.resolve([]) } as Response)
+    ) as unknown as typeof global.fetch;
+
+    render(<TemplatePicker onSelectTemplate={vi.fn()} onCancel={vi.fn()} />);
+
+    expect(await screen.findByText("No templates yet.")).toBeInTheDocument();
+    expect(screen.getByText(/Save any architecture map as a template/)).toBeInTheDocument();
+  });
+
+  it("keeps keyboard focus inside the dialog, closes on Escape, and restores focus", async () => {
+    global.fetch = vi.fn(() =>
+      Promise.resolve({ ok: true, json: () => Promise.resolve([]) } as Response)
+    ) as unknown as typeof global.fetch;
+    const onCancel = vi.fn();
+    const invoker = document.createElement("button");
+    document.body.appendChild(invoker);
+    invoker.focus();
+
+    const { unmount } = render(<TemplatePicker onSelectTemplate={vi.fn()} onCancel={onCancel} />);
+
+    const cancel = await screen.findByRole("button", { name: "Cancel" });
+    await waitFor(() => expect(cancel).toHaveFocus());
+    fireEvent.keyDown(window, { key: "Tab" });
+    expect(cancel).toHaveFocus();
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(onCancel).toHaveBeenCalledOnce();
+
+    unmount();
+    expect(invoker).toHaveFocus();
+    invoker.remove();
+  });
+});

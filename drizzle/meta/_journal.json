@@ -22,6 +22,13 @@
       "when": 1784050528266,
       "tag": "0002_sleepy_kang",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1784077689879,
+      "tag": "0003_jittery_starhawk",
+      "breakpoints": true
     }
   ]
 }

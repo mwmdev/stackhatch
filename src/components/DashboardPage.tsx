@@ -10,7 +10,7 @@ import {
   GitBranch,
   KeyRound,
   LayoutDashboard,
-  Plus,
+  LayoutTemplate,
   RefreshCw,
   Settings,
   Trash2,
@@ -24,17 +24,8 @@ interface ProjectSummary {
   id: string;
   name: string;
   description: string | null;
-  teamId?: string | null;
-  teamName?: string | null;
   createdAt: number;
   updatedAt: number;
-}
-
-interface TeamSummary {
-  id: string;
-  name: string;
-  ownerId?: string;
-  createdAt?: number;
 }
 
 const ACCEPTED_REQUIREMENT_FILES = [".md", ".txt"];
@@ -87,7 +78,6 @@ function normalizeGitHubRepository(value: string) {
 export default function Dashboard() {
   const router = useRouter();
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
-  const [teams, setTeams] = useState<TeamSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [projectsError, setProjectsError] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<ProjectSummary | null>(null);
@@ -98,8 +88,6 @@ export default function Dashboard() {
   const [error, setError] = useState("");
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [hasAnthropicKey, setHasAnthropicKey] = useState<boolean | null>(null);
-  const [newTeamName, setNewTeamName] = useState("");
-  const [creatingTeam, setCreatingTeam] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const routedToSetup = useRef(false);
 
@@ -144,17 +132,13 @@ export default function Dashboard() {
     Promise.allSettled([
       fetch("/api/me").then((res) => (res.ok ? res.json() : null)),
       fetch("/api/settings").then((res) => (res.ok ? res.json() : null)),
-      fetch("/api/teams").then((res) => (res.ok ? res.json() : [])),
-    ]).then(([userResult, settingsResult, teamsResult]) => {
+    ]).then(([userResult, settingsResult]) => {
       if (cancelled) return;
       if (userResult.status === "fulfilled") {
         setCurrentUserRole(userResult.value?.role ?? null);
       }
       if (settingsResult.status === "fulfilled" && settingsResult.value) {
         setHasAnthropicKey(Boolean(settingsResult.value.hasAnthropicKey));
-      }
-      if (teamsResult.status === "fulfilled" && Array.isArray(teamsResult.value)) {
-        setTeams(teamsResult.value);
       }
     });
     return () => {
@@ -260,33 +244,6 @@ export default function Dashboard() {
     };
     reader.onerror = () => setError("The requirements file could not be read.");
     reader.readAsText(file);
-  }
-
-  async function handleCreateTeam(e: React.FormEvent) {
-    e.preventDefault();
-    const name = newTeamName.trim();
-    if (!name) return;
-    setCreatingTeam(true);
-    setError("");
-    try {
-      const res = await fetch("/api/teams", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setError(data.error || "Failed to create team");
-        return;
-      }
-      setTeams((current) => [...current, data]);
-      setNewTeamName("");
-      router.push(`/team/${data.id}`);
-    } catch {
-      setError("Failed to create team");
-    } finally {
-      setCreatingTeam(false);
-    }
   }
 
   const handleDelete = useCallback(async () => {
@@ -416,7 +373,7 @@ export default function Dashboard() {
 
           <div>
             <h2 className="font-display text-xl font-bold">Other ways to start</h2>
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <div className="mt-4 grid gap-4 md:grid-cols-3">
               <div className="entry-card flex min-w-0 flex-col rounded-lg border border-[var(--border)] bg-[var(--card)] p-5">
                 <FileText className="h-5 w-5 text-[var(--color-services)]" />
                 <h3 className="mt-3 font-semibold">Upload requirements</h3>
@@ -442,7 +399,20 @@ export default function Dashboard() {
                 <p className="mt-2 text-xs text-[var(--muted-foreground)]">.md or .txt</p>
               </div>
               <div className="entry-card flex min-w-0 flex-col rounded-lg border border-[var(--border)] bg-[var(--card)] p-5">
-                <FolderPlus className="h-5 w-5 text-[var(--color-api)]" />
+                <LayoutTemplate className="h-5 w-5 text-[var(--color-api)]" />
+                <h3 className="mt-3 font-semibold">Use a template</h3>
+                <p className="mt-1 flex-1 text-sm leading-6 text-[var(--muted-foreground)]">
+                  Reuse one of your saved architecture maps as the starting point for a new project.
+                </p>
+                <Link
+                  href="/project/new?templates=1"
+                  className="mt-4 inline-flex min-h-11 items-center justify-center rounded-md border border-[var(--border)] px-4 py-2 text-sm font-semibold hover:bg-[var(--muted)]"
+                >
+                  Use a template
+                </Link>
+              </div>
+              <div className="entry-card flex min-w-0 flex-col rounded-lg border border-[var(--border)] bg-[var(--card)] p-5">
+                <FolderPlus className="h-5 w-5 text-[var(--color-client)]" />
                 <h3 className="mt-3 font-semibold">Start fresh</h3>
                 <p className="mt-1 flex-1 text-sm leading-6 text-[var(--muted-foreground)]">
                   Open a blank canvas and work manually. No API key is required.
@@ -468,73 +438,6 @@ export default function Dashboard() {
             <span>{error}</span>
           </div>
         )}
-
-        <section className="rounded-lg border border-[var(--border)] bg-[var(--card)]">
-          <div className="flex flex-col gap-4 border-b border-[var(--border)] p-5 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <h2 className="font-semibold">Teams</h2>
-              <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-                Share projects, comments, and reusable architecture templates.
-              </p>
-            </div>
-            <form onSubmit={handleCreateTeam} className="flex w-full gap-2 sm:w-auto">
-              <label htmlFor="new-team-name" className="sr-only">
-                Team name
-              </label>
-              <input
-                id="new-team-name"
-                value={newTeamName}
-                onChange={(e) => setNewTeamName(e.target.value)}
-                placeholder="New team name"
-                maxLength={100}
-                className="min-h-11 min-w-0 flex-1 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm sm:w-56"
-              />
-              <button
-                type="submit"
-                disabled={creatingTeam || !newTeamName.trim()}
-                className="inline-flex min-h-11 items-center gap-2 rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-semibold text-[var(--brand-foreground)] disabled:opacity-50"
-              >
-                <Plus className="h-4 w-4" />
-                {creatingTeam ? "Creating..." : "Create team"}
-              </button>
-            </form>
-          </div>
-          {teams.length === 0 ? (
-            <p className="p-5 text-sm text-[var(--muted-foreground)]">
-              No teams yet. Create one to start a shared workspace.
-            </p>
-          ) : (
-            <div className="grid gap-3 p-5 sm:grid-cols-2 xl:grid-cols-3">
-              {teams.map((team) => (
-                <div
-                  key={team.id}
-                  className="rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] p-4"
-                >
-                  <Link
-                    href={`/team/${team.id}`}
-                    className="font-semibold hover:text-[var(--color-client)]"
-                  >
-                    {team.name}
-                  </Link>
-                  <div className="mt-3 flex gap-2">
-                    <Link
-                      href={`/team/${team.id}`}
-                      className="inline-flex min-h-10 items-center rounded-md border border-[var(--border)] px-3 py-2 text-sm hover:bg-[var(--muted)]"
-                    >
-                      Manage
-                    </Link>
-                    <Link
-                      href={`/project/new?teamId=${team.id}`}
-                      className="inline-flex min-h-10 items-center rounded-md bg-[var(--brand)] px-3 py-2 text-sm font-semibold text-[var(--brand-foreground)]"
-                    >
-                      New project
-                    </Link>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
 
         <section className="rounded-lg border border-[var(--border)] bg-[var(--card)]">
           <div className="flex flex-col gap-3 border-b border-[var(--border)] p-5 sm:flex-row sm:items-center sm:justify-between">
@@ -582,11 +485,6 @@ export default function Dashboard() {
                       <h3 className="min-w-0 truncate font-medium text-[var(--card-foreground)]">
                         {project.name}
                       </h3>
-                      {project.teamName && (
-                        <span className="inline-flex max-w-28 flex-none truncate rounded-full bg-[var(--color-services)]/15 px-2 py-0.5 text-[10px] font-medium text-[var(--color-services)]">
-                          {project.teamName}
-                        </span>
-                      )}
                     </div>
                     {project.description && (
                       <p className="mt-2 line-clamp-2 text-sm leading-6 text-[var(--muted-foreground)]">

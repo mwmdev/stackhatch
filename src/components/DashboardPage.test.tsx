@@ -36,6 +36,7 @@ const mockProjects = [
     id: "p1",
     name: "My App",
     description: "A cool app description that might be quite long",
+    teamName: "Legacy workspace",
     createdAt: 1700000000000,
     updatedAt: 1700100000000,
   },
@@ -69,7 +70,6 @@ function mockFetch(
         json: () => Promise.resolve({ hasAnthropicKey: options?.hasAnthropicKey ?? true }),
       });
     }
-    if (url === "/api/teams") return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
     if (url === "/api/projects") {
       return Promise.resolve({
         ok: true,
@@ -101,9 +101,10 @@ describe("Dashboard", () => {
 
     expect(screen.getByText("A cool app description that might be quite long")).toBeInTheDocument();
     expect(screen.getByText("Another Project")).toBeInTheDocument();
+    expect(screen.queryByText("Legacy workspace")).not.toBeInTheDocument();
   });
 
-  it("renders repo URL input and start from scratch when no projects", async () => {
+  it("renders repository, requirements, personal template, and blank-canvas starts", async () => {
     mockFetch([]);
     render(<Dashboard />);
 
@@ -114,6 +115,14 @@ describe("Dashboard", () => {
     expect(screen.getByText("Start from scratch")).toBeInTheDocument();
     expect(screen.getByText("Map repository")).toBeInTheDocument();
     expect(screen.getByText("Other ways to start")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Use a template" })).toHaveAttribute(
+      "href",
+      "/project/new?templates=1"
+    );
+    expect(screen.getByText("Upload requirements")).toBeInTheDocument();
+    expect(screen.getByText("Your maps")).toBeInTheDocument();
+    expect(screen.queryByText("Teams")).not.toBeInTheDocument();
+    expect(global.fetch).not.toHaveBeenCalledWith("/api/teams");
   });
 
   it("shows BYOK setup without blocking blank canvases", async () => {
@@ -156,8 +165,6 @@ describe("Dashboard", () => {
           ok: true,
           json: () => Promise.resolve({ hasAnthropicKey: true }),
         });
-      if (url === "/api/teams")
-        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
       if (url === "/api/projects") {
         return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
       }

@@ -815,6 +815,55 @@ describe("ProjectPage", () => {
       });
     });
 
+    it("makes private notes available on a personal project", async () => {
+      mockFetchProject(emptyProject);
+      render(<ProjectPage />);
+
+      const notesButton = await screen.findByRole("button", { name: "Notes" });
+      fireEvent.click(notesButton);
+
+      expect(await screen.findByText("No notes yet.")).toBeInTheDocument();
+      expect(global.fetch).toHaveBeenCalledWith("/api/projects/test-project-id/notes");
+      expect(
+        (global.fetch as ReturnType<typeof vi.fn>).mock.calls.some(([input]) =>
+          String(input).includes("/comments")
+        )
+      ).toBe(false);
+    });
+
+    it("saves any non-empty map as a personal template", async () => {
+      mockFetchProject(projectWithNodes);
+      render(<ProjectPage />);
+
+      const saveButton = await screen.findByRole("button", { name: "Save as Template" });
+      expect(saveButton).toHaveAttribute("title", "Save current map as a personal template");
+      fireEvent.click(saveButton);
+
+      expect(screen.getByRole("dialog", { name: "Save as Template" })).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByLabelText(/Template Name/)).toHaveFocus());
+      fireEvent.keyDown(window, { key: "Escape" });
+      expect(screen.queryByRole("dialog", { name: "Save as Template" })).not.toBeInTheDocument();
+      expect(saveButton).toHaveFocus();
+
+      fireEvent.click(saveButton);
+      fireEvent.change(screen.getByLabelText(/Template Name/), {
+        target: { value: "Service boundary" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Save Template" }));
+
+      await waitFor(() => {
+        expect(global.fetch).toHaveBeenCalledWith(
+          "/api/templates",
+          expect.objectContaining({ method: "POST" })
+        );
+      });
+      expect(
+        (global.fetch as ReturnType<typeof vi.fn>).mock.calls.some(([input]) =>
+          String(input).includes("/api/teams")
+        )
+      ).toBe(false);
+    });
+
     it("shows back to dashboard link", async () => {
       mockFetchProject(emptyProject);
       render(<ProjectPage />);

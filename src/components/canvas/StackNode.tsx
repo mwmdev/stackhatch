@@ -35,15 +35,15 @@ export interface StackNodeData {
   reasoning: string;
   locked: boolean;
   customSubtypes?: CustomSubtypesMap;
-  commentCount?: number;
+  noteCount?: number;
   noteColor?: NoteColor;
   showDescription?: boolean;
   canUseNodeLocking?: boolean;
   onLockToggle?: (id: string, locked: boolean) => void;
   onDelete?: (id: string) => void;
   onClick?: (id: string) => void;
-  onAddComment?: (id: string) => void;
-  onCommentBadgeClick?: (id: string) => void;
+  onAddNote?: (id: string) => void;
+  onNoteBadgeClick?: (id: string) => void;
 }
 
 interface ContextMenuState {
@@ -82,6 +82,13 @@ function StackNodeComponent({ id, data, selected }: NodeProps<StackNodeData>) {
     data.onClick?.(id);
   }, [data, id]);
 
+  const handleKeyDown = useCallback((event: React.KeyboardEvent) => {
+    if (event.key !== "ContextMenu" && !(event.shiftKey && event.key === "F10")) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setContextMenu({ visible: true, x: 16, y: 16 });
+  }, []);
+
   // Close context menu on outside click
   useEffect(() => {
     if (!contextMenu.visible) return;
@@ -117,7 +124,8 @@ function StackNodeComponent({ id, data, selected }: NodeProps<StackNodeData>) {
       }}
       onContextMenu={handleContextMenu}
       onClick={handleClick}
-      tabIndex={hasDescription ? 0 : undefined}
+      onKeyDown={handleKeyDown}
+      tabIndex={0}
       aria-describedby={hasDescription ? tooltipId : undefined}
       data-testid={`stack-node-${id}`}
     >
@@ -143,18 +151,18 @@ function StackNodeComponent({ id, data, selected }: NodeProps<StackNodeData>) {
         </div>
       )}
 
-      {/* Comment count badge */}
-      {(data.commentCount ?? 0) > 0 && (
+      {/* Note count badge */}
+      {(data.noteCount ?? 0) > 0 && (
         <button
           className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--brand)] px-1 text-[10px] font-bold text-[var(--brand-foreground)] shadow-sm hover:opacity-80"
           onClick={(e) => {
             e.stopPropagation();
-            data.onCommentBadgeClick?.(id);
+            data.onNoteBadgeClick?.(id);
           }}
-          title={`${data.commentCount} comment${data.commentCount !== 1 ? "s" : ""}`}
-          data-testid="comment-badge"
+          title={`${data.noteCount} note${data.noteCount !== 1 ? "s" : ""}`}
+          data-testid="note-badge"
         >
-          {data.commentCount}
+          {data.noteCount}
         </button>
       )}
 
@@ -285,13 +293,13 @@ function StackNodeComponent({ id, data, selected }: NodeProps<StackNodeData>) {
             className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--card-foreground)] hover:bg-[var(--muted)]"
             onClick={(e) => {
               e.stopPropagation();
-              data.onAddComment?.(id);
+              data.onAddNote?.(id);
               setContextMenu((prev) => ({ ...prev, visible: false }));
             }}
-            data-testid="context-menu-add-comment"
+            data-testid="context-menu-add-note"
           >
-            <icons.MessageSquare size={14} />
-            Add Comment
+            <icons.NotebookPen size={14} />
+            Add note
           </button>
           <button
             className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--danger)] hover:bg-[var(--danger-surface)]"
