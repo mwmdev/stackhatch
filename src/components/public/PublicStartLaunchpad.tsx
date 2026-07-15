@@ -10,6 +10,7 @@ import {
   markProjectStart,
   type ProjectStartMethod,
 } from "@/lib/project-start";
+import styles from "../../app/landing.module.css";
 
 function recordStart(method: ProjectStartMethod) {
   markProjectStart(method);
@@ -50,40 +51,41 @@ export default function PublicStartLaunchpad() {
   }
 
   return (
-    <div className="start-launchpad" role="group" aria-label="Ways to start a StackHatch map">
-      <article className="start-cell start-cell-blank">
-        <div className="start-cell-heading">
+    <div className={styles.startLaunchpad} role="group" aria-label="Ways to start a StackHatch map">
+      <article className={`${styles.startCell} ${styles.startCellBlank}`}>
+        <div className={styles.startCellHeading}>
           <FolderPlus aria-hidden="true" />
-          <span className="start-index">01</span>
         </div>
         <h3>Start fresh</h3>
         <p>Open a blank canvas and shape the architecture yourself. No API key needed.</p>
-        <button type="button" className="start-action" onClick={() => openStart("blank")}>
+        <button type="button" className={styles.startAction} onClick={() => openStart("blank")}>
           Open blank canvas
         </button>
       </article>
 
-      <article className="start-cell start-cell-requirements">
-        <div className="start-cell-heading">
+      <article className={`${styles.startCell} ${styles.startCellRequirements}`}>
+        <div className={styles.startCellHeading}>
           <FileText aria-hidden="true" />
-          <span className="start-index">02</span>
         </div>
         <h3>Upload requirements</h3>
         <p>Bring a Markdown or text brief and turn it into a map you can refine.</p>
-        <button type="button" className="start-action" onClick={() => openStart("requirements")}>
+        <button
+          type="button"
+          className={styles.startAction}
+          onClick={() => openStart("requirements")}
+        >
           Upload .md or .txt
         </button>
       </article>
 
-      <article className="start-cell start-cell-repository">
-        <div className="start-cell-heading">
+      <article className={`${styles.startCell} ${styles.startCellRepository}`}>
+        <div className={styles.startCellHeading}>
           <GitBranch aria-hidden="true" />
-          <span className="start-index">03</span>
         </div>
         <h3>Map a repo</h3>
         <p>Scan a public GitHub repository and see its components and connections.</p>
-        <form onSubmit={handleRepository} className="start-repo-form" noValidate>
-          <label htmlFor={repositoryId} className="sr-only">
+        <form onSubmit={handleRepository} className={styles.startRepoForm} noValidate>
+          <label htmlFor={repositoryId} className={styles.srOnly}>
             Public GitHub repository
           </label>
           <input
@@ -104,33 +106,32 @@ export default function PublicStartLaunchpad() {
           <button type="submit">Map repository</button>
         </form>
         {error && (
-          <p id={errorId} className="start-error" role="alert">
+          <p id={errorId} className={styles.startError} role="alert">
             {error}
           </p>
         )}
       </article>
 
-      <article className="start-cell start-cell-template">
-        <div className="start-cell-heading">
+      <article className={`${styles.startCell} ${styles.startCellTemplate}`}>
+        <div className={styles.startCellHeading}>
           <LayoutTemplate aria-hidden="true" />
-          <span className="start-index">04</span>
         </div>
         <h3>Use a template</h3>
         <p>Reuse a saved architecture map and start with the decisions that already fit.</p>
-        <button type="button" className="start-action" onClick={() => openStart("template")}>
+        <button type="button" className={styles.startAction} onClick={() => openStart("template")}>
           Choose a template
         </button>
       </article>
 
-      <div className="start-output" aria-hidden="true">
-        <span className="start-output-ports">
+      <div className={styles.startOutput} aria-hidden="true">
+        <span className={styles.startOutputPorts}>
           <i />
           <i />
           <i />
           <i />
         </span>
-        <span className="start-output-line" />
-        <span className="start-output-node">One architecture map</span>
+        <span className={styles.startOutputLine} />
+        <span className={styles.startOutputNode}>One architecture map</span>
       </div>
     </div>
   );
