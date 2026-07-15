@@ -13,7 +13,7 @@ import {
 
 function recordStart(method: ProjectStartMethod) {
   markProjectStart(method);
-  trackEvent("project_start_selected", { location: "hero", start_method: method });
+  trackEvent("project_start_selected", { location: "launchpad", start_method: method });
 }
 
 export default function PublicStartLaunchpad() {
@@ -34,7 +34,7 @@ export default function PublicStartLaunchpad() {
     if (!parsed) {
       setError("Enter a public GitHub repository as owner/repo or a full GitHub URL.");
       trackEvent("repository_intent_submitted", {
-        location: "hero",
+        location: "launchpad",
         error_category: "invalid_url",
       });
       return;
@@ -42,18 +42,21 @@ export default function PublicStartLaunchpad() {
 
     setError("");
     recordStart("repository");
-    trackEvent("repository_intent_submitted", { location: "hero", start_method: "repository" });
+    trackEvent("repository_intent_submitted", {
+      location: "launchpad",
+      start_method: "repository",
+    });
     router.push(buildProjectStartLoginUrl("repository", parsed.slug));
   }
 
   return (
-    <div className="start-launchpad" aria-label="Ways to start a StackHatch map">
+    <div className="start-launchpad" role="group" aria-label="Ways to start a StackHatch map">
       <article className="start-cell start-cell-blank">
         <div className="start-cell-heading">
           <FolderPlus aria-hidden="true" />
           <span className="start-index">01</span>
         </div>
-        <h2>Start fresh</h2>
+        <h3>Start fresh</h3>
         <p>Open a blank canvas and shape the architecture yourself. No API key needed.</p>
         <button type="button" className="start-action" onClick={() => openStart("blank")}>
           Open blank canvas
@@ -65,7 +68,7 @@ export default function PublicStartLaunchpad() {
           <FileText aria-hidden="true" />
           <span className="start-index">02</span>
         </div>
-        <h2>Upload requirements</h2>
+        <h3>Upload requirements</h3>
         <p>Bring a Markdown or text brief and turn it into a map you can refine.</p>
         <button type="button" className="start-action" onClick={() => openStart("requirements")}>
           Upload .md or .txt
@@ -77,7 +80,7 @@ export default function PublicStartLaunchpad() {
           <GitBranch aria-hidden="true" />
           <span className="start-index">03</span>
         </div>
-        <h2>Map a repo</h2>
+        <h3>Map a repo</h3>
         <p>Scan a public GitHub repository and see its components and connections.</p>
         <form onSubmit={handleRepository} className="start-repo-form" noValidate>
           <label htmlFor={repositoryId} className="sr-only">
@@ -112,7 +115,7 @@ export default function PublicStartLaunchpad() {
           <LayoutTemplate aria-hidden="true" />
           <span className="start-index">04</span>
         </div>
-        <h2>Use a template</h2>
+        <h3>Use a template</h3>
         <p>Reuse a saved architecture map and start with the decisions that already fit.</p>
         <button type="button" className="start-action" onClick={() => openStart("template")}>
           Choose a template

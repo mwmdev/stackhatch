@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import LandingPage from "./page";
 
@@ -18,23 +18,57 @@ async function renderLandingPage() {
 }
 
 describe("LandingPage", () => {
-  it("leads with four equally visible ways to start", async () => {
+  it("leads with the product outcome before the four ways to start", async () => {
     await renderLandingPage();
 
-    expect(screen.getByRole("heading", { name: "Start with what you have." })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Start fresh" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Upload requirements" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Map a repo" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Use a template" })).toBeInTheDocument();
+    const heroHeading = screen.getByRole("heading", {
+      level: 1,
+      name: "Keep the whole system in view.",
+    });
+    const hero = heroHeading.closest("section");
+    const launchpad = screen.getByRole("group", { name: "Ways to start a StackHatch map" });
+
+    expect(hero).not.toBeNull();
+    expect(hero).toHaveTextContent(
+      "StackHatch turns repositories and requirements into interactive architecture maps"
+    );
+    expect(within(hero!).getByRole("link", { name: "See StackHatch in action" })).toHaveAttribute(
+      "href",
+      "#features"
+    );
+    expect(within(hero!).getByRole("link", { name: "Start a map" })).toHaveAttribute(
+      "href",
+      "#start"
+    );
+    expect(
+      within(hero!).getByRole("img", { name: /architecture map of its own/i })
+    ).toHaveAttribute("src", "/screenshots/architecture-overview.webp");
+    expect(
+      hero!.compareDocumentPosition(launchpad) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+
+    const startHeading = screen.getByRole("heading", {
+      level: 2,
+      name: "Start from wherever you are.",
+    });
+    const startSection = startHeading.closest("section");
+    expect(startSection).not.toBeNull();
+    expect(startSection).toContainElement(launchpad);
+    for (const name of ["Start fresh", "Upload requirements", "Map a repo", "Use a template"]) {
+      expect(within(launchpad).getByRole("heading", { level: 3, name })).toBeInTheDocument();
+    }
     expect(screen.getByText("One architecture map")).toBeInTheDocument();
   });
 
-  it("uses three real-product screenshots as the feature proof", async () => {
+  it("uses three unique real-product screenshots without repeating the hero proof", async () => {
     await renderLandingPage();
 
-    expect(
-      screen.getByRole("heading", { name: "See the system. Ask why. Keep it current." })
-    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Ask why. Keep it current." })).toBeInTheDocument();
+    const screenshots = screen
+      .getAllByRole("img")
+      .filter((image) => image.getAttribute("src")?.startsWith("/screenshots/"));
+    const screenshotSources = screenshots.map((image) => image.getAttribute("src"));
+
     expect(screen.getByRole("img", { name: /architecture map of its own/i })).toHaveAttribute(
       "src",
       "/screenshots/architecture-overview.webp"
@@ -43,6 +77,12 @@ describe("LandingPage", () => {
       screen.getByRole("img", { name: /answering what the AI Analysis Engine does/i })
     ).toBeInTheDocument();
     expect(screen.getByRole("img", { name: /private component note/i })).toBeInTheDocument();
+    expect(screenshotSources).toEqual([
+      "/screenshots/architecture-overview.webp",
+      "/screenshots/ask-and-compare.webp",
+      "/screenshots/notes-and-rescan.webp",
+    ]);
+    expect(new Set(screenshotSources).size).toBe(3);
     expect(screen.queryByRole("link", { name: /demo/i })).not.toBeInTheDocument();
   });
 

@@ -31,14 +31,14 @@ export const metadata: Metadata = {
     template: "%s — StackHatch",
   },
   description:
-    "Build a visual architecture map from a blank canvas, requirements, a public GitHub repository, or a personal template.",
+    "StackHatch turns repositories and requirements into interactive architecture maps you can explore, question, and keep current while you build.",
   openGraph: {
     type: "website",
     url: "/",
     siteName: "StackHatch",
     title: "Keep your architecture in view",
     description:
-      "Start from a blank canvas, upload requirements, map a public repository, or reuse a personal template.",
+      "StackHatch turns repositories and requirements into interactive architecture maps you can explore, question, and keep current while you build.",
     images: [
       {
         url: "/screenshots/architecture-overview-og.png",
@@ -52,7 +52,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Keep your architecture in view",
     description:
-      "Start from a blank canvas, upload requirements, map a public repository, or reuse a personal template.",
+      "StackHatch turns repositories and requirements into interactive architecture maps you can explore, question, and keep current while you build.",
     images: ["/screenshots/architecture-overview-og.png"],
   },
   robots: { index: true, follow: true },
@@ -66,7 +66,7 @@ const softwareApplicationJsonLd = {
   operatingSystem: "Web",
   url: siteUrl,
   description:
-    "A visual architecture mapping tool for blank canvases, product requirements, public GitHub repositories, and personal templates.",
+    "StackHatch turns repositories and requirements into interactive architecture maps you can explore, question, and keep current while you build.",
   offers: {
     "@type": "Offer",
     price: "0",

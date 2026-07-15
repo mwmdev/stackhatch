@@ -25,7 +25,7 @@ export const ANALYTICS_EVENT_NAMES = [
 export type AnalyticsEventName = (typeof ANALYTICS_EVENT_NAMES)[number];
 
 export const ANALYTICS_LOCATIONS = [
-  "hero",
+  "launchpad",
   "final",
   "navigation",
   "login",

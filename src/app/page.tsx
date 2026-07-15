@@ -53,16 +53,6 @@ const USE_MOMENTS = [
 
 const PRODUCT_STORIES = [
   {
-    number: "01",
-    title: "See the whole system.",
-    description:
-      "Components, technologies, and the connections between them stay in one editable map.",
-    desktop: "/screenshots/architecture-overview.webp",
-    mobile: "/screenshots/architecture-overview-mobile.webp",
-    alt: "StackHatch architecture map of its own Next.js codebase with a component detail panel open",
-  },
-  {
-    number: "02",
     title: "Ask the architecture.",
     description:
       "Ask how a path works in context, then compare practical alternatives for the selected component.",
@@ -71,7 +61,6 @@ const PRODUCT_STORIES = [
     alt: "StackHatch answering what the AI Analysis Engine does and showing real alternatives for the selected component",
   },
   {
-    number: "03",
     title: "Keep decisions close.",
     description: "Attach private notes to the map and re-scan a repository when the code changes.",
     desktop: "/screenshots/notes-and-rescan.webp",
@@ -125,14 +114,55 @@ export default async function LandingPage() {
       </header>
 
       <main>
-        <section id="start" className="hero-section" aria-labelledby="hero-heading">
-          <div className="hero-intro">
-            <p className="public-eyebrow">Visual architecture, however you begin</p>
-            <h1 id="hero-heading">Start with what you have.</h1>
-            <p className="hero-description">
-              Open a blank canvas, upload requirements, map a public repository, or reuse a
-              template. StackHatch keeps the architecture visible while you build.
-            </p>
+        <section className="hero-section" aria-labelledby="hero-heading">
+          <div className="hero-grid">
+            <div className="hero-intro">
+              <p className="public-eyebrow">Visual architecture for real software</p>
+              <h1 id="hero-heading">Keep the whole system in view.</h1>
+              <p className="hero-description">
+                StackHatch turns repositories and requirements into interactive architecture maps
+                you can explore, question, and keep current while you build.
+              </p>
+              <div className="hero-actions">
+                <a href="#features" className="hero-primary-action">
+                  See StackHatch in action
+                  <ArrowRight aria-hidden="true" className="h-4 w-4" />
+                </a>
+                <a href="#start" className="hero-secondary-action">
+                  Start a map
+                </a>
+              </div>
+            </div>
+            <figure className="hero-product-proof">
+              <picture className="hero-product-shot">
+                <source
+                  media="(max-width: 760px)"
+                  srcSet="/screenshots/architecture-overview-mobile.webp"
+                />
+                <img
+                  src="/screenshots/architecture-overview.webp"
+                  width="1600"
+                  height="1000"
+                  loading="eager"
+                  fetchPriority="high"
+                  decoding="async"
+                  alt="StackHatch architecture map of its own Next.js codebase with a component detail panel open"
+                />
+              </picture>
+              <figcaption>StackHatch mapping its own codebase.</figcaption>
+            </figure>
+          </div>
+        </section>
+
+        <section id="start" className="start-section" aria-labelledby="start-heading">
+          <div className="start-section-intro">
+            <p className="public-eyebrow">Four ways in</p>
+            <div>
+              <h2 id="start-heading">Start from wherever you are.</h2>
+              <p>
+                Begin with a blank canvas, requirements, a public repository, or a saved template.
+              </p>
+            </div>
           </div>
           <PublicStartLaunchpad />
           <p className="start-trust-line">
@@ -148,13 +178,12 @@ export default async function LandingPage() {
         >
           <div className="product-stories-intro">
             <p className="public-eyebrow">Inside the workspace</p>
-            <h2 id="features-heading">See the system. Ask why. Keep it current.</h2>
+            <h2 id="features-heading">Ask why. Keep it current.</h2>
           </div>
           <div className="product-story-list">
             {PRODUCT_STORIES.map((story) => (
-              <article key={story.number} className="product-story">
+              <article key={story.title} className="product-story">
                 <div className="product-story-copy">
-                  <span className="product-story-number">{story.number}</span>
                   <h3>{story.title}</h3>
                   <p>{story.description}</p>
                 </div>

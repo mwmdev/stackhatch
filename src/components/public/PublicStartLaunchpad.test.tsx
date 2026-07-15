@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import PublicStartLaunchpad from "./PublicStartLaunchpad";
 
@@ -23,13 +23,15 @@ describe("PublicStartLaunchpad", () => {
     trackEvent.mockClear();
   });
 
-  it("shows all four starts with equal semantic cells", () => {
+  it("exposes a dependable named group with level-three card headings", () => {
     render(<PublicStartLaunchpad />);
 
-    expect(screen.getByRole("heading", { name: "Start fresh" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Upload requirements" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Map a repo" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Use a template" })).toBeInTheDocument();
+    const launchpad = screen.getByRole("group", { name: "Ways to start a StackHatch map" });
+
+    expect(launchpad).toBeInTheDocument();
+    for (const name of ["Start fresh", "Upload requirements", "Map a repo", "Use a template"]) {
+      expect(within(launchpad).getByRole("heading", { level: 3, name })).toBeInTheDocument();
+    }
   });
 
   it.each([
@@ -44,7 +46,7 @@ describe("PublicStartLaunchpad", () => {
     expect(markProjectStart).toHaveBeenCalledWith(method);
     expect(push).toHaveBeenCalledWith(`/login?method=${method}`);
     expect(trackEvent).toHaveBeenCalledWith("project_start_selected", {
-      location: "hero",
+      location: "launchpad",
       start_method: method,
     });
   });
@@ -57,11 +59,23 @@ describe("PublicStartLaunchpad", () => {
     fireEvent.click(screen.getByRole("button", { name: "Map repository" }));
     expect(screen.getByRole("alert")).toHaveTextContent("public GitHub repository");
     expect(push).not.toHaveBeenCalled();
+    expect(trackEvent).toHaveBeenCalledWith("repository_intent_submitted", {
+      location: "launchpad",
+      error_category: "invalid_url",
+    });
 
     fireEvent.change(input, { target: { value: "https://github.com/mwmdev/stackhatch.git" } });
     fireEvent.click(screen.getByRole("button", { name: "Map repository" }));
 
     expect(markProjectStart).toHaveBeenCalledWith("repository");
+    expect(trackEvent).toHaveBeenCalledWith("project_start_selected", {
+      location: "launchpad",
+      start_method: "repository",
+    });
+    expect(trackEvent).toHaveBeenCalledWith("repository_intent_submitted", {
+      location: "launchpad",
+      start_method: "repository",
+    });
     expect(push).toHaveBeenCalledWith("/login?method=repository&repo=mwmdev/stackhatch");
   });
 });
