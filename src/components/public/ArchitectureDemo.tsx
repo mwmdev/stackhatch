@@ -169,7 +169,8 @@ export default function ArchitectureDemo({ mode = "full" }: ArchitectureDemoProp
             <span aria-hidden="true" /> Read-only architecture overview
           </p>
           <p className="demo-provenance">
-            {STACKHATCH_DEMO.repository} · mapped from {STACKHATCH_DEMO.sourceCommit} · 14 Jul 2026
+            {STACKHATCH_DEMO.repository} · mapped from {STACKHATCH_DEMO.sourceCommit} ·{" "}
+            {STACKHATCH_DEMO.mappedAtLabel}
           </p>
         </div>
         <TrackedSourceLink

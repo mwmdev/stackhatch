@@ -5,6 +5,7 @@ import ThemeToggle from "@/components/ThemeToggle";
 import LazyArchitectureDemo from "@/components/public/LazyArchitectureDemo";
 import RepositoryIntentForm from "@/components/public/RepositoryIntentForm";
 import TrackedSourceLink from "@/components/public/TrackedSourceLink";
+import { STACKHATCH_DEMO } from "@/content/stackhatch-demo";
 import { formatGitHubStarCount, getGitHubStarCount } from "@/lib/github-stars";
 
 export const metadata = {
@@ -130,7 +131,8 @@ export default async function LandingPage() {
                 itself.
               </p>
               <p className="self-map-provenance">
-                mwmdev/stackhatch · mapped from 5d05e8a · 14 Jul 2026
+                {STACKHATCH_DEMO.repository} · mapped from {STACKHATCH_DEMO.sourceCommit} ·{" "}
+                {STACKHATCH_DEMO.mappedAtLabel}
               </p>
             </div>
           </div>

@@ -46,7 +46,7 @@ describe("LandingPage", () => {
     expect(
       screen.getByRole("heading", { name: "StackHatch, mapped by StackHatch." })
     ).toBeInTheDocument();
-    expect(screen.getByText(/mwmdev\/stackhatch · mapped from 5d05e8a/)).toBeInTheDocument();
+    expect(screen.getByText(/mwmdev\/stackhatch · mapped from 0cce117/)).toBeInTheDocument();
     expect(
       screen.getByRole("img", { name: /Read-only StackHatch architecture map/i })
     ).toBeInTheDocument();

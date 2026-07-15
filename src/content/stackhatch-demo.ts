@@ -37,8 +37,9 @@ export interface DemoAlternative {
 export const STACKHATCH_DEMO = {
   repository: "mwmdev/stackhatch",
   sourceUrl: "https://github.com/mwmdev/stackhatch",
-  sourceCommit: "c51b315",
-  mappedAt: "2026-07-14",
+  sourceCommit: "0cce117",
+  mappedAt: "2026-07-15",
+  mappedAtLabel: "15 Jul 2026",
   nodes: [
     {
       id: "next-ui",
