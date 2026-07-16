@@ -133,13 +133,16 @@ describe("SettingsPage", () => {
     window.history.replaceState(
       {},
       "",
-      "/settings?setup=anthropic&returnTo=%2Fproject%2Fnew%3Fmode%3Drepository%26repo%3Dacme%252Fapi"
+      "/settings?setup=anthropic&returnTo=%2Fproject%2Fnew%3Fmode%3Drepository%26repo%3Dacme%252Fapi%26returnTo%3D%252Fproject%252Fmap-1"
     );
     mockFetchSettings({ hasAnthropicKey: true });
     render(<SettingsPage />);
 
     const continueLink = await screen.findByRole("link", { name: "Continue to acme/api" });
-    expect(continueLink).toHaveAttribute("href", "/project/new?mode=repository&repo=acme%2Fapi");
+    expect(continueLink).toHaveAttribute(
+      "href",
+      "/project/new?mode=repository&repo=acme%2Fapi&returnTo=%2Fproject%2Fmap-1"
+    );
     expect(screen.getByText("Connect Anthropic to map this repository.")).toBeInTheDocument();
   });
 
@@ -195,6 +198,32 @@ describe("SettingsPage", () => {
     expect(await screen.findByRole("link", { name: "Continue to your project" })).toHaveAttribute(
       "href",
       "/app"
+    );
+  });
+
+  it("strips an unsafe nested project return while preserving the creation source", async () => {
+    window.history.replaceState(
+      {},
+      "",
+      "/settings?setup=anthropic&returnTo=%2Fproject%2Fnew%3Fmode%3Drepository%26repo%3Dacme%252Fapi%26returnTo%3Dhttps%253A%252F%252Fevil.example%252Fsteal"
+    );
+    mockFetchSettings({ hasAnthropicKey: true });
+    render(<SettingsPage />);
+
+    expect(await screen.findByRole("link", { name: "Continue to acme/api" })).toHaveAttribute(
+      "href",
+      "/project/new?mode=repository&repo=acme%2Fapi"
+    );
+  });
+
+  it("canonicalizes the legacy repository setup parameter", async () => {
+    window.history.replaceState({}, "", "/settings?setup=anthropic&repo=acme%2Fapi");
+    mockFetchSettings({ hasAnthropicKey: true });
+    render(<SettingsPage />);
+
+    expect(await screen.findByRole("link", { name: "Continue to acme/api" })).toHaveAttribute(
+      "href",
+      "/project/new?mode=repository&repo=acme%2Fapi"
     );
   });
 });
