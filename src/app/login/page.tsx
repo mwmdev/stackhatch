@@ -3,6 +3,7 @@ import { auth, signIn } from "@/lib/auth-config";
 import AuthStartForm from "@/components/AuthStartForm";
 import ThemeToggle from "@/components/ThemeToggle";
 import {
+  canonicalProjectStartPath,
   projectStartMethodFromPath,
   repositoryFromProjectStartPath,
   safeInternalPath,
@@ -41,7 +42,8 @@ export default async function LoginPage({
   searchParams?: Promise<{ callbackUrl?: string }>;
 }) {
   const params = await searchParams;
-  const callbackUrl = safeCallbackUrl(params?.callbackUrl);
+  const safeCallback = safeCallbackUrl(params?.callbackUrl);
+  const callbackUrl = canonicalProjectStartPath(safeCallback) ?? safeCallback;
   const repo = repoFromCallbackUrl(callbackUrl);
   const startMethod = projectStartMethodFromPath(callbackUrl);
   const startContext = startMethod ? START_CONTEXT[startMethod] : null;
@@ -93,10 +95,18 @@ export default async function LoginPage({
 
               {/* GitHub Sign In Button */}
               <AuthStartForm
+                callbackUrl={callbackUrl}
                 startMethod={startMethod ?? undefined}
-                action={async () => {
+                action={async (formData: FormData) => {
                   "use server";
-                  await signIn("github", { redirectTo: callbackUrl });
+                  const submittedCallback = formData.get("callbackUrl");
+                  const safeSubmittedCallback = safeCallbackUrl(
+                    typeof submittedCallback === "string" ? submittedCallback : undefined
+                  );
+                  await signIn("github", {
+                    redirectTo:
+                      canonicalProjectStartPath(safeSubmittedCallback) ?? safeSubmittedCallback,
+                  });
                 }}
               >
                 <button

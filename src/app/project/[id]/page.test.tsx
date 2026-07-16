@@ -559,6 +559,24 @@ describe("ProjectPage", () => {
         expect(openCalls).toHaveLength(1);
       });
     });
+
+    it("retries a failed project-open mutation once", async () => {
+      mockFetchProject(emptyProject);
+      const fetchProject = global.fetch;
+      let openAttempts = 0;
+      global.fetch = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input) === "/api/projects/test-project-id/open" && init?.method === "POST") {
+          openAttempts += 1;
+          return Promise.resolve({ ok: openAttempts > 1 } as Response);
+        }
+        return fetchProject(input, init);
+      }) as unknown as typeof global.fetch;
+
+      render(<ProjectPage />);
+      await screen.findByText("Test Project");
+
+      await waitFor(() => expect(openAttempts).toBe(2));
+    });
   });
 
   describe("error state", () => {

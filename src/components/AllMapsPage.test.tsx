@@ -102,6 +102,32 @@ describe("AllMapsPage", () => {
     expect(await screen.findByText("Newest map")).toBeInTheDocument();
   });
 
+  it("keeps the newest result when retry responses finish out of order", async () => {
+    let resolveOlder: ((value: Response) => void) | undefined;
+    let attempt = 0;
+    global.fetch = vi.fn(() => {
+      attempt += 1;
+      if (attempt === 1) {
+        return new Promise<Response>((resolve) => {
+          resolveOlder = resolve;
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve([projects[0]]),
+      } as Response);
+    }) as unknown as typeof global.fetch;
+    render(<AllMapsPage isAdmin={false} />);
+
+    expect(await screen.findByText("Newest map")).toBeInTheDocument();
+
+    resolveOlder?.({
+      ok: true,
+      json: () => Promise.resolve([projects[1]]),
+    } as Response);
+    await waitFor(() => expect(screen.queryByText("Older map")).not.toBeInTheDocument());
+  });
+
   it("shows a recoverable network failure", async () => {
     mockFetch({ projectResponses: [new Error("offline")] });
     render(<AllMapsPage isAdmin={false} />);

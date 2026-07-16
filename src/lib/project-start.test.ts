@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   buildProjectStartLoginUrl,
   buildProjectStartPath,
+  callbackUrlWithLegacyFragment,
   canonicalProjectStartPath,
   consumePendingBlankProjectStart,
   consumeProjectStartMethod,
@@ -51,10 +52,12 @@ describe("project start contract", () => {
     expect(projectStartMethodFromPath("/project/new?mode=repository&repo=acme%2Fapi")).toBe(
       "repository"
     );
+    expect(projectStartMethodFromPath("/app?repo=acme%2Fapi")).toBe("repository");
     expect(projectStartMethodFromPath("/settings?mode=template")).toBeNull();
     expect(repositoryFromProjectStartPath("/project/new?mode=repository&repo=acme%2Fapi")).toBe(
       "acme/api"
     );
+    expect(repositoryFromProjectStartPath("/app?repo=acme%2Fapi")).toBe("acme/api");
     expect(
       repositoryFromProjectStartPath("/project/new?mode=repository&repo=https%3A%2F%2Fevil.example")
     ).toBeNull();
@@ -77,6 +80,9 @@ describe("project start contract", () => {
     expect(canonicalProjectStartPath("/app?repo=acme%2Fapi#start")).toBe(
       "/project/new?mode=repository&repo=acme%2Fapi"
     );
+    expect(canonicalProjectStartPath("/app?repo=acme%2Fapi")).toBe(
+      "/project/new?mode=repository&repo=acme%2Fapi"
+    );
     expect(
       canonicalProjectStartPath(
         "/project/new?mode=repository&repo=acme%2Fapi&returnTo=%2Fproject%2Fmap-1"
@@ -87,6 +93,15 @@ describe("project start contract", () => {
         "/project/new?mode=repository&repo=https%3A%2F%2Fevil.example&returnTo=https%3A%2F%2Fevil.example"
       )
     ).toBe("/project/new?mode=repository");
+  });
+
+  it("preserves an inherited legacy fragment through the login boundary", () => {
+    expect(callbackUrlWithLegacyFragment("/app", "#start")).toBe("/project/new");
+    expect(callbackUrlWithLegacyFragment("/app?repo=acme%2Fapi", "#start")).toBe(
+      "/project/new?mode=repository&repo=acme%2Fapi"
+    );
+    expect(callbackUrlWithLegacyFragment("/project/map-1", "#start")).toBe("/project/map-1");
+    expect(callbackUrlWithLegacyFragment("/app", "#other")).toBe("/app");
   });
 
   it("allows internal and same-origin paths while rejecting unsafe redirects", () => {

@@ -49,6 +49,17 @@ describe("ProjectStartWorkspace", () => {
     expect(screen.getByRole("link", { name: "All Maps" })).toHaveAttribute("href", "/app/maps");
   });
 
+  it("allows canceling from the chooser when creation started in an existing map", () => {
+    global.fetch = vi.fn();
+
+    renderWorkspace({ returnTo: "/project/map-1" });
+
+    expect(screen.getByRole("link", { name: "Cancel map creation" })).toHaveAttribute(
+      "href",
+      "/project/map-1"
+    );
+  });
+
   it("creates one blank map directly from the chooser gesture", async () => {
     global.fetch = vi.fn(() =>
       Promise.resolve(response({ id: "blank-map" }))
@@ -134,6 +145,87 @@ describe("ProjectStartWorkspace", () => {
       name: "Platform architecture",
       description: "## Platform architecture\n\nUsers enter through the web app.",
     });
+  });
+
+  it("rejects an empty requirements file without creating a project", async () => {
+    global.fetch = vi.fn((input: RequestInfo | URL) => {
+      if (String(input) === "/api/settings") {
+        return Promise.resolve(response({ hasAnthropicKey: true }));
+      }
+      return Promise.resolve(response({}, false));
+    }) as unknown as typeof global.fetch;
+
+    renderWorkspace({ initialMode: "requirements" });
+    fireEvent.change(await screen.findByLabelText("Choose .md or .txt file"), {
+      target: { files: [new File(["   \n"], "requirements.md", { type: "text/markdown" })] },
+    });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/requirements file is empty/i);
+    expect(global.fetch).not.toHaveBeenCalledWith(
+      "/api/projects",
+      expect.objectContaining({ method: "POST" })
+    );
+  });
+
+  it("reports an unreadable requirements file without creating a project", async () => {
+    global.fetch = vi.fn((input: RequestInfo | URL) => {
+      if (String(input) === "/api/settings") {
+        return Promise.resolve(response({ hasAnthropicKey: true }));
+      }
+      return Promise.resolve(response({}, false));
+    }) as unknown as typeof global.fetch;
+    const readAsText = vi.spyOn(FileReader.prototype, "readAsText").mockImplementation(function (
+      this: FileReader
+    ) {
+      this.onerror?.(new ProgressEvent("error") as ProgressEvent<FileReader>);
+    });
+
+    renderWorkspace({ initialMode: "requirements" });
+    fireEvent.change(await screen.findByLabelText("Choose .md or .txt file"), {
+      target: {
+        files: [new File(["# Map"], "requirements.md", { type: "text/markdown" })],
+      },
+    });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/could not be read/i);
+    expect(global.fetch).not.toHaveBeenCalledWith(
+      "/api/projects",
+      expect.objectContaining({ method: "POST" })
+    );
+    readAsText.mockRestore();
+  });
+
+  it("ignores a requirements read after choosing another source", async () => {
+    global.fetch = vi.fn((input: RequestInfo | URL) => {
+      if (String(input) === "/api/settings") {
+        return Promise.resolve(response({ hasAnthropicKey: true }));
+      }
+      return Promise.resolve(response({}, false));
+    }) as unknown as typeof global.fetch;
+    let deferredReader: FileReader | null = null;
+    const readAsText = vi.spyOn(FileReader.prototype, "readAsText").mockImplementation(function (
+      this: FileReader
+    ) {
+      deferredReader = this;
+    });
+
+    renderWorkspace({ initialMode: "requirements" });
+    fireEvent.change(await screen.findByLabelText("Choose .md or .txt file"), {
+      target: {
+        files: [new File(["# Stale map"], "requirements.md", { type: "text/markdown" })],
+      },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Choose another source" }));
+
+    expect(deferredReader).not.toBeNull();
+    const reader = deferredReader as unknown as FileReader;
+    Object.defineProperty(reader, "result", { configurable: true, value: "# Stale map" });
+    reader.onload?.(new ProgressEvent("load") as ProgressEvent<FileReader>);
+    expect(global.fetch).not.toHaveBeenCalledWith(
+      "/api/projects",
+      expect.objectContaining({ method: "POST" })
+    );
+    readAsText.mockRestore();
   });
 
   it("preserves repository and project return context through Anthropic setup", async () => {

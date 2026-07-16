@@ -145,7 +145,7 @@ test.describe("Error Paths", () => {
 
     await expect(page.getByText("Project not found").first()).toBeVisible({ timeout: 10000 });
 
-    // Should have a link back to dashboard
-    await expect(page.getByText("Back to Dashboard")).toBeVisible();
+    // Should have a link back to the map library
+    await expect(page.getByRole("link", { name: "All Maps" })).toHaveAttribute("href", "/app/maps");
   });
 });

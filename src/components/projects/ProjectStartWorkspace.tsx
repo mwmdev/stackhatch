@@ -142,6 +142,16 @@ export default function ProjectStartWorkspace({
   const blankAutoCreateAttempted = useRef(false);
   const recordedSelection = useRef<ProjectStartMethod | null>(null);
   const submissionInFlight = useRef(false);
+  const requirementsReadGeneration = useRef(0);
+  const activeRequirementsReader = useRef<FileReader | null>(null);
+
+  function cancelRequirementsRead() {
+    requirementsReadGeneration.current += 1;
+    if (activeRequirementsReader.current?.readyState === FileReader.LOADING) {
+      activeRequirementsReader.current.abort();
+    }
+    activeRequirementsReader.current = null;
+  }
 
   useEffect(() => {
     setMode(initialMode);
@@ -152,6 +162,17 @@ export default function ProjectStartWorkspace({
     blankAutoCreateAttempted.current = false;
     recordedSelection.current = null;
   }, [initialMode, initialRepository, returnTo]);
+
+  useEffect(
+    () => () => {
+      requirementsReadGeneration.current += 1;
+      if (activeRequirementsReader.current?.readyState === FileReader.LOADING) {
+        activeRequirementsReader.current.abort();
+      }
+      activeRequirementsReader.current = null;
+    },
+    []
+  );
 
   useEffect(() => {
     if (!mode) return;
@@ -275,6 +296,7 @@ export default function ProjectStartWorkspace({
   }, [createBlankProject, mode]);
 
   function chooseSource(method: ProjectStartMethod) {
+    cancelRequirementsRead();
     recordStartSelection(method);
     setError("");
     setSelectedTemplate(null);
@@ -289,6 +311,7 @@ export default function ProjectStartWorkspace({
   }
 
   function chooseAnotherSource() {
+    cancelRequirementsRead();
     setMode(null);
     setError("");
     setSelectedTemplate(null);
@@ -304,8 +327,18 @@ export default function ProjectStartWorkspace({
       return;
     }
 
+    cancelRequirementsRead();
+    const generation = requirementsReadGeneration.current;
     const reader = new FileReader();
+    activeRequirementsReader.current = reader;
     reader.onload = () => {
+      if (
+        generation !== requirementsReadGeneration.current ||
+        activeRequirementsReader.current !== reader
+      ) {
+        return;
+      }
+      activeRequirementsReader.current = null;
       const requirements = String(reader.result || "").trim();
       if (!requirements) {
         setError("The requirements file is empty. Choose a file with project details.");
@@ -317,7 +350,16 @@ export default function ProjectStartWorkspace({
         description: requirements,
       });
     };
-    reader.onerror = () => setError("The requirements file could not be read. Try another file.");
+    reader.onerror = () => {
+      if (
+        generation !== requirementsReadGeneration.current ||
+        activeRequirementsReader.current !== reader
+      ) {
+        return;
+      }
+      activeRequirementsReader.current = null;
+      setError("The requirements file could not be read. Try another file.");
+    };
     reader.readAsText(file);
   }
 
@@ -452,20 +494,23 @@ export default function ProjectStartWorkspace({
                 )}
               </div>
 
-              {mode && (
+              {(mode || returnTo) && (
                 <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={chooseAnotherSource}
-                    disabled={submitting}
-                    className="inline-flex min-h-11 items-center gap-2 rounded-md border border-[var(--border)] px-3 py-2 text-sm font-semibold hover:bg-[var(--muted)] disabled:opacity-50"
-                  >
-                    <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-                    Choose another source
-                  </button>
+                  {mode && (
+                    <button
+                      type="button"
+                      onClick={chooseAnotherSource}
+                      disabled={submitting}
+                      className="inline-flex min-h-11 items-center gap-2 rounded-md border border-[var(--border)] px-3 py-2 text-sm font-semibold hover:bg-[var(--muted)] disabled:opacity-50"
+                    >
+                      <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+                      Choose another source
+                    </button>
+                  )}
                   {returnTo && (
                     <Link
                       href={returnTo}
+                      onClick={cancelRequirementsRead}
                       aria-disabled={submitting || undefined}
                       className="inline-flex min-h-11 items-center rounded-md px-3 py-2 text-sm text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)] aria-disabled:pointer-events-none aria-disabled:opacity-50"
                     >

@@ -225,11 +225,30 @@ export default function ProjectPage() {
     return () => clearTimeout(timer);
   }, [toast]);
 
+  const loadedProjectId = project?.id;
   useEffect(() => {
-    if (!project || project.id !== projectId || openedProjectRef.current === projectId) return;
-    openedProjectRef.current = projectId;
-    void fetch(`/api/projects/${projectId}/open`, { method: "POST" }).catch(() => {});
-  }, [project, projectId]);
+    if (loadedProjectId !== projectId || openedProjectRef.current === projectId) return;
+
+    let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    async function recordProjectOpen(attempt: number) {
+      try {
+        const response = await fetch(`/api/projects/${projectId}/open`, { method: "POST" });
+        if (!response.ok) throw new Error("project-open");
+        if (!cancelled) openedProjectRef.current = projectId;
+      } catch {
+        if (!cancelled && attempt === 0) {
+          retryTimer = setTimeout(() => void recordProjectOpen(1), 200);
+        }
+      }
+    }
+
+    void recordProjectOpen(0);
+    return () => {
+      cancelled = true;
+      clearTimeout(retryTimer);
+    };
+  }, [loadedProjectId, projectId]);
 
   // --- Stable callbacks for node data (context menu actions) ---
 

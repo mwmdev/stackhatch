@@ -86,7 +86,6 @@ export function projectStartMethodFromPath(path: string): ProjectStartMethod | n
     }
     if (
       parsed.pathname === "/app" &&
-      parsed.hash === "#start" &&
       isPublicRepositorySlug(parsed.searchParams.get("repo") || "")
     ) {
       return "repository";
@@ -105,7 +104,7 @@ export function repositoryFromProjectStartPath(path: string) {
     const parsed = new URL(path, "https://stackhatch.io");
     const isCanonical =
       parsed.pathname === "/project/new" && parsed.searchParams.get("mode") === "repository";
-    const isLegacy = parsed.pathname === "/app" && parsed.hash === "#start";
+    const isLegacy = parsed.pathname === "/app";
     if (!isCanonical && !isLegacy) {
       return null;
     }
@@ -124,11 +123,12 @@ export function canonicalProjectStartPath(path: string) {
     if (parsed.pathname === "/app" && parsed.searchParams.get("start") === "blank") {
       return buildProjectStartPath("blank");
     }
-    if (parsed.pathname === "/app" && parsed.hash === "#start") {
+    if (parsed.pathname === "/app") {
       const repository = parsed.searchParams.get("repo")?.trim();
-      return repository && isPublicRepositorySlug(repository)
-        ? buildProjectStartPath("repository", { repository })
-        : "/project/new";
+      if (repository && isPublicRepositorySlug(repository)) {
+        return buildProjectStartPath("repository", { repository });
+      }
+      if (parsed.hash === "#start") return "/project/new";
     }
     if (parsed.pathname !== "/project/new") return null;
 
@@ -146,6 +146,22 @@ export function canonicalProjectStartPath(path: string) {
     });
   } catch {
     return null;
+  }
+}
+
+export function callbackUrlWithLegacyFragment(callbackUrl: string, fragment: string) {
+  if (fragment !== "#start") return callbackUrl;
+
+  try {
+    const parsed = new URL(callbackUrl, "https://stackhatch.io");
+    if (parsed.origin !== "https://stackhatch.io" || parsed.pathname !== "/app") {
+      return callbackUrl;
+    }
+    return (
+      canonicalProjectStartPath(`${parsed.pathname}${parsed.search}${fragment}`) ?? callbackUrl
+    );
+  } catch {
+    return callbackUrl;
   }
 }
 

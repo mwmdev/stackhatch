@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FolderPlus, Map, RefreshCw, Settings, Trash2, Users } from "lucide-react";
@@ -30,23 +30,29 @@ export default function AllMapsPage({ isAdmin }: { isAdmin: boolean }) {
   const [projectsError, setProjectsError] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<ProjectSummary | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const latestLoadRequest = useRef(0);
 
   const loadProjects = useCallback(async () => {
+    const requestId = latestLoadRequest.current + 1;
+    latestLoadRequest.current = requestId;
     setLoading(true);
     setProjectsError("");
     try {
       const response = await fetch("/api/projects");
+      if (requestId !== latestLoadRequest.current) return;
       if (!response.ok) {
         setProjects([]);
         setProjectsError("Maps could not be loaded. Try again.");
         return;
       }
-      setProjects(await response.json());
+      const nextProjects = await response.json();
+      if (requestId === latestLoadRequest.current) setProjects(nextProjects);
     } catch {
+      if (requestId !== latestLoadRequest.current) return;
       setProjects([]);
       setProjectsError("Maps could not be loaded. Check your connection and try again.");
     } finally {
-      setLoading(false);
+      if (requestId === latestLoadRequest.current) setLoading(false);
     }
   }, []);
 

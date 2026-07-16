@@ -12,6 +12,8 @@ describe("AppResolver", () => {
   beforeEach(() => {
     replace.mockClear();
     window.history.replaceState({}, "", "/app");
+    window.sessionStorage.clear();
+    delete window.umami;
   });
 
   it("shows a status shell and replaces to the server-selected resume destination once", async () => {
@@ -40,10 +42,41 @@ describe("AppResolver", () => {
     );
   });
 
+  it("canonicalizes a legacy repository query before normal resume", async () => {
+    window.history.replaceState({}, "", "/app?repo=acme%2Fapi");
+    render(<AppResolver destination="/project/map-1?resume=1" />);
+
+    await waitFor(() =>
+      expect(replace).toHaveBeenCalledWith("/project/new?mode=repository&repo=acme%2Fapi")
+    );
+  });
+
   it("canonicalizes a bare legacy fragment to the chooser", async () => {
     window.history.replaceState({}, "", "/app#start");
     render(<AppResolver destination="/project/map-1?resume=1" />);
 
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/project/new"));
+  });
+
+  it("records authentication completion before resuming an existing map", async () => {
+    const track = vi.fn();
+    window.umami = { track };
+    window.sessionStorage.setItem("stackhatch:auth-pending", "1");
+    window.sessionStorage.setItem("stackhatch:project-start-method", "repository");
+
+    render(<AppResolver destination="/project/map-1?resume=1" />);
+
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/project/map-1?resume=1"));
+    expect(window.sessionStorage.getItem("stackhatch:auth-pending")).toBeNull();
+    expect(track).toHaveBeenCalledOnce();
+    const payload = (track.mock.calls[0][0] as (value: Record<string, unknown>) => unknown)({
+      website: "site-id",
+    });
+    expect(payload).toEqual(
+      expect.objectContaining({
+        name: "github_auth_completed",
+        data: { location: "editor", start_method: "repository" },
+      })
+    );
   });
 });

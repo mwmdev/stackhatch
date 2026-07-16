@@ -2,7 +2,9 @@
 
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { consumeAuthenticationStarted, trackEvent } from "@/lib/analytics";
 import { appDestinationForBrowserUrl } from "@/lib/app-route";
+import { getPendingProjectStart } from "@/lib/project-start";
 
 export default function AppResolver({ destination }: { destination: string }) {
   const router = useRouter();
@@ -11,6 +13,14 @@ export default function AppResolver({ destination }: { destination: string }) {
   useEffect(() => {
     if (resolved.current) return;
     resolved.current = true;
+
+    if (consumeAuthenticationStarted()) {
+      const startMethod = getPendingProjectStart();
+      trackEvent("github_auth_completed", {
+        location: "editor",
+        ...(startMethod ? { start_method: startMethod } : {}),
+      });
+    }
 
     const browserUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
     router.replace(appDestinationForBrowserUrl(browserUrl, destination));
