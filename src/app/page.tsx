@@ -152,10 +152,10 @@ export default async function LandingPage() {
               <h1
                 id="hero-heading"
                 className="max-w-6xl"
-                aria-label="Keep the whole system in view."
+                aria-label="Keep the whole stack in view"
               >
-                <span className={styles.heroLine}>Keep the whole system</span>
-                <span className={styles.heroLine}>in view.</span>
+                <span className={styles.heroLine}>Keep the whole stack</span>
+                <span className={styles.heroLine}>in view</span>
               </h1>
               <p className={styles.heroDescription}>
                 StackHatch turns repositories and requirements into interactive architecture maps

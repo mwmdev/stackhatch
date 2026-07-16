@@ -5,7 +5,7 @@ test.describe("launch experience", () => {
     await page.goto("/");
 
     await expect(
-      page.getByRole("heading", { level: 1, name: "Keep the whole system in view." })
+      page.getByRole("heading", { level: 1, name: "Keep the whole stack in view" })
     ).toBeVisible();
 
     const starts = page.getByRole("link", { name: "Start a map" });
@@ -20,7 +20,7 @@ test.describe("launch experience", () => {
 
     const heroHeading = page.getByRole("heading", {
       level: 1,
-      name: "Keep the whole system in view.",
+      name: "Keep the whole stack in view",
     });
     const hero = heroHeading.locator("xpath=ancestor::section[1]");
     const startSection = page.locator("#start");
@@ -85,7 +85,7 @@ test.describe("launch experience", () => {
 
     const heroHeading = page.getByRole("heading", {
       level: 1,
-      name: "Keep the whole system in view.",
+      name: "Keep the whole stack in view",
     });
     const hero = heroHeading.locator("xpath=ancestor::section[1]");
     const heroCopy = page.locator('[data-landing-region="hero-copy"]');
@@ -204,10 +204,10 @@ test.describe("launch experience", () => {
     await page.goto("/");
 
     await expect(
-      page.getByRole("heading", { level: 1, name: "Keep the whole system in view." })
+      page.getByRole("heading", { level: 1, name: "Keep the whole stack in view" })
     ).toBeVisible();
     const hero = page
-      .getByRole("heading", { level: 1, name: "Keep the whole system in view." })
+      .getByRole("heading", { level: 1, name: "Keep the whole stack in view" })
       .locator("xpath=ancestor::section[1]");
     await expect(hero.getByRole("link", { name: "Start a map" })).toBeVisible();
     const startSection = page.locator("#start");

@@ -27,7 +27,7 @@ describe("LandingPage", () => {
 
     const heroHeading = screen.getByRole("heading", {
       level: 1,
-      name: "Keep the whole system in view.",
+      name: "Keep the whole stack in view",
     });
     const hero = heroHeading.closest("section");
     const startHeading = screen.getByRole("heading", {
@@ -140,9 +140,11 @@ describe("LandingPage", () => {
 
     const heading = screen.getByRole("heading", {
       level: 1,
-      name: "Keep the whole system in view.",
+      name: "Keep the whole stack in view",
     });
     expect(heading.querySelectorAll("span")).toHaveLength(2);
+    expect(within(heading).getByText("Keep the whole stack")).toBeInTheDocument();
+    expect(within(heading).getByText("in view")).toBeInTheDocument();
     expect(screen.queryByText("Four ways in")).not.toBeInTheDocument();
     expect(screen.queryByText("Inside the workspace")).not.toBeInTheDocument();
   });
