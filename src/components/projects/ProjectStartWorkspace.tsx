@@ -14,9 +14,11 @@ import {
   LayoutTemplate,
   Plus,
   Settings,
+  X,
 } from "lucide-react";
 import TemplatePicker from "@/components/templates/TemplatePicker";
 import ThemeToggle from "@/components/ThemeToggle";
+import IconControl from "@/components/ui/IconControl";
 import { consumeAuthenticationStarted, trackEvent } from "@/lib/analytics";
 import { parseGitHubRepoReference } from "@/lib/github-analyzer";
 import {
@@ -409,14 +411,14 @@ export default function ProjectStartWorkspace({
             <span>StackHatch</span>
           </Link>
           <nav aria-label="Map workspace" className="flex items-center gap-1">
-            <Link
+            <IconControl
               href="/app/maps"
-              className="inline-flex min-h-11 items-center gap-2 rounded-md px-3 text-sm text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
+              label="All Maps"
+              tooltip="All Maps"
+              tooltipPlacement="bottom"
             >
-              <FolderOpen className="h-4 w-4" aria-hidden="true" />
-              <span className="hidden sm:inline">All Maps</span>
-              <span className="sr-only sm:hidden">All Maps</span>
-            </Link>
+              <FolderOpen className="h-[18px] w-[18px]" />
+            </IconControl>
             <Link
               href="/settings"
               className="flex h-11 w-11 items-center justify-center rounded-md text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
@@ -430,7 +432,7 @@ export default function ProjectStartWorkspace({
       </header>
 
       <main
-        className="relative flex flex-1 items-center justify-center overflow-hidden px-4 py-8 sm:px-6 sm:py-12"
+        className="relative flex flex-1 items-center justify-center overflow-hidden px-3 py-5 sm:px-6 sm:py-8"
         style={{
           backgroundImage:
             "linear-gradient(to right, color-mix(in srgb, var(--border) 42%, transparent) 1px, transparent 1px), linear-gradient(to bottom, color-mix(in srgb, var(--border) 42%, transparent) 1px, transparent 1px)",
@@ -450,14 +452,11 @@ export default function ProjectStartWorkspace({
           aria-labelledby="project-start-title"
           className="relative z-10 w-full max-w-4xl overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--card)] shadow-[0_22px_65px_-48px_var(--shadow-color)]"
         >
-          <div className="border-b border-[var(--border)] px-5 py-5 sm:px-7">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="px-4 pb-3 pt-4 sm:px-6 sm:pb-4 sm:pt-5">
+            <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <p className="font-utility text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">
-                  New map · source input
-                </p>
                 {modeDetails && ModeIcon ? (
-                  <div className="mt-3 flex items-start gap-3">
+                  <div className="flex items-start gap-3">
                     <div
                       className="flex h-10 w-10 flex-none items-center justify-center rounded-md border border-[var(--border)] bg-[var(--background)]"
                       style={{ color: modeDetails.color }}
@@ -482,48 +481,51 @@ export default function ProjectStartWorkspace({
                   <>
                     <h1
                       id="project-start-title"
-                      className="font-display mt-2 text-2xl font-extrabold tracking-tight sm:text-3xl"
+                      className="font-display text-2xl font-extrabold tracking-tight sm:text-3xl"
                     >
                       Start a new map
                     </h1>
-                    <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted-foreground)]">
-                      Choose the material you have. StackHatch creates a separate project and keeps
-                      every existing map intact.
+                    <p className="mt-1 max-w-2xl text-sm leading-6 text-[var(--muted-foreground)]">
+                      Choose a starting point. Your existing maps stay unchanged.
                     </p>
                   </>
                 )}
               </div>
 
-              {(mode || returnTo) && (
-                <div className="flex flex-wrap items-center gap-2">
-                  {mode && (
-                    <button
-                      type="button"
-                      onClick={chooseAnotherSource}
-                      disabled={submitting}
-                      className="inline-flex min-h-11 items-center gap-2 rounded-md border border-[var(--border)] px-3 py-2 text-sm font-semibold hover:bg-[var(--muted)] disabled:opacity-50"
-                    >
-                      <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-                      Choose another source
-                    </button>
-                  )}
-                  {returnTo && (
-                    <Link
-                      href={returnTo}
-                      onClick={cancelRequirementsRead}
-                      aria-disabled={submitting || undefined}
-                      className="inline-flex min-h-11 items-center rounded-md px-3 py-2 text-sm text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)] aria-disabled:pointer-events-none aria-disabled:opacity-50"
-                    >
-                      Cancel map creation
-                    </Link>
-                  )}
-                </div>
-              )}
+              <div className="flex flex-none flex-wrap items-center justify-end gap-2">
+                {mode && (
+                  <button
+                    type="button"
+                    aria-label="Choose another source"
+                    onClick={chooseAnotherSource}
+                    disabled={submitting}
+                    className="inline-flex min-h-11 items-center gap-2 rounded-md border border-[var(--border)] px-3 py-2 text-sm font-semibold hover:bg-[var(--muted)] disabled:opacity-50"
+                  >
+                    <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+                    <span className="hidden sm:inline">Choose another source</span>
+                  </button>
+                )}
+                {returnTo && (
+                  <IconControl
+                    href={returnTo}
+                    label="Cancel map creation"
+                    tooltip="Cancel map creation"
+                    tooltipPlacement="left"
+                    onClick={cancelRequirementsRead}
+                    disabled={submitting}
+                  >
+                    <X className="h-[18px] w-[18px]" />
+                  </IconControl>
+                )}
+              </div>
             </div>
           </div>
 
           {!mode && (
-            <div className="grid gap-px bg-[var(--border)] sm:grid-cols-2" aria-label="Map sources">
+            <div
+              className="grid gap-2 px-2 pb-2 sm:grid-cols-2 sm:px-3 sm:pb-3"
+              aria-label="Map sources"
+            >
               {SOURCE_OPTIONS.map((source) => {
                 const SourceIcon = source.icon;
                 return (
@@ -531,7 +533,7 @@ export default function ProjectStartWorkspace({
                     key={source.method}
                     type="button"
                     onClick={() => chooseSource(source.method)}
-                    className="group flex min-h-48 min-w-0 flex-col bg-[var(--card)] p-5 text-left hover:bg-[var(--surface-raised)] focus:relative sm:p-6"
+                    className="group flex min-h-40 min-w-0 flex-col rounded-lg bg-[var(--background)] p-4 text-left transition-colors hover:bg-[var(--surface-raised)] focus:relative sm:p-5"
                   >
                     <div className="flex items-start justify-between gap-4">
                       <span
@@ -544,16 +546,9 @@ export default function ProjectStartWorkspace({
                         {source.detail}
                       </span>
                     </div>
-                    <span className="font-display mt-5 text-lg font-bold">{source.title}</span>
+                    <span className="font-display mt-4 text-lg font-bold">{source.title}</span>
                     <span className="mt-2 max-w-sm text-sm leading-6 text-[var(--muted-foreground)]">
                       {source.description}
-                    </span>
-                    <span
-                      className="mt-auto pt-5 text-sm font-bold"
-                      style={{ color: source.color }}
-                      aria-hidden="true"
-                    >
-                      Use this source &rarr;
                     </span>
                   </button>
                 );
@@ -690,18 +685,6 @@ export default function ProjectStartWorkspace({
                   Creating your map
                 </p>
               )}
-            </div>
-          )}
-
-          {!mode && (
-            <div className="flex flex-col gap-3 border-t border-[var(--border)] px-5 py-4 text-sm text-[var(--muted-foreground)] sm:flex-row sm:items-center sm:justify-between sm:px-7">
-              <span>Every source creates a separate personal project.</span>
-              <Link
-                href="/app/maps"
-                className="inline-flex min-h-11 items-center font-semibold text-[var(--foreground)] hover:text-[var(--brand)]"
-              >
-                All Maps
-              </Link>
             </div>
           )}
         </section>

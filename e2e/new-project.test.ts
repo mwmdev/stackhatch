@@ -6,6 +6,55 @@ test.describe("four project starts", () => {
 
     await expect(page).toHaveURL(/\/project\/new$/);
     await expect(page.getByRole("heading", { level: 1, name: "Start a new map" })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Blank map/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Requirements file/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Public repository/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Template/ })).toBeVisible();
+    await expect(page.getByText(/Use this source/i)).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "All Maps" })).toHaveCount(1);
+    await expect(page.getByRole("link", { name: "Cancel map creation" })).toHaveCount(0);
+  });
+
+  test("the chooser and a source subflow remain scrollable at 320px", async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 720 });
+    await page.goto("/project/new");
+
+    await expect(page.getByRole("heading", { level: 1, name: "Start a new map" })).toBeVisible();
+    const template = page.getByRole("button", { name: /Template/ });
+    await expect(template).toBeVisible();
+    const overflows = await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth
+    );
+    expect(overflows).toBe(false);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollHeight > document.documentElement.clientHeight
+      )
+    ).toBe(true);
+
+    await template.scrollIntoViewIfNeeded();
+    const templateBounds = await template.boundingBox();
+    expect(templateBounds).not.toBeNull();
+    expect((templateBounds?.y ?? 0) + (templateBounds?.height ?? 0)).toBeLessThanOrEqual(720);
+
+    const configured = await page.request.patch("/api/settings", {
+      data: { apiKey: "sk-ant-playwright-placeholder-key", model: "claude-sonnet-5" },
+    });
+    expect(configured.ok()).toBe(true);
+    await page.setViewportSize({ width: 320, height: 480 });
+    await page.goto("/project/new?mode=requirements");
+
+    await expect(page.getByRole("button", { name: "Choose another source" })).toBeVisible();
+    const fileAction = page.getByText("Choose .md or .txt file", { exact: true });
+    await fileAction.scrollIntoViewIfNeeded();
+    const fileActionBounds = await fileAction.boundingBox();
+    expect(fileActionBounds).not.toBeNull();
+    expect((fileActionBounds?.y ?? 0) + (fileActionBounds?.height ?? 0)).toBeLessThanOrEqual(480);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth > document.documentElement.clientWidth
+      )
+    ).toBe(false);
   });
 
   test("requirements setup preserves the exact continuation", async ({ page }) => {

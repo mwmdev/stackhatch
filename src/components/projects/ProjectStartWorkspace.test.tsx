@@ -36,17 +36,19 @@ describe("ProjectStartWorkspace", () => {
     delete window.umami;
   });
 
-  it("offers four keyboard-reachable creation methods in the editor workspace", () => {
+  it("offers exactly four concise, keyboard-reachable creation methods", () => {
     global.fetch = vi.fn();
 
     renderWorkspace();
 
     expect(screen.getByRole("heading", { name: "Start a new map" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Blank map/ })).toBeEnabled();
-    expect(screen.getByRole("button", { name: /Requirements file/ })).toBeEnabled();
-    expect(screen.getByRole("button", { name: /Public repository/ })).toBeEnabled();
-    expect(screen.getByRole("button", { name: /Template/ })).toBeEnabled();
+    expect(
+      screen.getAllByRole("button", { name: /map|requirements|repository|template/i })
+    ).toHaveLength(4);
+    expect(screen.queryByText(/use this source/i)).not.toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "All Maps" })).toHaveLength(1);
     expect(screen.getByRole("link", { name: "All Maps" })).toHaveAttribute("href", "/app/maps");
+    expect(screen.queryByRole("link", { name: "Cancel map creation" })).not.toBeInTheDocument();
   });
 
   it("allows canceling from the chooser when creation started in an existing map", () => {
@@ -58,6 +60,86 @@ describe("ProjectStartWorkspace", () => {
       "href",
       "/project/map-1"
     );
+    expect(
+      screen.getByRole("link", { name: "Cancel map creation" }).querySelector(".lucide-x")
+    ).toBeInTheDocument();
+  });
+
+  it("cancels a pending requirements read when returning to the originating map", async () => {
+    global.fetch = vi.fn((input: RequestInfo | URL) => {
+      if (String(input) === "/api/settings") {
+        return Promise.resolve(response({ hasAnthropicKey: true }));
+      }
+      return Promise.resolve(response({}, false));
+    }) as unknown as typeof global.fetch;
+    let deferredReader: FileReader | null = null;
+    const readAsText = vi.spyOn(FileReader.prototype, "readAsText").mockImplementation(function (
+      this: FileReader
+    ) {
+      deferredReader = this;
+    });
+
+    renderWorkspace({ initialMode: "requirements", returnTo: "/project/map-1" });
+    fireEvent.change(await screen.findByLabelText("Choose .md or .txt file"), {
+      target: {
+        files: [new File(["# Stale map"], "requirements.md", { type: "text/markdown" })],
+      },
+    });
+    const cancel = screen.getByRole("link", { name: "Cancel map creation" });
+    cancel.addEventListener("click", (event) => event.preventDefault());
+    fireEvent.click(cancel);
+
+    expect(deferredReader).not.toBeNull();
+    const reader = deferredReader as unknown as FileReader;
+    Object.defineProperty(reader, "result", { configurable: true, value: "# Stale map" });
+    reader.onload?.(new ProgressEvent("load") as ProgressEvent<FileReader>);
+    expect(global.fetch).not.toHaveBeenCalledWith(
+      "/api/projects",
+      expect.objectContaining({ method: "POST" })
+    );
+    readAsText.mockRestore();
+  });
+
+  it("suppresses pointer and keyboard activation of cancel while creating", async () => {
+    let resolveCreate: ((value: Response) => void) | undefined;
+    global.fetch = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveCreate = resolve;
+        })
+    ) as unknown as typeof global.fetch;
+
+    renderWorkspace({ initialMode: "blank", returnTo: "/project/map-1" });
+    fireEvent.click(screen.getByRole("button", { name: "Create blank map" }));
+
+    const cancel = screen.getByRole("link", { name: "Cancel map creation" });
+    await waitFor(() => expect(cancel).toHaveAttribute("aria-disabled", "true"));
+    expect(cancel).toHaveAttribute("tabindex", "-1");
+    expect(fireEvent.click(cancel)).toBe(false);
+    expect(fireEvent.keyDown(cancel, { key: "Enter" })).toBe(false);
+    expect(fireEvent.keyDown(cancel, { key: " " })).toBe(false);
+    resolveCreate?.(response({ id: "blank-map" }));
+  });
+
+  it("keeps the source chooser available from every non-blank subflow", async () => {
+    global.fetch = vi.fn((input: RequestInfo | URL) => {
+      if (String(input) === "/api/settings") {
+        return Promise.resolve(response({ hasAnthropicKey: true }));
+      }
+      if (String(input) === "/api/templates") return Promise.resolve(response([]));
+      return Promise.resolve(response({}, false));
+    }) as unknown as typeof global.fetch;
+
+    const { rerender } = renderWorkspace({ initialMode: "requirements" });
+    expect(screen.getByRole("button", { name: "Choose another source" })).toBeEnabled();
+
+    rerender(
+      <ProjectStartWorkspace initialMode="repository" initialRepository="" returnTo={null} />
+    );
+    expect(screen.getByRole("button", { name: "Choose another source" })).toBeEnabled();
+
+    rerender(<ProjectStartWorkspace initialMode="template" initialRepository="" returnTo={null} />);
+    expect(screen.getByRole("button", { name: "Choose another source" })).toBeEnabled();
   });
 
   it("creates one blank map directly from the chooser gesture", async () => {
