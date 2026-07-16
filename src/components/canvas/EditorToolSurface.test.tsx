@@ -47,7 +47,7 @@ describe("EditorToolSurface", () => {
     renderSurface();
 
     for (const button of screen.getByTestId("editor-tool-surface").querySelectorAll("button")) {
-      expect(button).toHaveClass("h-11", "w-11");
+      expect(button).toHaveClass("icon-control");
     }
   });
 

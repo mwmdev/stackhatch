@@ -45,10 +45,9 @@ export default function EditorDisplaySettingsDropdown({
         pressed={open}
         onClick={() => setOpen((prev) => !prev)}
         aria-expanded={open}
-        className="h-11 w-11"
         data-testid="editor-display-settings-button"
       >
-        <Settings className="h-[18px] w-[18px]" aria-hidden="true" />
+        <Settings />
       </IconControl>
 
       {open && (

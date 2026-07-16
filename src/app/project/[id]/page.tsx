@@ -118,6 +118,43 @@ function isDefaultConnectionLabel(label: string, type: ConnectionType) {
   return label === getDefaultConnectionLabel(type) || label === type.toUpperCase();
 }
 
+function getProjectIdentity(project: Project) {
+  if (!project.repoUrl) {
+    return {
+      accessibleLabel: `${project.name}. Standalone map.`,
+      detailTitle: "Standalone map",
+      qualifier: null,
+      visibleText: "Standalone map",
+    };
+  }
+
+  const qualifier = "Generated architecture overview · not verified source truth";
+  const accessibleLabel = `${project.name}. Repository map for ${project.repoUrl}.`;
+  const titlePrefix = `Generated architecture overview for ${project.repoUrl}; not verified source truth`;
+
+  if (!project.repoCommitSha) {
+    return {
+      accessibleLabel,
+      detailTitle: titlePrefix,
+      qualifier,
+      visibleText: "Repository map · generated overview",
+    };
+  }
+
+  const partialTitle = project.repoAnalysisStatus === "partial" ? "; partial analysis" : "";
+  const scannedDate = project.repoScannedAt
+    ? ` on ${new Date(project.repoScannedAt).toLocaleDateString()}`
+    : "";
+  const partialLabel = project.repoAnalysisStatus === "partial" ? " · partial analysis" : "";
+
+  return {
+    accessibleLabel,
+    detailTitle: `${titlePrefix}. Scanned ${project.repoCommitSha}${partialTitle}${scannedDate}`,
+    qualifier,
+    visibleText: `Scanned ${project.repoCommitSha.slice(0, 7)}${partialLabel}`,
+  };
+}
+
 export default function ProjectPage() {
   const params = useParams();
   const router = useRouter();
@@ -174,7 +211,6 @@ export default function ProjectPage() {
   const rescanDialogRef = useRef<HTMLDivElement | null>(null);
   const rescanInvokerRef = useRef<HTMLButtonElement | null>(null);
   const saveTemplateDialogRef = useRef<HTMLDivElement | null>(null);
-  const saveTemplateInvokerRef = useRef<HTMLButtonElement | null>(null);
   const moreMenuRef = useRef<HTMLDivElement | null>(null);
   const moreMenuInvokerRef = useRef<HTMLButtonElement | null>(null);
   const canvasFocusTargetRef = useRef<HTMLDivElement | null>(null);
@@ -210,6 +246,18 @@ export default function ProjectPage() {
     },
     [focusCanvasTarget]
   );
+
+  const handleZoomIn = useCallback(() => {
+    void rfInstanceRef.current?.zoomIn();
+  }, []);
+
+  const handleZoomOut = useCallback(() => {
+    void rfInstanceRef.current?.zoomOut();
+  }, []);
+
+  const handleFitView = useCallback(() => {
+    void rfInstanceRef.current?.fitView({ padding: 0.16 });
+  }, []);
 
   // Keep refs in sync for use in stable callbacks
   projectRef.current = project;
@@ -462,7 +510,7 @@ export default function ProjectPage() {
     if (!saveTemplateModalOpen) return;
     const previouslyFocused =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const templateInvoker = saveTemplateInvokerRef.current ?? moreMenuInvokerRef.current;
+    const templateInvoker = moreMenuInvokerRef.current;
     const focusDialog = window.requestAnimationFrame(() => {
       saveTemplateDialogRef.current?.querySelector<HTMLElement>("[data-autofocus]")?.focus();
     });
@@ -1224,6 +1272,8 @@ export default function ProjectPage() {
     );
   }
 
+  const projectIdentity = getProjectIdentity(project);
+
   return (
     <div
       className="project-editor-shell flex flex-col bg-[var(--background)] text-[var(--foreground)] md:flex-row"
@@ -1265,7 +1315,7 @@ export default function ProjectPage() {
             tooltip="All maps"
             tooltipPlacement="bottom"
           >
-            <ArrowLeft className="h-[18px] w-[18px]" />
+            <ArrowLeft />
           </IconControl>
           <IconControl
             href={buildProjectStartChooserPath(`/project/${projectId}`)}
@@ -1274,17 +1324,13 @@ export default function ProjectPage() {
             tooltipPlacement="bottom"
             title="New Map"
           >
-            <FolderPlus className="h-[18px] w-[18px]" />
+            <FolderPlus />
           </IconControl>
 
           <div
             className="min-w-0 flex-1 overflow-hidden px-1 sm:px-2"
             data-testid="project-identity"
-            aria-label={
-              project.repoUrl
-                ? `${project.name}. Repository map for ${project.repoUrl}.`
-                : `${project.name}. Standalone map.`
-            }
+            aria-label={projectIdentity.accessibleLabel}
           >
             <h1 className="truncate text-sm font-semibold" title={project.name}>
               {project.name}
@@ -1292,59 +1338,31 @@ export default function ProjectPage() {
             <div
               className="whitespace-nowrap text-[10px] leading-4 text-[var(--muted-foreground)]"
               data-testid="project-provenance"
-              title={
-                project.repoUrl
-                  ? `Generated architecture overview for ${project.repoUrl}; not verified source truth${
-                      project.repoCommitSha
-                        ? `. Scanned ${project.repoCommitSha}${
-                            project.repoAnalysisStatus === "partial" ? "; partial analysis" : ""
-                          }${
-                            project.repoScannedAt
-                              ? ` on ${new Date(project.repoScannedAt).toLocaleDateString()}`
-                              : ""
-                          }`
-                        : ""
-                    }`
-                  : "Standalone map"
-              }
+              title={projectIdentity.detailTitle}
             >
-              {project.repoUrl && (
-                <span className="sr-only">
-                  Generated architecture overview · not verified source truth
-                </span>
+              {projectIdentity.qualifier && (
+                <span className="sr-only">{projectIdentity.qualifier}</span>
               )}
-              {project.repoCommitSha
-                ? `Scanned ${project.repoCommitSha.slice(0, 7)}${
-                    project.repoAnalysisStatus === "partial" ? " · partial analysis" : ""
-                  }`
-                : project.repoUrl
-                  ? "Repository map · generated overview"
-                  : "Standalone map"}
+              {projectIdentity.visibleText}
             </div>
           </div>
 
           <div className="ml-auto flex shrink-0 items-center gap-1">
             {project.repoUrl && (
-              <span
-                className="flex"
-                ref={(node) => {
-                  rescanInvokerRef.current = node?.querySelector("button") ?? null;
+              <IconControl
+                label={`Re-scan repository: ${project.repoUrl}`}
+                tooltip="Re-scan repository"
+                tooltipPlacement="bottom"
+                variant="outline"
+                title={`Re-scan: ${project.repoUrl}`}
+                onClick={(event) => {
+                  rescanInvokerRef.current = event.currentTarget;
+                  if (nodeCount > 0) setRescanConfirmOpen(true);
+                  else startRepositoryRescan();
                 }}
               >
-                <IconControl
-                  label={`Re-scan repository: ${project.repoUrl}`}
-                  tooltip="Re-scan repository"
-                  tooltipPlacement="bottom"
-                  variant="outline"
-                  title={`Re-scan: ${project.repoUrl}`}
-                  onClick={() => {
-                    if (nodeCount > 0) setRescanConfirmOpen(true);
-                    else startRepositoryRescan();
-                  }}
-                >
-                  <RefreshCw className="h-[18px] w-[18px]" />
-                </IconControl>
-              </span>
+                <RefreshCw />
+              </IconControl>
             )}
             {nodeCount > 0 && (
               <ExportDropdown
@@ -1356,23 +1374,19 @@ export default function ProjectPage() {
             )}
             {nodeCount > 0 && (
               <div ref={moreMenuRef} className="relative">
-                <span
-                  className="flex"
-                  ref={(node) => {
-                    moreMenuInvokerRef.current = node?.querySelector("button") ?? null;
+                <IconControl
+                  label="More project actions"
+                  tooltip="More"
+                  tooltipPlacement="bottom"
+                  pressed={moreMenuOpen}
+                  aria-expanded={moreMenuOpen}
+                  onClick={(event) => {
+                    moreMenuInvokerRef.current = event.currentTarget;
+                    setMoreMenuOpen((open) => !open);
                   }}
                 >
-                  <IconControl
-                    label="More project actions"
-                    tooltip="More"
-                    tooltipPlacement="bottom"
-                    pressed={moreMenuOpen}
-                    aria-expanded={moreMenuOpen}
-                    onClick={() => setMoreMenuOpen((open) => !open)}
-                  >
-                    <Ellipsis className="h-[18px] w-[18px]" />
-                  </IconControl>
-                </span>
+                  <Ellipsis />
+                </IconControl>
                 {moreMenuOpen && (
                   <div
                     role="menu"
@@ -1394,7 +1408,6 @@ export default function ProjectPage() {
                       <span>{prdLoading ? "Generating PRD..." : "Generate PRD"}</span>
                     </button>
                     <button
-                      ref={saveTemplateInvokerRef}
                       type="button"
                       role="menuitem"
                       onClick={() => {
@@ -1466,15 +1479,9 @@ export default function ProjectPage() {
             onChatOpenChange={handleChatOpenChange}
             onAddNode={handleAddNode}
             customSubtypes={customSubtypes}
-            onZoomIn={() => {
-              void rfInstanceRef.current?.zoomIn();
-            }}
-            onZoomOut={() => {
-              void rfInstanceRef.current?.zoomOut();
-            }}
-            onFitView={() => {
-              void rfInstanceRef.current?.fitView({ padding: 0.16 });
-            }}
+            onZoomIn={handleZoomIn}
+            onZoomOut={handleZoomOut}
+            onFitView={handleFitView}
             displaySettings={editorDisplaySettings}
             onDisplaySettingsChange={setEditorDisplaySettings}
             obscured={toolSurfaceObscured}

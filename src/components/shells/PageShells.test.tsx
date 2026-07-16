@@ -59,6 +59,9 @@ describe("AppPageShell", () => {
     expect(screen.getByText("Manage your workspace.")).toBeInTheDocument();
     expect(screen.getByText("Settings form")).toBeInTheDocument();
     expect(screen.getByText("Account footer")).toBeInTheDocument();
-    expect(screen.getByRole("main")).toHaveAttribute("data-density", "dense");
+    expect(screen.getByRole("main").closest(".app-page-shell")).toHaveAttribute(
+      "data-density",
+      "dense"
+    );
   });
 });

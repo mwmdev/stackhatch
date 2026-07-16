@@ -20,7 +20,7 @@ describe("AddNodeDropdown", () => {
     render(<AddNodeDropdown onAddNode={vi.fn()} placement="responsive" iconOnly />);
 
     const trigger = screen.getByRole("button", { name: "Add node" });
-    expect(trigger).toHaveClass("h-11", "w-11");
+    expect(trigger).toHaveClass("icon-control");
     expect(trigger).toHaveClass("icon-control");
     expect(trigger).toHaveAttribute("aria-describedby");
     expect(screen.getByRole("tooltip", { name: "Add node" })).toHaveAttribute(

@@ -107,7 +107,7 @@ describe("ChatSidebar", () => {
     expect(screen.queryByText("Starting")).not.toBeInTheDocument();
     expect(screen.queryByText("Thinking")).not.toBeInTheDocument();
     const closeButton = screen.getByRole("button", { name: "Close chat" });
-    expect(closeButton).toHaveClass("h-11", "w-11");
+    expect(closeButton).toHaveClass("icon-control");
     fireEvent.click(closeButton);
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(screen.getByTestId("chat-scroll-overlay")).toBeInTheDocument();

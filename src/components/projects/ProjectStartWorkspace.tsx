@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   ArrowLeft,
-  Boxes,
   FileText,
   FolderOpen,
   GitBranch,
@@ -18,6 +17,7 @@ import {
 } from "lucide-react";
 import TemplatePicker from "@/components/templates/TemplatePicker";
 import ThemeToggle from "@/components/ThemeToggle";
+import StackHatchWordmark from "@/components/shells/StackHatchWordmark";
 import IconControl from "@/components/ui/IconControl";
 import { consumeAuthenticationStarted, trackEvent } from "@/lib/analytics";
 import { parseGitHubRepoReference } from "@/lib/github-analyzer";
@@ -403,13 +403,11 @@ export default function ProjectStartWorkspace({
     <div className="flex min-h-screen flex-col bg-[var(--canvas)] text-[var(--foreground)]">
       <header className="z-20 border-b border-[var(--border)] bg-[var(--background)]">
         <div className="flex min-h-14 items-center justify-between gap-3 px-3 sm:px-4">
-          <Link
+          <StackHatchWordmark
             href="/app"
-            className="font-display inline-flex min-h-11 items-center gap-2 rounded-md px-2 text-sm font-extrabold tracking-tight hover:bg-[var(--muted)]"
-          >
-            <Boxes className="h-[18px] w-[18px] text-[var(--color-client)]" aria-hidden="true" />
-            <span>StackHatch</span>
-          </Link>
+            label="StackHatch app"
+            className="rounded-md px-2 hover:bg-[var(--muted)]"
+          />
           <nav aria-label="Map workspace" className="flex items-center gap-1">
             <IconControl
               href="/app/maps"
@@ -417,15 +415,16 @@ export default function ProjectStartWorkspace({
               tooltip="All Maps"
               tooltipPlacement="bottom"
             >
-              <FolderOpen className="h-[18px] w-[18px]" />
+              <FolderOpen />
             </IconControl>
-            <Link
+            <IconControl
               href="/settings"
-              className="flex h-11 w-11 items-center justify-center rounded-md text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
-              aria-label="Settings"
+              label="Settings"
+              tooltip="Settings"
+              tooltipPlacement="bottom"
             >
-              <Settings className="h-[18px] w-[18px]" aria-hidden="true" />
-            </Link>
+              <Settings />
+            </IconControl>
             <ThemeToggle />
           </nav>
         </div>
@@ -514,7 +513,7 @@ export default function ProjectStartWorkspace({
                     onClick={cancelRequirementsRead}
                     disabled={submitting}
                   >
-                    <X className="h-[18px] w-[18px]" />
+                    <X />
                   </IconControl>
                 )}
               </div>

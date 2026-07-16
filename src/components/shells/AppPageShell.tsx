@@ -45,15 +45,11 @@ export default function AppPageShell({
         </div>
       </header>
 
-      <main className="page-shell__main" data-density={density}>
+      <main className="page-shell__main">
         <header className="page-shell__heading">
           {eyebrow ? <div className="page-shell__eyebrow">{eyebrow}</div> : null}
-          <div className="page-shell__heading-row">
-            <div>
-              <h1 className="page-shell__title">{title}</h1>
-              {description ? <div className="page-shell__description">{description}</div> : null}
-            </div>
-          </div>
+          <h1 className="page-shell__title">{title}</h1>
+          {description ? <div className="page-shell__description">{description}</div> : null}
         </header>
         <div className="page-shell__content">{children}</div>
       </main>

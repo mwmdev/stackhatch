@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import ReactMarkdown from "react-markdown";
 import { Loader2, MessageSquareText, SendHorizontal, X } from "lucide-react";
+import IconControl from "@/components/ui/IconControl";
 import type { StackArchitecture } from "@/types/stack";
 import { trackEvent, type AnalyticsErrorCategory } from "@/lib/analytics";
 
@@ -449,14 +450,15 @@ export default function ChatSidebar({
         className="pointer-events-none absolute inset-x-0 top-0 z-10 h-[3.75rem] border-b border-[var(--border)] bg-[var(--background)]/95 backdrop-blur supports-[backdrop-filter]:bg-[var(--background)]/85"
       />
       {controlledOpen !== undefined && onOpenChange && (
-        <button
-          type="button"
-          onClick={() => setSidebarOpen(false)}
-          className="absolute right-2 top-2 z-20 flex h-11 w-11 items-center justify-center rounded-md text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
-          aria-label="Close chat"
-        >
-          <X className="h-[18px] w-[18px]" aria-hidden="true" />
-        </button>
+        <div className="absolute right-2 top-2 z-20">
+          <IconControl
+            label="Close chat"
+            tooltipPlacement="left"
+            onClick={() => setSidebarOpen(false)}
+          >
+            <X />
+          </IconControl>
+        </div>
       )}
 
       {/* Messages */}

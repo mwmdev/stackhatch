@@ -66,10 +66,9 @@ export default function AddNodeDropdown({
           pressed={open}
           aria-expanded={open}
           onClick={() => setOpen((prev) => !prev)}
-          className="h-11 w-11"
           data-testid="add-node-button"
         >
-          <icons.Plus className="h-[18px] w-[18px]" />
+          <icons.Plus />
         </IconControl>
       ) : (
         <button

@@ -48,7 +48,7 @@ function controlClassName(className?: string) {
 }
 
 export default function IconControl(props: IconControlProps) {
-  const tooltipId = `icon-control-tooltip-${useId().replaceAll(":", "")}`;
+  const tooltipId = `icon-control-tooltip-${useId()}`;
   const {
     active,
     children,

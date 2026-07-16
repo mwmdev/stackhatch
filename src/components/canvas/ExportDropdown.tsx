@@ -10,6 +10,7 @@ import { stringify as stringifyYaml } from "yaml";
 import { fromReactFlowEdges, fromReactFlowNodes } from "@/types/canvas";
 import type { AlternativeNode } from "@/types/stack";
 import IconControl from "@/components/ui/IconControl";
+
 type ExportFormat = "png" | "svg" | "json" | "yaml";
 
 interface ExportDropdownProps {
@@ -146,9 +147,8 @@ export default function ExportDropdown({
         pressed={open}
         onClick={() => setOpen((prev) => !prev)}
         aria-expanded={open}
-        className="h-11 w-11"
       >
-        <Download size={14} />
+        <Download />
       </IconControl>
 
       {open && (
