@@ -88,7 +88,7 @@ export default function AddNodeDropdown({
         <div
           className={`absolute z-30 max-h-[min(28rem,calc(100dvh-2rem))] w-[min(16rem,calc(100vw-2rem))] overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--background)] shadow-lg ${
             placement === "responsive"
-              ? "bottom-full left-1/2 mb-2 -translate-x-1/2 md:bottom-auto md:left-full md:top-0 md:ml-2 md:translate-x-0"
+              ? "bottom-full left-0 mb-2 md:bottom-auto md:left-full md:top-0 md:ml-2"
               : "left-0 top-full mt-1"
           }`}
           data-placement={placement}

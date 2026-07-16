@@ -42,7 +42,7 @@ describe("PublicPageShell", () => {
     expect(footerNavigation).toHaveTextContent("Support");
     expect(footerNavigation).toHaveTextContent("Privacy");
     expect(footerNavigation).toHaveTextContent("Terms");
-    expect(screen.getByRole("button", { name: "Theme: system" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Theme: change appearance" })).toBeInTheDocument();
   });
 });
 

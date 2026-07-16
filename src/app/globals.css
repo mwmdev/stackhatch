@@ -283,6 +283,16 @@ body {
   height: 1.125rem;
 }
 
+.icon-control__icon > .theme-toggle__icon {
+  display: none;
+}
+
+html.dark .icon-control__icon > .theme-toggle__dark,
+html.light .icon-control__icon > .theme-toggle__light,
+html:not(.dark):not(.light) .icon-control__icon > .theme-toggle__system {
+  display: block;
+}
+
 .icon-control__tooltip {
   position: absolute;
   z-index: 60;
@@ -333,6 +343,17 @@ body {
   top: 50%;
   right: calc(100% + 0.5rem);
   transform: translateY(-50%);
+}
+
+.page-shell__actions
+  > .icon-control-wrap:last-child
+  .icon-control__tooltip[data-placement="bottom"],
+[aria-label="Map workspace"]
+  > .icon-control-wrap:last-child
+  .icon-control__tooltip[data-placement="bottom"] {
+  right: 0;
+  left: auto;
+  transform: none;
 }
 
 .project-editor-shell {

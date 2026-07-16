@@ -93,7 +93,8 @@ test.describe("personal workspace tools", () => {
     const templateName = `Onboarding map ${Date.now()}`;
     await page.goto(`/project/${source.id}`);
 
-    await page.getByRole("button", { name: "Save as Template" }).click();
+    await page.getByRole("button", { name: "More project actions" }).click();
+    await page.getByRole("menuitem", { name: "Save as Template" }).click();
     await page.getByLabel(/Template Name/).fill(templateName);
     await page.getByLabel("Description").fill("A reusable starting point.");
     await page.getByRole("button", { name: "Save Template" }).click();

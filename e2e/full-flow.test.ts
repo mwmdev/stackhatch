@@ -20,7 +20,9 @@ test.describe("Full E2E Interview-to-Canvas Flow", () => {
     await expect(page.locator("h1")).toHaveText("Real-Time Chat App");
 
     // 3. Verify chat sidebar is open (new project has no canvas)
-    await expect(page.locator('button[aria-label="Hide chat sidebar"]')).toBeVisible();
+    await expect(
+      page.locator("#editor-chat-sidebar").getByRole("button", { name: "Close chat" })
+    ).toBeVisible();
 
     // 4. Verify AI sends first interview message
     await expect(page.getByText(/What are you building/).first()).toBeVisible({ timeout: 10000 });
@@ -292,22 +294,28 @@ test.describe("Full E2E Interview-to-Canvas Flow", () => {
     await createProjectAndNavigate(page, "Sidebar Toggle Test");
 
     // Sidebar should be open by default for new projects
-    await expect(page.locator('button[aria-label="Hide chat sidebar"]')).toBeVisible();
+    const sidebarClose = page
+      .locator("#editor-chat-sidebar")
+      .getByRole("button", { name: "Close chat" });
+    await expect(sidebarClose).toBeVisible();
 
     // Collapse the sidebar
-    await page.click('button[aria-label="Hide chat sidebar"]');
+    await sidebarClose.click();
 
     // Sidebar controls should be hidden and toolbar control should offer to reopen it
-    await expect(page.locator('button[aria-label="Hide chat sidebar"]')).not.toBeVisible();
+    await expect(sidebarClose).not.toBeVisible();
 
-    // Open chat button should remain visible at the editor's top-left
-    await expect(page.locator('button[aria-label="Show chat sidebar"]')).toBeVisible();
+    // Open chat button should remain visible in the editor tool surface
+    const openChat = page.getByTestId("editor-tool-surface").getByRole("button", {
+      name: "Open chat",
+    });
+    await expect(openChat).toBeVisible();
 
     // Expand again
-    await page.click('button[aria-label="Show chat sidebar"]');
+    await openChat.click();
 
     // Sidebar should be visible again
-    await expect(page.locator('button[aria-label="Hide chat sidebar"]')).toBeVisible();
+    await expect(sidebarClose).toBeVisible();
   });
 
   test("markdown rendering in AI responses", async ({ page }) => {

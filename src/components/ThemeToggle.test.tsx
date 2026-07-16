@@ -20,16 +20,16 @@ describe("ThemeToggle", () => {
   it("uses the shared named icon control with a focus-visible label", () => {
     render(<ThemeToggle />);
 
-    expect(screen.getByRole("button", { name: "Theme: light" })).toBeInTheDocument();
-    expect(screen.getByRole("tooltip", { name: "Theme: light" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Theme: change appearance" })).toBeInTheDocument();
+    expect(screen.getByRole("tooltip", { name: "Theme: change appearance" })).toBeInTheDocument();
   });
 
   it("renders a usable system control before the theme provider resolves", () => {
     state.theme = undefined;
     render(<ThemeToggle />);
 
-    expect(screen.getByRole("button", { name: "Theme: system" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Theme: system" }));
+    expect(screen.getByRole("button", { name: "Theme: change appearance" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Theme: change appearance" }));
     expect(setTheme).toHaveBeenCalledWith("light");
   });
 
@@ -41,7 +41,7 @@ describe("ThemeToggle", () => {
     state.theme = theme;
     render(<ThemeToggle />);
 
-    fireEvent.click(screen.getByRole("button", { name: `Theme: ${theme}` }));
+    fireEvent.click(screen.getByRole("button", { name: "Theme: change appearance" }));
 
     expect(setTheme).toHaveBeenCalledWith(nextTheme);
   });
