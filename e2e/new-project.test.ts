@@ -1,13 +1,11 @@
 import { expect, test } from "@playwright/test";
 
 test.describe("four project starts", () => {
-  test("returns a legacy or unsupported new-project URL to the launchpad", async ({ page }) => {
+  test("a bare new-project URL opens the editor-style chooser", async ({ page }) => {
     await page.goto("/project/new");
 
-    await page.waitForURL(/\/app#start$/);
-    await expect(
-      page.getByRole("heading", { level: 1, name: "Start with what you have." })
-    ).toBeVisible();
+    await expect(page).toHaveURL(/\/project\/new$/);
+    await expect(page.getByRole("heading", { level: 1, name: "Start a new map" })).toBeVisible();
   });
 
   test("requirements setup preserves the exact continuation", async ({ page }) => {
@@ -101,7 +99,7 @@ test.describe("four project starts", () => {
     });
   });
 
-  test("start fresh creates a blank map directly from the dashboard", async ({ page }) => {
+  test("blank map creates one project directly from the editor chooser", async ({ page }) => {
     await page.route("**/api/projects", async (route) => {
       if (route.request().method() === "POST") {
         await route.fulfill({
@@ -114,8 +112,8 @@ test.describe("four project starts", () => {
       await route.continue();
     });
 
-    await page.goto("/app#start");
-    await page.getByRole("button", { name: "Start fresh" }).click();
+    await page.goto("/project/new");
+    await page.getByRole("button", { name: /Blank map/ }).click();
 
     await page.waitForURL("/project/blank-e2e-project");
   });

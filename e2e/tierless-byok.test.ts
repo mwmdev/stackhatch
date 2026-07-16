@@ -51,19 +51,19 @@ test.describe("tierless BYOK experience", () => {
     await clearAnthropicKey(page);
     await preventChatFromCallingAnthropic(page);
 
-    await page.goto("/app");
+    await page.goto("/project/new?mode=requirements");
 
-    const setupPrompt = page.getByTestId("byok-setup-prompt");
+    const setupPrompt = page.getByText("Connect Anthropic first").locator("..");
     await expect(setupPrompt).toBeVisible();
-    await expect(setupPrompt).toContainText("Connect Anthropic to use AI");
-    await expect(setupPrompt.getByRole("link", { name: "Add API key" })).toHaveAttribute(
+    await expect(setupPrompt.getByRole("link", { name: "Add Anthropic key" })).toHaveAttribute(
       "href",
-      "/settings?setup=anthropic&returnTo=%2Fapp%23start"
+      "/settings?setup=anthropic&returnTo=%2Fproject%2Fnew%3Fmode%3Drequirements"
     );
 
-    const manualCard = page.getByRole("heading", { name: "Start fresh" }).locator("..");
-    await expect(manualCard).toContainText("No API key required");
-    await page.getByRole("button", { name: "Start fresh" }).click();
+    await page.getByRole("button", { name: "Choose another source" }).click();
+    const blankSource = page.getByRole("button", { name: /Blank map/ });
+    await expect(blankSource).toContainText("No AI key");
+    await blankSource.click();
 
     await page.waitForURL(/\/project\/[a-f0-9-]+$/);
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Untitled Project");

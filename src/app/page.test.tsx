@@ -22,7 +22,7 @@ async function renderLandingPage() {
 }
 
 describe("LandingPage", () => {
-  it("leads with the product outcome before the four ways to start", async () => {
+  it("leads with the product outcome and one application entry", async () => {
     await renderLandingPage();
 
     const heroHeading = screen.getByRole("heading", {
@@ -30,15 +30,19 @@ describe("LandingPage", () => {
       name: "Keep the whole system in view.",
     });
     const hero = heroHeading.closest("section");
-    const launchpad = screen.getByRole("group", { name: "Ways to start a StackHatch map" });
+    const startHeading = screen.getByRole("heading", {
+      level: 2,
+      name: "Start from wherever you are.",
+    });
+    const startSection = startHeading.closest("section");
 
     expect(hero).not.toBeNull();
     expect(hero).toHaveTextContent(
       "StackHatch turns repositories and requirements into interactive architecture maps"
     );
-    expect(within(hero!).getByRole("link", { name: "Choose how to start" })).toHaveAttribute(
+    expect(within(hero!).getByRole("link", { name: "Start a map" })).toHaveAttribute(
       "href",
-      "#start"
+      "/app"
     );
     expect(within(hero!).getByRole("link", { name: "See StackHatch in action" })).toHaveAttribute(
       "href",
@@ -48,20 +52,20 @@ describe("LandingPage", () => {
       within(hero!).getByRole("img", { name: /architecture map of its own/i })
     ).toHaveAttribute("src", "/screenshots/architecture-overview.webp");
     expect(
-      hero!.compareDocumentPosition(launchpad) & Node.DOCUMENT_POSITION_FOLLOWING
+      hero!.compareDocumentPosition(startSection!) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();
 
-    const startHeading = screen.getByRole("heading", {
-      level: 2,
-      name: "Start from wherever you are.",
-    });
-    const startSection = startHeading.closest("section");
     expect(startSection).not.toBeNull();
-    expect(startSection).toContainElement(launchpad);
+    expect(within(startSection!).getByRole("link", { name: "Start a map" })).toHaveAttribute(
+      "href",
+      "/app"
+    );
     for (const name of ["Start fresh", "Upload requirements", "Map a repo", "Use a template"]) {
-      expect(within(launchpad).getByRole("heading", { level: 3, name })).toBeInTheDocument();
+      expect(
+        within(startSection!).queryByRole("heading", { level: 3, name })
+      ).not.toBeInTheDocument();
     }
-    expect(screen.getByText("One architecture map")).toBeInTheDocument();
+    expect(within(startSection!).queryByRole("textbox")).not.toBeInTheDocument();
   });
 
   it("uses only the three real product screenshots throughout the experience", async () => {
@@ -125,10 +129,10 @@ describe("LandingPage", () => {
     expect(
       screen.getByRole("heading", { name: "Map the codebase in front of you." })
     ).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Choose a starting point" })).toHaveAttribute(
-      "href",
-      "#start"
-    );
+    expect(screen.getAllByRole("link", { name: "Start a map" })).not.toHaveLength(0);
+    for (const link of screen.getAllByRole("link", { name: "Start a map" })) {
+      expect(link).toHaveAttribute("href", "/app");
+    }
   });
 
   it("keeps the hero headline in explicit editorial lines without decorative labels", async () => {
