@@ -32,6 +32,13 @@ function createLegacyDatabase() {
   return sqlite;
 }
 
+function createPreResumeDatabase() {
+  const sqlite = createLegacyDatabase();
+  applyMigration(sqlite, "0003_jittery_starhawk.sql");
+  applyMigration(sqlite, "0004_remove_private_notes.sql");
+  return sqlite;
+}
+
 describe("teams removal migration", () => {
   it("preserves owned projects, messages, notes, and personal templates while dropping teams", () => {
     const sqlite = createLegacyDatabase();
@@ -226,6 +233,126 @@ describe("private notes removal migration", () => {
       user_id: "user-1",
       name: "Service map",
     });
+    expect(sqlite.pragma("foreign_key_check")).toEqual([]);
+  });
+});
+
+describe("project resume state migration", () => {
+  it("preserves existing data and adds deletion-safe account ownership constraints", () => {
+    const sqlite = createPreResumeDatabase();
+    sqlite.exec(`
+      INSERT INTO users (id, github_id, role, created_at)
+      VALUES
+        ('user-1', 'github-user-1', 'user', 100),
+        ('user-2', 'github-user-2', 'user', 101);
+      INSERT INTO projects (id, name, user_id, created_at, updated_at)
+      VALUES
+        ('project-1', 'First map', 'user-1', 200, 201),
+        ('project-2', 'Other map', 'user-2', 300, 301);
+      INSERT INTO messages (id, project_id, role, content, created_at)
+      VALUES ('message-1', 'project-1', 'assistant', 'Keep me', 400);
+    `);
+
+    applyMigration(sqlite, "0005_add_user_project_state.sql");
+
+    expect(sqlite.prepare("SELECT id, name, user_id FROM projects ORDER BY id").all()).toEqual([
+      { id: "project-1", name: "First map", user_id: "user-1" },
+      { id: "project-2", name: "Other map", user_id: "user-2" },
+    ]);
+    expect(sqlite.prepare("SELECT id, project_id, content FROM messages").get()).toEqual({
+      id: "message-1",
+      project_id: "project-1",
+      content: "Keep me",
+    });
+    expect(sqlite.prepare("SELECT * FROM user_project_state").all()).toEqual([]);
+
+    const stateColumns = sqlite.pragma("table_info(user_project_state)") as Array<{
+      name: string;
+      notnull: number;
+      pk: number;
+    }>;
+    expect(stateColumns).toEqual([
+      expect.objectContaining({ name: "user_id", notnull: 1, pk: 1 }),
+      expect.objectContaining({ name: "last_opened_project_id", notnull: 0, pk: 0 }),
+    ]);
+
+    const projectIndexes = sqlite.pragma("index_list(projects)") as Array<{
+      name: string;
+      unique: number;
+    }>;
+    expect(projectIndexes).toContainEqual(
+      expect.objectContaining({ name: "projects_user_id_id_unique", unique: 1 })
+    );
+
+    const stateForeignKeys = sqlite.pragma("foreign_key_list(user_project_state)") as Array<{
+      table: string;
+      from: string;
+      to: string;
+      on_delete: string;
+    }>;
+    expect(stateForeignKeys).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          table: "users",
+          from: "user_id",
+          to: "id",
+          on_delete: "CASCADE",
+        }),
+        expect.objectContaining({
+          table: "projects",
+          from: "user_id",
+          to: "user_id",
+          on_delete: "CASCADE",
+        }),
+        expect.objectContaining({
+          table: "projects",
+          from: "last_opened_project_id",
+          to: "id",
+          on_delete: "CASCADE",
+        }),
+      ])
+    );
+
+    expect(() =>
+      sqlite
+        .prepare("INSERT INTO user_project_state (user_id, last_opened_project_id) VALUES (?, ?)")
+        .run("user-1", "project-2")
+    ).toThrow(/FOREIGN KEY constraint failed/);
+
+    sqlite
+      .prepare("INSERT INTO user_project_state (user_id, last_opened_project_id) VALUES (?, ?)")
+      .run("user-1", "project-1");
+    sqlite.prepare("DELETE FROM projects WHERE id = ?").run("project-1");
+    expect(sqlite.prepare("SELECT * FROM user_project_state").all()).toEqual([]);
+
+    sqlite
+      .prepare(
+        "INSERT INTO projects (id, name, user_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?)"
+      )
+      .run("project-3", "Third map", "user-1", 500, 501);
+    sqlite
+      .prepare("INSERT INTO user_project_state (user_id, last_opened_project_id) VALUES (?, ?)")
+      .run("user-1", "project-3");
+    sqlite.prepare("DELETE FROM users WHERE id = ?").run("user-1");
+    expect(sqlite.prepare("SELECT * FROM user_project_state").all()).toEqual([]);
+    expect(sqlite.pragma("foreign_key_check")).toEqual([]);
+  });
+
+  it("is safe to run repeatedly through the migration runner", () => {
+    const sqlite = new Database(":memory:");
+    sqlite.pragma("foreign_keys = ON");
+    const database = drizzle(sqlite, { schema });
+
+    runMigrations(database);
+    runMigrations(database);
+
+    expect(
+      sqlite
+        .prepare(
+          "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'user_project_state'"
+        )
+        .get()
+    ).toEqual({ name: "user_project_state" });
     expect(sqlite.pragma("foreign_key_check")).toEqual([]);
   });
 });

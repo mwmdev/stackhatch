@@ -180,6 +180,7 @@ export default function ProjectPage() {
   const initializedRef = useRef(false);
   const alternativesRef = useRef<Record<string, AlternativeNode[]>>({});
   const firstMapTrackedRef = useRef(false);
+  const openedProjectRef = useRef<string | null>(null);
   const canUseConnectionTypes = true;
 
   const startRepositoryRescan = useCallback(() => {
@@ -212,6 +213,12 @@ export default function ProjectPage() {
     const timer = setTimeout(() => setToast(null), 4000);
     return () => clearTimeout(timer);
   }, [toast]);
+
+  useEffect(() => {
+    if (!project || project.id !== projectId || openedProjectRef.current === projectId) return;
+    openedProjectRef.current = projectId;
+    void fetch(`/api/projects/${projectId}/open`, { method: "POST" }).catch(() => {});
+  }, [project, projectId]);
 
   // --- Stable callbacks for node data (context menu actions) ---
 

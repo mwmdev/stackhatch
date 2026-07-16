@@ -539,6 +539,22 @@ describe("ProjectPage", () => {
       });
       expect(screen.getByText("Test Project")).toBeInTheDocument();
     });
+
+    it("records the project open once after a successful load", async () => {
+      mockFetchProject(emptyProject);
+      render(<ProjectPage />);
+
+      await screen.findByText("Test Project");
+
+      await waitFor(() => {
+        const openCalls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.filter(
+          ([input, init]) =>
+            String(input) === "/api/projects/test-project-id/open" &&
+            (init as RequestInit | undefined)?.method === "POST"
+        );
+        expect(openCalls).toHaveLength(1);
+      });
+    });
   });
 
   describe("error state", () => {
@@ -549,6 +565,12 @@ describe("ProjectPage", () => {
         expect(screen.getByText("Project not found")).toBeInTheDocument();
       });
       expect(screen.getByText("Back to Dashboard")).toBeInTheDocument();
+      expect(
+        (global.fetch as ReturnType<typeof vi.fn>).mock.calls.some(
+          ([input, init]) =>
+            String(input).endsWith("/open") && (init as RequestInit | undefined)?.method === "POST"
+        )
+      ).toBe(false);
     });
 
     it("shows error on network failure", async () => {

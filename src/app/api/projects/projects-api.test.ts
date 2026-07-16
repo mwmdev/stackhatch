@@ -3,10 +3,15 @@ import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import Database from "better-sqlite3";
 import * as schema from "@/db/schema";
-import { projects, messages, users } from "@/db/schema";
+import { projects, messages, userProjectState, users } from "@/db/schema";
 import type { AppDatabase } from "@/db";
 
 let testDb: AppDatabase;
+
+const authState = vi.hoisted(() => ({
+  userId: "test-user-id" as string | null,
+  impersonatedBy: false,
+}));
 
 function createTestDb() {
   const sqlite = new Database(":memory:");
@@ -34,7 +39,15 @@ function createTestDb() {
       user_id TEXT NOT NULL,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      CONSTRAINT projects_user_id_id_unique UNIQUE (user_id, id)
+    );
+    CREATE TABLE user_project_state (
+      user_id TEXT PRIMARY KEY NOT NULL,
+      last_opened_project_id TEXT,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id, last_opened_project_id)
+        REFERENCES projects(user_id, id) ON DELETE CASCADE
     );
     CREATE TABLE messages (
       id TEXT PRIMARY KEY NOT NULL,
@@ -62,21 +75,33 @@ vi.mock("@/db/migrate", () => ({
 
 // Mock authentication
 vi.mock("@/lib/auth", () => ({
-  getAuthenticatedUserId: vi.fn(() => Promise.resolve("test-user-id")),
-  getAuthenticatedUser: vi.fn(() =>
-    Promise.resolve({
-      userId: "test-user-id",
+  getAuthenticatedUserId: vi.fn(() => Promise.resolve(authState.userId)),
+  getAuthenticatedUser: vi.fn(() => {
+    if (!authState.userId) return Promise.resolve(null);
+    return Promise.resolve({
+      userId: authState.userId,
       role: "admin",
       name: "Test User",
       email: "test@example.com",
       image: null,
-    })
-  ),
+      ...(authState.impersonatedBy
+        ? {
+            impersonatedBy: {
+              userId: "actual-admin",
+              role: "admin",
+              name: "Actual Admin",
+              email: "admin@example.com",
+            },
+          }
+        : {}),
+    });
+  }),
 }));
 
 // Import routes after mocks
 const projectsRoute = await import("@/app/api/projects/route");
 const projectIdRoute = await import("@/app/api/projects/[id]/route");
+const projectOpenRoute = await import("@/app/api/projects/[id]/open/route");
 const messagesRoute = await import("@/app/api/projects/[id]/messages/route");
 
 function makeRequest(url: string, options?: { method?: string; body?: unknown }) {
@@ -93,6 +118,8 @@ function makeParams(id: string) {
 }
 
 beforeEach(() => {
+  authState.userId = "test-user-id";
+  authState.impersonatedBy = false;
   testDb = createTestDb();
   // Create test user
   testDb
@@ -353,6 +380,7 @@ describe("GET /api/projects/[id]", () => {
     const data = await res.json();
     expect(data.name).toBe("Test");
     expect(data.canvasState).toEqual(canvas);
+    expect(testDb.select().from(userProjectState).all()).toEqual([]);
   });
 
   it("returns null canvasState when not set", async () => {
@@ -442,6 +470,126 @@ describe("GET /api/projects/[id]", () => {
       makeParams("other-project")
     );
     expect(response.status).toBe(404);
+  });
+});
+
+describe("POST /api/projects/[id]/open", () => {
+  it("records an owned project without changing its content timestamp", async () => {
+    const updatedAt = 123456;
+    testDb
+      .insert(projects)
+      .values({
+        id: "p1",
+        name: "Opened map",
+        userId: "test-user-id",
+        createdAt: 123000,
+        updatedAt,
+      })
+      .run();
+
+    const response = await projectOpenRoute.POST(
+      makeRequest("/api/projects/p1/open", { method: "POST" }) as never,
+      makeParams("p1")
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ success: true });
+
+    const secondResponse = await projectOpenRoute.POST(
+      makeRequest("/api/projects/p1/open", { method: "POST" }) as never,
+      makeParams("p1")
+    );
+    expect(secondResponse.status).toBe(200);
+    expect(testDb.select().from(userProjectState).all()).toEqual([
+      { userId: "test-user-id", lastOpenedProjectId: "p1" },
+    ]);
+    expect(testDb.select().from(projects).where(eq(projects.id, "p1")).get()?.updatedAt).toBe(
+      updatedAt
+    );
+  });
+
+  it("returns 401 without mutating state when unauthenticated", async () => {
+    authState.userId = null;
+
+    const response = await projectOpenRoute.POST(
+      makeRequest("/api/projects/p1/open", { method: "POST" }) as never,
+      makeParams("p1")
+    );
+
+    expect(response.status).toBe(401);
+    expect(testDb.select().from(userProjectState).all()).toEqual([]);
+  });
+
+  it("returns 404 without state for a missing project", async () => {
+    const response = await projectOpenRoute.POST(
+      makeRequest("/api/projects/missing/open", { method: "POST" }) as never,
+      makeParams("missing")
+    );
+
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ error: "Project not found" });
+    expect(testDb.select().from(userProjectState).all()).toEqual([]);
+  });
+
+  it("returns 404 without leaking or recording another account's project", async () => {
+    const now = Date.now();
+    testDb.insert(users).values({ id: "other-user", githubId: "other-open", createdAt: now }).run();
+    testDb
+      .insert(projects)
+      .values({
+        id: "private-project",
+        name: "Private",
+        userId: "other-user",
+        createdAt: now,
+        updatedAt: now,
+      })
+      .run();
+
+    const response = await projectOpenRoute.POST(
+      makeRequest("/api/projects/private-project/open", { method: "POST" }) as never,
+      makeParams("private-project")
+    );
+
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ error: "Project not found" });
+    expect(testDb.select().from(userProjectState).all()).toEqual([]);
+  });
+
+  it("validates access but suppresses resume writes during impersonation", async () => {
+    const now = Date.now();
+    testDb
+      .insert(projects)
+      .values([
+        {
+          id: "previous",
+          name: "Previous",
+          userId: "test-user-id",
+          createdAt: now - 1,
+          updatedAt: now - 1,
+        },
+        {
+          id: "opened",
+          name: "Opened",
+          userId: "test-user-id",
+          createdAt: now,
+          updatedAt: now,
+        },
+      ])
+      .run();
+    testDb
+      .insert(userProjectState)
+      .values({ userId: "test-user-id", lastOpenedProjectId: "previous" })
+      .run();
+    authState.impersonatedBy = true;
+
+    const response = await projectOpenRoute.POST(
+      makeRequest("/api/projects/opened/open", { method: "POST" }) as never,
+      makeParams("opened")
+    );
+
+    expect(response.status).toBe(200);
+    expect(testDb.select().from(userProjectState).all()).toEqual([
+      { userId: "test-user-id", lastOpenedProjectId: "previous" },
+    ]);
   });
 });
 
@@ -622,6 +770,10 @@ describe("DELETE /api/projects/[id]", () => {
         updatedAt: Date.now(),
       })
       .run();
+    testDb
+      .insert(userProjectState)
+      .values({ userId: "test-user-id", lastOpenedProjectId: "p1" })
+      .run();
 
     const res = await projectIdRoute.DELETE(
       makeRequest("/api/projects/p1", { method: "DELETE" }) as never,
@@ -634,6 +786,7 @@ describe("DELETE /api/projects/[id]", () => {
 
     const remaining = testDb.select().from(projects).all();
     expect(remaining).toHaveLength(0);
+    expect(testDb.select().from(userProjectState).all()).toEqual([]);
   });
 
   it("cascade deletes messages when project is deleted", async () => {
