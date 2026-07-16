@@ -957,6 +957,9 @@ describe("ProjectPage", () => {
       await waitFor(() => {
         expect(screen.getByText("Test Project")).toBeInTheDocument();
       });
+
+      const dashboardLink = screen.getByRole("link", { name: "Back to dashboard" });
+      expect(dashboardLink).toHaveAttribute("href", "/app");
     });
 
     it("shows a new project icon next to the project name", async () => {

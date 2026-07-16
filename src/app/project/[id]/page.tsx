@@ -4,7 +4,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { FolderPlus, MessageSquareText, PanelLeftClose, RefreshCw, Sparkles } from "lucide-react";
+import {
+  ArrowLeft,
+  FolderPlus,
+  MessageSquareText,
+  PanelLeftClose,
+  RefreshCw,
+  Sparkles,
+} from "lucide-react";
 import ReactFlow, {
   Background,
   Controls,
@@ -1161,6 +1168,14 @@ export default function ProjectPage() {
             chatOpen ? "" : "pl-16"
           }`}
         >
+          <Link
+            href="/app"
+            className="flex min-h-11 items-center gap-2 rounded-md px-2 text-sm text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
+            title="Back to dashboard"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            <span>Back to dashboard</span>
+          </Link>
           <Link
             href="/project/new"
             className="flex h-11 w-11 items-center justify-center rounded-md text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
