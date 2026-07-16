@@ -3,7 +3,7 @@
 ## Product
 
 StackHatch turns a blank canvas, product requirements, a public repository, or a personal template
-into an editable system diagram, tradeoff notes, and handoff artifacts. It is for developers taking
+into an editable system diagram, Note nodes, and handoff artifacts. It is for developers taking
 over a codebase, returning to a complex project, or keeping a system architecture visible while
 they build.
 
@@ -36,7 +36,7 @@ stars.
 - Per-user Claude model and theme preferences.
 - Repository analysis, requirements input, chat, and a fully editable canvas.
 - PNG, SVG, JSON, YAML, and PRD exports for every user.
-- Unlimited personal projects, private notes, and personal templates.
+- Unlimited personal projects, Note nodes on architecture maps, and personal templates.
 - Support, privacy, terms, and administrator support tooling.
 
 ## Risks and Validation
@@ -54,5 +54,6 @@ usage.
 ## Technical Notes
 
 The launch baseline includes Next.js, GitHub authentication, encrypted user settings, a fresh
-Drizzle schema, personal projects, private notes, personal templates, admin support tools, tests,
-and migrations. Production does not use a server-managed Anthropic key or model fallback.
+Drizzle schema, personal projects, Note nodes stored as part of each architecture map, personal
+templates, admin support tools, tests, and migrations. Production does not use a server-managed
+Anthropic key or model fallback.

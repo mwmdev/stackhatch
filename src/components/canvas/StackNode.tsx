@@ -35,15 +35,12 @@ export interface StackNodeData {
   reasoning: string;
   locked: boolean;
   customSubtypes?: CustomSubtypesMap;
-  noteCount?: number;
   noteColor?: NoteColor;
   showDescription?: boolean;
   canUseNodeLocking?: boolean;
   onLockToggle?: (id: string, locked: boolean) => void;
   onDelete?: (id: string) => void;
   onClick?: (id: string) => void;
-  onAddNote?: (id: string) => void;
-  onNoteBadgeClick?: (id: string) => void;
 }
 
 interface ContextMenuState {
@@ -149,21 +146,6 @@ function StackNodeComponent({ id, data, selected }: NodeProps<StackNodeData>) {
             style={isNoteNode ? { color: noteColor.foreground } : undefined}
           />
         </div>
-      )}
-
-      {/* Note count badge */}
-      {(data.noteCount ?? 0) > 0 && (
-        <button
-          className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--brand)] px-1 text-[10px] font-bold text-[var(--brand-foreground)] shadow-sm hover:opacity-80"
-          onClick={(e) => {
-            e.stopPropagation();
-            data.onNoteBadgeClick?.(id);
-          }}
-          title={`${data.noteCount} note${data.noteCount !== 1 ? "s" : ""}`}
-          data-testid="note-badge"
-        >
-          {data.noteCount}
-        </button>
       )}
 
       {/* Node content */}
@@ -289,18 +271,6 @@ function StackNodeComponent({ id, data, selected }: NodeProps<StackNodeData>) {
               {data.locked ? "Unlock" : "Lock"}
             </button>
           )}
-          <button
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--card-foreground)] hover:bg-[var(--muted)]"
-            onClick={(e) => {
-              e.stopPropagation();
-              data.onAddNote?.(id);
-              setContextMenu((prev) => ({ ...prev, visible: false }));
-            }}
-            data-testid="context-menu-add-note"
-          >
-            <icons.NotebookPen size={14} />
-            Add note
-          </button>
           <button
             className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--danger)] hover:bg-[var(--danger-surface)]"
             onClick={(e) => {

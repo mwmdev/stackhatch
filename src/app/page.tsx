@@ -41,8 +41,7 @@ const WORKFLOW = [
   {
     number: "04",
     title: "Keep it current.",
-    description:
-      "Attach private notes, save reusable templates, and re-scan as the repository changes.",
+    description: "Add Note nodes, save reusable templates, and re-scan as the repository changes.",
   },
 ] as const;
 
@@ -56,11 +55,12 @@ const PRODUCT_STORIES = [
     alt: "StackHatch answering what the AI Analysis Engine does and showing real alternatives for the selected component",
   },
   {
-    title: "Keep decisions close.",
-    description: "Attach private notes to the map and re-scan a repository when the code changes.",
-    desktop: "/screenshots/notes-and-rescan.webp",
-    mobile: "/screenshots/notes-and-rescan-mobile.webp",
-    alt: "StackHatch map with a private component note and repository re-scan controls visible",
+    title: "Keep decisions on the map.",
+    description:
+      "Place Note nodes beside the architecture and re-scan when the repository changes.",
+    desktop: "/screenshots/note-node-and-rescan.webp",
+    mobile: "/screenshots/note-node-and-rescan-mobile.webp",
+    alt: "StackHatch architecture map with a Note node and repository re-scan controls visible.",
   },
 ] satisfies readonly ProductStory[];
 
@@ -80,8 +80,9 @@ const USE_CASES = [
   {
     title: "An open-source project",
     description: "Understand the architecture before choosing where to contribute.",
-    image: "/screenshots/notes-and-rescan.webp",
-    imageAlt: "StackHatch private notes and repository rescan",
+    image: "/screenshots/note-node-and-rescan.webp",
+    imageAlt:
+      "StackHatch architecture map with a Note node and repository re-scan controls visible.",
   },
 ] satisfies readonly UseCase[];
 

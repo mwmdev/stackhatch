@@ -29,6 +29,13 @@
       "when": 1784077689879,
       "tag": "0003_jittery_starhawk",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1784162274350,
+      "tag": "0004_remove_private_notes",
+      "breakpoints": true
     }
   ]
 }

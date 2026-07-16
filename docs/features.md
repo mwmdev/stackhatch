@@ -9,7 +9,7 @@ bills that usage directly to the user.
 - Start fresh with a blank canvas, upload a Markdown or text requirements file, map a public GitHub
   repository, or reuse a personal template.
 - Use architecture chat to generate and revise a system map.
-- Add and edit nodes, descriptions, notes, locks, and typed connections manually.
+- Add and edit architecture nodes, Note nodes, descriptions, locks, and typed connections manually.
 - Compare technology alternatives without losing the current decision.
 - Export diagrams as PNG, SVG, JSON, or YAML and generate a Markdown PRD.
 
@@ -19,8 +19,12 @@ alternatives, and PRD generation do.
 ## Personal Workspace
 
 - Create personal projects that are accessible only to the account owner.
-- Keep private project notes and attach notes to individual nodes.
+- Place Note nodes directly on the architecture map to keep decisions beside the system they
+  describe.
 - Save personal projects as reusable templates and start new personal projects from them.
+
+Note nodes are canvas content and are saved, exported, and templated with the rest of the map.
+StackHatch does not maintain a separate private Notes panel.
 
 ## Account Settings
 

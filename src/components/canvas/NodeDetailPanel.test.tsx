@@ -99,6 +99,7 @@ describe("NodeDetailPanel", () => {
 
     const categorySelect = screen.getByLabelText("Category") as HTMLSelectElement;
     expect(categorySelect.value).toBe("data");
+    expect(Array.from(categorySelect.options).map((option) => option.value)).toContain("note");
 
     const subtypeSelect = screen.getByLabelText("Subtype") as HTMLSelectElement;
     expect(subtypeSelect.value).toBe("sql-db");

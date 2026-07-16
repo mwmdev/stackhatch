@@ -26,35 +26,66 @@ async function createCanvasProject(page: Page, name: string) {
 }
 
 test.describe("personal workspace tools", () => {
-  test("a private component note persists after reload", async ({ page }) => {
-    const project = await createCanvasProject(page, `Notes E2E ${Date.now()}`);
+  test("the retired private Notes endpoints return normal 404 responses", async ({ page }) => {
+    const project = await createCanvasProject(page, `Retired Notes API ${Date.now()}`);
+
+    const getResponse = await page.request.get(`/api/projects/${project.id}/notes`);
+    const postResponse = await page.request.post(`/api/projects/${project.id}/notes`, {
+      data: { content: "This endpoint no longer exists." },
+    });
+    const deleteResponse = await page.request.delete(
+      `/api/projects/${project.id}/notes/retired-note`
+    );
+
+    expect(getResponse.status()).toBe(404);
+    expect(postResponse.status()).toBe(404);
+    expect(deleteResponse.status()).toBe(404);
+  });
+
+  test("a Note node can be created, edited, colored, and persists after reload", async ({
+    page,
+  }) => {
+    const project = await createCanvasProject(page, `Note node E2E ${Date.now()}`);
     await page.goto(`/project/${project.id}`);
 
-    const node = page.getByTestId("stack-node-api-gateway");
-    await expect(node).toBeVisible();
-    await node.click({ button: "right" });
-    await page.getByTestId("context-menu-add-note").click();
+    await page.getByTestId("add-node-button").click();
+    await page.getByTestId("category-note").click();
+    await page.getByTestId("subtype-note").click();
 
-    await expect(page.getByRole("heading", { name: "Notes on API Gateway" })).toBeVisible();
-    await expect(page.getByText("No notes on this component yet.")).toBeVisible();
-    await page.getByPlaceholder("Note on API Gateway...").fill("Keep this boundary explicit.");
-    await page.getByRole("button", { name: "Save note" }).click();
-    await expect(page.getByText("Keep this boundary explicit.")).toBeVisible();
-    await expect(node.getByTestId("note-badge")).toHaveText("1");
+    await expect(page.getByTestId("node-detail-panel")).toBeVisible();
+    await page.getByLabel("Node name").fill("Boundary decision");
+    await page.getByLabel("Note", { exact: true }).fill("Keep this boundary explicit.");
+    await page.getByLabel("Note color Mint").click();
+
+    await expect
+      .poll(async () => {
+        const response = await page.request.get(`/api/projects/${project.id}`);
+        const body = await response.json();
+        const note = body.canvasState.nodes.find(
+          (node: { category: string }) => node.category === "note"
+        );
+        return note
+          ? { name: note.name, description: note.description, noteColor: note.noteColor }
+          : null;
+      })
+      .toEqual({
+        name: "Boundary decision",
+        description: "Keep this boundary explicit.",
+        noteColor: "mint",
+      });
 
     await page.reload();
-    await expect(node).toBeVisible();
-    await node.getByTestId("note-badge").click();
-    await expect(page.getByText("Keep this boundary explicit.")).toBeVisible();
-
-    const notesResponse = await page.request.get(`/api/projects/${project.id}/notes`);
-    expect(notesResponse.status()).toBe(200);
-    expect(await notesResponse.json()).toEqual([
-      expect.objectContaining({
-        content: "Keep this boundary explicit.",
-        nodeId: "api-gateway",
-      }),
-    ]);
+    const persistedNote = page
+      .locator('[data-testid^="stack-node-"]')
+      .filter({ hasText: "Boundary decision" });
+    await expect(persistedNote).toBeVisible();
+    await expect(persistedNote).toContainText("Keep this boundary explicit.");
+    await persistedNote.click();
+    await expect(page.getByLabel("Node name")).toHaveValue("Boundary decision");
+    await expect(page.getByLabel("Note", { exact: true })).toHaveValue(
+      "Keep this boundary explicit."
+    );
+    await expect(page.getByLabel("Note color Mint")).toHaveAttribute("aria-pressed", "true");
   });
 
   test("a saved personal template creates a reusable map", async ({ page }) => {
@@ -93,25 +124,5 @@ test.describe("personal workspace tools", () => {
     expect((await projectResponse.json()).canvasState.nodes).toEqual([
       expect.objectContaining({ id: "api-gateway", name: "API Gateway" }),
     ]);
-  });
-
-  test("the notes panel stays inside a short editor viewport", async ({ page }) => {
-    await page.setViewportSize({ width: 700, height: 420 });
-    const project = await createCanvasProject(page, `Short viewport ${Date.now()}`);
-    await page.goto(`/project/${project.id}`);
-
-    await page.getByRole("button", { name: "Notes" }).click();
-    const panel = page.locator("aside");
-    await expect(panel).toBeVisible();
-    const box = await panel.boundingBox();
-
-    expect(box).not.toBeNull();
-    expect(box!.y).toBeGreaterThanOrEqual(0);
-    expect(box!.y + box!.height).toBeLessThanOrEqual(420);
-    expect(
-      await page.evaluate(
-        () => document.documentElement.scrollWidth > document.documentElement.clientWidth
-      )
-    ).toBe(false);
   });
 });

@@ -82,12 +82,14 @@ describe("LandingPage", () => {
     expect(
       screen.getByRole("img", { name: /answering what the AI Analysis Engine does/i })
     ).toBeInTheDocument();
-    expect(screen.getByRole("img", { name: /private component note/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("img", { name: /architecture map with a Note node/i })
+    ).toBeInTheDocument();
     expect(new Set(screenshotSources)).toEqual(
       new Set([
         "/screenshots/architecture-overview.webp",
         "/screenshots/ask-and-compare.webp",
-        "/screenshots/notes-and-rescan.webp",
+        "/screenshots/note-node-and-rescan.webp",
       ])
     );
     expect(new Set(screenshotSources).size).toBe(3);
@@ -101,6 +103,17 @@ describe("LandingPage", () => {
     expect(screen.getByRole("heading", { name: "Shape the system." })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Ask and compare." })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Keep it current." })).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Add Note nodes, save reusable templates, and re-scan as the repository changes."
+      )
+    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Keep decisions on the map." })).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Place Note nodes beside the architecture and re-scan when the repository changes."
+      )
+    ).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "StackHatch use cases" })).toHaveAttribute(
       "aria-roledescription",
       "carousel"

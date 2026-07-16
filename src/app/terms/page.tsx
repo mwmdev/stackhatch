@@ -17,18 +17,18 @@ export default function TermsPage() {
           Back to StackHatch
         </Link>
         <h1 className="mt-10 text-4xl font-bold tracking-tight">Terms of Service</h1>
-        <p className="mt-4 text-sm text-[var(--muted-foreground)]">Effective July 14, 2026</p>
+        <p className="mt-4 text-sm text-[var(--muted-foreground)]">Effective July 15, 2026</p>
 
         <div className="mt-8 space-y-8 text-sm leading-7 text-[var(--muted-foreground)]">
           <section>
             <h2 className="text-lg font-semibold text-[var(--foreground)]">Use of StackHatch</h2>
             <p className="mt-2">
-              StackHatch helps users generate architecture diagrams and tradeoff notes, keep private
-              notes and personal templates, and create handoff artifacts from bounded repository
-              evidence and user input. Projects are accessible only to their account owner;
-              StackHatch does not provide shared project access. Generated maps are explanations,
-              not a complete audit of a codebase. Users are responsible for reviewing output before
-              relying on it for production engineering decisions.
+              StackHatch helps users generate architecture diagrams, place Note nodes on maps, keep
+              personal templates, and create handoff artifacts from bounded repository evidence and
+              user input. Projects are accessible only to their account owner; StackHatch does not
+              provide shared project access. Generated maps are explanations, not a complete audit
+              of a codebase. Users are responsible for reviewing output before relying on it for
+              production engineering decisions.
             </p>
           </section>
 

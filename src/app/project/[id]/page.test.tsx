@@ -258,7 +258,7 @@ vi.mock("@/components/canvas/NodeDetailPanel", () => ({
     onSuggestAlternatives,
     alternatives,
   }: {
-    node: { id?: string; name?: string } | null;
+    node: { id?: string; name?: string; noteColor?: string } | null;
     open?: boolean;
     onSuggestAlternatives?: () => void;
     alternatives?: unknown[];
@@ -268,6 +268,7 @@ vi.mock("@/components/canvas/NodeDetailPanel", () => ({
       data-has-node={String(!!node)}
       data-open={String(!!open)}
       data-node-id={node?.id ?? ""}
+      data-note-color={node?.noteColor ?? ""}
       data-can-suggest-alternatives={String(!!onSuggestAlternatives)}
       data-alternative-count={String(alternatives?.length ?? 0)}
     >
@@ -397,6 +398,26 @@ const projectWithNodes = {
 const projectWithRepo = {
   ...projectWithNodes,
   repoUrl: "https://github.com/example/repo",
+};
+
+const projectWithNoteNode = {
+  ...emptyProject,
+  canvasState: {
+    nodes: [
+      {
+        id: "decision-note",
+        category: "note",
+        subtype: "note",
+        name: "Boundary decision",
+        technology: "",
+        description: "Keep this boundary explicit.",
+        reasoning: "Manually added",
+        locked: false,
+        noteColor: "mint",
+      },
+    ],
+    edges: [],
+  },
 };
 
 const projectWithRepoAlternatives = {
@@ -882,18 +903,17 @@ describe("ProjectPage", () => {
       });
     });
 
-    it("makes private notes available on a personal project", async () => {
+    it("does not expose the removed private Notes surface", async () => {
       mockFetchProject(emptyProject);
       render(<ProjectPage />);
 
-      const notesButton = await screen.findByRole("button", { name: "Notes" });
-      fireEvent.click(notesButton);
+      await screen.findByRole("heading", { name: emptyProject.name });
 
-      expect(await screen.findByText("No notes yet.")).toBeInTheDocument();
-      expect(global.fetch).toHaveBeenCalledWith("/api/projects/test-project-id/notes");
+      expect(screen.queryByRole("button", { name: "Notes" })).not.toBeInTheDocument();
+      expect(screen.queryByText("No notes yet.")).not.toBeInTheDocument();
       expect(
         (global.fetch as ReturnType<typeof vi.fn>).mock.calls.some(([input]) =>
-          String(input).includes("/comments")
+          String(input).includes("/notes")
         )
       ).toBe(false);
     });
@@ -1056,6 +1076,19 @@ describe("ProjectPage", () => {
 
       fireEvent.click(screen.getByTestId("mock-flow-node-n1"));
       expect(screen.getByTestId("node-detail-panel")).toHaveAttribute("data-open", "false");
+    });
+
+    it("opens a Note node with its persisted color", async () => {
+      mockFetchProject(projectWithNoteNode);
+      render(<ProjectPage />);
+      await screen.findByTestId("mock-flow-node-decision-note");
+
+      fireEvent.click(screen.getByTestId("mock-flow-node-decision-note"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("node-detail-panel")).toHaveAttribute("data-open", "true");
+      });
+      expect(screen.getByTestId("node-detail-panel")).toHaveAttribute("data-note-color", "mint");
     });
 
     it("closes the node detail drawer when clicking the canvas background", async () => {

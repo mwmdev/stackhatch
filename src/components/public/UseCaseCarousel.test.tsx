@@ -17,9 +17,9 @@ const CASES: readonly UseCase[] = [
   },
   {
     title: "Keep decisions current",
-    description: "Capture notes, rescan the repository, and revisit why choices were made.",
-    image: "/screenshots/notes-and-rescan.webp",
-    imageAlt: "Architecture notes beside repository rescan controls",
+    description: "Place Note nodes on the map, rescan the repository, and revisit decisions.",
+    image: "/screenshots/note-node-and-rescan.webp",
+    imageAlt: "Architecture map with a Note node beside repository rescan controls",
   },
 ];
 

@@ -18,15 +18,16 @@ export default function PrivacyPage() {
           Back to StackHatch
         </Link>
         <h1 className="mt-10 text-4xl font-bold tracking-tight">Privacy Policy</h1>
-        <p className="mt-4 text-sm text-[var(--muted-foreground)]">Effective July 14, 2026</p>
+        <p className="mt-4 text-sm text-[var(--muted-foreground)]">Effective July 15, 2026</p>
 
         <div className="mt-8 space-y-8 text-sm leading-7 text-[var(--muted-foreground)]">
           <section>
             <h2 className="text-lg font-semibold text-[var(--foreground)]">Information We Use</h2>
             <p className="mt-2">
               StackHatch stores account profile details from authentication, personal project names
-              and descriptions, public repository URLs, generated architecture data, private notes,
-              personal templates, and user preferences needed to operate the product.
+              and descriptions, public repository URLs, generated architecture data (including Note
+              nodes placed on a map), personal templates, and user preferences needed to operate the
+              product.
             </p>
           </section>
 

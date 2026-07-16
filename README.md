@@ -34,8 +34,8 @@ StackHatch is free and bring-your-own-key. AI requests use your Anthropic API ke
 - **Auth.js** handles GitHub OAuth and application sessions.
 - **GitHub's API** provides public repository metadata and bounded source-tree evidence.
 - **Anthropic** turns that evidence and the current canvas context into architecture output.
-- **Drizzle and SQLite** persist users, settings, personal projects, maps, messages, private notes,
-  personal templates, and scan provenance.
+- **Drizzle and SQLite** persist users, settings, personal projects, maps (including Note nodes),
+  messages, personal templates, and scan provenance.
 - **Docker** packages the standalone Next.js runtime for deployment.
 
 ## Local development

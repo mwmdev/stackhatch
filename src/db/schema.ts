@@ -63,17 +63,6 @@ export const userSettings = sqliteTable("user_settings", {
   updatedAt: integer("updated_at", { mode: "number" }).notNull(),
 });
 
-export const notes = sqliteTable("notes", {
-  id: text("id").primaryKey(),
-  projectId: text("project_id")
-    .notNull()
-    .references(() => projects.id, { onDelete: "cascade" }),
-  content: text("content").notNull(),
-  nodeId: text("node_id"),
-  createdAt: integer("created_at", { mode: "number" }).notNull(),
-  updatedAt: integer("updated_at", { mode: "number" }).notNull(),
-});
-
 export const templates = sqliteTable("templates", {
   id: text("id").primaryKey(),
   userId: text("user_id")

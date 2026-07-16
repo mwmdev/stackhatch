@@ -181,3 +181,51 @@ describe("teams removal migration", () => {
     });
   });
 });
+
+describe("private notes removal migration", () => {
+  it("deletes stored notes while preserving projects, messages, and templates", () => {
+    const sqlite = createLegacyDatabase();
+    applyMigration(sqlite, "0003_jittery_starhawk.sql");
+    sqlite.exec(`
+      INSERT INTO users (id, github_id, role, created_at)
+      VALUES ('user-1', 'github-user-1', 'user', 100);
+      INSERT INTO projects (
+        id, name, description, canvas_state, user_id, created_at, updated_at
+      ) VALUES (
+        'project-1', 'Architecture map', 'Keep this project',
+        '{"nodes":[],"edges":[]}', 'user-1', 200, 201
+      );
+      INSERT INTO messages (id, project_id, role, content, created_at)
+      VALUES ('message-1', 'project-1', 'assistant', 'Keep this message', 300);
+      INSERT INTO notes (id, project_id, content, node_id, created_at, updated_at)
+      VALUES ('note-1', 'project-1', 'Delete this private note', 'api', 400, 401);
+      INSERT INTO templates (id, user_id, name, description, canvas_state, created_at)
+      VALUES (
+        'template-1', 'user-1', 'Service map', 'Keep this template',
+        '{"nodes":[],"edges":[]}', 500
+      );
+    `);
+
+    applyMigration(sqlite, "0004_remove_private_notes.sql");
+
+    expect(
+      sqlite.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'notes'").get()
+    ).toBeUndefined();
+    expect(sqlite.prepare("SELECT id, name, user_id FROM projects").get()).toEqual({
+      id: "project-1",
+      name: "Architecture map",
+      user_id: "user-1",
+    });
+    expect(sqlite.prepare("SELECT id, project_id, content FROM messages").get()).toEqual({
+      id: "message-1",
+      project_id: "project-1",
+      content: "Keep this message",
+    });
+    expect(sqlite.prepare("SELECT id, user_id, name FROM templates").get()).toEqual({
+      id: "template-1",
+      user_id: "user-1",
+      name: "Service map",
+    });
+    expect(sqlite.pragma("foreign_key_check")).toEqual([]);
+  });
+});

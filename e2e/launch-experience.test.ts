@@ -90,7 +90,7 @@ test.describe("launch experience", () => {
     expect(screenshotSources).toEqual([
       "/screenshots/architecture-overview.webp",
       "/screenshots/ask-and-compare.webp",
-      "/screenshots/notes-and-rescan.webp",
+      "/screenshots/note-node-and-rescan.webp",
     ]);
     expect(new Set(screenshotSources).size).toBe(3);
   });

@@ -31,7 +31,6 @@ import {
   EditorDisplaySettingsProvider,
   type EditorDisplaySettings,
 } from "@/components/canvas/EditorDisplaySettings";
-import NotesPanel from "@/components/notes/NotesPanel";
 import ThemeToggle from "@/components/ThemeToggle";
 import {
   toReactFlowNodes,
@@ -133,9 +132,6 @@ export default function ProjectPage() {
   const [prdLoading, setPrdLoading] = useState(false);
   const [saveTemplateModalOpen, setSaveTemplateModalOpen] = useState(false);
   const [templateSaving, setTemplateSaving] = useState(false);
-  const [noteCounts, setNoteCounts] = useState<Record<string, number>>({});
-  const [activeNoteNodeId, setActiveNoteNodeId] = useState<string | null>(null);
-  const [notesPanelOpenTrigger, setNotesPanelOpenTrigger] = useState(0);
   const [hasAnthropicKey, setHasAnthropicKey] = useState<boolean | null>(null);
   const [aiSetupRequired, setAiSetupRequired] = useState(false);
   const [rescanConfirmOpen, setRescanConfirmOpen] = useState(false);
@@ -251,20 +247,6 @@ export default function ProjectPage() {
     },
     [setRfNodes, setRfEdges]
   );
-
-  const handleAddNote = useCallback((id: string) => {
-    setActiveNoteNodeId(id);
-    setNotesPanelOpenTrigger((trigger) => trigger + 1);
-  }, []);
-
-  const handleNoteBadgeClick = useCallback((id: string) => {
-    setActiveNoteNodeId(id);
-    setNotesPanelOpenTrigger((trigger) => trigger + 1);
-  }, []);
-
-  const handleNoteCountsChange = useCallback((counts: Record<string, number>) => {
-    setNoteCounts(counts);
-  }, []);
 
   // --- Debounced save ---
 
@@ -451,36 +433,15 @@ export default function ProjectPage() {
         data: {
           ...n.data,
           customSubtypes,
-          noteCount: noteCounts[n.id] ?? 0,
           onLockToggle: handleLockToggle,
           showDescription: true,
           canUseNodeLocking: true,
           onDelete: handleNodeDelete,
-          onAddNote: handleAddNote,
-          onNoteBadgeClick: handleNoteBadgeClick,
         },
       }));
     },
-    [
-      handleLockToggle,
-      handleNodeDelete,
-      handleAddNote,
-      handleNoteBadgeClick,
-      customSubtypes,
-      noteCounts,
-    ]
+    [handleLockToggle, handleNodeDelete, customSubtypes]
   );
-
-  // Update note counts on existing nodes when they change.
-  useEffect(() => {
-    setRfNodes((nds) =>
-      nds.map((n) => {
-        const count = noteCounts[n.id] ?? 0;
-        if (n.data.noteCount === count) return n;
-        return { ...n, data: { ...n.data, noteCount: count } };
-      })
-    );
-  }, [noteCounts, setRfNodes]);
 
   // --- React Flow event handlers ---
 
@@ -518,6 +479,7 @@ export default function ProjectPage() {
         description: data.description,
         reasoning: data.reasoning,
         locked: data.locked,
+        ...(data.noteColor ? { noteColor: data.noteColor } : {}),
       });
     },
     [closeNodePanel, nodePanelOpen, openNodePanel, selectedNode?.id]
@@ -759,8 +721,6 @@ export default function ProjectPage() {
           canUseNodeLocking: true,
           onLockToggle: handleLockToggle,
           onDelete: handleNodeDelete,
-          onAddNote: handleAddNote,
-          onNoteBadgeClick: handleNoteBadgeClick,
         },
       };
 
@@ -779,15 +739,7 @@ export default function ProjectPage() {
       });
       openNodePanel(newStackNode);
     },
-    [
-      handleLockToggle,
-      handleNodeDelete,
-      handleAddNote,
-      handleNoteBadgeClick,
-      setRfNodes,
-      customSubtypes,
-      openNodePanel,
-    ]
+    [handleLockToggle, handleNodeDelete, setRfNodes, customSubtypes, openNodePanel]
   );
 
   // --- Detail panel update ---
@@ -990,7 +942,6 @@ export default function ProjectPage() {
           setSelectedNode(null);
           setNodePanelOpen(false);
           setConnectionTypePopover(null);
-          setActiveNoteNodeId(null);
         }
         setRfNodes(newRfNodes);
         setRfEdges(newRfEdges);
@@ -1098,8 +1049,6 @@ export default function ProjectPage() {
               canUseNodeLocking: true,
               onLockToggle: handleLockToggle,
               onDelete: handleNodeDelete,
-              onAddNote: handleAddNote,
-              onNoteBadgeClick: handleNoteBadgeClick,
             },
           }));
           const edges = toReactFlowEdges(stored.edges);
@@ -1142,15 +1091,6 @@ export default function ProjectPage() {
       ? { nodes: project.canvasState.nodes, edges: project.canvasState.edges }
       : null;
   }, [project?.canvasState, rfNodes, rfEdges]);
-  // Map live node names so newly added or renamed components label their notes correctly.
-  const nodeNames = useMemo(() => {
-    const map: Record<string, string> = {};
-    for (const node of rfNodes) {
-      map[node.id] = node.data.name;
-    }
-    return map;
-  }, [rfNodes]);
-
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[var(--background)] text-[var(--muted-foreground)]">
@@ -1425,16 +1365,6 @@ export default function ProjectPage() {
           {/* Edge Legend */}
           {canUseConnectionTypes && <EdgeLegend />}
 
-          {/* Private notes */}
-          <NotesPanel
-            projectId={projectId}
-            nodeNames={nodeNames}
-            activeNodeId={activeNoteNodeId}
-            onClearNodeFilter={() => setActiveNoteNodeId(null)}
-            onNoteCountsChange={handleNoteCountsChange}
-            openTrigger={notesPanelOpenTrigger}
-          />
-
           {/* Connection Type Selector popover */}
           {canUseConnectionTypes && connectionTypePopover && (
             <ConnectionTypeSelector
@@ -1462,7 +1392,6 @@ export default function ProjectPage() {
             alternativesLoading={altLoading}
             showDescription
             canUseNodeLocking
-            canUseNotes
             onSuggestAlternatives={handleSuggestAlternatives}
             onSwapAlternative={handleSwapAlternative}
           />

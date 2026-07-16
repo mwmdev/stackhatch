@@ -38,7 +38,6 @@ export interface NodeDetailPanelProps {
   alternativesLoading?: boolean;
   showDescription?: boolean;
   canUseNodeLocking?: boolean;
-  canUseNotes?: boolean;
   onSuggestAlternatives?: () => void;
   onSwapAlternative?: (alt: AlternativeNode) => void;
 }
@@ -54,7 +53,6 @@ export default function NodeDetailPanel({
   alternativesLoading,
   showDescription = true,
   canUseNodeLocking = true,
-  canUseNotes = true,
   onSuggestAlternatives,
   onSwapAlternative,
 }: NodeDetailPanelProps) {
@@ -67,9 +65,6 @@ export default function NodeDetailPanel({
   const isNoteNode = node.category === "note";
   const selectedNoteColor = getNoteColorConfig(node.noteColor).value;
   const subtypes = getSubtypesForCategory(node.category, customSubtypes);
-  const categoryOptions = categoryOrder.filter(
-    (cat) => canUseNotes || cat !== "note" || node.category === "note"
-  );
 
   function handleCategoryChange(newCategory: NodeCategory) {
     const newSubtypes = getSubtypesForCategory(newCategory, customSubtypes);
@@ -161,7 +156,7 @@ export default function NodeDetailPanel({
               className="w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
               aria-label="Category"
             >
-              {categoryOptions.map((cat) => (
+              {categoryOrder.map((cat) => (
                 <option key={cat} value={cat}>
                   {getCategoryConfig(cat).displayName}
                 </option>
@@ -232,7 +227,9 @@ export default function NodeDetailPanel({
                     title={option.label}
                     onClick={() => onUpdate(node.id, { noteColor: option.value })}
                     className={`flex h-9 w-9 items-center justify-center rounded-full border transition hover:scale-105 focus:outline-none focus:ring-2 focus:ring-[var(--ring)] ${
-                      selected ? "ring-2 ring-[var(--ring)] ring-offset-2 ring-offset-[var(--background)]" : ""
+                      selected
+                        ? "ring-2 ring-[var(--ring)] ring-offset-2 ring-offset-[var(--background)]"
+                        : ""
                     }`}
                     style={{ backgroundColor: option.fill, borderColor: option.border }}
                   >

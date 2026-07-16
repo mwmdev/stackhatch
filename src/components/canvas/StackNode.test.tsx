@@ -276,18 +276,6 @@ describe("StackNode", () => {
     expect(onDelete).toHaveBeenCalledWith("node-1");
   });
 
-  it("opens private notes from the context action", () => {
-    const onAddNote = vi.fn();
-    const { container } = renderNode({ onAddNote });
-    fireEvent.contextMenu(container.querySelector(".stack-node")!);
-
-    expect(screen.getByText("Add note")).toBeInTheDocument();
-    expect(screen.queryByText(/comment/i)).not.toBeInTheDocument();
-    fireEvent.click(screen.getByTestId("context-menu-add-note"));
-
-    expect(onAddNote).toHaveBeenCalledWith("node-1");
-  });
-
   it("opens node actions from the keyboard context-menu shortcut", () => {
     const { container } = renderNode({ description: "" });
     const nodeDiv = container.querySelector(".stack-node")!;
@@ -295,18 +283,9 @@ describe("StackNode", () => {
     fireEvent.keyDown(nodeDiv, { key: "F10", shiftKey: true });
 
     expect(screen.getByTestId("node-context-menu")).toBeInTheDocument();
-    expect(screen.getByTestId("context-menu-add-note")).toBeInTheDocument();
-  });
-
-  it("shows a note count badge and opens the node notes", () => {
-    const onNoteBadgeClick = vi.fn();
-    renderNode({ noteCount: 2, onNoteBadgeClick });
-
-    const badge = screen.getByTestId("note-badge");
-    expect(badge).toHaveTextContent("2");
-    expect(badge).toHaveAttribute("title", "2 notes");
-    fireEvent.click(badge);
-    expect(onNoteBadgeClick).toHaveBeenCalledWith("node-1");
+    expect(screen.getByTestId("context-menu-lock")).toBeInTheDocument();
+    expect(screen.getByTestId("context-menu-delete")).toBeInTheDocument();
+    expect(screen.queryByText("Add note")).not.toBeInTheDocument();
   });
 
   it("calls onClick when node is clicked", () => {
