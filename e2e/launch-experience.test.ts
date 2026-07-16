@@ -15,7 +15,7 @@ test.describe("launch experience", () => {
     await expect(page.getByRole("button", { name: "Map repository" })).toHaveCount(0);
   });
 
-  test("explains the outcome before presenting the unified editor entry", async ({ page }) => {
+  test("explains the outcome before a compact proof-led product story", async ({ page }) => {
     await page.goto("/");
 
     const heroHeading = page.getByRole("heading", {
@@ -23,13 +23,12 @@ test.describe("launch experience", () => {
       name: "Keep the whole stack in view",
     });
     const hero = heroHeading.locator("xpath=ancestor::section[1]");
-    const startSection = page.locator("#start");
 
     await expect(
       hero.getByText(/turns repositories and requirements into interactive architecture maps/i)
     ).toBeVisible();
     await expect(hero.getByRole("link", { name: "Start a map" })).toHaveAttribute("href", "/app");
-    await expect(hero.getByRole("link", { name: "See StackHatch in action" })).toHaveAttribute(
+    await expect(hero.getByRole("link", { name: "See what it does" })).toHaveAttribute(
       "href",
       "#features"
     );
@@ -37,46 +36,25 @@ test.describe("launch experience", () => {
       "src",
       "/screenshots/architecture-overview.webp"
     );
-    expect(
-      await hero.evaluate((heroSection) => {
-        const launchpadElement = document.querySelector("#start");
-        return Boolean(
-          launchpadElement &&
-          heroSection.compareDocumentPosition(launchpadElement) & Node.DOCUMENT_POSITION_FOLLOWING
-        );
-      })
-    ).toBe(true);
-
-    await expect(page.getByRole("heading", { name: "Start from wherever you are." })).toBeVisible();
-    await expect(
-      startSection.getByRole("heading", {
-        name: "Open the editor. Pick a source only when you need one.",
-      })
-    ).toBeVisible();
-    await expect(startSection.getByRole("link", { name: "Start a map" })).toHaveAttribute(
-      "href",
-      "/app"
-    );
-    for (const heading of ["Start fresh", "Upload requirements", "Map a repo", "Use a template"]) {
-      await expect(startSection.getByRole("heading", { name: heading })).toHaveCount(0);
-    }
+    const regionOrder = await page
+      .locator("[data-landing-region]")
+      .evaluateAll((regions) =>
+        regions.map((region) => region.getAttribute("data-landing-region"))
+      );
+    expect(regionOrder).toEqual(["hero", "trust", "capabilities", "workflow", "final-cta"]);
   });
 
-  test("uses three unique real screenshots across the hero and feature stories", async ({
-    page,
-  }) => {
+  test("uses one real screenshot and no ticker, story stack, or carousel", async ({ page }) => {
     await page.goto("/");
 
     const screenshotSources = await page
       .locator('img[src^="/screenshots/"]')
       .evaluateAll((images) => images.map((image) => image.getAttribute("src")));
 
-    expect(screenshotSources).toEqual([
-      "/screenshots/architecture-overview.webp",
-      "/screenshots/ask-and-compare.webp",
-      "/screenshots/note-node-and-rescan.webp",
-    ]);
-    expect(new Set(screenshotSources).size).toBe(3);
+    expect(screenshotSources).toEqual(["/screenshots/architecture-overview.webp"]);
+    await expect(page.locator('[data-landing-region="marquee"]')).toHaveCount(0);
+    await expect(page.locator('[aria-roledescription="carousel"]')).toHaveCount(0);
+    await expect(page.locator(".storyStack, .storyCard")).toHaveCount(0);
   });
 
   test("keeps the outcome and product proof in the initial 1440x900 viewport", async ({ page }) => {
@@ -88,9 +66,9 @@ test.describe("launch experience", () => {
       name: "Keep the whole stack in view",
     });
     const hero = heroHeading.locator("xpath=ancestor::section[1]");
-    const heroCopy = page.locator('[data-landing-region="hero-copy"]');
+    const heroCopy = page.getByTestId("hero-copy");
     const productProof = hero.getByRole("img", { name: /architecture map of its own/i });
-    const startSection = page.locator("#start");
+    const trustSection = page.locator('[data-landing-region="trust"]');
 
     const geometry = await page.evaluate(() => {
       const bounds = (selector: string) => {
@@ -111,15 +89,15 @@ test.describe("launch experience", () => {
           })
         ).size,
         hero: bounds('[data-landing-region="hero"]'),
-        copy: bounds('[data-landing-region="hero-copy"]'),
-        proof: bounds('[data-landing-region="hero-proof"] img'),
-        start: bounds("#start"),
+        copy: bounds('[data-testid="hero-copy"]'),
+        proof: bounds('[data-testid="hero-proof"] img'),
+        trust: bounds('[data-landing-region="trust"]'),
       };
     });
 
     await expect(heroCopy).toBeVisible();
     await expect(productProof).toBeVisible();
-    await expect(startSection).toBeAttached();
+    await expect(trustSection).toBeAttached();
     expect(geometry.viewport).toEqual({ width: 1440, height: 900 });
     expect(geometry.headlineLines).toBe(2);
     expect(geometry.copy.top).toBeGreaterThanOrEqual(0);
@@ -128,7 +106,7 @@ test.describe("launch experience", () => {
     expect(
       Math.min(geometry.proof.bottom, geometry.viewport.height) - geometry.proof.top
     ).toBeGreaterThan(240);
-    expect(geometry.start.top).toBeGreaterThanOrEqual(geometry.hero.bottom - 1);
+    expect(geometry.trust.top).toBeGreaterThanOrEqual(geometry.hero.bottom - 1);
     expect(geometry.scrollWidth).toBe(geometry.viewport.width);
   });
 
@@ -170,34 +148,6 @@ test.describe("launch experience", () => {
     }
   });
 
-  test("pins the desktop product story while its screenshot transition progresses", async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto("/");
-
-    const firstStory = page
-      .locator('img[src="/screenshots/ask-and-compare.webp"]')
-      .locator("xpath=ancestor::article[1]");
-    await firstStory.scrollIntoViewIfNeeded();
-    await page.evaluate(() => window.scrollBy(0, 260));
-    await page.waitForTimeout(200);
-    const before = await firstStory.evaluate((story) => ({
-      position: getComputedStyle(story).position,
-      top: Math.round(story.getBoundingClientRect().top),
-    }));
-
-    await page.evaluate(() => window.scrollBy(0, 320));
-    await page.waitForTimeout(200);
-    const after = await firstStory.evaluate((story) =>
-      Math.round(story.getBoundingClientRect().top)
-    );
-
-    expect(before.position).toBe("sticky");
-    expect(before.top).toBeGreaterThan(0);
-    expect(Math.abs(after - before.top)).toBeLessThanOrEqual(1);
-  });
-
   test("keeps the dark, reduced-motion entry usable at 320px", async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 720 });
     await page.emulateMedia({ colorScheme: "dark", reducedMotion: "reduce" });
@@ -210,8 +160,7 @@ test.describe("launch experience", () => {
       .getByRole("heading", { level: 1, name: "Keep the whole stack in view" })
       .locator("xpath=ancestor::section[1]");
     await expect(hero.getByRole("link", { name: "Start a map" })).toBeVisible();
-    const startSection = page.locator("#start");
-    await expect(startSection.getByRole("link", { name: "Start a map" })).toBeVisible();
+    await expect(page.locator('[data-landing-region="final-cta"]')).toBeAttached();
     await expect(page.getByRole("link", { name: /demo/i })).toHaveCount(0);
     await expect(page.locator("html")).toHaveClass(/dark/);
 
@@ -228,18 +177,10 @@ test.describe("launch experience", () => {
         viewport: window.innerWidth,
         scrollWidth: document.documentElement.scrollWidth,
         headlineLines: new Set(lineTops).size,
-        marqueeAnimation: getComputedStyle(
-          document.querySelector<HTMLElement>('[data-landing-region="marquee"] > div')!
-        ).animationName,
-        storyImages: Array.from(
-          document.querySelectorAll<HTMLElement>('article img[src^="/screenshots/"]')
-        ).map((image) => ({
-          transform: getComputedStyle(image).transform,
-          cardPosition: getComputedStyle(image.closest("article")!).position,
-        })),
-        useCaseHeadingPosition: getComputedStyle(
-          document.querySelector<HTMLElement>("#use-cases-heading")!.parentElement!
-        ).position,
+        screenshotCount: document.querySelectorAll('img[src^="/screenshots/"]').length,
+        regionOrder: Array.from(
+          document.querySelectorAll<HTMLElement>("[data-landing-region]")
+        ).map((region) => region.dataset.landingRegion),
         offenders: Array.from(document.querySelectorAll<HTMLElement>("body *"))
           .map((element) => {
             const bounds = element.getBoundingClientRect();
@@ -255,11 +196,7 @@ test.describe("launch experience", () => {
     });
     expect(layout.scrollWidth, JSON.stringify(layout.offenders)).toBe(layout.viewport);
     expect(layout.headlineLines).toBeLessThanOrEqual(3);
-    expect(layout.marqueeAnimation).toBe("none");
-    expect(layout.storyImages).toEqual([
-      { transform: "none", cardPosition: "relative" },
-      { transform: "none", cardPosition: "relative" },
-    ]);
-    expect(layout.useCaseHeadingPosition).toBe("static");
+    expect(layout.screenshotCount).toBe(1);
+    expect(layout.regionOrder).toEqual(["hero", "trust", "capabilities", "workflow", "final-cta"]);
   });
 });

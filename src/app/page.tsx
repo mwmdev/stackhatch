@@ -1,11 +1,20 @@
-import Link from "next/link";
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Outfit } from "next/font/google";
-import { ArrowRight, GitBranch, KeyRound, Star } from "lucide-react";
+import {
+  ArrowRight,
+  CircleHelp,
+  GitBranch,
+  KeyRound,
+  MessageSquareText,
+  Network,
+  RefreshCw,
+  Star,
+} from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
-import ProductStoryStack, { type ProductStory } from "@/components/public/ProductStoryStack";
 import TrackedSourceLink from "@/components/public/TrackedSourceLink";
-import UseCaseCarousel, { type UseCase } from "@/components/public/UseCaseCarousel";
+import StackHatchWordmark from "@/components/shells/StackHatchWordmark";
+import IconControl from "@/components/ui/IconControl";
 import { formatGitHubStarCount, getGitHubStarCount } from "@/lib/github-stars";
 import styles from "./landing.module.css";
 
@@ -19,95 +28,56 @@ const publicDisplay = Outfit({
   variable: "--font-public-display",
 });
 
+const CAPABILITIES = [
+  {
+    title: "See and shape the system.",
+    description:
+      "Turn a repository or requirements brief into components and connections you can rearrange as your understanding changes.",
+    icon: Network,
+  },
+  {
+    title: "Ask how it works. Compare alternatives.",
+    description:
+      "Question a component in context, trace a path through the stack, and compare practical options for the part in front of you.",
+    icon: MessageSquareText,
+  },
+  {
+    title: "Keep decisions and the map current.",
+    description:
+      "Place Notes beside decisions, save reusable templates, and re-scan repository-backed maps as the code changes.",
+    icon: RefreshCw,
+  },
+] as const;
+
 const WORKFLOW = [
   {
     number: "01",
     title: "Bring what you have.",
-    description: "Begin with a blank canvas, requirements, a public repository, or a saved map.",
+    description: "Begin with a public repository, a requirements file, a blank map, or a template.",
   },
   {
     number: "02",
-    title: "Shape the system.",
+    title: "Shape and explore the map.",
     description:
-      "See the components and connections, then edit the map until it matches your view.",
+      "Follow the connections, inspect components, and edit the structure into a useful view.",
   },
   {
     number: "03",
-    title: "Ask and compare.",
+    title: "Ask. Decide. Revisit.",
     description:
-      "Question the architecture in context and test practical alternatives for any part.",
+      "Question the architecture, keep context in Notes, and re-scan when the code moves.",
   },
-  {
-    number: "04",
-    title: "Keep it current.",
-    description: "Add Note nodes, save reusable templates, and re-scan as the repository changes.",
-  },
-] as const;
-
-const PRODUCT_STORIES = [
-  {
-    title: "Ask the architecture.",
-    description:
-      "Ask how a path works in context, then compare practical alternatives for the selected component.",
-    desktop: "/screenshots/ask-and-compare.webp",
-    mobile: "/screenshots/ask-and-compare-mobile.webp",
-    alt: "StackHatch answering what the AI Analysis Engine does and showing real alternatives for the selected component",
-  },
-  {
-    title: "Keep decisions on the map.",
-    description:
-      "Place Note nodes beside the architecture and re-scan when the repository changes.",
-    desktop: "/screenshots/note-node-and-rescan.webp",
-    mobile: "/screenshots/note-node-and-rescan-mobile.webp",
-    alt: "StackHatch architecture map with a Note node and repository re-scan controls visible.",
-  },
-] satisfies readonly ProductStory[];
-
-const USE_CASES = [
-  {
-    title: "Your project",
-    description: "Keep the whole system visible while you work on one part of it.",
-    image: "/screenshots/architecture-overview.webp",
-    imageAlt: "StackHatch architecture overview",
-  },
-  {
-    title: "A project you joined",
-    description: "Build a useful mental model before making your first change.",
-    image: "/screenshots/ask-and-compare.webp",
-    imageAlt: "StackHatch architecture question and alternatives",
-  },
-  {
-    title: "An open-source project",
-    description: "Understand the architecture before choosing where to contribute.",
-    image: "/screenshots/note-node-and-rescan.webp",
-    imageAlt:
-      "StackHatch architecture map with a Note node and repository re-scan controls visible.",
-  },
-] satisfies readonly UseCase[];
-
-const MARQUEE_ITEMS = [
-  "Blank canvas",
-  "Requirements",
-  "Public repository",
-  "Personal template",
-  "One living map",
 ] as const;
 
 export default async function LandingPage() {
   const githubStars = await getGitHubStarCount();
+  const starCount = githubStars === null ? null : formatGitHubStarCount(githubStars);
 
   return (
     <div className={`${styles.landingPage} ${publicDisplay.variable}`}>
       <header className={styles.header}>
         <div className={styles.headerInner}>
-          <Link href="/" className={styles.wordmark} aria-label="StackHatch home">
-            <span className={styles.wordmarkMark} aria-hidden="true">
-              <span />
-              <span />
-              <span />
-            </span>
-            StackHatch
-          </Link>
+          <StackHatchWordmark href="/" label="StackHatch home" className={styles.wordmark} />
 
           <nav aria-label="Primary navigation" className={styles.primaryNav}>
             <div className={styles.navLinks}>
@@ -121,19 +91,23 @@ export default async function LandingPage() {
                 location="navigation"
                 intent="star"
                 aria-label={
-                  githubStars === null
+                  starCount === null
                     ? "Star StackHatch on GitHub"
-                    : `Star StackHatch on GitHub — ${formatGitHubStarCount(githubStars)} stars`
+                    : `Star StackHatch on GitHub — ${starCount} stars`
                 }
               >
                 <Star aria-hidden="true" />
-                {githubStars === null ? "GitHub" : formatGitHubStarCount(githubStars)}
+                {starCount ?? "GitHub"}
               </TrackedSourceLink>
             </div>
+
             <div className={styles.navActions}>
               <Link href="/login?callbackUrl=/app" className={styles.signInLink}>
                 Sign in
               </Link>
+              <IconControl href="/support" label="Support" tooltipPlacement="bottom">
+                <CircleHelp />
+              </IconControl>
               <ThemeToggle />
               <Link href="/app" className={styles.navStartLink}>
                 Start a map
@@ -143,17 +117,12 @@ export default async function LandingPage() {
         </div>
       </header>
 
-      <main className="w-full max-w-full">
+      <main>
         <section className={styles.hero} aria-labelledby="hero-heading" data-landing-region="hero">
-          <div className={styles.heroGrid} aria-hidden="true" />
-          <div className={styles.heroGlow} aria-hidden="true" />
           <div className={styles.heroInner}>
-            <div className={styles.heroCopy} data-landing-region="hero-copy">
-              <h1
-                id="hero-heading"
-                className="max-w-6xl"
-                aria-label="Keep the whole stack in view"
-              >
+            <div className={styles.heroCopy} data-testid="hero-copy">
+              <p className={styles.eyebrow}>Architecture workspace</p>
+              <h1 id="hero-heading" aria-label="Keep the whole stack in view">
                 <span className={styles.heroLine}>Keep the whole stack</span>
                 <span className={styles.heroLine}>in view</span>
               </h1>
@@ -167,12 +136,12 @@ export default async function LandingPage() {
                   <ArrowRight aria-hidden="true" />
                 </Link>
                 <a href="#features" className={styles.secondaryAction}>
-                  See StackHatch in action
+                  See what it does
                 </a>
               </div>
             </div>
 
-            <figure className={styles.heroProof} data-landing-region="hero-proof">
+            <figure className={styles.heroProof} data-testid="hero-proof">
               <picture className={styles.heroPicture}>
                 <source
                   media="(max-width: 760px)"
@@ -196,166 +165,127 @@ export default async function LandingPage() {
           </div>
         </section>
 
-        <div className={styles.marquee} data-landing-region="marquee" aria-hidden="true">
-          <div className={styles.marqueeTrack} aria-hidden="true">
-            {[0, 1].map((set) => (
-              <div className={styles.marqueeSet} key={set}>
-                {MARQUEE_ITEMS.map((item) => (
-                  <span key={`${set}-${item}`}>
-                    {item}
-                    <i />
-                  </span>
-                ))}
+        <section
+          className={styles.trustStrip}
+          aria-label="Why teams can start with StackHatch"
+          data-landing-region="trust"
+        >
+          <div className={styles.trustInner}>
+            <article>
+              <KeyRound aria-hidden="true" />
+              <div>
+                <h2>Free to use. Bring your own key.</h2>
+                <p>
+                  Blank maps and templates need no key. AI-assisted work uses your Anthropic key.
+                </p>
               </div>
-            ))}
+            </article>
+            <article>
+              <GitBranch aria-hidden="true" />
+              <div>
+                <h2>Map public repositories.</h2>
+                <p>Bring a public GitHub codebase directly into the same architecture workspace.</p>
+              </div>
+            </article>
+            <article>
+              <Star aria-hidden="true" />
+              <div>
+                <h2>Open source on GitHub.</h2>
+                <p>
+                  Inspect the code or contribute.{" "}
+                  <TrackedSourceLink
+                    href="https://github.com/mwmdev/stackhatch"
+                    target="_blank"
+                    rel="noreferrer"
+                    location="navigation"
+                    intent="star"
+                    aria-label={
+                      starCount === null
+                        ? "View StackHatch on GitHub"
+                        : `View StackHatch on GitHub — ${starCount} stars`
+                    }
+                  >
+                    {starCount === null ? "View on GitHub" : `${starCount} stars`}
+                  </TrackedSourceLink>
+                </p>
+              </div>
+            </article>
           </div>
-        </div>
-
-        <section id="start" className={styles.startSection} aria-labelledby="start-heading">
-          <div className={styles.sectionIntro}>
-            <h2 id="start-heading">Start from wherever you are.</h2>
-            <p>
-              Enter one workspace. StackHatch resumes your latest map, or lets you choose a blank
-              canvas, requirements, repository, or template inside the editor.
-            </p>
-          </div>
-          <div className={styles.startEntry}>
-            <div className={styles.startEntryCopy}>
-              <p className={styles.startEntryLabel}>One application entry</p>
-              <h3>Open the editor. Pick a source only when you need one.</h3>
-              <p>
-                Returning users continue where they left off. New maps begin from the same editor
-                workspace without replacing existing work.
-              </p>
-              <Link href="/app" className={styles.startEntryAction}>
-                Start a map
-                <ArrowRight aria-hidden="true" />
-              </Link>
-            </div>
-            <div className={styles.startEntryFlow} aria-hidden="true">
-              <span>Enter StackHatch</span>
-              <i />
-              <strong>Resume or create in the editor</strong>
-            </div>
-          </div>
-          <p className={styles.startTrustLine}>
-            Free to use <span aria-hidden="true">·</span> Blank maps and templates need no API key{" "}
-            <span aria-hidden="true">·</span> AI starts use your Anthropic key
-          </p>
         </section>
 
         <section
           id="features"
-          className={styles.featuresSection}
+          className={styles.capabilitiesSection}
           aria-labelledby="features-heading"
+          data-landing-region="capabilities"
         >
-          <div className={styles.featuresIntro}>
-            <h2 id="features-heading" aria-label="See the system. Ask why. Keep it current.">
-              See the system.
-              <span className={styles.inlineMap} aria-hidden="true" />
-              Ask why. Keep it current.
-            </h2>
+          <div className={styles.sectionHeading}>
+            <p className={styles.eyebrow}>One working surface</p>
+            <h2 id="features-heading">A map for the work around the code.</h2>
             <p>
-              The map stays useful after the first scan. Question decisions, compare alternatives,
-              attach context, and revisit the system as the code changes.
+              The architecture stays useful after the first scan: a shared place to understand the
+              system, test a direction, and keep the reasoning close.
             </p>
           </div>
-          <ProductStoryStack stories={PRODUCT_STORIES} />
+
+          <div className={styles.capabilityRows}>
+            {CAPABILITIES.map(({ description, icon: Icon, title }) => (
+              <article key={title} className={styles.capabilityRow}>
+                <div className={styles.capabilityIcon}>
+                  <Icon aria-hidden="true" />
+                </div>
+                <h3>{title}</h3>
+                <p>{description}</p>
+              </article>
+            ))}
+          </div>
         </section>
 
         <section
           id="workflow"
           className={styles.workflowSection}
           aria-labelledby="workflow-heading"
+          data-landing-region="workflow"
         >
-          <div className={styles.workflowHeading}>
-            <h2 id="workflow-heading">One working loop for a changing codebase.</h2>
-            <p>Bring the evidence together, shape the view, and keep decisions close to the map.</p>
-          </div>
-          <ol className={styles.workflowList}>
-            {WORKFLOW.map((step) => (
-              <li key={step.number}>
-                <span className={styles.workflowNumber}>{step.number}</span>
-                <div>
-                  <h3>{step.title}</h3>
-                  <p>{step.description}</p>
-                </div>
-              </li>
-            ))}
-          </ol>
-        </section>
-
-        <section className={styles.useCasesSection} aria-labelledby="use-cases-heading">
-          <div className={styles.useCasesHeading}>
-            <h2 id="use-cases-heading">Useful before the first change—and after the hundredth.</h2>
-            <p>
-              StackHatch supports the moments when a codebase needs to become understandable again.
-            </p>
-          </div>
-          <UseCaseCarousel cases={USE_CASES} />
-        </section>
-
-        <section className={styles.trustSection}>
-          <article id="byok" aria-labelledby="byok-heading">
-            <KeyRound aria-hidden="true" className={styles.trustIcon} />
-            <h2 id="byok-heading">Free product. Your model. Your key.</h2>
-            <p>
-              StackHatch has no plans, quotas, or feature gates. Connect an Anthropic API key for
-              requirements, repository analysis, questions, and alternatives. Your key is encrypted
-              at rest and never returned to the browser.
-            </p>
-            <p className={styles.trustNote}>
-              Anthropic bills model usage directly to your account.
-            </p>
-            <Link href="/support#byok" className={styles.textAction}>
-              How BYOK works
-              <ArrowRight aria-hidden="true" />
-            </Link>
-          </article>
-
-          <article aria-labelledby="open-heading">
-            <GitBranch aria-hidden="true" className={styles.trustIcon} />
-            <h2 id="open-heading">Built in the open.</h2>
-            <p>Inspect the code behind the map, report an issue, or star StackHatch on GitHub.</p>
-            <div className={styles.githubActions}>
-              <TrackedSourceLink
-                href="https://github.com/mwmdev/stackhatch"
-                target="_blank"
-                rel="noreferrer"
-                className={styles.textAction}
-                location="navigation"
-              >
-                View the source
-                <ArrowRight aria-hidden="true" />
-              </TrackedSourceLink>
-              <TrackedSourceLink
-                href="https://github.com/mwmdev/stackhatch"
-                target="_blank"
-                rel="noreferrer"
-                className={styles.textAction}
-                location="navigation"
-                intent="star"
-              >
-                Star on GitHub
-                <ArrowRight aria-hidden="true" />
-              </TrackedSourceLink>
+          <div className={styles.workflowInner}>
+            <div className={styles.sectionHeading}>
+              <p className={styles.eyebrow}>A short path in</p>
+              <h2 id="workflow-heading">From source to a living map.</h2>
+              <p>Start with the evidence you have, then refine the view as the system evolves.</p>
             </div>
-          </article>
+
+            <ol className={styles.workflowList}>
+              {WORKFLOW.map((step) => (
+                <li key={step.number}>
+                  <span className={styles.workflowNumber}>{step.number}</span>
+                  <div>
+                    <h3>{step.title}</h3>
+                    <p>{step.description}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </div>
         </section>
 
-        <section className={styles.finalCta} aria-labelledby="final-cta-heading">
+        <section
+          className={styles.finalCta}
+          aria-labelledby="final-cta-heading"
+          data-landing-region="final-cta"
+        >
           <div className={styles.finalCtaInner}>
             <div>
+              <p className={styles.eyebrow}>Start with what you have</p>
               <h2 id="final-cta-heading">Map the codebase in front of you.</h2>
-              <p>Start with what you already have. Keep the architecture useful as it changes.</p>
+              <p>Keep the architecture visible, useful, and ready for the next decision.</p>
             </div>
             <div className={styles.finalCtaActions}>
-              <Link href="/app" className={styles.finalPrimaryAction}>
+              <Link href="/app" className={styles.primaryAction}>
                 Start a map
                 <ArrowRight aria-hidden="true" />
               </Link>
-              <Link href="/login?callbackUrl=/app" className={styles.finalSecondaryAction}>
-                Sign in to StackHatch
+              <Link href="/login?callbackUrl=/app" className={styles.finalSignInLink}>
+                Sign in
               </Link>
             </div>
           </div>
@@ -364,19 +294,17 @@ export default async function LandingPage() {
 
       <footer className={styles.footer}>
         <div>
-          <span className={styles.wordmark}>StackHatch</span>
+          <StackHatchWordmark href="/" label="StackHatch home" />
           <p>Architecture you can see, question, and revisit.</p>
         </div>
         <nav aria-label="Footer navigation">
-          <Link href="/app">Start a map</Link>
-          <a href="#features">Product</a>
           <TrackedSourceLink
             href="https://github.com/mwmdev/stackhatch"
             target="_blank"
             rel="noreferrer"
             location="navigation"
           >
-            GitHub
+            Source
           </TrackedSourceLink>
           <Link href="/support">Support</Link>
           <Link href="/privacy">Privacy</Link>

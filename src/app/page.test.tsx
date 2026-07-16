@@ -22,113 +22,65 @@ async function renderLandingPage() {
 }
 
 describe("LandingPage", () => {
-  it("leads with the product outcome and one application entry", async () => {
+  it("presents the product story in a direct, non-repeating sequence", async () => {
     await renderLandingPage();
 
-    const heroHeading = screen.getByRole("heading", {
-      level: 1,
-      name: "Keep the whole stack in view",
-    });
-    const hero = heroHeading.closest("section");
-    const startHeading = screen.getByRole("heading", {
-      level: 2,
-      name: "Start from wherever you are.",
-    });
-    const startSection = startHeading.closest("section");
+    const regions = Array.from(document.querySelectorAll<HTMLElement>("[data-landing-region]")).map(
+      (region) => region.dataset.landingRegion
+    );
 
-    expect(hero).not.toBeNull();
-    expect(hero).toHaveTextContent(
-      "StackHatch turns repositories and requirements into interactive architecture maps"
-    );
-    expect(within(hero!).getByRole("link", { name: "Start a map" })).toHaveAttribute(
-      "href",
-      "/app"
-    );
-    expect(within(hero!).getByRole("link", { name: "See StackHatch in action" })).toHaveAttribute(
+    expect(regions).toEqual(["hero", "trust", "capabilities", "workflow", "final-cta"]);
+    const hero = document.querySelector<HTMLElement>('[data-landing-region="hero"]')!;
+    expect(within(hero).getByRole("link", { name: "Start a map" })).toHaveAttribute("href", "/app");
+    expect(within(hero).getByRole("link", { name: "See what it does" })).toHaveAttribute(
       "href",
       "#features"
     );
-    expect(
-      within(hero!).getByRole("img", { name: /architecture map of its own/i })
-    ).toHaveAttribute("src", "/screenshots/architecture-overview.webp");
-    expect(
-      hero!.compareDocumentPosition(startSection!) & Node.DOCUMENT_POSITION_FOLLOWING
-    ).toBeTruthy();
-
-    expect(startSection).not.toBeNull();
-    expect(within(startSection!).getByRole("link", { name: "Start a map" })).toHaveAttribute(
-      "href",
-      "/app"
-    );
-    for (const name of ["Start fresh", "Upload requirements", "Map a repo", "Use a template"]) {
-      expect(
-        within(startSection!).queryByRole("heading", { level: 3, name })
-      ).not.toBeInTheDocument();
-    }
-    expect(within(startSection!).queryByRole("textbox")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("landing-marquee")).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: /use cases/i })).not.toBeInTheDocument();
+    expect(document.querySelector("[aria-roledescription='carousel']")).not.toBeInTheDocument();
   });
 
-  it("uses only the three real product screenshots throughout the experience", async () => {
+  it("uses one real product screenshot as the page's signature proof", async () => {
     await renderLandingPage();
 
-    expect(
-      screen.getByRole("heading", { name: "See the system. Ask why. Keep it current." })
-    ).toBeInTheDocument();
     const screenshots = screen
       .getAllByRole("img")
       .filter((image) => image.getAttribute("src")?.startsWith("/screenshots/"));
-    const screenshotSources = screenshots.map((image) => image.getAttribute("src"));
 
-    expect(screen.getByRole("img", { name: /architecture map of its own/i })).toHaveAttribute(
-      "src",
-      "/screenshots/architecture-overview.webp"
-    );
-    expect(
-      screen.getByRole("img", { name: /answering what the AI Analysis Engine does/i })
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("img", { name: /architecture map with a Note node/i })
-    ).toBeInTheDocument();
-    expect(new Set(screenshotSources)).toEqual(
-      new Set([
-        "/screenshots/architecture-overview.webp",
-        "/screenshots/ask-and-compare.webp",
-        "/screenshots/note-node-and-rescan.webp",
-      ])
-    );
-    expect(new Set(screenshotSources).size).toBe(3);
-    expect(screen.queryByRole("link", { name: /demo/i })).not.toBeInTheDocument();
+    expect(screenshots).toHaveLength(1);
+    expect(screenshots[0]).toHaveAttribute("src", "/screenshots/architecture-overview.webp");
+    expect(screenshots[0]).toHaveAccessibleName(/architecture map of its own/i);
   });
 
-  it("keeps the full working loop, use cases, trust, and final start action", async () => {
+  it("separates concrete trust, product capabilities, and the working loop", async () => {
     await renderLandingPage();
 
-    expect(screen.getByRole("heading", { name: "Bring what you have." })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Shape the system." })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Ask and compare." })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Keep it current." })).toBeInTheDocument();
+    const trust = document.querySelector<HTMLElement>('[data-landing-region="trust"]')!;
+    expect(trust).toHaveTextContent("Free to use. Bring your own key.");
+    expect(trust).toHaveTextContent("Map public repositories.");
+    expect(trust).toHaveTextContent("Open source on GitHub.");
+
+    for (const capability of [
+      "See and shape the system.",
+      "Ask how it works. Compare alternatives.",
+      "Keep decisions and the map current.",
+    ]) {
+      expect(screen.getByRole("heading", { name: capability })).toBeInTheDocument();
+    }
     expect(
-      screen.getByText(
-        "Add Note nodes, save reusable templates, and re-scan as the repository changes."
-      )
-    ).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Keep decisions on the map." })).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        "Place Note nodes beside the architecture and re-scan when the repository changes."
-      )
-    ).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "StackHatch use cases" })).toHaveAttribute(
-      "aria-roledescription",
-      "carousel"
-    );
-    expect(screen.getByRole("heading", { name: "Your project" })).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { name: "Free product. Your model. Your key." })
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { name: "Map the codebase in front of you." })
-    ).toBeInTheDocument();
+      within(
+        document.querySelector<HTMLElement>('[data-landing-region="capabilities"]')!
+      ).queryByText("01")
+    ).not.toBeInTheDocument();
+
+    for (const step of [
+      "Bring what you have.",
+      "Shape and explore the map.",
+      "Ask. Decide. Revisit.",
+    ]) {
+      expect(screen.getByRole("heading", { name: step })).toBeInTheDocument();
+    }
     expect(screen.getAllByRole("link", { name: "Start a map" })).not.toHaveLength(0);
     for (const link of screen.getAllByRole("link", { name: "Start a map" })) {
       expect(link).toHaveAttribute("href", "/app");
@@ -156,5 +108,18 @@ describe("LandingPage", () => {
       screen.getByRole("link", { name: /Star StackHatch on GitHub — 128 stars/i })
     ).toHaveAttribute("href", "https://github.com/mwmdev/stackhatch");
     expect(screen.queryByRole("link", { name: /pricing|plans/i })).not.toBeInTheDocument();
+  });
+
+  it("preserves the primary and supporting destinations", async () => {
+    await renderLandingPage();
+
+    for (const signIn of screen.getAllByRole("link", { name: "Sign in" })) {
+      expect(signIn).toHaveAttribute("href", "/login?callbackUrl=/app");
+    }
+    for (const support of screen.getAllByRole("link", { name: "Support" })) {
+      expect(support).toHaveAttribute("href", "/support");
+    }
+    expect(screen.getByRole("link", { name: "Privacy" })).toHaveAttribute("href", "/privacy");
+    expect(screen.getByRole("link", { name: "Terms" })).toHaveAttribute("href", "/terms");
   });
 });
