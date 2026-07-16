@@ -30,6 +30,8 @@ describe("TemplatePicker", () => {
     render(<TemplatePicker onSelectTemplate={onSelectTemplate} onCancel={vi.fn()} />);
 
     expect(screen.getByRole("dialog", { name: "Start from Template" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Curated starters" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Your templates" })).toBeInTheDocument();
     const templateButton = await screen.findByRole("button", { name: /API boundary map/ });
     expect(global.fetch).toHaveBeenCalledWith("/api/templates");
     expect(global.fetch).not.toHaveBeenCalledWith(expect.stringContaining("/api/teams"));
@@ -39,18 +41,25 @@ describe("TemplatePicker", () => {
     expect(onSelectTemplate).toHaveBeenCalledWith(template);
   });
 
-  it("explains how to create the first personal template", async () => {
+  it("keeps curated starters selectable when there are no personal templates", async () => {
+    const onSelectTemplate = vi.fn();
     global.fetch = vi.fn(() =>
       Promise.resolve({ ok: true, json: () => Promise.resolve([]) } as Response)
     ) as unknown as typeof global.fetch;
 
-    render(<TemplatePicker onSelectTemplate={vi.fn()} onCancel={vi.fn()} />);
+    render(<TemplatePicker onSelectTemplate={onSelectTemplate} onCancel={vi.fn()} />);
 
-    expect(await screen.findByText("No templates yet.")).toBeInTheDocument();
+    const curated = screen.getByRole("button", { name: /Web app foundation/ });
+    fireEvent.click(curated);
+
+    expect(onSelectTemplate).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "curated-web-app", source: "curated" })
+    );
+    expect(await screen.findByText("No personal templates yet.")).toBeInTheDocument();
     expect(screen.getByText(/Save any architecture map as a template/)).toBeInTheDocument();
   });
 
-  it("retries when personal templates fail to load", async () => {
+  it("keeps curated starters available and retries when personal templates fail to load", async () => {
     let attempts = 0;
     global.fetch = vi.fn(() => {
       attempts += 1;
@@ -66,6 +75,7 @@ describe("TemplatePicker", () => {
 
     render(<TemplatePicker onSelectTemplate={vi.fn()} onCancel={vi.fn()} />);
 
+    expect(screen.getByRole("button", { name: /Web app foundation/ })).toBeEnabled();
     expect(await screen.findByRole("alert")).toHaveTextContent("Templates unavailable");
     fireEvent.click(screen.getByRole("button", { name: "Retry templates" }));
 
@@ -84,10 +94,13 @@ describe("TemplatePicker", () => {
 
     const { unmount } = render(<TemplatePicker onSelectTemplate={vi.fn()} onCancel={onCancel} />);
 
+    const firstTemplate = screen.getByRole("button", { name: /Web app foundation/ });
     const cancel = await screen.findByRole("button", { name: "Cancel" });
-    await waitFor(() => expect(cancel).toHaveFocus());
-    fireEvent.keyDown(window, { key: "Tab" });
+    await waitFor(() => expect(firstTemplate).toHaveFocus());
+    fireEvent.keyDown(window, { key: "Tab", shiftKey: true });
     expect(cancel).toHaveFocus();
+    fireEvent.keyDown(window, { key: "Tab" });
+    expect(firstTemplate).toHaveFocus();
     fireEvent.keyDown(window, { key: "Escape" });
     expect(onCancel).toHaveBeenCalledOnce();
 
