@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/db";
 import { runMigrations } from "@/db/migrate";
 import { getAuthenticatedUser } from "@/lib/auth";
-import { getAccessibleProject } from "@/lib/project-access";
+import { hasAccessibleProject } from "@/lib/project-access";
 import { recordProjectOpen } from "@/lib/project-resume";
 
 export async function POST(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -17,13 +17,13 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
   runMigrations(db);
 
   if (user.impersonatedBy) {
-    if (!getAccessibleProject(db, id, user.userId)) {
+    if (!hasAccessibleProject(db, id, user.userId)) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
     return NextResponse.json({ success: true });
   }
 
-  if (!recordProjectOpen(db, user.userId, id)) {
+  if (!recordProjectOpen(db, user.userId, id) && !hasAccessibleProject(db, id, user.userId)) {
     return NextResponse.json({ error: "Project not found" }, { status: 404 });
   }
 

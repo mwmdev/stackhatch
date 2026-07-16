@@ -128,6 +128,7 @@ describe("project resume state", () => {
     expect(testDb.select().from(userProjectState).all()).toEqual([]);
 
     expect(recordProjectOpen(testDb, "user-1", "first")).toBe(true);
+    expect(recordProjectOpen(testDb, "user-1", "first")).toBe(false);
     expect(recordProjectOpen(testDb, "user-1", "second")).toBe(true);
 
     expect(testDb.select().from(userProjectState).all()).toEqual([

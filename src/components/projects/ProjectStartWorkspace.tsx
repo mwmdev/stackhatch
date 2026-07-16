@@ -25,6 +25,7 @@ import {
   consumeBlankAutoCreateIntent,
   getPendingProjectStart,
   markProjectStart,
+  PROJECT_START_METHODS,
   type ProjectStartMethod,
 } from "@/lib/project-start";
 
@@ -53,77 +54,60 @@ type SettingsStatus = "idle" | "loading" | "ready" | "missing-key" | "error";
 
 const ACCEPTED_REQUIREMENT_FILES = [".md", ".txt"];
 
-const SOURCE_OPTIONS: Array<{
-  method: ProjectStartMethod;
-  title: string;
-  description: string;
-  detail: string;
-  icon: typeof Plus;
-  color: string;
-}> = [
+const SOURCE_DETAILS: Record<
+  ProjectStartMethod,
   {
-    method: "blank",
+    title: string;
+    description: string;
+    modeTitle: string;
+    modeDescription: string;
+    detail: string;
+    icon: typeof Plus;
+    color: string;
+  }
+> = {
+  blank: {
     title: "Blank map",
     description: "Shape the architecture manually on an empty canvas.",
+    modeTitle: "Create a blank map",
+    modeDescription: "Start with an empty canvas. Your current map stays exactly as it is.",
     detail: "No AI key",
     icon: Plus,
     color: "var(--color-client)",
   },
-  {
-    method: "requirements",
+  requirements: {
     title: "Requirements file",
     description: "Turn a Markdown or text brief into a first map.",
+    modeTitle: "Upload requirements",
+    modeDescription: "Use a Markdown or text brief to create a separate architecture map.",
     detail: ".md or .txt",
     icon: FileText,
     color: "var(--color-services)",
   },
-  {
-    method: "repository",
+  repository: {
     title: "Public repository",
     description: "Scan a public GitHub repository and map its moving pieces.",
+    modeTitle: "Map a public repository",
+    modeDescription: "Create a separate map from a public GitHub repository.",
     detail: "owner/repo",
     icon: GitBranch,
     color: "var(--color-api)",
   },
-  {
-    method: "template",
+  template: {
     title: "Template",
     description: "Copy one of your saved maps into a separate project.",
+    modeTitle: "Start from a template",
+    modeDescription: "Choose a saved map to copy into a separate personal project.",
     detail: "Personal copy",
     icon: LayoutTemplate,
     color: "var(--color-data)",
   },
-];
-
-const MODE_DETAILS: Record<
-  ProjectStartMethod,
-  { title: string; description: string; icon: typeof Plus; color: string }
-> = {
-  blank: {
-    title: "Create a blank map",
-    description: "Start with an empty canvas. Your current map stays exactly as it is.",
-    icon: Plus,
-    color: "var(--color-client)",
-  },
-  requirements: {
-    title: "Upload requirements",
-    description: "Use a Markdown or text brief to create a separate architecture map.",
-    icon: FileText,
-    color: "var(--color-services)",
-  },
-  repository: {
-    title: "Map a public repository",
-    description: "Create a separate map from a public GitHub repository.",
-    icon: GitBranch,
-    color: "var(--color-api)",
-  },
-  template: {
-    title: "Start from a template",
-    description: "Choose a saved map to copy into a separate personal project.",
-    icon: LayoutTemplate,
-    color: "var(--color-data)",
-  },
 };
+
+const SOURCE_OPTIONS = PROJECT_START_METHODS.map((method) => ({
+  method,
+  ...SOURCE_DETAILS[method],
+}));
 
 function isAcceptedRequirementsFile(file: File) {
   const name = file.name.toLowerCase();
@@ -221,7 +205,10 @@ export default function ProjectStartWorkspace({
   );
   const chooserPath = buildProjectStartChooserPath(returnTo);
   const currentStartPath = mode
-    ? buildProjectStartPath(mode, normalizedRepository?.slug, returnTo)
+    ? buildProjectStartPath(mode, {
+        repository: normalizedRepository?.slug,
+        returnTo,
+      })
     : chooserPath;
   const setupHref = `/settings?setup=anthropic&returnTo=${encodeURIComponent(currentStartPath)}`;
 
@@ -292,7 +279,7 @@ export default function ProjectStartWorkspace({
     setError("");
     setSelectedTemplate(null);
     setMode(method);
-    const path = buildProjectStartPath(method, undefined, returnTo);
+    const path = buildProjectStartPath(method, { returnTo });
     router.push(path);
 
     if (method === "blank") {
@@ -362,8 +349,11 @@ export default function ProjectStartWorkspace({
     [createProject, recordStartSelection]
   );
 
-  const modeDetails = mode ? MODE_DETAILS[mode] : null;
+  const modeDetails = mode ? SOURCE_DETAILS[mode] : null;
   const ModeIcon = modeDetails?.icon;
+  let blankButtonLabel = "Create blank map";
+  if (submitting) blankButtonLabel = "Creating map...";
+  else if (blankAttempted && error) blankButtonLabel = "Retry blank map";
 
   return (
     <div className="flex min-h-screen flex-col bg-[var(--canvas)] text-[var(--foreground)]">
@@ -439,10 +429,10 @@ export default function ProjectStartWorkspace({
                         tabIndex={-1}
                         className="font-display text-2xl font-extrabold tracking-tight outline-none sm:text-3xl"
                       >
-                        {modeDetails.title}
+                        {modeDetails.modeTitle}
                       </h1>
                       <p className="mt-1 max-w-2xl text-sm leading-6 text-[var(--muted-foreground)]">
-                        {modeDetails.description}
+                        {modeDetails.modeDescription}
                       </p>
                     </div>
                   </div>
@@ -582,11 +572,7 @@ export default function ProjectStartWorkspace({
                     disabled={submitting}
                     className="mt-5 min-h-11 rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-bold text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)] disabled:opacity-50"
                   >
-                    {submitting
-                      ? "Creating map..."
-                      : blankAttempted && error
-                        ? "Retry blank map"
-                        : "Create blank map"}
+                    {blankButtonLabel}
                   </button>
                 </section>
               )}

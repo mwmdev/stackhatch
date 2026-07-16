@@ -45,7 +45,7 @@ export default function SettingsPage() {
     const params = new URLSearchParams(window.location.search);
     const repo = params.get("repo")?.trim() || "";
     const legacyReturnTo = isPublicRepositorySlug(repo)
-      ? buildProjectStartPath("repository", repo)
+      ? buildProjectStartPath("repository", { repository: repo })
       : "/app";
     const internalReturnTo = safeInternalPath(params.get("returnTo"), legacyReturnTo);
     const safeReturnTo = canonicalProjectStartPath(internalReturnTo) ?? internalReturnTo;

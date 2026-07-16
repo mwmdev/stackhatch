@@ -1,6 +1,7 @@
 import { and, desc, eq } from "drizzle-orm";
 import type { AppDatabase } from "@/db";
 import { projects, userProjectState } from "@/db/schema";
+import { getAccessibleProject } from "@/lib/project-access";
 
 export function clearStaleProjectResume(
   db: AppDatabase,
@@ -29,11 +30,7 @@ export function resolveProjectResume(db: AppDatabase, userId: string) {
     .get();
 
   if (state?.lastOpenedProjectId) {
-    const rememberedProject = db
-      .select()
-      .from(projects)
-      .where(and(eq(projects.id, state.lastOpenedProjectId), eq(projects.userId, userId)))
-      .get();
+    const rememberedProject = getAccessibleProject(db, state.lastOpenedProjectId, userId);
 
     if (rememberedProject) return rememberedProject;
 
@@ -56,7 +53,8 @@ export function recordProjectOpen(db: AppDatabase, userId: string, projectId: st
        FROM projects
        WHERE user_id = ? AND id = ?
        ON CONFLICT(user_id) DO UPDATE SET
-         last_opened_project_id = excluded.last_opened_project_id`
+         last_opened_project_id = excluded.last_opened_project_id
+       WHERE user_project_state.last_opened_project_id IS NOT excluded.last_opened_project_id`
     )
     .run(userId, projectId);
 

@@ -152,6 +152,11 @@
           "name": "projects_user_id_id_unique",
           "columns": ["user_id", "id"],
           "isUnique": true
+        },
+        "projects_user_resume_order_idx": {
+          "name": "projects_user_resume_order_idx",
+          "columns": ["user_id", "updated_at", "created_at", "id"],
+          "isUnique": false
         }
       },
       "foreignKeys": {

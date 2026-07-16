@@ -1,4 +1,4 @@
-import { foreignKey, integer, sqliteTable, text, unique } from "drizzle-orm/sqlite-core";
+import { foreignKey, index, integer, sqliteTable, text, unique } from "drizzle-orm/sqlite-core";
 
 export type UserRole = "user" | "admin";
 
@@ -32,7 +32,15 @@ export const projects = sqliteTable(
     createdAt: integer("created_at", { mode: "number" }).notNull(),
     updatedAt: integer("updated_at", { mode: "number" }).notNull(),
   },
-  (table) => [unique("projects_user_id_id_unique").on(table.userId, table.id)]
+  (table) => [
+    unique("projects_user_id_id_unique").on(table.userId, table.id),
+    index("projects_user_resume_order_idx").on(
+      table.userId,
+      table.updatedAt,
+      table.createdAt,
+      table.id
+    ),
+  ]
 );
 
 export const userProjectState = sqliteTable(

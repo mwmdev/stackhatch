@@ -283,6 +283,9 @@ describe("project resume state migration", () => {
     expect(projectIndexes).toContainEqual(
       expect.objectContaining({ name: "projects_user_id_id_unique", unique: 1 })
     );
+    expect(projectIndexes).toContainEqual(
+      expect.objectContaining({ name: "projects_user_resume_order_idx", unique: 0 })
+    );
 
     const stateForeignKeys = sqlite.pragma("foreign_key_list(user_project_state)") as Array<{
       table: string;

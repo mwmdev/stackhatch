@@ -29,8 +29,7 @@ export function buildProjectStartChooserPath(returnTo?: string | null) {
 
 export function buildProjectStartPath(
   method: ProjectStartMethod,
-  repository?: string,
-  returnTo?: string | null
+  { repository, returnTo }: { repository?: string; returnTo?: string | null } = {}
 ) {
   const params = new URLSearchParams({ mode: method });
 
@@ -48,7 +47,7 @@ export function buildProjectStartPath(
 }
 
 export function buildProjectStartLoginUrl(method: ProjectStartMethod, repository?: string) {
-  return `/login?callbackUrl=${encodeURIComponent(buildProjectStartPath(method, repository))}`;
+  return `/login?callbackUrl=${encodeURIComponent(buildProjectStartPath(method, { repository }))}`;
 }
 
 /**
@@ -128,7 +127,7 @@ export function canonicalProjectStartPath(path: string) {
     if (parsed.pathname === "/app" && parsed.hash === "#start") {
       const repository = parsed.searchParams.get("repo")?.trim();
       return repository && isPublicRepositorySlug(repository)
-        ? buildProjectStartPath("repository", repository)
+        ? buildProjectStartPath("repository", { repository })
         : "/project/new";
     }
     if (parsed.pathname !== "/project/new") return null;
@@ -138,13 +137,13 @@ export function canonicalProjectStartPath(path: string) {
     if (!isProjectStartMethod(mode)) return buildProjectStartChooserPath(returnTo);
 
     const repository = parsed.searchParams.get("repo")?.trim();
-    return buildProjectStartPath(
-      mode,
-      mode === "repository" && repository && isPublicRepositorySlug(repository)
-        ? repository
-        : undefined,
-      returnTo
-    );
+    return buildProjectStartPath(mode, {
+      repository:
+        mode === "repository" && repository && isPublicRepositorySlug(repository)
+          ? repository
+          : undefined,
+      returnTo,
+    });
   } catch {
     return null;
   }

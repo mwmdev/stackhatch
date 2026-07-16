@@ -166,11 +166,9 @@ export default function AllMapsPage({ isAdmin }: { isAdmin: boolean }) {
                     className="block w-full min-w-0 text-left"
                     data-testid={`project-card-${project.id}`}
                   >
-                    <div className="flex min-w-0 items-center gap-2 pr-10">
-                      <h2 className="min-w-0 truncate font-medium text-[var(--card-foreground)]">
-                        {project.name}
-                      </h2>
-                    </div>
+                    <h2 className="min-w-0 truncate pr-10 font-medium text-[var(--card-foreground)]">
+                      {project.name}
+                    </h2>
                     {project.description && (
                       <p className="mt-2 line-clamp-2 text-sm leading-6 text-[var(--muted-foreground)]">
                         {project.description}

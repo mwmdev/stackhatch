@@ -21,24 +21,27 @@ describe("project start contract", () => {
   it("builds each canonical start path", () => {
     expect(buildProjectStartPath("blank")).toBe("/project/new?mode=blank");
     expect(buildProjectStartPath("requirements")).toBe("/project/new?mode=requirements");
-    expect(buildProjectStartPath("repository", "acme/platform.api")).toBe(
+    expect(buildProjectStartPath("repository", { repository: "acme/platform.api" })).toBe(
       "/project/new?mode=repository&repo=acme%2Fplatform.api"
     );
     expect(buildProjectStartPath("template")).toBe("/project/new?mode=template");
     expect(buildProjectStartLoginUrl("repository", "acme/api")).toBe(
       "/login?callbackUrl=%2Fproject%2Fnew%3Fmode%3Drepository%26repo%3Dacme%252Fapi"
     );
-    expect(buildProjectStartPath("repository", "acme/api", "/project/map-1")).toBe(
-      "/project/new?mode=repository&repo=acme%2Fapi&returnTo=%2Fproject%2Fmap-1"
-    );
+    expect(
+      buildProjectStartPath("repository", {
+        repository: "acme/api",
+        returnTo: "/project/map-1",
+      })
+    ).toBe("/project/new?mode=repository&repo=acme%2Fapi&returnTo=%2Fproject%2Fmap-1");
   });
 
   it("validates public repository slugs before putting them in a URL", () => {
     expect(isPublicRepositorySlug("acme/api")).toBe(true);
     expect(isPublicRepositorySlug("https://github.com/acme/api")).toBe(false);
-    expect(() => buildProjectStartPath("repository", "https://evil.example/repo")).toThrow(
-      "owner/repository"
-    );
+    expect(() =>
+      buildProjectStartPath("repository", { repository: "https://evil.example/repo" })
+    ).toThrow("owner/repository");
   });
 
   it("extracts only canonical start context", () => {

@@ -10,6 +10,16 @@ export function getAccessibleProject(db: AppDatabase, projectId: string, userId:
     .get();
 }
 
+export function hasAccessibleProject(db: AppDatabase, projectId: string, userId: string) {
+  return Boolean(
+    db
+      .select({ id: projects.id })
+      .from(projects)
+      .where(and(eq(projects.id, projectId), eq(projects.userId, userId)))
+      .get()
+  );
+}
+
 export function getOwnedProject(db: AppDatabase, projectId: string, userId: string) {
   return db
     .select()
