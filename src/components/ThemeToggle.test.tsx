@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import ThemeToggle from "./ThemeToggle";
 
 const { state, setTheme } = vi.hoisted(() => ({
-  state: { theme: "light" },
+  state: { theme: "light" as string | undefined },
   setTheme: vi.fn(),
 }));
 
@@ -22,6 +22,15 @@ describe("ThemeToggle", () => {
 
     expect(screen.getByRole("button", { name: "Theme: light" })).toBeInTheDocument();
     expect(screen.getByRole("tooltip", { name: "Theme: light" })).toBeInTheDocument();
+  });
+
+  it("renders a usable system control before the theme provider resolves", () => {
+    state.theme = undefined;
+    render(<ThemeToggle />);
+
+    expect(screen.getByRole("button", { name: "Theme: system" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Theme: system" }));
+    expect(setTheme).toHaveBeenCalledWith("light");
   });
 
   it.each([

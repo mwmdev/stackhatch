@@ -29,6 +29,21 @@ describe("PublicPageShell", () => {
     expect(screen.getByText("Last updated today.")).toBeInTheDocument();
     expect(screen.getByRole("main")).toHaveAttribute("data-width", "reading");
   });
+
+  it("provides the shared public footer when no custom footer is supplied", () => {
+    render(
+      <PublicPageShell homeHref="/" homeLabel="StackHatch home" title="Support">
+        <p>Support content</p>
+      </PublicPageShell>
+    );
+
+    const footerNavigation = screen.getByRole("navigation", { name: "Footer navigation" });
+    expect(footerNavigation).toHaveTextContent("Source");
+    expect(footerNavigation).toHaveTextContent("Support");
+    expect(footerNavigation).toHaveTextContent("Privacy");
+    expect(footerNavigation).toHaveTextContent("Terms");
+    expect(screen.getByRole("button", { name: "Theme: system" })).toBeInTheDocument();
+  });
 });
 
 describe("AppPageShell", () => {

@@ -45,6 +45,14 @@ describe("login callback handling", () => {
 
     expect(screen.getByText("Repository ready: acme/api")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Continue with GitHub" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "StackHatch home" })).toHaveAttribute("href", "/");
+    expect(screen.getByRole("button", { name: /^Theme:/ })).toBeInTheDocument();
+    expect(screen.getAllByRole("main")).toHaveLength(1);
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+    expect(
+      screen.getByDisplayValue("/project/new?mode=repository&repo=acme%2Fapi")
+    ).toHaveAttribute("name", "callbackUrl");
+    expect(screen.getByText(/does not grant access to private repositories/)).toBeInTheDocument();
   });
 
   it("shows repository context from the canonical project start callback", async () => {

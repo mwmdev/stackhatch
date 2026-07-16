@@ -1,4 +1,7 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
+import ThemeToggle from "../ThemeToggle";
+import TrackedSourceLink from "../public/TrackedSourceLink";
 import StackHatchWordmark from "./StackHatchWordmark";
 
 export type PublicPageShellProps = {
@@ -13,6 +16,27 @@ export type PublicPageShellProps = {
   width?: "standard" | "reading";
   className?: string;
 };
+
+function PublicPageFooter() {
+  return (
+    <div className="public-page-shell__footer-inner">
+      <span className="font-display font-bold text-[var(--foreground)]">StackHatch</span>
+      <nav aria-label="Footer navigation" className="public-page-shell__footer-links">
+        <TrackedSourceLink
+          href="https://github.com/mwmdev/stackhatch"
+          target="_blank"
+          rel="noreferrer"
+          location="navigation"
+        >
+          Source
+        </TrackedSourceLink>
+        <Link href="/support">Support</Link>
+        <Link href="/privacy">Privacy</Link>
+        <Link href="/terms">Terms</Link>
+      </nav>
+    </div>
+  );
+}
 
 export default function PublicPageShell({
   actions,
@@ -31,7 +55,10 @@ export default function PublicPageShell({
       <header className="page-shell__site-header">
         <div className="page-shell__bar">
           <StackHatchWordmark href={homeHref} label={homeLabel} />
-          {actions ? <div className="page-shell__actions">{actions}</div> : null}
+          <div className="page-shell__actions">
+            {actions}
+            <ThemeToggle />
+          </div>
         </div>
       </header>
 
@@ -44,7 +71,11 @@ export default function PublicPageShell({
         <div className="page-shell__content">{children}</div>
       </main>
 
-      {footer ? <footer className="page-shell__footer">{footer}</footer> : null}
+      {footer === null ? null : (
+        <footer className="page-shell__footer">
+          {footer === undefined ? <PublicPageFooter /> : footer}
+        </footer>
+      )}
     </div>
   );
 }

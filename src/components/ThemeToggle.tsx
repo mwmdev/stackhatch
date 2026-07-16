@@ -1,30 +1,23 @@
 "use client";
 
 import { useTheme } from "next-themes";
-import { useSyncExternalStore } from "react";
 import IconControl from "@/components/ui/IconControl";
-
-const subscribe = () => () => {};
-const getSnapshot = () => true;
-const getServerSnapshot = () => false;
 
 export default function ThemeToggle() {
   const { theme, setTheme } = useTheme();
-  const mounted = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  const currentTheme = theme ?? "system";
 
-  if (!mounted) return <div className="h-11 w-11" />;
-
-  const isDark = theme === "dark";
-  const isSystem = theme === "system";
+  const isDark = currentTheme === "dark";
+  const isSystem = currentTheme === "system";
 
   function cycle() {
-    if (theme === "light") setTheme("dark");
-    else if (theme === "dark") setTheme("system");
+    if (currentTheme === "light") setTheme("dark");
+    else if (currentTheme === "dark") setTheme("system");
     else setTheme("light");
   }
 
   return (
-    <IconControl onClick={cycle} label={`Theme: ${theme}`} tooltipPlacement="bottom">
+    <IconControl onClick={cycle} label={`Theme: ${currentTheme}`} tooltipPlacement="bottom">
       {isSystem ? (
         <svg
           width="18"
