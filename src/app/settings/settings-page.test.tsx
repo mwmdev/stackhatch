@@ -58,6 +58,8 @@ describe("SettingsPage", () => {
     expect(screen.getByText("Claude Model")).toBeInTheDocument();
     expect(screen.queryByText("Node Subtypes")).not.toBeInTheDocument();
     expect(screen.queryByText("AI Prompts")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("main")).toHaveLength(1);
+    expect(screen.getAllByRole("heading", { level: 1, name: "Settings" })).toHaveLength(1);
   });
 
   it("shows loading state initially", () => {
@@ -66,12 +68,13 @@ describe("SettingsPage", () => {
     expect(screen.getByText("Loading settings...")).toBeInTheDocument();
   });
 
-  it("shows back to dashboard link", async () => {
+  it("shows a named icon control back to the safe return path", async () => {
     mockFetchSettings({ hasAnthropicKey: false });
     render(<SettingsPage />);
 
     await screen.findByText("Anthropic API Key");
-    expect(screen.getByText(/Back to your maps/).closest("a")).toHaveAttribute("href", "/app");
+    expect(screen.getByRole("link", { name: "Back to your maps" })).toHaveAttribute("href", "/app");
+    expect(screen.getByRole("tooltip", { name: "Back to your maps" })).toBeInTheDocument();
   });
 
   it("shows BYOK key status", async () => {
@@ -199,6 +202,7 @@ describe("SettingsPage", () => {
       "href",
       "/app"
     );
+    expect(screen.getByRole("link", { name: "Back to map setup" })).toHaveAttribute("href", "/app");
   });
 
   it("strips an unsafe nested project return while preserving the creation source", async () => {

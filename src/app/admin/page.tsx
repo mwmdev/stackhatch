@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
+import AppPageShell from "@/components/shells/AppPageShell";
+import IconControl from "@/components/ui/IconControl";
 import { categoryOrder, nodeConfig } from "@/lib/node-config";
 import type { CustomSubtypesMap, CustomSubtypeEntry } from "@/lib/custom-subtypes";
 import type { NodeCategory } from "@/types/stack";
@@ -254,37 +256,57 @@ export default function AdminPage() {
     setDeleteTarget(null);
   }, [deleteTarget]);
 
-  if (loading)
+  const resumeNavigation = (
+    <IconControl href="/app" label="Resume map" tooltipPlacement="bottom">
+      <ArrowLeft />
+    </IconControl>
+  );
+
+  if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[var(--background)] text-[var(--muted-foreground)]">
-        Loading...
-      </div>
+      <AppPageShell
+        homeHref="/app"
+        homeLabel="StackHatch maps"
+        title="Admin"
+        navigation={resumeNavigation}
+        density="dense"
+      >
+        <div className="py-12 text-center text-sm text-[var(--muted-foreground)]" role="status">
+          Loading admin workspace...
+        </div>
+      </AppPageShell>
     );
-  if (error === "Access denied")
+  }
+  if (error === "Access denied") {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-[var(--background)]">
-        <p className="mb-4 text-[var(--danger)]">Access denied</p>
-        <Link href="/app" className="text-[var(--color-client)] hover:underline">
-          Resume map
-        </Link>
-      </div>
+      <AppPageShell
+        homeHref="/app"
+        homeLabel="StackHatch maps"
+        title="Admin"
+        navigation={resumeNavigation}
+        density="dense"
+      >
+        <div
+          className="rounded-md border border-[var(--danger-border)] bg-[var(--danger-surface)] px-4 py-3 text-sm text-[var(--danger)]"
+          role="alert"
+        >
+          Access denied. Return to your map to continue.
+        </div>
+      </AppPageShell>
     );
+  }
 
   return (
-    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
-      <header className="border-b border-[var(--border)]">
-        <div className="mx-auto flex max-w-5xl items-center gap-3 px-6 py-4">
-          <Link
-            href="/app"
-            aria-label="Resume map"
-            className="text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-          >
-            &larr; Resume map
-          </Link>
-          <span className="text-lg font-bold tracking-tight">Admin Dashboard</span>
-        </div>
-      </header>
-      <main className="mx-auto max-w-5xl px-6 py-8">
+    <AppPageShell
+      homeHref="/app"
+      homeLabel="StackHatch maps"
+      eyebrow="Operations"
+      title="Admin"
+      description="Manage access and shared editor configuration."
+      navigation={resumeNavigation}
+      density="dense"
+    >
+      <div className="min-w-0">
         {error && (
           <div className="mb-4 rounded-lg border border-[var(--danger-border)] bg-[var(--danger-surface)] px-4 py-2 text-sm text-[var(--danger)]">
             {error}
@@ -317,7 +339,7 @@ export default function AdminPage() {
           <>
             <form
               onSubmit={handleCreateUser}
-              className="mb-6 rounded-xl border border-[var(--border)] bg-[var(--card)] p-4"
+              className="mb-6 rounded-md border border-[var(--border)] bg-[var(--card)] p-4"
             >
               <h2 className="text-lg font-semibold">Create user</h2>
               <p className="mb-4 text-sm text-[var(--muted-foreground)]">
@@ -374,8 +396,11 @@ export default function AdminPage() {
                 </button>
               </div>
             </form>
-            <div className="overflow-x-auto rounded-xl border border-[var(--border)]">
-              <table className="w-full text-sm">
+            <div
+              className="max-w-full overflow-x-auto rounded-md border border-[var(--border)]"
+              data-testid="admin-users-table-scroll"
+            >
+              <table className="w-full min-w-[44rem] text-sm">
                 <thead className="bg-[var(--muted)]">
                   <tr>
                     <th className="px-4 py-3 text-left">User</th>
@@ -450,7 +475,7 @@ export default function AdminPage() {
         )}
 
         {activeTab === "subtypes" && (
-          <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-4">
+          <section className="rounded-md border border-[var(--border)] bg-[var(--card)] p-4">
             <div className="mb-4">
               <h2 className="text-lg font-semibold">Node Subtypes</h2>
               <p className="text-sm text-[var(--muted-foreground)]">
@@ -537,7 +562,7 @@ export default function AdminPage() {
         )}
 
         {activeTab === "prompts" && (
-          <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-4">
+          <section className="rounded-md border border-[var(--border)] bg-[var(--card)] p-4">
             <h2 className="text-lg font-semibold">AI Prompts</h2>
             <p className="mb-4 text-sm text-[var(--muted-foreground)]">
               Customize the shared system prompts used by AI features.
@@ -591,7 +616,7 @@ export default function AdminPage() {
             </div>
           </section>
         )}
-      </main>
+      </div>
 
       {deleteTarget && (
         <div
@@ -631,6 +656,6 @@ export default function AdminPage() {
           </div>
         </div>
       )}
-    </div>
+    </AppPageShell>
   );
 }

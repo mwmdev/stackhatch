@@ -2,6 +2,7 @@
 
 import { useTheme } from "next-themes";
 import { useSyncExternalStore } from "react";
+import IconControl from "@/components/ui/IconControl";
 
 const subscribe = () => () => {};
 const getSnapshot = () => true;
@@ -23,12 +24,7 @@ export default function ThemeToggle() {
   }
 
   return (
-    <button
-      onClick={cycle}
-      className="flex h-11 w-11 items-center justify-center rounded-md text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
-      title={`Theme: ${theme}`}
-      aria-label={`Theme: ${theme}`}
-    >
+    <IconControl onClick={cycle} label={`Theme: ${theme}`} tooltipPlacement="bottom">
       {isSystem ? (
         <svg
           width="18"
@@ -79,6 +75,6 @@ export default function ThemeToggle() {
           <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
         </svg>
       )}
-    </button>
+    </IconControl>
   );
 }

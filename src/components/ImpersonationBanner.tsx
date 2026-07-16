@@ -93,7 +93,9 @@ export default function ImpersonationBanner() {
   return (
     <div
       ref={bannerRef}
-      className="sticky top-0 z-[60] flex flex-wrap items-center justify-between gap-3 border-b border-[var(--warning-border)] bg-[var(--warning-surface)] px-4 py-2 text-sm text-[var(--foreground)]"
+      role="status"
+      aria-label="Impersonation active"
+      className="sticky top-0 z-[60] flex flex-wrap items-center justify-between gap-2 border-b-2 border-[var(--warning-border)] bg-[var(--warning-surface)] px-[var(--page-gutter)] py-2 text-sm text-[var(--foreground)]"
     >
       <span>
         Impersonating <strong>{displayName}</strong> as {getRoleLabel(me.role)}.
@@ -102,7 +104,7 @@ export default function ImpersonationBanner() {
         type="button"
         onClick={stopImpersonating}
         disabled={stopping}
-        className="min-h-9 rounded-md border border-[var(--warning-border)] bg-[var(--card)] px-3 py-1.5 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--muted)] disabled:opacity-60"
+        className="min-h-11 rounded-md border border-[var(--warning-border)] bg-[var(--card)] px-3 py-2 text-sm font-semibold text-[var(--foreground)] hover:bg-[var(--muted)] disabled:opacity-60"
       >
         {stopping ? "Stopping..." : "Stop impersonating"}
       </button>

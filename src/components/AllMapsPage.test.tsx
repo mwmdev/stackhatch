@@ -82,6 +82,12 @@ describe("AllMapsPage", () => {
     expect(screen.queryByText("Upload requirements")).not.toBeInTheDocument();
     expect(screen.queryByText("Map a repo")).not.toBeInTheDocument();
     expect(screen.queryByText("Use a template")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("main")).toHaveLength(1);
+    expect(screen.getAllByRole("heading", { level: 1, name: "All Maps" })).toHaveLength(1);
+    expect(screen.getByRole("main").closest(".app-page-shell")).toHaveAttribute(
+      "data-density",
+      "comfortable"
+    );
   });
 
   it("opens a selected map", async () => {
@@ -157,6 +163,16 @@ describe("AllMapsPage", () => {
     expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings");
     expect(screen.getByRole("link", { name: "Admin" })).toHaveAttribute("href", "/admin");
     expect(screen.getByRole("button", { name: /theme/i })).toBeInTheDocument();
+    expect(screen.getByRole("tooltip", { name: "Settings" })).toBeInTheDocument();
+    expect(screen.getByRole("tooltip", { name: "Admin" })).toBeInTheDocument();
+  });
+
+  it("hides admin navigation when the supplied role is not admin", async () => {
+    mockFetch();
+    render(<AllMapsPage isAdmin={false} />);
+
+    await screen.findByText("Newest map");
+    expect(screen.queryByRole("link", { name: "Admin" })).not.toBeInTheDocument();
   });
 
   it("directs an empty library to the single New map action", async () => {
