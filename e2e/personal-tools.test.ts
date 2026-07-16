@@ -105,9 +105,7 @@ test.describe("personal workspace tools", () => {
       expect.objectContaining({ name: templateName, canvasState })
     );
 
-    await page.goto("/app");
-    await page.getByRole("link", { name: "Choose a template" }).click();
-    await page.waitForURL("/project/new?mode=template");
+    await page.goto("/project/new?mode=template");
     await expect(page.getByRole("dialog", { name: "Start from Template" })).toBeVisible();
     await page.getByRole("button", { name: new RegExp(templateName) }).click();
 

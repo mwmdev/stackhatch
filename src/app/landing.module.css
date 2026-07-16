@@ -470,228 +470,112 @@
   line-height: 1.7;
 }
 
-.startLaunchpad {
+.startEntry {
   display: grid;
   overflow: hidden;
   margin-top: 70px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-auto-flow: dense;
-  gap: 0;
+  grid-template-columns: minmax(0, 1.15fr) minmax(300px, 0.85fr);
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: var(--border);
+  background: var(--card);
   box-shadow: 0 34px 80px -64px var(--shadow-color);
 }
 
-.startCell {
-  --start-color: var(--color-infrastructure);
-  position: relative;
-  display: flex;
-  min-width: 0;
-  min-height: 300px;
-  flex-direction: column;
-  align-items: flex-start;
-  padding: 32px;
-  border: 0;
-  background:
-    radial-gradient(
-      circle at 88% 14%,
-      color-mix(in srgb, var(--start-color) 12%, transparent),
-      transparent 10rem
-    ),
-    var(--card);
-  box-shadow:
-    inset 0 3px 0 var(--start-color),
-    0 0 0 0.5px var(--border);
-  transition:
-    background-color 220ms ease,
-    transform 220ms ease;
+.startEntryCopy {
+  padding: clamp(32px, 5vw, 64px);
 }
 
-.startCell::after {
-  position: absolute;
-  top: 27px;
-  right: 30px;
-  width: 86px;
-  height: 46px;
-  background-image:
-    linear-gradient(color-mix(in srgb, var(--start-color) 16%, transparent) 1px, transparent 1px),
-    linear-gradient(
-      90deg,
-      color-mix(in srgb, var(--start-color) 16%, transparent) 1px,
-      transparent 1px
-    );
-  background-size: 12px 12px;
-  content: "";
-  mask-image: linear-gradient(135deg, #000, transparent 74%);
-  transition: transform 700ms cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-
-.startCell:hover::after {
-  transform: scale(1.08) translate(-3px, 3px);
-}
-
-.startCellBlank {
-  --start-color: var(--color-client);
-  --start-color-foreground: var(--color-client-foreground);
-}
-
-.startCellRequirements {
-  --start-color: var(--color-services);
-  --start-color-foreground: var(--color-services-foreground);
-}
-
-.startCellRepository {
-  --start-color: var(--color-data);
-  --start-color-foreground: var(--color-data-foreground);
-}
-
-.startCellTemplate {
-  --start-color: var(--color-api);
-  --start-color-foreground: var(--color-api-foreground);
-}
-
-.startCellHeading {
-  display: flex;
-  align-items: center;
-  color: var(--start-color);
-}
-
-.startCellHeading svg {
-  width: 22px;
-  height: 22px;
-}
-
-.startCell h3 {
-  margin-top: 42px;
-  font-size: clamp(1.65rem, 2.6vw, 2.15rem);
-  font-weight: 800;
-  letter-spacing: -0.045em;
-}
-
-.startCell > p,
-.startCell > div > p {
-  max-width: 500px;
-  margin-top: 12px;
-  color: var(--muted-foreground);
-  font-size: 0.98rem;
-  line-height: 1.55;
-}
-
-.startAction,
-.startRepoForm button {
-  display: inline-flex;
-  min-height: 46px;
-  align-items: center;
-  justify-content: center;
-  margin-top: auto;
-  padding: 0 16px;
-  border: 1px solid color-mix(in srgb, var(--start-color) 48%, var(--border));
-  border-radius: 5px;
-  background: color-mix(in srgb, var(--start-color) 6%, var(--surface-raised));
-  color: var(--foreground);
-  font-size: 0.84rem;
+.startEntryLabel {
+  color: var(--color-client);
+  font-family: var(--font-utility), monospace;
+  font-size: 0.7rem;
   font-weight: 700;
-  cursor: pointer;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.startEntryCopy h3 {
+  max-width: 720px;
+  margin-top: 18px;
+  font-size: clamp(2rem, 4vw, 3.5rem);
+  font-weight: 800;
+  letter-spacing: -0.055em;
+  line-height: 1;
+  text-wrap: balance;
+}
+
+.startEntryCopy > p:not(.startEntryLabel) {
+  max-width: 620px;
+  margin-top: 20px;
+  color: var(--muted-foreground);
+  line-height: 1.7;
+}
+
+.startEntryAction {
+  display: inline-flex;
+  min-height: 48px;
+  align-items: center;
+  gap: 12px;
+  margin-top: 30px;
+  padding: 0 20px;
+  border-radius: 5px;
+  background: var(--brand);
+  color: var(--brand-foreground);
+  font-weight: 800;
   transition:
-    color 170ms ease,
     background-color 170ms ease,
     transform 170ms ease;
 }
 
-.startAction:hover,
-.startRepoForm button:hover {
-  background: var(--start-color);
-  color: var(--start-color-foreground, var(--brand-foreground));
+.startEntryAction:hover {
+  background: var(--brand-hover);
   transform: translateY(-2px);
 }
 
-.startRepoForm {
-  display: grid;
-  width: 100%;
-  margin-top: auto;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
+.startEntryAction svg {
+  width: 18px;
+  height: 18px;
 }
 
-.startRepoForm input {
-  width: 100%;
-  min-width: 0;
-  min-height: 46px;
-  padding: 0 14px;
+.startEntryFlow {
+  display: grid;
+  min-height: 320px;
+  align-content: center;
+  padding: clamp(30px, 5vw, 56px);
+  border-left: 1px solid var(--border);
+  background:
+    linear-gradient(color-mix(in srgb, var(--border) 48%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--border) 48%, transparent) 1px, transparent 1px),
+    var(--canvas);
+  background-size: 24px 24px;
+}
+
+.startEntryFlow span,
+.startEntryFlow strong {
+  justify-self: center;
+  padding: 13px 16px;
   border: 1px solid var(--border);
   border-radius: 5px;
-  outline: 0;
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--card);
   font-family: var(--font-utility), monospace;
-  font-size: 0.84rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.03em;
+  text-align: center;
 }
 
-.startRepoForm input:focus {
-  border-color: var(--start-color);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--start-color) 14%, transparent);
+.startEntryFlow span {
+  box-shadow: inset 0 3px 0 var(--color-client);
 }
 
-.startRepoForm button {
-  margin-top: 0;
+.startEntryFlow strong {
+  box-shadow: inset 0 3px 0 var(--color-api);
 }
 
-.startError {
-  margin-top: 9px !important;
-  color: var(--danger) !important;
-  font-size: 0.8rem !important;
-}
-
-.startOutput {
-  display: grid;
-  min-height: 66px;
-  align-items: center;
-  grid-column: 1 / -1;
-  grid-template-columns: auto minmax(30px, 1fr) auto;
-  gap: 16px;
-  padding: 12px 24px;
-  background: color-mix(in srgb, var(--background) 82%, var(--card));
-}
-
-.startOutputPorts {
-  display: flex;
-  gap: 8px;
-}
-
-.startOutputPorts i {
-  width: 8px;
-  height: 8px;
-  border: 2px solid var(--color-client);
-  border-radius: 50%;
-}
-
-.startOutputPorts i:nth-child(2) {
-  border-color: var(--color-services);
-}
-
-.startOutputPorts i:nth-child(3) {
-  border-color: var(--color-data);
-}
-
-.startOutputPorts i:nth-child(4) {
-  border-color: var(--color-api);
-}
-
-.startOutputLine {
-  height: 1px;
+.startEntryFlow i {
+  width: 1px;
+  height: 76px;
+  justify-self: center;
   background: var(--border);
-}
-
-.startOutputNode {
-  padding: 10px 13px;
-  border: 1px solid var(--foreground);
-  border-radius: 4px;
-  font-family: var(--font-utility), monospace;
-  font-size: 0.67rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 
 .startTrustLine {
@@ -1351,36 +1235,20 @@
     padding-top: 0;
   }
 
-  .startLaunchpad {
+  .startEntry {
     margin-top: 48px;
     grid-template-columns: 1fr;
   }
 
-  .startCell {
-    min-height: 270px;
-    padding: 25px;
-  }
-
-  .startCell h3 {
-    margin-top: 34px;
-  }
-
-  .startRepoForm {
-    grid-template-columns: 1fr;
-  }
-
-  .startAction,
-  .startRepoForm button {
+  .startEntryAction {
     width: 100%;
+    justify-content: center;
   }
 
-  .startOutput {
-    grid-template-columns: auto minmax(20px, 1fr);
-  }
-
-  .startOutputNode {
-    grid-column: 1 / -1;
-    text-align: center;
+  .startEntryFlow {
+    min-height: 260px;
+    border-top: 1px solid var(--border);
+    border-left: 0;
   }
 
   .startTrustLine {
@@ -1554,7 +1422,7 @@
   }
 
   .heroPicture img,
-  .startCell::after,
+  .startEntryAction,
   .storyImage,
   .useCaseStage > img {
     transition: none;

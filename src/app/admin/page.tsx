@@ -265,7 +265,7 @@ export default function AdminPage() {
       <div className="flex min-h-screen flex-col items-center justify-center bg-[var(--background)]">
         <p className="mb-4 text-[var(--danger)]">Access denied</p>
         <Link href="/app" className="text-[var(--color-client)] hover:underline">
-          Back to Dashboard
+          Resume map
         </Link>
       </div>
     );
@@ -276,9 +276,10 @@ export default function AdminPage() {
         <div className="mx-auto flex max-w-5xl items-center gap-3 px-6 py-4">
           <Link
             href="/app"
+            aria-label="Resume map"
             className="text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
           >
-            &larr; Dashboard
+            &larr; Resume map
           </Link>
           <span className="text-lg font-bold tracking-tight">Admin Dashboard</span>
         </div>

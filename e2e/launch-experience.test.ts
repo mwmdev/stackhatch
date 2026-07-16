@@ -1,50 +1,34 @@
 import { expect, test } from "@playwright/test";
 
 test.describe("launch experience", () => {
-  test("preserves a repository from the homepage into sign in", async ({ page }) => {
+  test("uses one public application entry without a source form", async ({ page }) => {
     await page.goto("/");
 
     await expect(
-      page.getByRole("heading", { level: 1, name: "Keep the whole system in view." })
+      page.getByRole("heading", { level: 1, name: "Keep the whole stack in view" })
     ).toBeVisible();
 
-    const repository = page.getByRole("article").filter({ hasText: "Map a repo" });
-    await repository.getByRole("textbox", { name: "Public GitHub repository" }).fill("not a repo");
-    await repository.getByRole("button", { name: "Map repository" }).click();
-    await expect(repository.getByRole("alert")).toContainText("public GitHub repository");
-
-    await repository
-      .getByRole("textbox", { name: "Public GitHub repository" })
-      .fill("mwmdev/stackhatch");
-    await repository.getByRole("button", { name: "Map repository" }).click();
-
-    await expect(page).toHaveURL(/\/login\?callbackUrl=/);
-    const callback = new URL(page.url()).searchParams.get("callbackUrl");
-    expect(callback).toBe("/project/new?mode=repository&repo=mwmdev%2Fstackhatch");
-    await expect(
-      page.getByRole("heading", { name: "Repository ready: mwmdev/stackhatch" })
-    ).toBeVisible();
+    const starts = page.getByRole("link", { name: "Start a map" });
+    await expect(starts.first()).toHaveAttribute("href", "/app");
+    expect(await starts.count()).toBeGreaterThan(1);
+    await expect(page.getByRole("textbox", { name: "Public GitHub repository" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Map repository" })).toHaveCount(0);
   });
 
-  test("explains the outcome before presenting all four starts as equal entry points", async ({
-    page,
-  }) => {
+  test("explains the outcome before presenting the unified editor entry", async ({ page }) => {
     await page.goto("/");
 
     const heroHeading = page.getByRole("heading", {
       level: 1,
-      name: "Keep the whole system in view.",
+      name: "Keep the whole stack in view",
     });
     const hero = heroHeading.locator("xpath=ancestor::section[1]");
-    const launchpad = page.getByLabel("Ways to start a StackHatch map");
+    const startSection = page.locator("#start");
 
     await expect(
       hero.getByText(/turns repositories and requirements into interactive architecture maps/i)
     ).toBeVisible();
-    await expect(hero.getByRole("link", { name: "Choose how to start" })).toHaveAttribute(
-      "href",
-      "#start"
-    );
+    await expect(hero.getByRole("link", { name: "Start a map" })).toHaveAttribute("href", "/app");
     await expect(hero.getByRole("link", { name: "See StackHatch in action" })).toHaveAttribute(
       "href",
       "#features"
@@ -55,9 +39,7 @@ test.describe("launch experience", () => {
     );
     expect(
       await hero.evaluate((heroSection) => {
-        const launchpadElement = document.querySelector(
-          '[aria-label="Ways to start a StackHatch map"]'
-        );
+        const launchpadElement = document.querySelector("#start");
         return Boolean(
           launchpadElement &&
           heroSection.compareDocumentPosition(launchpadElement) & Node.DOCUMENT_POSITION_FOLLOWING
@@ -66,16 +48,18 @@ test.describe("launch experience", () => {
     ).toBe(true);
 
     await expect(page.getByRole("heading", { name: "Start from wherever you are." })).toBeVisible();
-    await expect(launchpad.getByRole("heading", { name: "Start fresh" })).toBeVisible();
-    await expect(launchpad.getByRole("heading", { name: "Upload requirements" })).toBeVisible();
-    await expect(launchpad.getByRole("heading", { name: "Map a repo" })).toBeVisible();
-    await expect(launchpad.getByRole("heading", { name: "Use a template" })).toBeVisible();
-    await expect(page.getByText("One architecture map", { exact: true })).toBeAttached();
-
-    await page.getByRole("button", { name: "Choose a template" }).click();
-    await expect(page).toHaveURL(/\/login\?callbackUrl=/);
-    const callback = new URL(page.url()).searchParams.get("callbackUrl");
-    expect(callback).toBe("/project/new?mode=template");
+    await expect(
+      startSection.getByRole("heading", {
+        name: "Open the editor. Pick a source only when you need one.",
+      })
+    ).toBeVisible();
+    await expect(startSection.getByRole("link", { name: "Start a map" })).toHaveAttribute(
+      "href",
+      "/app"
+    );
+    for (const heading of ["Start fresh", "Upload requirements", "Map a repo", "Use a template"]) {
+      await expect(startSection.getByRole("heading", { name: heading })).toHaveCount(0);
+    }
   });
 
   test("uses three unique real screenshots across the hero and feature stories", async ({
@@ -101,7 +85,7 @@ test.describe("launch experience", () => {
 
     const heroHeading = page.getByRole("heading", {
       level: 1,
-      name: "Keep the whole system in view.",
+      name: "Keep the whole stack in view",
     });
     const hero = heroHeading.locator("xpath=ancestor::section[1]");
     const heroCopy = page.locator('[data-landing-region="hero-copy"]');
@@ -214,22 +198,20 @@ test.describe("launch experience", () => {
     expect(Math.abs(after - before.top)).toBeLessThanOrEqual(1);
   });
 
-  test("keeps the dark, reduced-motion launchpad usable at 320px", async ({ page }) => {
+  test("keeps the dark, reduced-motion entry usable at 320px", async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 720 });
     await page.emulateMedia({ colorScheme: "dark", reducedMotion: "reduce" });
     await page.goto("/");
 
     await expect(
-      page.getByRole("heading", { level: 1, name: "Keep the whole system in view." })
+      page.getByRole("heading", { level: 1, name: "Keep the whole stack in view" })
     ).toBeVisible();
     const hero = page
-      .getByRole("heading", { level: 1, name: "Keep the whole system in view." })
+      .getByRole("heading", { level: 1, name: "Keep the whole stack in view" })
       .locator("xpath=ancestor::section[1]");
-    await expect(hero.getByRole("link", { name: "Choose how to start" })).toBeVisible();
-    const launchpad = page.getByLabel("Ways to start a StackHatch map");
-    for (const heading of ["Start fresh", "Upload requirements", "Map a repo", "Use a template"]) {
-      await expect(launchpad.getByRole("heading", { name: heading })).toBeVisible();
-    }
+    await expect(hero.getByRole("link", { name: "Start a map" })).toBeVisible();
+    const startSection = page.locator("#start");
+    await expect(startSection.getByRole("link", { name: "Start a map" })).toBeVisible();
     await expect(page.getByRole("link", { name: /demo/i })).toHaveCount(0);
     await expect(page.locator("html")).toHaveClass(/dark/);
 

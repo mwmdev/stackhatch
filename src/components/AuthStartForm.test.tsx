@@ -13,7 +13,10 @@ vi.mock("@/lib/analytics", () => ({
 }));
 
 describe("AuthStartForm", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.history.replaceState({}, "", "/login");
+  });
 
   it("preserves and tracks the privacy-safe start method when authentication begins", () => {
     render(
@@ -29,5 +32,20 @@ describe("AuthStartForm", () => {
       location: "login",
       start_method: "template",
     });
+  });
+
+  it("canonicalizes an inherited legacy start fragment before sign-in", () => {
+    window.history.replaceState({}, "", "/login?callbackUrl=%2Fapp#start");
+    render(
+      <AuthStartForm action={vi.fn()} callbackUrl="/app">
+        <button type="submit">Continue</button>
+      </AuthStartForm>
+    );
+
+    fireEvent.submit(screen.getByRole("button", { name: "Continue" }).closest("form")!);
+
+    expect(document.querySelector<HTMLInputElement>('input[name="callbackUrl"]')).toHaveValue(
+      "/project/new"
+    );
   });
 });

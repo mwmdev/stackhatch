@@ -36,6 +36,13 @@
       "when": 1784162274350,
       "tag": "0004_remove_private_notes",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1784210500948,
+      "tag": "0005_add_user_project_state",
+      "breakpoints": true
     }
   ]
 }

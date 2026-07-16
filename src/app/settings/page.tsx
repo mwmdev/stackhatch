@@ -6,6 +6,9 @@ import { useTheme } from "next-themes";
 import { AI_MODELS, DEFAULT_AI_MODEL } from "@/lib/ai/models";
 import { trackEvent } from "@/lib/analytics";
 import {
+  buildProjectStartPath,
+  canonicalProjectStartPath,
+  isPublicRepositorySlug,
   projectStartMethodFromPath,
   repositoryFromProjectStartPath,
   safeInternalPath,
@@ -41,10 +44,11 @@ export default function SettingsPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const repo = params.get("repo")?.trim() || "";
-    const legacyReturnTo = /^[A-Za-z0-9_-]+\/[A-Za-z0-9_.-]+$/.test(repo)
-      ? `/app?repo=${encodeURIComponent(repo)}`
+    const legacyReturnTo = isPublicRepositorySlug(repo)
+      ? buildProjectStartPath("repository", { repository: repo })
       : "/app";
-    const safeReturnTo = safeInternalPath(params.get("returnTo"), legacyReturnTo);
+    const internalReturnTo = safeInternalPath(params.get("returnTo"), legacyReturnTo);
+    const safeReturnTo = canonicalProjectStartPath(internalReturnTo) ?? internalReturnTo;
     setReturnTo(safeReturnTo);
     setSetupMethod(projectStartMethodFromPath(safeReturnTo));
     setIsAnthropicSetup(params.get("setup") === "anthropic");

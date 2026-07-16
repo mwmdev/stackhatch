@@ -39,11 +39,11 @@ describe("login callback handling", () => {
 
   it("shows the preserved repository context", async () => {
     const page = await LoginPage({
-      searchParams: Promise.resolve({ callbackUrl: "/app?repo=acme%2Fapi" }),
+      searchParams: Promise.resolve({ callbackUrl: "/app?repo=acme%2Fapi#start" }),
     });
     render(page);
 
-    expect(screen.getByText("Continue to your maps")).toBeInTheDocument();
+    expect(screen.getByText("Repository ready: acme/api")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Continue with GitHub" })).toBeInTheDocument();
   });
 
@@ -59,7 +59,7 @@ describe("login callback handling", () => {
   });
 
   it.each([
-    ["blank", "/app?start=blank", "Blank canvas ready"],
+    ["blank", "/project/new?mode=blank", "Blank canvas ready"],
     ["requirements", "/project/new?mode=requirements", "Requirements upload ready"],
     ["template", "/project/new?mode=template", "Template selection ready"],
   ])("confirms the preserved %s start", async (_method, callbackUrl, title) => {

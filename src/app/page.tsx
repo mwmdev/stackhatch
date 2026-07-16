@@ -4,7 +4,6 @@ import { Outfit } from "next/font/google";
 import { ArrowRight, GitBranch, KeyRound, Star } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import ProductStoryStack, { type ProductStory } from "@/components/public/ProductStoryStack";
-import PublicStartLaunchpad from "@/components/public/PublicStartLaunchpad";
 import TrackedSourceLink from "@/components/public/TrackedSourceLink";
 import UseCaseCarousel, { type UseCase } from "@/components/public/UseCaseCarousel";
 import { formatGitHubStarCount, getGitHubStarCount } from "@/lib/github-stars";
@@ -136,9 +135,9 @@ export default async function LandingPage() {
                 Sign in
               </Link>
               <ThemeToggle />
-              <a href="#start" className={styles.navStartLink}>
+              <Link href="/app" className={styles.navStartLink}>
                 Start a map
-              </a>
+              </Link>
             </div>
           </nav>
         </div>
@@ -153,20 +152,20 @@ export default async function LandingPage() {
               <h1
                 id="hero-heading"
                 className="max-w-6xl"
-                aria-label="Keep the whole system in view."
+                aria-label="Keep the whole stack in view"
               >
-                <span className={styles.heroLine}>Keep the whole system</span>
-                <span className={styles.heroLine}>in view.</span>
+                <span className={styles.heroLine}>Keep the whole stack</span>
+                <span className={styles.heroLine}>in view</span>
               </h1>
               <p className={styles.heroDescription}>
                 StackHatch turns repositories and requirements into interactive architecture maps
                 you can explore, question, and keep current while you build.
               </p>
               <div className={styles.heroActions}>
-                <a href="#start" className={styles.primaryAction}>
-                  Choose how to start
+                <Link href="/app" className={styles.primaryAction}>
+                  Start a map
                   <ArrowRight aria-hidden="true" />
-                </a>
+                </Link>
                 <a href="#features" className={styles.secondaryAction}>
                   See StackHatch in action
                 </a>
@@ -216,11 +215,29 @@ export default async function LandingPage() {
           <div className={styles.sectionIntro}>
             <h2 id="start-heading">Start from wherever you are.</h2>
             <p>
-              Begin with a blank canvas, requirements, a public repository, or a saved template.
-              Every path leads to one architecture map you control.
+              Enter one workspace. StackHatch resumes your latest map, or lets you choose a blank
+              canvas, requirements, repository, or template inside the editor.
             </p>
           </div>
-          <PublicStartLaunchpad />
+          <div className={styles.startEntry}>
+            <div className={styles.startEntryCopy}>
+              <p className={styles.startEntryLabel}>One application entry</p>
+              <h3>Open the editor. Pick a source only when you need one.</h3>
+              <p>
+                Returning users continue where they left off. New maps begin from the same editor
+                workspace without replacing existing work.
+              </p>
+              <Link href="/app" className={styles.startEntryAction}>
+                Start a map
+                <ArrowRight aria-hidden="true" />
+              </Link>
+            </div>
+            <div className={styles.startEntryFlow} aria-hidden="true">
+              <span>Enter StackHatch</span>
+              <i />
+              <strong>Resume or create in the editor</strong>
+            </div>
+          </div>
           <p className={styles.startTrustLine}>
             Free to use <span aria-hidden="true">·</span> Blank maps and templates need no API key{" "}
             <span aria-hidden="true">·</span> AI starts use your Anthropic key
@@ -333,10 +350,10 @@ export default async function LandingPage() {
               <p>Start with what you already have. Keep the architecture useful as it changes.</p>
             </div>
             <div className={styles.finalCtaActions}>
-              <a href="#start" className={styles.finalPrimaryAction}>
-                Choose a starting point
+              <Link href="/app" className={styles.finalPrimaryAction}>
+                Start a map
                 <ArrowRight aria-hidden="true" />
-              </a>
+              </Link>
               <Link href="/login?callbackUrl=/app" className={styles.finalSecondaryAction}>
                 Sign in to StackHatch
               </Link>
@@ -351,7 +368,7 @@ export default async function LandingPage() {
           <p>Architecture you can see, question, and revisit.</p>
         </div>
         <nav aria-label="Footer navigation">
-          <a href="#start">Start a map</a>
+          <Link href="/app">Start a map</Link>
           <a href="#features">Product</a>
           <TrackedSourceLink
             href="https://github.com/mwmdev/stackhatch"

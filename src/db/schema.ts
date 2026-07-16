@@ -1,4 +1,4 @@
-import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { foreignKey, index, integer, sqliteTable, text, unique } from "drizzle-orm/sqlite-core";
 
 export type UserRole = "user" | "admin";
 
@@ -14,22 +14,51 @@ export const users = sqliteTable("users", {
   createdAt: integer("created_at", { mode: "number" }).notNull(),
 });
 
-export const projects = sqliteTable("projects", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull(),
-  description: text("description"),
-  repoUrl: text("repo_url"),
-  repoCommitSha: text("repo_commit_sha"),
-  repoScannedAt: integer("repo_scanned_at", { mode: "number" }),
-  repoAnalysisStatus: text("repo_analysis_status", { enum: ["complete", "partial"] }),
-  repoAnalysisWarning: text("repo_analysis_warning"),
-  canvasState: text("canvas_state"),
-  userId: text("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  createdAt: integer("created_at", { mode: "number" }).notNull(),
-  updatedAt: integer("updated_at", { mode: "number" }).notNull(),
-});
+export const projects = sqliteTable(
+  "projects",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    description: text("description"),
+    repoUrl: text("repo_url"),
+    repoCommitSha: text("repo_commit_sha"),
+    repoScannedAt: integer("repo_scanned_at", { mode: "number" }),
+    repoAnalysisStatus: text("repo_analysis_status", { enum: ["complete", "partial"] }),
+    repoAnalysisWarning: text("repo_analysis_warning"),
+    canvasState: text("canvas_state"),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: integer("created_at", { mode: "number" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "number" }).notNull(),
+  },
+  (table) => [
+    unique("projects_user_id_id_unique").on(table.userId, table.id),
+    index("projects_user_resume_order_idx").on(
+      table.userId,
+      table.updatedAt,
+      table.createdAt,
+      table.id
+    ),
+  ]
+);
+
+export const userProjectState = sqliteTable(
+  "user_project_state",
+  {
+    userId: text("user_id")
+      .primaryKey()
+      .references(() => users.id, { onDelete: "cascade" }),
+    lastOpenedProjectId: text("last_opened_project_id"),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.userId, table.lastOpenedProjectId],
+      foreignColumns: [projects.userId, projects.id],
+      name: "user_project_state_owned_project_fk",
+    }).onDelete("cascade"),
+  ]
+);
 
 export const messages = sqliteTable("messages", {
   id: text("id").primaryKey(),

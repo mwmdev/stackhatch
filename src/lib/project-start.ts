@@ -5,6 +5,7 @@ export type ProjectStartMethod = (typeof PROJECT_START_METHODS)[number];
 const PROJECT_START_METHOD_KEY = "stackhatch:project-start-method";
 const BLANK_AUTO_CREATE_KEY = "stackhatch:blank-auto-create";
 const REPOSITORY_SLUG_PATTERN = /^[A-Za-z0-9_-]+\/[A-Za-z0-9_.-]+$/;
+const PROJECT_RETURN_PATTERN = /^\/project\/[A-Za-z0-9_-]+$/;
 
 export function isProjectStartMethod(value: unknown): value is ProjectStartMethod {
   return typeof value === "string" && PROJECT_START_METHODS.includes(value as ProjectStartMethod);
@@ -14,21 +15,39 @@ export function isPublicRepositorySlug(value: string) {
   return REPOSITORY_SLUG_PATTERN.test(value.trim());
 }
 
-export function buildProjectStartPath(method: ProjectStartMethod, repository?: string) {
-  if (method === "blank") return "/app?start=blank";
-  if (method === "requirements") return "/project/new?mode=requirements";
-  if (method === "template") return "/project/new?mode=template";
+export function safeProjectReturnPath(value: string | null | undefined) {
+  if (!value || !PROJECT_RETURN_PATTERN.test(value)) return null;
+  return value;
+}
 
-  const slug = repository?.trim();
-  if (!slug) return "/project/new?mode=repository";
-  if (!isPublicRepositorySlug(slug)) {
-    throw new Error("Repository must use the owner/repository format");
+export function buildProjectStartChooserPath(returnTo?: string | null) {
+  const safeReturnTo = safeProjectReturnPath(returnTo);
+  return safeReturnTo
+    ? `/project/new?returnTo=${encodeURIComponent(safeReturnTo)}`
+    : "/project/new";
+}
+
+export function buildProjectStartPath(
+  method: ProjectStartMethod,
+  { repository, returnTo }: { repository?: string; returnTo?: string | null } = {}
+) {
+  const params = new URLSearchParams({ mode: method });
+
+  if (method === "repository") {
+    const slug = repository?.trim();
+    if (slug && !isPublicRepositorySlug(slug)) {
+      throw new Error("Repository must use the owner/repository format");
+    }
+    if (slug) params.set("repo", slug);
   }
-  return `/project/new?mode=repository&repo=${encodeURIComponent(slug)}`;
+
+  const safeReturnTo = safeProjectReturnPath(returnTo);
+  if (safeReturnTo) params.set("returnTo", safeReturnTo);
+  return `/project/new?${params.toString()}`;
 }
 
 export function buildProjectStartLoginUrl(method: ProjectStartMethod, repository?: string) {
-  return `/login?callbackUrl=${encodeURIComponent(buildProjectStartPath(method, repository))}`;
+  return `/login?callbackUrl=${encodeURIComponent(buildProjectStartPath(method, { repository }))}`;
 }
 
 /**
@@ -65,10 +84,16 @@ export function projectStartMethodFromPath(path: string): ProjectStartMethod | n
     if (parsed.pathname === "/app" && parsed.searchParams.get("start") === "blank") {
       return "blank";
     }
+    if (
+      parsed.pathname === "/app" &&
+      isPublicRepositorySlug(parsed.searchParams.get("repo") || "")
+    ) {
+      return "repository";
+    }
     if (parsed.pathname !== "/project/new") return null;
 
     const mode = parsed.searchParams.get("mode");
-    return isProjectStartMethod(mode) && mode !== "blank" ? mode : null;
+    return isProjectStartMethod(mode) ? mode : null;
   } catch {
     return null;
   }
@@ -77,13 +102,66 @@ export function projectStartMethodFromPath(path: string): ProjectStartMethod | n
 export function repositoryFromProjectStartPath(path: string) {
   try {
     const parsed = new URL(path, "https://stackhatch.io");
-    if (parsed.pathname !== "/project/new" || parsed.searchParams.get("mode") !== "repository") {
+    const isCanonical =
+      parsed.pathname === "/project/new" && parsed.searchParams.get("mode") === "repository";
+    const isLegacy = parsed.pathname === "/app";
+    if (!isCanonical && !isLegacy) {
       return null;
     }
     const repository = parsed.searchParams.get("repo")?.trim();
     return repository && isPublicRepositorySlug(repository) ? repository : null;
   } catch {
     return null;
+  }
+}
+
+export function canonicalProjectStartPath(path: string) {
+  try {
+    const parsed = new URL(path, "https://stackhatch.io");
+    if (parsed.origin !== "https://stackhatch.io") return null;
+
+    if (parsed.pathname === "/app" && parsed.searchParams.get("start") === "blank") {
+      return buildProjectStartPath("blank");
+    }
+    if (parsed.pathname === "/app") {
+      const repository = parsed.searchParams.get("repo")?.trim();
+      if (repository && isPublicRepositorySlug(repository)) {
+        return buildProjectStartPath("repository", { repository });
+      }
+      if (parsed.hash === "#start") return "/project/new";
+    }
+    if (parsed.pathname !== "/project/new") return null;
+
+    const mode = parsed.searchParams.get("mode");
+    const returnTo = safeProjectReturnPath(parsed.searchParams.get("returnTo"));
+    if (!isProjectStartMethod(mode)) return buildProjectStartChooserPath(returnTo);
+
+    const repository = parsed.searchParams.get("repo")?.trim();
+    return buildProjectStartPath(mode, {
+      repository:
+        mode === "repository" && repository && isPublicRepositorySlug(repository)
+          ? repository
+          : undefined,
+      returnTo,
+    });
+  } catch {
+    return null;
+  }
+}
+
+export function callbackUrlWithLegacyFragment(callbackUrl: string, fragment: string) {
+  if (fragment !== "#start") return callbackUrl;
+
+  try {
+    const parsed = new URL(callbackUrl, "https://stackhatch.io");
+    if (parsed.origin !== "https://stackhatch.io" || parsed.pathname !== "/app") {
+      return callbackUrl;
+    }
+    return (
+      canonicalProjectStartPath(`${parsed.pathname}${parsed.search}${fragment}`) ?? callbackUrl
+    );
+  } catch {
+    return callbackUrl;
   }
 }
 
