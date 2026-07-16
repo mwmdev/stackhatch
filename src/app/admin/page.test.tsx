@@ -49,6 +49,12 @@ describe("AdminPage", () => {
     expect(screen.queryByRole("tab", { name: "Model" })).not.toBeInTheDocument();
   });
 
+  it("labels /app as resume navigation instead of a dashboard", async () => {
+    render(<AdminPage />);
+
+    expect(await screen.findByRole("link", { name: "Resume map" })).toHaveAttribute("href", "/app");
+  });
+
   it("offers only user and admin roles", async () => {
     render(<AdminPage />);
     const role = await screen.findByLabelText("Role for User One");

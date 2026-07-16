@@ -3,9 +3,10 @@ import { render, screen, waitFor, act, fireEvent } from "@testing-library/react"
 
 // Mock next/navigation
 const mockPush = vi.fn();
+const mockReplace = vi.fn();
 vi.mock("next/navigation", () => ({
   useParams: () => ({ id: "test-project-id" }),
-  useRouter: () => ({ push: mockPush }),
+  useRouter: () => ({ push: mockPush, replace: mockReplace }),
 }));
 
 // Mock reactflow — minimal version for jsdom that avoids text conflicts
@@ -341,6 +342,8 @@ const { mockTrackEvent, mockConsumePendingProjectStart, mockGetPendingProjectSta
 
 vi.mock("@/lib/analytics", () => ({ trackEvent: mockTrackEvent }));
 vi.mock("@/lib/project-start", () => ({
+  buildProjectStartChooserPath: (returnTo?: string | null) =>
+    returnTo ? `/project/new?returnTo=${encodeURIComponent(returnTo)}` : "/project/new",
   consumePendingProjectStart: mockConsumePendingProjectStart,
   getPendingProjectStart: mockGetPendingProjectStart,
 }));
@@ -516,6 +519,7 @@ describe("ProjectPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     window.localStorage.clear();
+    window.history.replaceState({}, "", "/project/test-project-id");
     mockConsumePendingProjectStart.mockReturnValue(null);
     mockGetPendingProjectStart.mockReturnValue(null);
   });
@@ -564,7 +568,7 @@ describe("ProjectPage", () => {
       await waitFor(() => {
         expect(screen.getByText("Project not found")).toBeInTheDocument();
       });
-      expect(screen.getByText("Back to Dashboard")).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "All Maps" })).toHaveAttribute("href", "/app/maps");
       expect(
         (global.fetch as ReturnType<typeof vi.fn>).mock.calls.some(
           ([input, init]) =>
@@ -579,6 +583,26 @@ describe("ProjectPage", () => {
       await waitFor(() => {
         expect(screen.getByText("Failed to load project")).toBeInTheDocument();
       });
+    });
+
+    it("re-resolves a marked resume once when the selected project disappears", async () => {
+      window.history.replaceState({}, "", "/project/test-project-id?resume=1");
+      mockFetchNotFound();
+
+      render(<ProjectPage />);
+
+      await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/app?resumeRecovery=1"));
+      expect(screen.getByRole("status")).toHaveTextContent("Finding another map");
+      expect(screen.queryByText("Project not found")).not.toBeInTheDocument();
+    });
+
+    it("does not recover a direct visit to a missing project", async () => {
+      mockFetchNotFound();
+
+      render(<ProjectPage />);
+
+      expect(await screen.findByText("Project not found")).toBeInTheDocument();
+      expect(mockReplace).not.toHaveBeenCalled();
     });
   });
 
@@ -973,15 +997,15 @@ describe("ProjectPage", () => {
       ).toBe(false);
     });
 
-    it("shows back to dashboard link", async () => {
+    it("shows an All Maps link", async () => {
       mockFetchProject(emptyProject);
       render(<ProjectPage />);
       await waitFor(() => {
         expect(screen.getByText("Test Project")).toBeInTheDocument();
       });
 
-      const dashboardLink = screen.getByRole("link", { name: "Back to dashboard" });
-      expect(dashboardLink).toHaveAttribute("href", "/app");
+      const allMapsLink = screen.getByRole("link", { name: "All Maps" });
+      expect(allMapsLink).toHaveAttribute("href", "/app/maps");
     });
 
     it("shows a new project icon next to the project name", async () => {
@@ -991,16 +1015,37 @@ describe("ProjectPage", () => {
         expect(screen.getByText("Test Project")).toBeInTheDocument();
       });
 
-      const newProjectLink = screen.getByLabelText("Create new project");
+      const newProjectLink = screen.getByLabelText("New Map");
       const projectTitle = screen.getByText("Test Project");
-      expect(newProjectLink).toHaveAttribute("href", "/project/new");
-      expect(newProjectLink).toHaveAttribute("title", "New project");
+      expect(newProjectLink).toHaveAttribute(
+        "href",
+        "/project/new?returnTo=%2Fproject%2Ftest-project-id"
+      );
+      expect(newProjectLink).toHaveAttribute("title", "New Map");
       expect(newProjectLink.querySelector(".lucide-folder-plus")).toBeInTheDocument();
       expect(
         Boolean(
           newProjectLink.compareDocumentPosition(projectTitle) & Node.DOCUMENT_POSITION_FOLLOWING
         )
       ).toBe(true);
+    });
+
+    it("consumes the one-time resume marker after a successful load without changing open POST behavior", async () => {
+      window.history.replaceState({}, "", "/project/test-project-id?resume=1");
+      mockFetchProject(emptyProject);
+
+      render(<ProjectPage />);
+
+      await screen.findByText("Test Project");
+      expect(window.location.pathname + window.location.search).toBe("/project/test-project-id");
+      await waitFor(() => {
+        const openCalls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.filter(
+          ([input, init]) =>
+            String(input) === "/api/projects/test-project-id/open" &&
+            (init as RequestInit | undefined)?.method === "POST"
+        );
+        expect(openCalls).toHaveLength(1);
+      });
     });
 
     it("shows the complete PRD export action for every user", async () => {

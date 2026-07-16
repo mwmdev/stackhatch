@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -58,7 +58,16 @@ import { applyDagreLayout } from "@/lib/layout";
 import { mergeArchitecture } from "@/lib/merge-architecture";
 import { parseCustomSubtypes, type CustomSubtypesMap } from "@/lib/custom-subtypes";
 import { trackEvent } from "@/lib/analytics";
-import { consumePendingProjectStart, getPendingProjectStart } from "@/lib/project-start";
+import {
+  APP_RESUME_RECOVERY_PATH,
+  hasAppResumeMarker,
+  withoutAppResumeMarker,
+} from "@/lib/app-route";
+import {
+  buildProjectStartChooserPath,
+  consumePendingProjectStart,
+  getPendingProjectStart,
+} from "@/lib/project-start";
 
 interface Project {
   id: string;
@@ -118,9 +127,11 @@ function isDefaultConnectionLabel(label: string, type: ConnectionType) {
 
 export default function ProjectPage() {
   const params = useParams();
+  const router = useRouter();
   const projectId = params.id as string;
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
+  const [recoveringResume, setRecoveringResume] = useState(false);
   const [error, setError] = useState("");
   const [selectedNode, setSelectedNode] = useState<StackNode | null>(null);
   const [nodePanelOpen, setNodePanelOpen] = useState(false);
@@ -1016,10 +1027,23 @@ export default function ProjectPage() {
         if (settingsResponse) setHasAnthropicKey(Boolean(settingsResponse.hasAnthropicKey));
         setCustomSubtypes(loadedCustomSubtypes);
         if (!res.ok) {
+          if (res.status === 404 && hasAppResumeMarker(window.location.search)) {
+            setRecoveringResume(true);
+            router.replace(APP_RESUME_RECOVERY_PATH);
+            return;
+          }
           setError("Project not found");
           return;
         }
         const data = await res.json();
+        if (hasAppResumeMarker(window.location.search)) {
+          const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+          window.history.replaceState(
+            window.history.state,
+            "",
+            withoutAppResumeMarker(currentPath)
+          );
+        }
         setProject(data);
         const hasLoadedCanvas = (data.canvasState?.nodes?.length ?? 0) > 0;
         setChatOpen(!hasLoadedCanvas);
@@ -1105,6 +1129,16 @@ export default function ProjectPage() {
       ? { nodes: project.canvasState.nodes, edges: project.canvasState.edges }
       : null;
   }, [project?.canvasState, rfNodes, rfEdges]);
+  if (recoveringResume) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[var(--background)] text-[var(--muted-foreground)]">
+        <p role="status" aria-live="polite">
+          Finding another map...
+        </p>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[var(--background)] text-[var(--muted-foreground)]">
@@ -1117,8 +1151,8 @@ export default function ProjectPage() {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-[var(--background)]">
         <p className="mb-4 text-[var(--danger)]">{error || "Project not found"}</p>
-        <Link href="/app" className="text-[var(--color-client)] hover:underline">
-          Back to Dashboard
+        <Link href="/app/maps" className="text-[var(--color-client)] hover:underline">
+          All Maps
         </Link>
       </div>
     );
@@ -1176,18 +1210,18 @@ export default function ProjectPage() {
           }`}
         >
           <Link
-            href="/app"
+            href="/app/maps"
             className="flex min-h-11 items-center gap-2 rounded-md px-2 text-sm text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
-            title="Back to dashboard"
+            title="All Maps"
           >
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            <span>Back to dashboard</span>
+            <span>All Maps</span>
           </Link>
           <Link
-            href="/project/new"
+            href={buildProjectStartChooserPath(`/project/${projectId}`)}
             className="flex h-11 w-11 items-center justify-center rounded-md text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
-            title="New project"
-            aria-label="Create new project"
+            title="New Map"
+            aria-label="New Map"
           >
             <FolderPlus className="h-[18px] w-[18px]" aria-hidden="true" />
           </Link>
