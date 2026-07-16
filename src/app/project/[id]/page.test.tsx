@@ -727,21 +727,19 @@ describe("ProjectPage", () => {
       });
     });
 
-    it("shows editor display settings before the theme switcher", async () => {
+    it("keeps display settings in the canvas tool surface and theme in the project bar", async () => {
       mockFetchProject(emptyProject);
       render(<ProjectPage />);
       await waitFor(() => {
         expect(screen.getByLabelText("Editor display settings")).toBeInTheDocument();
       });
 
-      const settingsButton = screen.getByLabelText("Editor display settings");
-      const themeButton = screen.getByLabelText("Theme: light");
-      expect(settingsButton.querySelector(".lucide-settings")).toBeInTheDocument();
-      expect(
-        Boolean(
-          settingsButton.compareDocumentPosition(themeButton) & Node.DOCUMENT_POSITION_FOLLOWING
-        )
-      ).toBe(true);
+      expect(screen.getByTestId("editor-tool-surface")).toContainElement(
+        screen.getByLabelText("Editor display settings")
+      );
+      expect(screen.getByTestId("editor-project-bar")).toContainElement(
+        screen.getByLabelText("Theme: light")
+      );
     });
 
     it("opens editor display settings and persists toggle changes", async () => {
@@ -784,46 +782,36 @@ describe("ProjectPage", () => {
       expect(screen.getByLabelText("Edge labels")).not.toBeChecked();
     });
 
-    it("toggles chat sidebar from the toolbar", async () => {
+    it("toggles chat from the responsive canvas tool surface", async () => {
       mockFetchProject(projectWithNodes);
       render(<ProjectPage />);
       await waitFor(() => {
-        expect(screen.getByLabelText("Show chat sidebar")).toBeInTheDocument();
+        expect(screen.getByLabelText("Open chat")).toBeInTheDocument();
       });
       expect(screen.getByTestId("chat-sidebar")).toHaveAttribute("data-open", "false");
 
-      fireEvent.click(screen.getByLabelText("Show chat sidebar"));
-      const hideToggle = screen.getByLabelText("Hide chat sidebar");
-      expect(hideToggle).toHaveClass("fixed", "left-4");
-      expect(hideToggle).toHaveStyle({
-        top: "calc(var(--impersonation-banner-height, 0px) + 0.5rem)",
-      });
+      fireEvent.click(screen.getByLabelText("Open chat"));
+      const hideToggle = screen.getByLabelText("Close chat");
       expect(screen.getByTestId("chat-sidebar")).toHaveAttribute("data-open", "true");
+      expect(screen.getByTestId("editor-tool-surface")).toHaveAttribute("data-obscured", "true");
 
-      fireEvent.click(hideToggle);
-      expect(screen.getByLabelText("Show chat sidebar")).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Mock Chat Toggle" }));
+      expect(screen.getByLabelText("Open chat")).toBe(hideToggle);
       expect(screen.getByTestId("chat-sidebar")).toHaveAttribute("data-open", "false");
     });
 
-    it("keeps the chat toggle fixed at the same top-left position", async () => {
+    it("keeps the chat trigger mounted while the mobile dock yields", async () => {
       mockFetchProject(projectWithNodes);
       render(<ProjectPage />);
       await waitFor(() => {
-        expect(screen.getByLabelText("Show chat sidebar")).toBeInTheDocument();
+        expect(screen.getByLabelText("Open chat")).toBeInTheDocument();
       });
 
-      const chatToggle = screen.getByLabelText("Show chat sidebar");
-      const projectTitle = screen.getByText("Test Project");
-      expect(chatToggle).toHaveClass("fixed", "left-4");
-      expect(chatToggle).toHaveStyle({
-        top: "calc(var(--impersonation-banner-height, 0px) + 0.5rem)",
-      });
-      expect(
-        Boolean(chatToggle.compareDocumentPosition(projectTitle) & Node.DOCUMENT_POSITION_FOLLOWING)
-      ).toBe(true);
+      const chatToggle = screen.getByLabelText("Open chat");
 
       fireEvent.click(chatToggle);
-      expect(screen.getByLabelText("Hide chat sidebar")).toBe(chatToggle);
+      expect(screen.getByLabelText("Close chat")).toBe(chatToggle);
+      expect(screen.getByTestId("editor-tool-surface")).toHaveAttribute("data-obscured", "true");
     });
 
     it("reserves viewport height for the impersonation banner", async () => {
@@ -833,16 +821,18 @@ describe("ProjectPage", () => {
         expect(screen.getByTestId("project-editor-shell")).toBeInTheDocument();
       });
 
-      expect(screen.getByTestId("project-editor-shell")).toHaveStyle({
-        height: "calc(100vh - var(--impersonation-banner-height, 0px))",
-      });
+      expect(screen.getByTestId("project-editor-shell")).toHaveClass("project-editor-shell");
+      expect(screen.getByTestId("project-editor-shell")).toHaveAttribute(
+        "data-height-contract",
+        "viewport-minus-impersonation"
+      );
     });
 
     it("does not render the removed Re-layout button when nodes exist", async () => {
       mockFetchProject(projectWithNodes);
       render(<ProjectPage />);
       await waitFor(() => {
-        expect(screen.getByTestId("react-flow-controls")).toBeInTheDocument();
+        expect(screen.getByTestId("react-flow-canvas")).toBeInTheDocument();
       });
       expect(screen.queryByText("Re-layout")).not.toBeInTheDocument();
     });
@@ -877,7 +867,7 @@ describe("ProjectPage", () => {
       );
       expect(rescanButton).toHaveAttribute("title", "Re-scan: https://github.com/example/repo");
       expect(rescanButton.querySelector("svg")).toBeInTheDocument();
-      expect(screen.getByText("Re-scan Repo")).toHaveClass("opacity-0");
+      expect(screen.getByRole("tooltip", { name: "Re-scan repository" })).toBeInTheDocument();
 
       fireEvent.click(rescanButton);
       expect(screen.getByRole("dialog", { name: "Replace this architecture map?" })).toBeVisible();
@@ -986,7 +976,9 @@ describe("ProjectPage", () => {
       mockFetchProject(projectWithNodes);
       render(<ProjectPage />);
 
-      const saveButton = await screen.findByRole("button", { name: "Save as Template" });
+      await screen.findByRole("button", { name: "More project actions" });
+      fireEvent.click(screen.getByRole("button", { name: "More project actions" }));
+      const saveButton = screen.getByRole("menuitem", { name: "Save as Template" });
       expect(saveButton).toHaveAttribute("title", "Save current map as a personal template");
       fireEvent.click(saveButton);
 
@@ -994,9 +986,10 @@ describe("ProjectPage", () => {
       await waitFor(() => expect(screen.getByLabelText(/Template Name/)).toHaveFocus());
       fireEvent.keyDown(window, { key: "Escape" });
       expect(screen.queryByRole("dialog", { name: "Save as Template" })).not.toBeInTheDocument();
-      expect(saveButton).toHaveFocus();
+      expect(screen.getByRole("button", { name: "More project actions" })).toHaveFocus();
 
-      fireEvent.click(saveButton);
+      fireEvent.click(screen.getByRole("button", { name: "More project actions" }));
+      fireEvent.click(screen.getByRole("menuitem", { name: "Save as Template" }));
       fireEvent.change(screen.getByLabelText(/Template Name/), {
         target: { value: "Service boundary" },
       });
@@ -1022,8 +1015,9 @@ describe("ProjectPage", () => {
         expect(screen.getByText("Test Project")).toBeInTheDocument();
       });
 
-      const allMapsLink = screen.getByRole("link", { name: "All Maps" });
+      const allMapsLink = screen.getByRole("link", { name: "All maps" });
       expect(allMapsLink).toHaveAttribute("href", "/app/maps");
+      expect(allMapsLink).not.toHaveTextContent("All Maps");
     });
 
     it("shows a new project icon next to the project name", async () => {
@@ -1066,16 +1060,17 @@ describe("ProjectPage", () => {
       });
     });
 
-    it("shows the complete PRD export action for every user", async () => {
+    it("shows the complete PRD export action for every user in More actions", async () => {
       mockFetchProject(projectWithNodes);
       render(<ProjectPage />);
       await waitFor(() => {
         expect(screen.getByTestId("react-flow-canvas")).toHaveAttribute("data-node-count", "2");
       });
-      expect(screen.getByText("PRD")).toBeInTheDocument();
-      const prdButton = screen.getByLabelText("Generate PRD from architecture");
+      fireEvent.click(screen.getByRole("button", { name: "More project actions" }));
+      const prdButton = screen.getByRole("menuitem", {
+        name: "Generate PRD from architecture",
+      });
       expect(prdButton.querySelector(".lucide-sparkles")).toBeInTheDocument();
-      expect(prdButton).toHaveAttribute("title", "Generate PRD from architecture");
     });
 
     it("shows PRD export for admin users", async () => {
@@ -1084,7 +1079,85 @@ describe("ProjectPage", () => {
       });
       render(<ProjectPage />);
       await waitFor(() => {
-        expect(screen.getByText("PRD")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "More project actions" })).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByRole("button", { name: "More project actions" }));
+      expect(
+        screen.getByRole("menuitem", { name: "Generate PRD from architecture" })
+      ).toBeInTheDocument();
+    });
+
+    it("announces PRD progress and failure after the transient More menu closes", async () => {
+      mockFetchProject(projectWithNodes);
+      const baseFetch = global.fetch;
+      let resolveExport: ((response: Response) => void) | undefined;
+      global.fetch = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input).endsWith("/export-prd")) {
+          return new Promise<Response>((resolve) => {
+            resolveExport = resolve;
+          });
+        }
+        return baseFetch(input, init);
+      }) as typeof fetch;
+
+      render(<ProjectPage />);
+      await screen.findByTestId("react-flow-canvas");
+      fireEvent.click(screen.getByRole("button", { name: "More project actions" }));
+      fireEvent.click(screen.getByRole("menuitem", { name: "Generate PRD from architecture" }));
+
+      expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+      expect(screen.getByRole("status")).toHaveTextContent("Generating PRD");
+
+      await act(async () => {
+        resolveExport?.(
+          new Response(JSON.stringify({ error: "PRD service unavailable" }), {
+            status: 503,
+            headers: { "Content-Type": "application/json" },
+          })
+        );
+      });
+      await waitFor(() => {
+        expect(screen.getByRole("status")).toHaveTextContent("PRD export failed");
+      });
+    });
+
+    it("keeps the project bar to one compact row and only truncates the project name", async () => {
+      mockFetchProject(projectWithRepo);
+      render(<ProjectPage />);
+
+      const bar = await screen.findByTestId("editor-project-bar");
+      expect(bar).toHaveAttribute("data-layout", "single-row");
+      expect(bar).toHaveClass("flex-nowrap");
+      expect(screen.getByRole("heading", { name: "Test Project" })).toHaveClass("truncate");
+      expect(screen.getByTestId("project-provenance")).not.toHaveClass("truncate");
+      expect(screen.getByTestId("project-identity")).toHaveClass("min-w-0");
+    });
+
+    it("does not offer repository attachment for a standalone map", async () => {
+      mockFetchProject(projectWithNodes);
+      render(<ProjectPage />);
+      await screen.findByRole("heading", { name: "Test Project" });
+
+      expect(screen.queryByRole("button", { name: /Map repository/i })).not.toBeInTheDocument();
+      expect(screen.queryByPlaceholderText("owner/repo")).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "More project actions" }));
+      expect(screen.queryByRole("menuitem", { name: /repository/i })).not.toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "New Map" })).toHaveAttribute(
+        "href",
+        "/project/new?returnTo=%2Fproject%2Ftest-project-id"
+      );
+    });
+
+    it("moves focus to a stable canvas target when the phone dock yields to chat", async () => {
+      mockFetchProject(projectWithNodes);
+      render(<ProjectPage />);
+      const chatButton = await screen.findByRole("button", { name: "Open chat" });
+
+      chatButton.focus();
+      fireEvent.click(chatButton);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("editor-canvas-focus-target")).toHaveFocus();
       });
     });
   });
@@ -1161,9 +1234,11 @@ describe("ProjectPage", () => {
       await waitFor(() => {
         expect(screen.getByTestId("node-detail-panel")).toHaveAttribute("data-open", "true");
       });
+      expect(screen.getByTestId("editor-tool-surface")).toHaveAttribute("data-obscured", "true");
 
       fireEvent.click(screen.getByTestId("mock-flow-node-n1"));
       expect(screen.getByTestId("node-detail-panel")).toHaveAttribute("data-open", "false");
+      expect(screen.getByTestId("editor-tool-surface")).toHaveAttribute("data-obscured", "false");
     });
 
     it("opens a Note node with its persisted color", async () => {
@@ -1227,6 +1302,7 @@ describe("ProjectPage", () => {
 
       fireEvent.click(screen.getByTestId("mock-flow-edge-e1"));
       expect(screen.getByTestId("connection-type-selector")).toBeInTheDocument();
+      expect(screen.getByTestId("editor-tool-surface")).toHaveAttribute("data-obscured", "true");
     });
 
     it("changes the connection type from an edge click for every user", async () => {
@@ -1279,12 +1355,15 @@ describe("ProjectPage", () => {
       });
     });
 
-    it("renders Controls component", async () => {
+    it("renders named zoom and fit controls in the editor tool surface", async () => {
       mockFetchProject(emptyProject);
       render(<ProjectPage />);
       await waitFor(() => {
-        expect(screen.getByTestId("react-flow-controls")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Zoom in" })).toBeInTheDocument();
       });
+      expect(screen.getByRole("button", { name: "Zoom out" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Fit map to view" })).toBeInTheDocument();
+      expect(screen.queryByTestId("react-flow-controls")).not.toBeInTheDocument();
     });
 
     it("does not render MiniMap component", async () => {

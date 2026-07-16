@@ -335,6 +335,89 @@ body {
   transform: translateY(-50%);
 }
 
+.project-editor-shell {
+  height: calc(100vh - var(--impersonation-banner-height, 0px));
+  height: calc(100dvh - var(--impersonation-banner-height, 0px));
+  min-width: 0;
+  overflow: hidden;
+}
+
+.editor-tool-surface {
+  position: absolute;
+  right: 0.5rem;
+  bottom: calc(0.5rem + env(safe-area-inset-bottom));
+  left: 0.5rem;
+  z-index: 30;
+  display: flex;
+  width: max-content;
+  max-width: calc(100vw - 1rem);
+  align-items: center;
+  gap: 0.25rem;
+  margin-inline: auto;
+  padding: 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius-control) + 0.25rem);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-low);
+  transition:
+    opacity 140ms ease,
+    visibility 140ms ease;
+}
+
+.editor-tool-surface[data-obscured="true"] {
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.editor-tool-surface__separator {
+  width: 1px;
+  height: 1.5rem;
+  flex: none;
+  margin-inline: 0.125rem;
+  background: var(--border);
+}
+
+@media (max-width: 767px) {
+  .project-editor-shell .react-flow__attribution {
+    bottom: calc(4.25rem + env(safe-area-inset-bottom));
+  }
+}
+
+@media (min-width: 768px) {
+  .editor-tool-surface {
+    top: 50%;
+    right: auto;
+    bottom: auto;
+    left: 0.75rem;
+    max-width: none;
+    max-height: calc(100% - 1.5rem);
+    flex-direction: column;
+    margin: 0;
+    transform: translateY(-50%);
+  }
+
+  .editor-tool-surface[data-obscured="true"] {
+    opacity: 1;
+    pointer-events: auto;
+    visibility: visible;
+  }
+
+  .editor-tool-surface__separator {
+    width: 1.5rem;
+    height: 1px;
+    margin-block: 0.125rem;
+    margin-inline: 0;
+  }
+
+  .editor-tool-surface .icon-control__tooltip {
+    top: 50%;
+    bottom: auto;
+    left: calc(100% + 0.5rem);
+    transform: translateY(-50%);
+  }
+}
+
 .page-shell {
   min-height: 100vh;
   min-height: 100dvh;

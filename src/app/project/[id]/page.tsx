@@ -4,17 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import {
-  ArrowLeft,
-  FolderPlus,
-  MessageSquareText,
-  PanelLeftClose,
-  RefreshCw,
-  Sparkles,
-} from "lucide-react";
+import { ArrowLeft, Ellipsis, FolderPlus, LayoutTemplate, RefreshCw, Sparkles } from "lucide-react";
 import ReactFlow, {
   Background,
-  Controls,
   useNodesState,
   useEdgesState,
   BackgroundVariant,
@@ -32,13 +24,14 @@ import StackNodeComponent, { type StackNodeData } from "@/components/canvas/Stac
 import StackEdgeComponent, { edgeStyles, type StackEdgeData } from "@/components/canvas/StackEdge";
 import EdgeLegend from "@/components/canvas/EdgeLegend";
 import ExportDropdown from "@/components/canvas/ExportDropdown";
-import EditorDisplaySettingsDropdown from "@/components/canvas/EditorDisplaySettingsDropdown";
+import EditorToolSurface from "@/components/canvas/EditorToolSurface";
 import {
   DEFAULT_EDITOR_DISPLAY_SETTINGS,
   EditorDisplaySettingsProvider,
   type EditorDisplaySettings,
 } from "@/components/canvas/EditorDisplaySettings";
 import ThemeToggle from "@/components/ThemeToggle";
+import IconControl from "@/components/ui/IconControl";
 import {
   toReactFlowNodes,
   toReactFlowEdges,
@@ -143,11 +136,11 @@ export default function ProjectPage() {
   const [scanTrigger, setScanTrigger] = useState(0);
   const [chatStreaming, setChatStreaming] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
-  const [showScanInput, setShowScanInput] = useState(false);
-  const [scanUrlInput, setScanUrlInput] = useState("");
   const [alternatives, setAlternatives] = useState<Record<string, AlternativeNode[]>>({});
   const [altLoading, setAltLoading] = useState(false);
   const [prdLoading, setPrdLoading] = useState(false);
+  const [prdStatus, setPrdStatus] = useState("");
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [saveTemplateModalOpen, setSaveTemplateModalOpen] = useState(false);
   const [templateSaving, setTemplateSaving] = useState(false);
   const [hasAnthropicKey, setHasAnthropicKey] = useState<boolean | null>(null);
@@ -182,6 +175,9 @@ export default function ProjectPage() {
   const rescanInvokerRef = useRef<HTMLButtonElement | null>(null);
   const saveTemplateDialogRef = useRef<HTMLDivElement | null>(null);
   const saveTemplateInvokerRef = useRef<HTMLButtonElement | null>(null);
+  const moreMenuRef = useRef<HTMLDivElement | null>(null);
+  const moreMenuInvokerRef = useRef<HTMLButtonElement | null>(null);
+  const canvasFocusTargetRef = useRef<HTMLDivElement | null>(null);
   const nodePanelCloseTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const latestFlowRef = useRef<{
     nodes: Node<StackNodeData>[];
@@ -202,6 +198,18 @@ export default function ProjectPage() {
     trackEvent("repository_rescan_started", { location: "editor" });
     setScanTrigger((trigger) => trigger + 1);
   }, []);
+
+  const focusCanvasTarget = useCallback(() => {
+    window.requestAnimationFrame(() => canvasFocusTargetRef.current?.focus());
+  }, []);
+
+  const handleChatOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      setChatOpen(nextOpen);
+      focusCanvasTarget();
+    },
+    [focusCanvasTarget]
+  );
 
   // Keep refs in sync for use in stable callbacks
   projectRef.current = project;
@@ -224,6 +232,33 @@ export default function ProjectPage() {
     const timer = setTimeout(() => setToast(null), 4000);
     return () => clearTimeout(timer);
   }, [toast]);
+
+  useEffect(() => {
+    if (!moreMenuOpen) return;
+
+    function closeOnOutsideClick(event: MouseEvent) {
+      if (
+        !(event.target instanceof globalThis.Node) ||
+        !moreMenuRef.current?.contains(event.target)
+      ) {
+        setMoreMenuOpen(false);
+      }
+    }
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setMoreMenuOpen(false);
+      moreMenuInvokerRef.current?.focus();
+    }
+
+    document.addEventListener("mousedown", closeOnOutsideClick);
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutsideClick);
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [moreMenuOpen]);
 
   const loadedProjectId = project?.id;
   useEffect(() => {
@@ -427,7 +462,7 @@ export default function ProjectPage() {
     if (!saveTemplateModalOpen) return;
     const previouslyFocused =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const templateInvoker = saveTemplateInvokerRef.current;
+    const templateInvoker = saveTemplateInvokerRef.current ?? moreMenuInvokerRef.current;
     const focusDialog = window.requestAnimationFrame(() => {
       saveTemplateDialogRef.current?.querySelector<HTMLElement>("[data-autofocus]")?.focus();
     });
@@ -610,6 +645,7 @@ export default function ProjectPage() {
       if (connectionTypePopover.mode === "create") {
         addConnectionEdge(connectionTypePopover.sourceId, connectionTypePopover.targetId, type);
         setConnectionTypePopover(null);
+        focusCanvasTarget();
         return;
       }
 
@@ -642,13 +678,15 @@ export default function ProjectPage() {
         };
       });
       setConnectionTypePopover(null);
+      focusCanvasTarget();
     },
-    [addConnectionEdge, connectionTypePopover, setRfEdges]
+    [addConnectionEdge, connectionTypePopover, focusCanvasTarget, setRfEdges]
   );
 
   const handleCancelConnection = useCallback(() => {
     setConnectionTypePopover(null);
-  }, []);
+    focusCanvasTarget();
+  }, [focusCanvasTarget]);
 
   // --- Edge label editing ---
 
@@ -691,9 +729,11 @@ export default function ProjectPage() {
   const handleExportPrd = useCallback(async () => {
     if (!project) return;
     if (hasAnthropicKey === false) {
+      setPrdStatus("PRD export needs Anthropic setup.");
       setAiSetupRequired(true);
       return;
     }
+    setPrdStatus("Generating PRD...");
     setPrdLoading(true);
     try {
       const res = await fetch(`/api/projects/${projectId}/export-prd`, {
@@ -702,9 +742,11 @@ export default function ProjectPage() {
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         if (data.code === "AI_NOT_CONFIGURED") {
+          setPrdStatus("PRD export needs Anthropic setup.");
           setAiSetupRequired(true);
           return;
         }
+        setPrdStatus("PRD export failed.");
         setToast(data.error || "Failed to generate PRD");
         return;
       }
@@ -716,7 +758,9 @@ export default function ProjectPage() {
       link.href = url;
       link.click();
       URL.revokeObjectURL(url);
+      setPrdStatus("PRD exported.");
     } catch {
+      setPrdStatus("PRD export failed.");
       setToast("Failed to generate PRD");
     } finally {
       setPrdLoading(false);
@@ -810,7 +854,8 @@ export default function ProjectPage() {
 
   const handleClosePanel = useCallback(() => {
     closeNodePanel();
-  }, [closeNodePanel]);
+    focusCanvasTarget();
+  }, [closeNodePanel, focusCanvasTarget]);
 
   // --- Suggest alternatives ---
 
@@ -1137,6 +1182,8 @@ export default function ProjectPage() {
     [project?.canvasState]
   );
   const nodeCount = project?.canvasState?.nodes?.length ?? 0;
+  const toolSurfaceObscured = chatOpen || nodePanelOpen || connectionTypePopover !== null;
+  const toolSurfaceDialogOpen = saveTemplateModalOpen || rescanConfirmOpen || aiSetupRequired;
   const liveCanvasState = useMemo<StackArchitecture | null>(() => {
     if (rfNodes.length > 0 || rfEdges.length > 0) {
       return {
@@ -1179,26 +1226,10 @@ export default function ProjectPage() {
 
   return (
     <div
-      className="flex flex-col bg-[var(--background)] text-[var(--foreground)] md:flex-row"
+      className="project-editor-shell flex flex-col bg-[var(--background)] text-[var(--foreground)] md:flex-row"
       data-testid="project-editor-shell"
-      style={{ height: "calc(100vh - var(--impersonation-banner-height, 0px))" }}
+      data-height-contract="viewport-minus-impersonation"
     >
-      <button
-        onClick={() => setChatOpen((value) => !value)}
-        className="fixed left-4 z-50 flex h-11 w-11 items-center justify-center rounded-md text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]/30"
-        style={{ top: "calc(var(--impersonation-banner-height, 0px) + 0.5rem)" }}
-        title={chatOpen ? "Hide chat sidebar" : "Show chat sidebar"}
-        aria-label={chatOpen ? "Hide chat sidebar" : "Show chat sidebar"}
-        aria-pressed={chatOpen}
-        aria-controls="editor-chat-sidebar"
-      >
-        {chatOpen ? (
-          <PanelLeftClose className="h-[18px] w-[18px]" />
-        ) : (
-          <MessageSquareText className="h-[18px] w-[18px]" />
-        )}
-      </button>
-
       <div
         id="editor-chat-sidebar"
         className={`flex-shrink-0 overflow-hidden transition-[height,width] duration-200 ease-out motion-reduce:transition-none ${
@@ -1210,7 +1241,7 @@ export default function ProjectPage() {
           repoUrl={project.repoUrl}
           defaultOpen={!hasCanvas}
           open={chatOpen}
-          onOpenChange={setChatOpen}
+          onOpenChange={handleChatOpenChange}
           showCollapsedButton={false}
           scanTrigger={scanTrigger}
           canvasState={liveCanvasState}
@@ -1221,48 +1252,100 @@ export default function ProjectPage() {
       </div>
 
       {/* Canvas Area */}
-      <div className="flex flex-1 flex-col">
-        {/* Toolbar */}
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        {/* Project bar */}
         <div
-          className={`flex flex-wrap items-center gap-3 border-b border-[var(--border)] px-4 py-2 ${
-            chatOpen ? "" : "pl-16"
-          }`}
+          className="flex min-w-0 flex-nowrap items-center gap-0 border-b border-[var(--border)] bg-[var(--background)] px-1 py-1.5 sm:gap-1 sm:px-2"
+          data-testid="editor-project-bar"
+          data-layout="single-row"
         >
-          <Link
+          <IconControl
             href="/app/maps"
-            className="flex min-h-11 items-center gap-2 rounded-md px-2 text-sm text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
-            title="All Maps"
+            label="All maps"
+            tooltip="All maps"
+            tooltipPlacement="bottom"
           >
-            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            <span>All Maps</span>
-          </Link>
-          <Link
+            <ArrowLeft className="h-[18px] w-[18px]" />
+          </IconControl>
+          <IconControl
             href={buildProjectStartChooserPath(`/project/${projectId}`)}
-            className="flex h-11 w-11 items-center justify-center rounded-md text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
+            label="New Map"
+            tooltip="New map"
+            tooltipPlacement="bottom"
             title="New Map"
-            aria-label="New Map"
           >
-            <FolderPlus className="h-[18px] w-[18px]" aria-hidden="true" />
-          </Link>
-          <div className="min-w-0">
-            <h1 className="truncate text-lg font-semibold">{project.name}</h1>
-            {project.repoUrl && (
-              <p className="text-[11px] text-[var(--muted-foreground)]">
-                Generated architecture overview · not verified source truth
-              </p>
-            )}
-            {project.repoCommitSha && (
-              <p className="font-mono text-[11px] text-[var(--muted-foreground)]">
-                Scanned {project.repoCommitSha.slice(0, 7)}
-                {project.repoAnalysisStatus === "partial" ? " · partial analysis" : ""}
-                {project.repoScannedAt
-                  ? ` · ${new Date(project.repoScannedAt).toLocaleDateString()}`
-                  : ""}
-              </p>
-            )}
+            <FolderPlus className="h-[18px] w-[18px]" />
+          </IconControl>
+
+          <div
+            className="min-w-0 flex-1 overflow-hidden px-1 sm:px-2"
+            data-testid="project-identity"
+            aria-label={
+              project.repoUrl
+                ? `${project.name}. Repository map for ${project.repoUrl}.`
+                : `${project.name}. Standalone map.`
+            }
+          >
+            <h1 className="truncate text-sm font-semibold" title={project.name}>
+              {project.name}
+            </h1>
+            <div
+              className="whitespace-nowrap text-[10px] leading-4 text-[var(--muted-foreground)]"
+              data-testid="project-provenance"
+              title={
+                project.repoUrl
+                  ? `Generated architecture overview for ${project.repoUrl}; not verified source truth${
+                      project.repoCommitSha
+                        ? `. Scanned ${project.repoCommitSha}${
+                            project.repoAnalysisStatus === "partial" ? "; partial analysis" : ""
+                          }${
+                            project.repoScannedAt
+                              ? ` on ${new Date(project.repoScannedAt).toLocaleDateString()}`
+                              : ""
+                          }`
+                        : ""
+                    }`
+                  : "Standalone map"
+              }
+            >
+              {project.repoUrl && (
+                <span className="sr-only">
+                  Generated architecture overview · not verified source truth
+                </span>
+              )}
+              {project.repoCommitSha
+                ? `Scanned ${project.repoCommitSha.slice(0, 7)}${
+                    project.repoAnalysisStatus === "partial" ? " · partial analysis" : ""
+                  }`
+                : project.repoUrl
+                  ? "Repository map · generated overview"
+                  : "Standalone map"}
+            </div>
           </div>
-          <div className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto sm:justify-end">
-            <AddNodeDropdown onAddNode={handleAddNode} customSubtypes={customSubtypes} />
+
+          <div className="ml-auto flex shrink-0 items-center gap-1">
+            {project.repoUrl && (
+              <span
+                className="flex"
+                ref={(node) => {
+                  rescanInvokerRef.current = node?.querySelector("button") ?? null;
+                }}
+              >
+                <IconControl
+                  label={`Re-scan repository: ${project.repoUrl}`}
+                  tooltip="Re-scan repository"
+                  tooltipPlacement="bottom"
+                  variant="outline"
+                  title={`Re-scan: ${project.repoUrl}`}
+                  onClick={() => {
+                    if (nodeCount > 0) setRescanConfirmOpen(true);
+                    else startRepositoryRescan();
+                  }}
+                >
+                  <RefreshCw className="h-[18px] w-[18px]" />
+                </IconControl>
+              </span>
+            )}
             {nodeCount > 0 && (
               <ExportDropdown
                 rfInstanceRef={rfInstanceRef}
@@ -1272,95 +1355,72 @@ export default function ProjectPage() {
               />
             )}
             {nodeCount > 0 && (
-              <button
-                onClick={handleExportPrd}
-                disabled={prdLoading}
-                className="flex min-h-11 items-center gap-2 rounded-md border border-[var(--border)] px-3 py-2 text-xs font-medium text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)] disabled:opacity-50"
-                title="Generate PRD from architecture"
-                aria-label="Generate PRD from architecture"
-              >
-                <Sparkles className="h-[14px] w-[14px]" aria-hidden="true" />
-                <span>{prdLoading ? "Generating..." : "PRD"}</span>
-              </button>
-            )}
-            {nodeCount > 0 && (
-              <button
-                ref={saveTemplateInvokerRef}
-                onClick={() => setSaveTemplateModalOpen(true)}
-                className="min-h-11 rounded-md border border-[var(--border)] px-3 py-2 text-xs text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
-                title="Save current map as a personal template"
-              >
-                Save as Template
-              </button>
-            )}
-            {project.repoUrl ? (
-              <button
-                ref={rescanInvokerRef}
-                onClick={() => {
-                  if (nodeCount > 0) setRescanConfirmOpen(true);
-                  else startRepositoryRescan();
-                }}
-                className="group relative flex h-11 w-11 items-center justify-center rounded-md border border-[var(--border)] text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
-                aria-label={`Re-scan repository: ${project.repoUrl}`}
-                title={`Re-scan: ${project.repoUrl}`}
-              >
-                <RefreshCw className="h-[18px] w-[18px]" />
-                <span className="pointer-events-none absolute right-0 top-full z-50 mt-2 whitespace-nowrap rounded-md border border-[var(--border)] bg-[var(--card)] px-2 py-1 text-xs font-medium text-[var(--foreground)] opacity-0 shadow-sm transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
-                  Re-scan Repo
-                </span>
-              </button>
-            ) : (
-              <>
-                <button
-                  onClick={() => setShowScanInput((v) => !v)}
-                  className="min-h-11 rounded-md border border-[var(--border)] px-3 py-2 text-xs text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
-                  title="Map a public GitHub repository"
+              <div ref={moreMenuRef} className="relative">
+                <span
+                  className="flex"
+                  ref={(node) => {
+                    moreMenuInvokerRef.current = node?.querySelector("button") ?? null;
+                  }}
                 >
-                  Map repository
-                </button>
-                {showScanInput && (
-                  <form
-                    className="flex items-center gap-1"
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      if (!scanUrlInput.trim()) return;
-                      setProject((prev) =>
-                        prev ? { ...prev, repoUrl: scanUrlInput.trim() } : prev
-                      );
-                      setShowScanInput(false);
-                      setScanTrigger((t) => t + 1);
-                    }}
+                  <IconControl
+                    label="More project actions"
+                    tooltip="More"
+                    tooltipPlacement="bottom"
+                    pressed={moreMenuOpen}
+                    aria-expanded={moreMenuOpen}
+                    onClick={() => setMoreMenuOpen((open) => !open)}
                   >
-                    <input
-                      type="text"
-                      inputMode="url"
-                      value={scanUrlInput}
-                      onChange={(e) => setScanUrlInput(e.target.value)}
-                      placeholder="owner/repo"
-                      className="min-h-11 w-56 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--ring)]"
-                      autoFocus
-                    />
+                    <Ellipsis className="h-[18px] w-[18px]" />
+                  </IconControl>
+                </span>
+                {moreMenuOpen && (
+                  <div
+                    role="menu"
+                    aria-label="Project actions"
+                    className="absolute right-0 top-full z-40 mt-2 w-56 rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] p-1 shadow-lg"
+                  >
                     <button
-                      type="submit"
-                      disabled={!scanUrlInput.trim()}
-                      className="min-h-11 rounded-md bg-[var(--brand)] px-3 py-2 text-xs text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)] disabled:opacity-50"
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setMoreMenuOpen(false);
+                        void handleExportPrd();
+                      }}
+                      disabled={prdLoading}
+                      className="flex min-h-11 w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm text-[var(--foreground)] transition-colors hover:bg-[var(--muted)] disabled:opacity-50"
+                      aria-label="Generate PRD from architecture"
                     >
-                      Map
+                      <Sparkles className="h-[16px] w-[16px]" aria-hidden="true" />
+                      <span>{prdLoading ? "Generating PRD..." : "Generate PRD"}</span>
                     </button>
-                  </form>
+                    <button
+                      ref={saveTemplateInvokerRef}
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setMoreMenuOpen(false);
+                        setSaveTemplateModalOpen(true);
+                      }}
+                      className="flex min-h-11 w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]"
+                      title="Save current map as a personal template"
+                    >
+                      <LayoutTemplate className="h-[16px] w-[16px]" aria-hidden="true" />
+                      <span>Save as Template</span>
+                    </button>
+                  </div>
                 )}
-              </>
+              </div>
             )}
-            <EditorDisplaySettingsDropdown
-              value={editorDisplaySettings}
-              onChange={setEditorDisplaySettings}
-            />
             <ThemeToggle />
           </div>
         </div>
 
+        <p className="sr-only" role="status" aria-live="polite">
+          {prdStatus}
+        </p>
+
         {/* Canvas area */}
-        <div className="relative flex-1 bg-[var(--canvas)]">
+        <div className="relative min-h-0 flex-1 overflow-hidden bg-[var(--canvas)]">
           <EditorDisplaySettingsProvider value={editorDisplaySettings}>
             <ReactFlow
               nodes={rfNodes}
@@ -1390,9 +1450,36 @@ export default function ProjectPage() {
                 color="var(--muted-foreground)"
                 style={{ opacity: 0.3 }}
               />
-              <Controls />
             </ReactFlow>
           </EditorDisplaySettingsProvider>
+
+          <div
+            ref={canvasFocusTargetRef}
+            tabIndex={-1}
+            aria-label="Map canvas"
+            className="pointer-events-none absolute left-0 top-0 h-px w-px outline-none"
+            data-testid="editor-canvas-focus-target"
+          />
+
+          <EditorToolSurface
+            chatOpen={chatOpen}
+            onChatOpenChange={handleChatOpenChange}
+            onAddNode={handleAddNode}
+            customSubtypes={customSubtypes}
+            onZoomIn={() => {
+              void rfInstanceRef.current?.zoomIn();
+            }}
+            onZoomOut={() => {
+              void rfInstanceRef.current?.zoomOut();
+            }}
+            onFitView={() => {
+              void rfInstanceRef.current?.fitView({ padding: 0.16 });
+            }}
+            displaySettings={editorDisplaySettings}
+            onDisplaySettingsChange={setEditorDisplaySettings}
+            obscured={toolSurfaceObscured}
+            dialogOpen={toolSurfaceDialogOpen}
+          />
 
           {/* Generating architecture overlay */}
           {chatStreaming && !hasCanvas && (

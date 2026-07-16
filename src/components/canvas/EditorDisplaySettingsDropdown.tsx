@@ -2,16 +2,19 @@
 
 import { Settings } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import IconControl from "@/components/ui/IconControl";
 import type { EditorDisplaySettings } from "./EditorDisplaySettings";
 
 interface EditorDisplaySettingsDropdownProps {
   value: EditorDisplaySettings;
   onChange: (next: EditorDisplaySettings) => void;
+  placement?: "bottom" | "responsive";
 }
 
 export default function EditorDisplaySettingsDropdown({
   value,
   onChange,
+  placement = "bottom",
 }: EditorDisplaySettingsDropdownProps) {
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -35,21 +38,27 @@ export default function EditorDisplaySettingsDropdown({
 
   return (
     <div ref={dropdownRef} className="relative">
-      <button
-        type="button"
+      <IconControl
+        label="Editor display settings"
+        tooltipPlacement="top"
+        variant="outline"
+        pressed={open}
         onClick={() => setOpen((prev) => !prev)}
-        className="flex h-11 w-11 items-center justify-center rounded-md border border-[var(--border)] text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
-        title="Editor display settings"
-        aria-label="Editor display settings"
         aria-expanded={open}
+        className="h-11 w-11"
         data-testid="editor-display-settings-button"
       >
         <Settings className="h-[18px] w-[18px]" aria-hidden="true" />
-      </button>
+      </IconControl>
 
       {open && (
         <div
-          className="absolute right-0 top-full z-30 mt-1 w-52 rounded-lg border border-[var(--border)] bg-[var(--background)] p-1 shadow-lg"
+          className={`absolute z-30 w-52 rounded-lg border border-[var(--border)] bg-[var(--background)] p-1 shadow-lg ${
+            placement === "responsive"
+              ? "bottom-full right-0 mb-2 md:bottom-auto md:left-full md:right-auto md:top-0 md:ml-2"
+              : "right-0 top-full mt-1"
+          }`}
+          data-placement={placement}
           data-testid="editor-display-settings-dropdown"
         >
           <label className="flex min-h-10 cursor-pointer items-center justify-between gap-3 rounded-md px-3 py-2 text-sm text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]">

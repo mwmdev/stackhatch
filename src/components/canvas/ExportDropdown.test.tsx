@@ -109,10 +109,34 @@ describe("ExportDropdown", () => {
     });
   });
 
+  it("exposes a named 44px secondary utility and configurable menu placement", () => {
+    render(
+      <ExportDropdown
+        rfInstanceRef={makeRef()}
+        projectName="My App"
+        onError={vi.fn()}
+        placement="bottom"
+      />
+    );
+
+    const trigger = screen.getByRole("button", { name: "Export map" });
+    expect(trigger).toHaveClass("h-11", "w-11");
+    expect(trigger).toHaveClass("icon-control");
+    expect(trigger).toHaveAttribute("aria-describedby");
+    expect(screen.getByRole("tooltip", { name: "Export map" })).toHaveAttribute(
+      "data-placement",
+      "bottom"
+    );
+    fireEvent.click(trigger);
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    expect(trigger).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("export-dropdown")).toHaveAttribute("data-placement", "bottom");
+  });
+
   it("renders PNG, SVG, JSON, and YAML export options", () => {
     render(<ExportDropdown rfInstanceRef={makeRef()} projectName="My App" onError={vi.fn()} />);
 
-    fireEvent.click(screen.getByLabelText("Export diagram"));
+    fireEvent.click(screen.getByLabelText("Export map"));
 
     expect(screen.getByText("Export PNG")).toBeInTheDocument();
     expect(screen.getByText("Export SVG")).toBeInTheDocument();
@@ -141,7 +165,7 @@ describe("ExportDropdown", () => {
       />
     );
 
-    fireEvent.click(screen.getByLabelText("Export diagram"));
+    fireEvent.click(screen.getByLabelText("Export map"));
     fireEvent.click(screen.getByText("Export JSON"));
 
     expect(clickedAnchor?.download).toBe("My App.json");
@@ -198,7 +222,7 @@ describe("ExportDropdown", () => {
   it("downloads a YAML diagram payload", async () => {
     render(<ExportDropdown rfInstanceRef={makeRef()} projectName="My App" onError={vi.fn()} />);
 
-    fireEvent.click(screen.getByLabelText("Export diagram"));
+    fireEvent.click(screen.getByLabelText("Export map"));
     fireEvent.click(screen.getByText("Export YAML"));
 
     expect(clickedAnchor?.download).toBe("My App.yaml");
@@ -217,11 +241,11 @@ describe("ExportDropdown", () => {
 
     render(<ExportDropdown rfInstanceRef={makeRef()} projectName="My App" onError={vi.fn()} />);
 
-    fireEvent.click(screen.getByLabelText("Export diagram"));
+    fireEvent.click(screen.getByLabelText("Export map"));
     fireEvent.click(screen.getByText("Export PNG"));
     await vi.waitFor(() => expect(toPng).toHaveBeenCalledWith(viewport, expect.any(Object)));
 
-    fireEvent.click(screen.getByLabelText("Export diagram"));
+    fireEvent.click(screen.getByLabelText("Export map"));
     fireEvent.click(screen.getByText("Export SVG"));
     await vi.waitFor(() => expect(toSvg).toHaveBeenCalledWith(viewport, expect.any(Object)));
   });
