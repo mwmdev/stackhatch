@@ -33,6 +33,52 @@ const shellVariants = [
 ];
 
 test.describe("system-wide UI polish", () => {
+  test("shared shell navigation bars span the full viewport", async ({ page }) => {
+    await page.setViewportSize(shellViewports.desktop);
+    await useTheme(page, "light");
+
+    for (const route of ["/support", "/app/maps", "/settings", "/admin"]) {
+      await page.goto(route);
+      await page.locator(".page-shell__bar").waitFor();
+
+      const layout = await page.evaluate(() => {
+        function measure(selector: string) {
+          const rect = document.querySelector<HTMLElement>(selector)?.getBoundingClientRect();
+          return {
+            left: rect?.left ?? -1,
+            right: rect?.right ?? -1,
+            width: rect?.width ?? 0,
+          };
+        }
+
+        return {
+          bar: measure(".page-shell__bar"),
+          main: measure(".page-shell__main"),
+          footer: measure(".page-shell__footer"),
+          viewportWidth: window.innerWidth,
+        };
+      });
+
+      expect(layout.bar.left, `${route} header left edge`).toBeCloseTo(0, 0);
+      expect(layout.bar.right, `${route} header right edge`).toBeCloseTo(layout.viewportWidth, 0);
+
+      if (route === "/support") {
+        for (const [region, regionBounds] of Object.entries({
+          main: layout.main,
+          footer: layout.footer,
+        })) {
+          expect(regionBounds.width, `${region} width`).toBeLessThan(layout.viewportWidth);
+          expect(regionBounds.left, `${region} left inset`).toBeGreaterThan(0);
+          expect(regionBounds.right, `${region} right inset`).toBeLessThan(layout.viewportWidth);
+          expect(regionBounds.left, `${region} centered`).toBeCloseTo(
+            layout.viewportWidth - regionBounds.right,
+            0
+          );
+        }
+      }
+    }
+  });
+
   for (const { route, title, theme, viewportName } of [
     {
       route: "/login",
