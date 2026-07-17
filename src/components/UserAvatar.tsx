@@ -8,12 +8,16 @@ interface CurrentUser {
   role?: string;
 }
 
+export type UserAvatarProps = {
+  onRoleLoaded?: (role?: string) => void;
+};
+
 function getInitial(user: CurrentUser | null) {
   const value = user?.name || user?.email || user?.role || "User";
   return value.slice(0, 1).toUpperCase();
 }
 
-export default function UserAvatar() {
+export default function UserAvatar({ onRoleLoaded }: UserAvatarProps) {
   const [user, setUser] = useState<CurrentUser | null>(null);
 
   useEffect(() => {
@@ -21,15 +25,21 @@ export default function UserAvatar() {
     fetch("/api/me")
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (!cancelled) setUser(data);
+        if (!cancelled) {
+          setUser(data);
+          onRoleLoaded?.(data?.role);
+        }
       })
       .catch(() => {
-        if (!cancelled) setUser(null);
+        if (!cancelled) {
+          setUser(null);
+          onRoleLoaded?.();
+        }
       });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [onRoleLoaded]);
 
   const label = user?.name || user?.email || "User";
 

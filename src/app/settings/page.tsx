@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "
 import Link from "next/link";
 import { useTheme } from "next-themes";
 import { ArrowLeft } from "lucide-react";
+import AppPageActions from "@/components/shells/AppPageActions";
 import AppPageShell from "@/components/shells/AppPageShell";
 import IconControl from "@/components/ui/IconControl";
 import { AI_MODELS, DEFAULT_AI_MODEL } from "@/lib/ai/models";
@@ -190,8 +191,6 @@ export default function SettingsPage() {
 
   if (!mounted) return null;
 
-  const backLabel = isAnthropicSetup ? "Back to map setup" : "Back to your maps";
-
   return (
     <>
       <AppPageShell
@@ -199,13 +198,16 @@ export default function SettingsPage() {
         homeLabel="Resume map"
         title="Settings"
         description="Manage your AI connection, model, and appearance."
+        actions={<AppPageActions currentPage="settings" />}
         navigation={
-          <IconControl href={returnTo} label={backLabel} tooltipPlacement="bottom">
-            <ArrowLeft />
-          </IconControl>
+          isAnthropicSetup ? (
+            <IconControl href={returnTo} label="Back to map setup" tooltipPlacement="bottom">
+              <ArrowLeft />
+            </IconControl>
+          ) : undefined
         }
       >
-        <div className="max-w-3xl">
+        <div className="min-w-0 w-full" data-testid="settings-content">
           {loading ? (
             <div
               className="border-y border-[var(--border)] py-16 text-center text-[var(--muted-foreground)]"

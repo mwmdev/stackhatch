@@ -114,7 +114,24 @@ test.describe("system-wide UI polish", () => {
         await expect(page.getByRole("link", { name: "Settings" })).toBeVisible();
         await expect(page.getByRole("link", { name: "Admin" })).toBeVisible();
       } else {
-        await expect(page.getByRole("link", { name: "Back to your maps" })).toBeVisible();
+        await expect(page.getByRole("link", { name: "New map" })).toHaveCount(1);
+        await expect(page.getByRole("link", { name: "Settings" })).toHaveAttribute(
+          "aria-current",
+          "page"
+        );
+        await expect(page.getByRole("link", { name: "Admin" })).toBeVisible();
+
+        const widths = await page.evaluate(() => {
+          const shellContent = document.querySelector<HTMLElement>(".page-shell__content");
+          const settingsContent = document.querySelector<HTMLElement>(
+            '[data-testid="settings-content"]'
+          );
+          return {
+            shell: shellContent?.getBoundingClientRect().width ?? 0,
+            settings: settingsContent?.getBoundingClientRect().width ?? 0,
+          };
+        });
+        expect(widths.settings).toBeCloseTo(widths.shell, 0);
       }
       await expectStablePageFrame(page, route === "/app/maps");
     });
