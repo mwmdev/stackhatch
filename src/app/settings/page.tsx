@@ -31,6 +31,7 @@ interface Settings {
 
 export default function SettingsPage() {
   const { theme: currentTheme, setTheme } = useTheme();
+  const initialThemeSetter = useRef(setTheme);
   const mounted = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   const [loading, setLoading] = useState(true);
   const [hasAnthropicKey, setHasAnthropicKey] = useState(false);
@@ -70,13 +71,13 @@ export default function SettingsPage() {
       .then((data) => {
         setHasAnthropicKey(Boolean(data.hasAnthropicKey));
         if (data.model) setModel(data.model);
-        if (data.theme) setTheme(data.theme);
+        if (data.theme) initialThemeSetter.current(data.theme);
       })
       .catch(() => {
         setToast({ type: "error", message: "Settings could not be loaded" });
       })
       .finally(() => setLoading(false));
-  }, [setTheme]);
+  }, []);
 
   useEffect(() => {
     if (loading || !isAnthropicSetup || hasAnthropicKey || setupStartTracked.current) return;
