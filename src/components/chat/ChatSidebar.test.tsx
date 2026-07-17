@@ -91,12 +91,13 @@ describe("ChatSidebar", () => {
     expect(screen.queryByText("Architecture Assistant")).not.toBeInTheDocument();
   });
 
-  it("renders open state without title/status chrome or a built-in collapse control", async () => {
+  it("renders open state without title/status chrome and offers a controlled close control", async () => {
     global.fetch = mockFetch({
       "/messages": messagesWithHistory,
     });
 
-    render(<ChatSidebar projectId="p1" defaultOpen={true} />);
+    const onOpenChange = vi.fn();
+    render(<ChatSidebar projectId="p1" open onOpenChange={onOpenChange} />);
     await waitFor(() => {
       expect(screen.getByText("Welcome! What are you building?")).toBeInTheDocument();
     });
@@ -105,7 +106,10 @@ describe("ChatSidebar", () => {
     expect(screen.queryByText("Ready")).not.toBeInTheDocument();
     expect(screen.queryByText("Starting")).not.toBeInTheDocument();
     expect(screen.queryByText("Thinking")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("Collapse chat")).not.toBeInTheDocument();
+    const closeButton = screen.getByRole("button", { name: "Close chat" });
+    expect(closeButton).toHaveClass("icon-control");
+    fireEvent.click(closeButton);
+    expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(screen.getByTestId("chat-scroll-overlay")).toBeInTheDocument();
     expect(screen.getByTestId("chat-scroll-overlay")).toHaveClass("h-[3.75rem]");
     expect(screen.getByPlaceholderText("Message...")).toBeInTheDocument();
@@ -141,7 +145,7 @@ describe("ChatSidebar", () => {
       />
     );
 
-    expect(screen.queryByLabelText("Collapse chat")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Close chat" })).toBeInTheDocument();
     expect(onOpenChange).not.toHaveBeenCalled();
 
     rerender(
@@ -153,6 +157,35 @@ describe("ChatSidebar", () => {
       />
     );
     expect(screen.queryByLabelText("Open chat")).not.toBeInTheDocument();
+  });
+
+  it("moves focus into the sidebar when a controlled chat opens", async () => {
+    const onOpenChange = vi.fn();
+    global.fetch = mockFetch({
+      "/messages": messagesWithHistory,
+    });
+
+    const { rerender } = render(
+      <ChatSidebar
+        projectId="p1"
+        open={false}
+        onOpenChange={onOpenChange}
+        showCollapsedButton={false}
+      />
+    );
+
+    rerender(
+      <ChatSidebar
+        projectId="p1"
+        open={true}
+        onOpenChange={onOpenChange}
+        showCollapsedButton={false}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Close chat" })).toHaveFocus();
+    });
   });
 
   it("loads and displays message history", async () => {

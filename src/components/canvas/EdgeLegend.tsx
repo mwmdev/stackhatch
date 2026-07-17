@@ -17,7 +17,7 @@ function EdgeLegendComponent() {
   const [visible, setVisible] = useState(false);
 
   return (
-    <div className="absolute bottom-4 left-4 z-10" data-testid="edge-legend">
+    <div className="edge-legend" data-testid="edge-legend">
       <button
         onClick={() => setVisible((v) => !v)}
         className="rounded border border-[var(--border)] bg-[var(--card)] px-2 py-1 text-xs text-[var(--muted-foreground)] shadow-sm hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
@@ -27,7 +27,7 @@ function EdgeLegendComponent() {
       </button>
       {visible && (
         <div
-          className="mt-2 rounded-lg border border-[var(--border)] bg-[var(--card)] p-3 shadow-md"
+          className="edge-legend__panel mt-2 rounded-lg border border-[var(--border)] bg-[var(--card)] p-3 shadow-md"
           data-testid="edge-legend-panel"
         >
           <div className="mb-2 text-xs font-semibold text-[var(--card-foreground)]">
@@ -52,9 +52,7 @@ function EdgeLegendComponent() {
                       stroke={style.color}
                       strokeWidth={style.strokeWidth}
                       strokeDasharray={
-                        style.strokeDasharray === "0"
-                          ? undefined
-                          : style.strokeDasharray
+                        style.strokeDasharray === "0" ? undefined : style.strokeDasharray
                       }
                     />
                   </svg>

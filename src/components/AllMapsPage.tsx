@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FolderPlus, Map, RefreshCw, Settings, Trash2, Users } from "lucide-react";
+import { FolderPlus, RefreshCw, Settings, Users } from "lucide-react";
+import AppPageShell from "@/components/shells/AppPageShell";
+import IconControl from "@/components/ui/IconControl";
 import ThemeToggle from "@/components/ThemeToggle";
 import UserAvatar from "@/components/UserAvatar";
 
@@ -75,52 +77,13 @@ export default function AllMapsPage({ isAdmin }: { isAdmin: boolean }) {
   }, [deleteTarget]);
 
   return (
-    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
-      <nav className="nav-blur sticky top-0 z-40 border-b border-[var(--border)]">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3">
-          <Link
-            href="/app"
-            className="font-display flex items-center gap-2 text-xl font-extrabold tracking-tight"
-            title="Resume map"
-          >
-            <Map className="h-5 w-5 text-[var(--color-client)]" aria-hidden="true" />
-            StackHatch
-          </Link>
-          <div className="flex items-center gap-1">
-            <ThemeToggle />
-            {isAdmin && (
-              <Link
-                href="/admin"
-                className="flex h-11 w-11 items-center justify-center rounded-md text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
-                title="Admin"
-                aria-label="Admin"
-              >
-                <Users className="h-[18px] w-[18px]" />
-              </Link>
-            )}
-            <Link
-              href="/settings"
-              className="flex h-11 w-11 items-center justify-center rounded-md text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
-              title="Settings"
-              aria-label="Settings"
-            >
-              <Settings className="h-[18px] w-[18px]" />
-            </Link>
-            <UserAvatar />
-          </div>
-        </div>
-      </nav>
-
-      <main className="mx-auto max-w-7xl px-6 py-8">
-        <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h1 className="font-display text-3xl font-extrabold tracking-tight md:text-4xl">
-              All Maps
-            </h1>
-            <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
-              Browse, open, and manage your architecture maps.
-            </p>
-          </div>
+    <AppPageShell
+      homeHref="/app"
+      homeLabel="Resume map"
+      title="All Maps"
+      description="Browse, open, and manage your architecture maps."
+      actions={
+        <>
           <Link
             href="/project/new"
             className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-bold text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)]"
@@ -128,10 +91,49 @@ export default function AllMapsPage({ isAdmin }: { isAdmin: boolean }) {
             <FolderPlus className="h-4 w-4" aria-hidden="true" />
             New map
           </Link>
-        </header>
-
+          <div className="flex items-center gap-1" role="group" aria-label="Account controls">
+            <ThemeToggle />
+            {isAdmin && (
+              <IconControl href="/admin" label="Admin" tooltipPlacement="bottom">
+                <Users />
+              </IconControl>
+            )}
+            <IconControl href="/settings" label="Settings" tooltipPlacement="bottom">
+              <Settings />
+            </IconControl>
+            <UserAvatar />
+          </div>
+        </>
+      }
+      footer={
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <span className="font-display font-bold text-[var(--foreground)]">StackHatch</span>
+          <nav aria-label="Footer navigation" className="flex flex-wrap gap-1">
+            <Link
+              href="/support"
+              className="inline-flex min-h-11 items-center rounded-md px-3 hover:text-[var(--foreground)]"
+            >
+              Support
+            </Link>
+            <Link
+              href="/privacy"
+              className="inline-flex min-h-11 items-center rounded-md px-3 hover:text-[var(--foreground)]"
+            >
+              Privacy
+            </Link>
+            <Link
+              href="/terms"
+              className="inline-flex min-h-11 items-center rounded-md px-3 hover:text-[var(--foreground)]"
+            >
+              Terms
+            </Link>
+          </nav>
+        </div>
+      }
+    >
+      <div className="min-w-0">
         <section
-          className="rounded-lg border border-[var(--border)] bg-[var(--card)]"
+          className="overflow-hidden rounded-md border border-[var(--border)] bg-[var(--card)]"
           aria-label="Your maps"
         >
           {projectsError && (
@@ -160,19 +162,19 @@ export default function AllMapsPage({ isAdmin }: { isAdmin: boolean }) {
               No maps yet. Choose New map to create your first one.
             </div>
           ) : (
-            <div className="grid gap-4 p-5 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="divide-y divide-[var(--border)]">
               {projects.map((project) => (
                 <div
                   key={project.id}
-                  className="group relative min-w-0 rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] p-4 transition-shadow hover:shadow-md hover:shadow-[var(--shadow-color)]"
+                  className="group relative min-w-0 bg-[var(--surface-raised)] px-5 py-4 transition-colors hover:bg-[var(--muted)] sm:px-6"
                 >
                   <button
                     type="button"
                     onClick={() => router.push(`/project/${project.id}`)}
-                    className="block w-full min-w-0 text-left"
+                    className="block min-h-20 w-full min-w-0 rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-4 focus-visible:ring-offset-[var(--surface-raised)]"
                     data-testid={`project-card-${project.id}`}
                   >
-                    <h2 className="min-w-0 truncate pr-10 font-medium text-[var(--card-foreground)]">
+                    <h2 className="min-w-0 truncate pr-16 font-semibold text-[var(--card-foreground)]">
                       {project.name}
                     </h2>
                     {project.description && (
@@ -187,44 +189,17 @@ export default function AllMapsPage({ isAdmin }: { isAdmin: boolean }) {
                   <button
                     type="button"
                     onClick={() => setDeleteTarget(project)}
-                    className="absolute right-3 top-3 flex h-11 w-11 items-center justify-center rounded-md text-[var(--muted-foreground)] hover:bg-[var(--danger-surface)] hover:text-[var(--danger)]"
-                    title="Delete map"
+                    className="absolute right-3 top-3 inline-flex min-h-11 items-center rounded-md px-3 text-xs font-semibold text-[var(--muted-foreground)] hover:bg-[var(--danger-surface)] hover:text-[var(--danger)] focus-visible:text-[var(--danger)]"
                     aria-label={`Delete ${project.name}`}
                   >
-                    <Trash2 className="h-4 w-4" aria-hidden="true" />
+                    Delete
                   </button>
                 </div>
               ))}
             </div>
           )}
         </section>
-      </main>
-
-      <footer className="border-t border-[var(--border)] py-6">
-        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-6 text-sm text-[var(--muted-foreground)] sm:flex-row sm:items-center sm:justify-between">
-          <span className="font-display font-bold">StackHatch</span>
-          <nav aria-label="Footer navigation" className="flex flex-wrap gap-1">
-            <Link
-              href="/support"
-              className="inline-flex min-h-11 items-center rounded-md px-3 hover:text-[var(--foreground)]"
-            >
-              Support
-            </Link>
-            <Link
-              href="/privacy"
-              className="inline-flex min-h-11 items-center rounded-md px-3 hover:text-[var(--foreground)]"
-            >
-              Privacy
-            </Link>
-            <Link
-              href="/terms"
-              className="inline-flex min-h-11 items-center rounded-md px-3 hover:text-[var(--foreground)]"
-            >
-              Terms
-            </Link>
-          </nav>
-        </div>
-      </footer>
+      </div>
 
       {deleteTarget && (
         <div
@@ -269,6 +244,6 @@ export default function AllMapsPage({ isAdmin }: { isAdmin: boolean }) {
           </div>
         </div>
       )}
-    </div>
+    </AppPageShell>
   );
 }

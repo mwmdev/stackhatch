@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, BookOpen, GitBranch, LifeBuoy, Mail, ShieldCheck, Star } from "lucide-react";
 import TrackedSourceLink from "@/components/public/TrackedSourceLink";
+import PublicPageShell from "@/components/shells/PublicPageShell";
 
 export const metadata = {
   title: "Support",
@@ -31,32 +32,18 @@ const SUPPORT_PATHS = [
 
 export default function SupportPage() {
   return (
-    <main className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
-      <div className="mx-auto max-w-5xl px-6 py-12">
-        <Link
-          href="/"
-          className="text-sm font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-        >
-          Back to StackHatch
-        </Link>
-
-        <section className="mt-10 grid gap-8 lg:grid-cols-[1fr_320px] lg:items-start">
+    <PublicPageShell
+      homeHref="/"
+      homeLabel="StackHatch home"
+      eyebrow="Support"
+      title="Get from repository to a map you can reason about."
+      description="StackHatch helps developers see the pieces of a codebase, follow how they connect, and keep the architecture visible while the project changes."
+    >
+      <div className="space-y-12">
+        <section className="grid gap-6 border-y border-[var(--border)] py-6 sm:grid-cols-[auto_1fr] sm:items-start">
+          <LifeBuoy className="h-5 w-5 text-[var(--color-client)]" aria-hidden="true" />
           <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-[var(--color-client)]">
-              Support
-            </p>
-            <h1 className="mt-3 max-w-3xl text-4xl font-bold tracking-tight md:text-5xl">
-              Get from repository to a map you can reason about.
-            </h1>
-            <p className="mt-5 max-w-2xl text-lg leading-8 text-[var(--muted-foreground)]">
-              StackHatch helps developers see the pieces of a codebase, follow how they connect, and
-              keep the architecture visible while the project changes.
-            </p>
-          </div>
-
-          <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-5">
-            <LifeBuoy className="h-5 w-5 text-[var(--color-client)]" />
-            <h2 className="mt-3 font-semibold">Contact support</h2>
+            <h2 className="font-semibold">Contact support</h2>
             <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
               Include your account email, browser, and the action that failed. Never email an API
               key or private project content.
@@ -71,26 +58,27 @@ export default function SupportPage() {
           </div>
         </section>
 
-        <section className="mt-12 grid gap-5 md:grid-cols-3">
+        <section className="divide-y divide-[var(--border)] border-y border-[var(--border)]">
           {SUPPORT_PATHS.map((item) => (
             <article
               key={item.title}
               id={item.id}
-              className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-5"
+              className="grid gap-3 py-6 sm:grid-cols-[2rem_12rem_1fr] sm:items-start"
             >
-              <BookOpen className="h-5 w-5 text-[var(--color-api)]" />
-              <h2 className="mt-3 font-semibold">{item.title}</h2>
-              <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
-                {item.description}
-              </p>
+              <BookOpen className="h-5 w-5 text-[var(--color-api)]" aria-hidden="true" />
+              <h2 className="font-semibold">{item.title}</h2>
+              <p className="text-sm leading-6 text-[var(--muted-foreground)]">{item.description}</p>
             </article>
           ))}
         </section>
 
-        <section className="mt-12 rounded-lg border border-[var(--border)] bg-[var(--card)] p-6">
+        <section className="border-y border-[var(--border)] py-6">
           <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
             <div className="flex min-w-0 gap-3">
-              <ShieldCheck className="mt-1 h-5 w-5 flex-none text-[var(--color-api)]" />
+              <ShieldCheck
+                className="mt-1 h-5 w-5 flex-none text-[var(--color-api)]"
+                aria-hidden="true"
+              />
               <div>
                 <h2 className="font-semibold">Trust basics</h2>
                 <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
@@ -116,7 +104,7 @@ export default function SupportPage() {
           </div>
         </section>
 
-        <section className="mt-8 flex flex-wrap items-center gap-3 border-t border-[var(--border)] pt-8">
+        <section className="flex flex-wrap items-center gap-3">
           <p className="mr-auto text-sm text-[var(--muted-foreground)]">
             StackHatch is open source and developed in public.
           </p>
@@ -143,6 +131,6 @@ export default function SupportPage() {
           </TrackedSourceLink>
         </section>
       </div>
-    </main>
+    </PublicPageShell>
   );
 }

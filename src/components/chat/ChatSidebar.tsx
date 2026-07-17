@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import ReactMarkdown from "react-markdown";
-import { Loader2, MessageSquareText, SendHorizontal } from "lucide-react";
+import { Loader2, MessageSquareText, SendHorizontal, X } from "lucide-react";
+import IconControl from "@/components/ui/IconControl";
 import type { StackArchitecture } from "@/types/stack";
 import { trackEvent, type AnalyticsErrorCategory } from "@/lib/analytics";
 
@@ -109,6 +110,8 @@ export default function ChatSidebar({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const initCalledRef = useRef(false);
   const open = controlledOpen ?? uncontrolledOpen;
+  const previousOpenRef = useRef(open);
+  const focusCloseControl = open && !previousOpenRef.current;
   const normalizedRepoUrl = normalizeRepoUrl(repoUrl);
 
   const setSidebarOpen = useCallback(
@@ -120,6 +123,10 @@ export default function ChatSidebar({
     },
     [controlledOpen, onOpenChange]
   );
+
+  useEffect(() => {
+    previousOpenRef.current = open;
+  }, [open]);
 
   useEffect(() => {
     onStreaming?.(streaming);
@@ -448,6 +455,18 @@ export default function ChatSidebar({
         data-testid="chat-scroll-overlay"
         className="pointer-events-none absolute inset-x-0 top-0 z-10 h-[3.75rem] border-b border-[var(--border)] bg-[var(--background)]/95 backdrop-blur supports-[backdrop-filter]:bg-[var(--background)]/85"
       />
+      {controlledOpen !== undefined && onOpenChange && (
+        <div className="absolute right-2 top-2 z-20">
+          <IconControl
+            label="Close chat"
+            tooltipPlacement="left"
+            autoFocus={focusCloseControl}
+            onClick={() => setSidebarOpen(false)}
+          >
+            <X />
+          </IconControl>
+        </div>
+      )}
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 pb-4 pt-[4.25rem]">

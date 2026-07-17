@@ -9,6 +9,8 @@ import type { RefObject } from "react";
 import { stringify as stringifyYaml } from "yaml";
 import { fromReactFlowEdges, fromReactFlowNodes } from "@/types/canvas";
 import type { AlternativeNode } from "@/types/stack";
+import IconControl from "@/components/ui/IconControl";
+
 type ExportFormat = "png" | "svg" | "json" | "yaml";
 
 interface ExportDropdownProps {
@@ -16,6 +18,7 @@ interface ExportDropdownProps {
   projectName: string;
   alternatives?: Record<string, AlternativeNode[]>;
   onError: (message: string) => void;
+  placement?: "bottom" | "top";
 }
 
 export default function ExportDropdown({
@@ -23,6 +26,7 @@ export default function ExportDropdown({
   projectName,
   alternatives = {},
   onError,
+  placement = "bottom",
 }: ExportDropdownProps) {
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -136,17 +140,25 @@ export default function ExportDropdown({
 
   return (
     <div ref={dropdownRef} className="relative">
-      <button
+      <IconControl
+        label="Export map"
+        tooltipPlacement="bottom"
+        variant="outline"
+        pressed={open}
         onClick={() => setOpen((prev) => !prev)}
-        className="flex h-11 w-11 items-center justify-center rounded border border-[var(--border)] text-xs text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
-        title="Export diagram"
-        aria-label="Export diagram"
+        aria-expanded={open}
       >
-        <Download size={14} />
-      </button>
+        <Download />
+      </IconControl>
 
       {open && (
-        <div className="absolute right-0 top-full z-30 mt-1 w-36 rounded-lg border border-[var(--border)] bg-[var(--background)] shadow-lg">
+        <div
+          className={`absolute right-0 z-30 w-36 rounded-lg border border-[var(--border)] bg-[var(--background)] shadow-lg ${
+            placement === "top" ? "bottom-full mb-2" : "top-full mt-1"
+          }`}
+          data-placement={placement}
+          data-testid="export-dropdown"
+        >
           {(["png", "svg", "json", "yaml"] as const).map((format, index, formats) => (
             <button
               key={format}

@@ -16,6 +16,23 @@ describe("AddNodeDropdown", () => {
     expect(screen.getByTestId("add-node-dropdown")).toBeInTheDocument();
   });
 
+  it("supports responsive upward-and-inward placement for the editor dock and rail", () => {
+    render(<AddNodeDropdown onAddNode={vi.fn()} placement="responsive" iconOnly />);
+
+    const trigger = screen.getByRole("button", { name: "Add node" });
+    expect(trigger).toHaveClass("icon-control");
+    expect(trigger).toHaveClass("icon-control");
+    expect(trigger).toHaveAttribute("aria-describedby");
+    expect(screen.getByRole("tooltip", { name: "Add node" })).toHaveAttribute(
+      "data-placement",
+      "top"
+    );
+    expect(screen.queryByText("Add Node")).not.toBeInTheDocument();
+
+    fireEvent.click(trigger);
+    expect(screen.getByTestId("add-node-dropdown")).toHaveAttribute("data-placement", "responsive");
+  });
+
   it("shows all categories when dropdown is open", () => {
     render(<AddNodeDropdown onAddNode={vi.fn()} />);
     fireEvent.click(screen.getByTestId("add-node-button"));

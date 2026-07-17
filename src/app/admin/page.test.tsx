@@ -47,6 +47,34 @@ describe("AdminPage", () => {
     expect(screen.getByRole("tab", { name: "Prompts" })).toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Plans" })).not.toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Model" })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("main")).toHaveLength(1);
+    expect(screen.getAllByRole("heading", { level: 1, name: "Admin" })).toHaveLength(1);
+    expect(screen.getByRole("main").closest(".app-page-shell")).toHaveAttribute(
+      "data-density",
+      "dense"
+    );
+    expect(screen.getByTestId("admin-users-table-scroll")).toHaveClass("overflow-x-auto");
+    expect(screen.getByRole("table")).toHaveClass("min-w-[44rem]");
+  });
+
+  it("keeps loading and denied states inside the dense authenticated shell", async () => {
+    global.fetch = vi.fn((input: RequestInfo | URL) => {
+      if (String(input) === "/api/admin/users") {
+        return Promise.resolve({ status: 403, ok: false, json: () => Promise.resolve({}) });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+    }) as unknown as typeof global.fetch;
+
+    render(<AdminPage />);
+
+    expect(screen.getByRole("status")).toHaveTextContent("Loading admin workspace");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Access denied");
+    expect(screen.getAllByRole("main")).toHaveLength(1);
+    expect(screen.getByRole("link", { name: "Resume map" })).toHaveAttribute("href", "/app");
+    expect(screen.getByRole("main").closest(".app-page-shell")).toHaveAttribute(
+      "data-density",
+      "dense"
+    );
   });
 
   it("labels /app as resume navigation instead of a dashboard", async () => {

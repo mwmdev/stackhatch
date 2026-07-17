@@ -5,6 +5,7 @@ import * as icons from "lucide-react";
 import type { NodeCategory, NodeSubtype } from "@/types/stack";
 import { categoryOrder, nodeConfig, getSubtypesForCategory } from "@/lib/node-config";
 import type { CustomSubtypesMap } from "@/lib/custom-subtypes";
+import IconControl from "@/components/ui/IconControl";
 
 function DynamicIcon({
   name,
@@ -22,9 +23,16 @@ function DynamicIcon({
 export interface AddNodeDropdownProps {
   onAddNode: (category: NodeCategory, subtype: NodeSubtype) => void;
   customSubtypes?: CustomSubtypesMap;
+  iconOnly?: boolean;
+  placement?: "bottom" | "responsive";
 }
 
-export default function AddNodeDropdown({ onAddNode, customSubtypes }: AddNodeDropdownProps) {
+export default function AddNodeDropdown({
+  onAddNode,
+  customSubtypes,
+  iconOnly = false,
+  placement = "bottom",
+}: AddNodeDropdownProps) {
   const [open, setOpen] = useState(false);
   const [expandedCategory, setExpandedCategory] = useState<NodeCategory | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -50,19 +58,40 @@ export default function AddNodeDropdown({ onAddNode, customSubtypes }: AddNodeDr
 
   return (
     <div ref={dropdownRef} className="relative">
-      <button
-        onClick={() => setOpen((prev) => !prev)}
-        className="flex min-h-11 items-center gap-1.5 rounded border border-[var(--border)] px-3 py-2 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--muted)] transition-colors"
-        aria-label="Add node"
-        data-testid="add-node-button"
-      >
-        <icons.Plus size={16} />
-        Add Node
-      </button>
+      {iconOnly ? (
+        <IconControl
+          label="Add node"
+          tooltipPlacement="top"
+          variant="outline"
+          pressed={open}
+          aria-expanded={open}
+          onClick={() => setOpen((prev) => !prev)}
+          data-testid="add-node-button"
+        >
+          <icons.Plus />
+        </IconControl>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setOpen((prev) => !prev)}
+          className="flex min-h-11 items-center gap-1.5 rounded border border-[var(--border)] px-3 py-2 text-sm font-medium text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]"
+          aria-label="Add node"
+          aria-expanded={open}
+          data-testid="add-node-button"
+        >
+          <icons.Plus size={16} aria-hidden="true" />
+          Add Node
+        </button>
+      )}
 
       {open && (
         <div
-          className="absolute left-0 top-full z-30 mt-1 w-64 rounded-lg border border-[var(--border)] bg-[var(--background)] shadow-lg"
+          className={`absolute z-30 max-h-[min(28rem,calc(100dvh-2rem))] w-[min(16rem,calc(100vw-2rem))] overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--background)] shadow-lg ${
+            placement === "responsive"
+              ? "bottom-full left-0 mb-2 md:bottom-auto md:left-full md:top-0 md:ml-2"
+              : "left-0 top-full mt-1"
+          }`}
+          data-placement={placement}
           data-testid="add-node-dropdown"
         >
           {categoryOrder.map((category) => {
