@@ -5,9 +5,8 @@ import EdgeLegend from "./EdgeLegend";
 describe("EdgeLegend", () => {
   it("renders toggle button", () => {
     render(<EdgeLegend />);
-    expect(screen.getByTestId("edge-legend-toggle")).toHaveTextContent(
-      "Edge Legend",
-    );
+    expect(screen.getByTestId("edge-legend")).toHaveClass("edge-legend");
+    expect(screen.getByTestId("edge-legend-toggle")).toHaveTextContent("Edge Legend");
   });
 
   it("is hidden by default", () => {
@@ -18,7 +17,7 @@ describe("EdgeLegend", () => {
   it("shows legend panel when toggle is clicked", () => {
     render(<EdgeLegend />);
     fireEvent.click(screen.getByTestId("edge-legend-toggle"));
-    expect(screen.getByTestId("edge-legend-panel")).toBeInTheDocument();
+    expect(screen.getByTestId("edge-legend-panel")).toHaveClass("edge-legend__panel");
   });
 
   it("hides legend panel on second click", () => {
@@ -69,18 +68,14 @@ describe("EdgeLegend", () => {
   it("http line is solid (no dasharray)", () => {
     render(<EdgeLegend />);
     fireEvent.click(screen.getByTestId("edge-legend-toggle"));
-    const httpLine = screen
-      .getByTestId("legend-line-http")
-      .querySelector("line");
+    const httpLine = screen.getByTestId("legend-line-http").querySelector("line");
     expect(httpLine?.getAttribute("stroke-dasharray")).toBeNull();
   });
 
   it("websocket line is dashed", () => {
     render(<EdgeLegend />);
     fireEvent.click(screen.getByTestId("edge-legend-toggle"));
-    const wsLine = screen
-      .getByTestId("legend-line-websocket")
-      .querySelector("line");
+    const wsLine = screen.getByTestId("legend-line-websocket").querySelector("line");
     expect(wsLine?.getAttribute("stroke-dasharray")).toBe("8 4");
   });
 });

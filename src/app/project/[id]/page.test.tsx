@@ -723,7 +723,7 @@ describe("ProjectPage", () => {
       mockFetchProject(emptyProject);
       render(<ProjectPage />);
       await waitFor(() => {
-        expect(screen.getByLabelText("Theme: light")).toBeInTheDocument();
+        expect(screen.getByLabelText("Theme: change appearance")).toBeInTheDocument();
       });
     });
 
@@ -738,7 +738,7 @@ describe("ProjectPage", () => {
         screen.getByLabelText("Editor display settings")
       );
       expect(screen.getByTestId("editor-project-bar")).toContainElement(
-        screen.getByLabelText("Theme: light")
+        screen.getByLabelText("Theme: change appearance")
       );
     });
 
@@ -1103,9 +1103,14 @@ describe("ProjectPage", () => {
       render(<ProjectPage />);
       await screen.findByTestId("react-flow-canvas");
       fireEvent.click(screen.getByRole("button", { name: "More project actions" }));
-      fireEvent.click(screen.getByRole("menuitem", { name: "Generate PRD from architecture" }));
+      const prdAction = screen.getByRole("menuitem", {
+        name: "Generate PRD from architecture",
+      });
+      prdAction.focus();
+      fireEvent.click(prdAction);
 
       expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "More project actions" })).toHaveFocus();
       expect(screen.getByRole("status")).toHaveTextContent("Generating PRD");
 
       await act(async () => {
@@ -1148,17 +1153,41 @@ describe("ProjectPage", () => {
       );
     });
 
-    it("moves focus to a stable canvas target when the phone dock yields to chat", async () => {
+    it("keeps focus out of the canvas while chat opens and restores it after chat closes", async () => {
       mockFetchProject(projectWithNodes);
       render(<ProjectPage />);
       const chatButton = await screen.findByRole("button", { name: "Open chat" });
 
       chatButton.focus();
       fireEvent.click(chatButton);
+      expect(screen.getByTestId("editor-canvas-focus-target")).not.toHaveFocus();
+
+      fireEvent.click(screen.getByRole("button", { name: "Mock Chat Toggle" }));
 
       await waitFor(() => {
         expect(screen.getByTestId("editor-canvas-focus-target")).toHaveFocus();
       });
+    });
+
+    it("dismisses More when focus leaves without interrupting the next Tab target", async () => {
+      mockFetchProject(projectWithNodes);
+      render(<ProjectPage />);
+      const moreButton = await screen.findByRole("button", { name: "More project actions" });
+
+      fireEvent.click(moreButton);
+      expect(moreButton).toHaveAttribute("aria-expanded", "true");
+      const lastAction = screen.getByRole("menuitem", { name: "Save as Template" });
+      const themeButton = screen.getByRole("button", { name: "Theme: change appearance" });
+      lastAction.focus();
+
+      fireEvent.blur(lastAction, { relatedTarget: themeButton });
+      themeButton.focus();
+
+      await waitFor(() => {
+        expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+      });
+      expect(moreButton).toHaveAttribute("aria-expanded", "false");
+      expect(themeButton).toHaveFocus();
     });
   });
 

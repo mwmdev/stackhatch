@@ -242,10 +242,15 @@ export default function ProjectPage() {
   const handleChatOpenChange = useCallback(
     (nextOpen: boolean) => {
       setChatOpen(nextOpen);
-      focusCanvasTarget();
+      if (!nextOpen) focusCanvasTarget();
     },
     [focusCanvasTarget]
   );
+
+  const dismissMoreMenu = useCallback((restoreInvokerFocus = false) => {
+    if (restoreInvokerFocus) moreMenuInvokerRef.current?.focus();
+    setMoreMenuOpen(false);
+  }, []);
 
   const handleZoomIn = useCallback(() => {
     void rfInstanceRef.current?.zoomIn();
@@ -289,15 +294,14 @@ export default function ProjectPage() {
         !(event.target instanceof globalThis.Node) ||
         !moreMenuRef.current?.contains(event.target)
       ) {
-        setMoreMenuOpen(false);
+        dismissMoreMenu();
       }
     }
 
     function closeOnEscape(event: KeyboardEvent) {
       if (event.key !== "Escape") return;
       event.preventDefault();
-      setMoreMenuOpen(false);
-      moreMenuInvokerRef.current?.focus();
+      dismissMoreMenu(true);
     }
 
     document.addEventListener("mousedown", closeOnOutsideClick);
@@ -306,7 +310,7 @@ export default function ProjectPage() {
       document.removeEventListener("mousedown", closeOnOutsideClick);
       window.removeEventListener("keydown", closeOnEscape);
     };
-  }, [moreMenuOpen]);
+  }, [dismissMoreMenu, moreMenuOpen]);
 
   const loadedProjectId = project?.id;
   useEffect(() => {
@@ -1373,7 +1377,20 @@ export default function ProjectPage() {
               />
             )}
             {nodeCount > 0 && (
-              <div ref={moreMenuRef} className="relative">
+              <div
+                ref={moreMenuRef}
+                className="relative"
+                onBlur={(event) => {
+                  const nextTarget = event.relatedTarget;
+                  if (
+                    nextTarget instanceof globalThis.Node &&
+                    event.currentTarget.contains(nextTarget)
+                  ) {
+                    return;
+                  }
+                  dismissMoreMenu();
+                }}
+              >
                 <IconControl
                   label="More project actions"
                   tooltip="More"
@@ -1397,7 +1414,7 @@ export default function ProjectPage() {
                       type="button"
                       role="menuitem"
                       onClick={() => {
-                        setMoreMenuOpen(false);
+                        dismissMoreMenu(true);
                         void handleExportPrd();
                       }}
                       disabled={prdLoading}
@@ -1411,7 +1428,7 @@ export default function ProjectPage() {
                       type="button"
                       role="menuitem"
                       onClick={() => {
-                        setMoreMenuOpen(false);
+                        dismissMoreMenu();
                         setSaveTemplateModalOpen(true);
                       }}
                       className="flex min-h-11 w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]"

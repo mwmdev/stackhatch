@@ -408,7 +408,7 @@ export default function ProjectStartWorkspace({
             label="StackHatch app"
             className="rounded-md px-2 hover:bg-[var(--muted)]"
           />
-          <nav aria-label="Map workspace" className="flex items-center gap-1">
+          <nav aria-label="Map workspace" className="map-workspace-actions flex items-center gap-1">
             <IconControl
               href="/app/maps"
               label="All Maps"

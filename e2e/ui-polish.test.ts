@@ -20,29 +20,49 @@ async function expectStablePageFrame(page: Page, themeControl = true) {
   expect(layout.scrollWidth).toBe(layout.clientWidth);
 }
 
+const shellViewports = {
+  mobile: { width: 390, height: 844 },
+  desktop: { width: 1440, height: 900 },
+} as const;
+
+const shellVariants = [
+  { theme: "light" as const, viewportName: "mobile" as const },
+  { theme: "dark" as const, viewportName: "mobile" as const },
+  { theme: "light" as const, viewportName: "desktop" as const },
+  { theme: "dark" as const, viewportName: "desktop" as const },
+];
+
 test.describe("system-wide UI polish", () => {
-  for (const { route, title, theme, viewport } of [
+  for (const { route, title, theme, viewportName } of [
+    {
+      route: "/login",
+      title: "Turn what you have into an architecture map.",
+      theme: "light" as const,
+      viewportName: "mobile" as const,
+    },
     {
       route: "/support",
       title: "Get from repository to a map you can reason about.",
       theme: "dark" as const,
-      viewport: { width: 390, height: 844 },
+      viewportName: "mobile" as const,
     },
     {
       route: "/privacy",
       title: "Privacy Policy",
       theme: "light" as const,
-      viewport: { width: 1440, height: 900 },
+      viewportName: "desktop" as const,
     },
     {
       route: "/terms",
       title: "Terms of Service",
       theme: "dark" as const,
-      viewport: { width: 390, height: 844 },
+      viewportName: "desktop" as const,
     },
   ]) {
-    test(`${route} keeps the public shell readable in ${theme} mode`, async ({ page }) => {
-      await page.setViewportSize(viewport);
+    test(`${route} keeps the public shell readable in ${theme} mode at ${viewportName} width`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(shellViewports[viewportName]);
       await useTheme(page, theme);
       await page.goto(route);
 
@@ -53,41 +73,87 @@ test.describe("system-wide UI polish", () => {
     });
   }
 
-  for (const { theme, viewport } of [
-    { theme: "dark" as const, viewport: { width: 390, height: 844 } },
-    { theme: "light" as const, viewport: { width: 1440, height: 900 } },
+  for (const { route, title, theme, viewportName } of [
+    {
+      route: "/app/maps",
+      title: "All Maps",
+      theme: "dark" as const,
+      viewportName: "mobile" as const,
+    },
+    {
+      route: "/settings",
+      title: "Settings",
+      theme: "light" as const,
+      viewportName: "mobile" as const,
+    },
+    {
+      route: "/app/maps",
+      title: "All Maps",
+      theme: "light" as const,
+      viewportName: "desktop" as const,
+    },
+    {
+      route: "/settings",
+      title: "Settings",
+      theme: "dark" as const,
+      viewportName: "desktop" as const,
+    },
   ]) {
-    test(`All Maps keeps one primary action in ${theme} mode`, async ({ page }) => {
-      await page.setViewportSize(viewport);
+    test(`${title} keeps the comfortable app shell stable in ${theme} mode at ${viewportName} width`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(shellViewports[viewportName]);
       await useTheme(page, theme);
-      await page.goto("/app/maps");
+      await page.goto(route);
 
-      await expect(page.getByRole("heading", { level: 1, name: "All Maps" })).toBeVisible();
-      await expect(page.getByRole("link", { name: "New map" })).toHaveCount(1);
-      await expect(page.getByRole("link", { name: "Settings" })).toBeVisible();
-      await expect(page.getByRole("link", { name: "Admin" })).toBeVisible();
+      await expect(page.getByRole("heading", { level: 1, name: title })).toBeVisible();
       await expect(page.locator(".app-page-shell")).toHaveAttribute("data-density", "comfortable");
+      await expect(page.locator("html")).toHaveClass(new RegExp(theme));
+      if (route === "/app/maps") {
+        await expect(page.getByRole("link", { name: "New map" })).toHaveCount(1);
+        await expect(page.getByRole("link", { name: "Settings" })).toBeVisible();
+        await expect(page.getByRole("link", { name: "Admin" })).toBeVisible();
+      } else {
+        await expect(page.getByRole("link", { name: "Back to your maps" })).toBeVisible();
+      }
+      await expectStablePageFrame(page, route === "/app/maps");
+    });
+  }
+
+  for (const { theme, viewportName } of shellVariants) {
+    test(`admin keeps the dense app shell stable in ${theme} mode at ${viewportName} width`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(shellViewports[viewportName]);
+      await useTheme(page, theme);
+      await page.goto("/admin");
+
+      await expect(page.getByRole("heading", { level: 1, name: "Admin" })).toBeVisible();
+      await expect(page.getByRole("link", { name: "Resume map" })).toBeVisible();
+      await expect(page.locator(".app-page-shell")).toHaveAttribute("data-density", "dense");
+      await expect(page.getByRole("tab", { name: "Users" })).toBeVisible();
+      await expect(page.locator("html")).toHaveClass(new RegExp(theme));
+      await expectStablePageFrame(page, false);
+    });
+  }
+
+  for (const { theme, viewportName } of shellVariants) {
+    test(`new-map chooser stays direct in ${theme} mode at ${viewportName} width`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(shellViewports[viewportName]);
+      await useTheme(page, theme);
+      await page.goto("/project/new");
+
+      await expect(page.getByRole("heading", { level: 1, name: "Start a new map" })).toBeVisible();
+      await expect(page.getByRole("link", { name: "All Maps" })).toHaveCount(1);
+      await expect(page.getByRole("link", { name: "Settings" })).toBeVisible();
+      await expect(page.getByRole("button", { name: /Blank map/ })).toBeVisible();
+      await expect(page.getByText(/Use this source/i)).toHaveCount(0);
       await expect(page.locator("html")).toHaveClass(new RegExp(theme));
       await expectStablePageFrame(page);
     });
   }
-
-  test("settings and admin retain route-appropriate hierarchy and density", async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await useTheme(page, "dark");
-
-    await page.goto("/settings");
-    await expect(page.getByRole("heading", { level: 1, name: "Settings" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Back to your maps" })).toBeVisible();
-    await expectStablePageFrame(page, false);
-
-    await page.goto("/admin");
-    await expect(page.getByRole("heading", { level: 1, name: "Admin" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Resume map" })).toBeVisible();
-    await expect(page.locator(".app-page-shell")).toHaveAttribute("data-density", "dense");
-    await expect(page.getByRole("tab", { name: "Users" })).toBeVisible();
-    await expectStablePageFrame(page, false);
-  });
 
   test("the new-map chooser remains direct, named, and overflow-free at 320px", async ({
     page,
@@ -103,8 +169,15 @@ test.describe("system-wide UI polish", () => {
     await expect(page.getByText(/Use this source/i)).toHaveCount(0);
     await expectStablePageFrame(page);
 
-    await page.keyboard.press("Tab");
-    await expect(page.locator(":focus-visible")).toHaveCount(1);
+    const blankSource = page.getByRole("button", { name: /Blank map/ });
+    for (
+      let attempts = 0;
+      attempts < 8 && !(await blankSource.evaluate((node) => node === document.activeElement));
+      attempts += 1
+    ) {
+      await page.keyboard.press("Tab");
+    }
+    await expect(blankSource).toBeFocused();
   });
 
   test("impersonation remains distinct without covering authenticated chrome", async ({ page }) => {
@@ -165,6 +238,7 @@ test.describe("system-wide UI polish", () => {
 
     for (const viewport of [
       { width: 320, height: 720, placement: "dock" },
+      { width: 390, height: 844, placement: "dock" },
       { width: 768, height: 900, placement: "rail" },
       { width: 1024, height: 768, placement: "rail" },
     ]) {
@@ -221,6 +295,45 @@ test.describe("system-wide UI polish", () => {
       ).toBe(true);
       if (viewport.placement === "dock") expect(geometry.width).toBeGreaterThan(geometry.height);
       else expect(geometry.height).toBeGreaterThan(geometry.width);
+
+      if (viewport.placement === "dock") {
+        const legend = page.getByTestId("edge-legend");
+        const legendToggle = page.getByTestId("edge-legend-toggle");
+        await expect(legend).toBeVisible();
+        await expect(page.getByTestId("edge-legend-panel")).toHaveCount(0);
+
+        const collapsedLegendBounds = await legend.boundingBox();
+        const dockBounds = await toolSurface.boundingBox();
+        expect(collapsedLegendBounds).not.toBeNull();
+        expect(dockBounds).not.toBeNull();
+        expect(collapsedLegendBounds?.y ?? viewport.height).toBeGreaterThanOrEqual(0);
+        expect(
+          (collapsedLegendBounds?.y ?? 0) + (collapsedLegendBounds?.height ?? 0)
+        ).toBeLessThanOrEqual(dockBounds?.y ?? 0);
+
+        await legendToggle.click();
+        const legendPanel = page.getByTestId("edge-legend-panel");
+        await expect(legendPanel).toBeVisible();
+        const expandedLegendBounds = await legend.boundingBox();
+        const legendPanelBounds = await legendPanel.boundingBox();
+        expect(expandedLegendBounds).not.toBeNull();
+        expect(legendPanelBounds).not.toBeNull();
+        expect(expandedLegendBounds?.x ?? -1).toBeGreaterThanOrEqual(0);
+        expect(expandedLegendBounds?.y ?? -1).toBeGreaterThanOrEqual(0);
+        expect(
+          (expandedLegendBounds?.x ?? 0) + (expandedLegendBounds?.width ?? 0)
+        ).toBeLessThanOrEqual(viewport.width);
+        expect(
+          (expandedLegendBounds?.y ?? 0) + (expandedLegendBounds?.height ?? 0)
+        ).toBeLessThanOrEqual(dockBounds?.y ?? 0);
+        expect((legendPanelBounds?.x ?? 0) + (legendPanelBounds?.width ?? 0)).toBeLessThanOrEqual(
+          viewport.width
+        );
+        expect((legendPanelBounds?.y ?? 0) + (legendPanelBounds?.height ?? 0)).toBeLessThanOrEqual(
+          viewport.height
+        );
+        await legendToggle.click();
+      }
 
       await toolSurface.getByRole("button", { name: "Add node" }).click();
       const addMenu = page.getByTestId("add-node-dropdown");

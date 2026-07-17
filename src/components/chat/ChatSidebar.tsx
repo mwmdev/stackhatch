@@ -110,6 +110,8 @@ export default function ChatSidebar({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const initCalledRef = useRef(false);
   const open = controlledOpen ?? uncontrolledOpen;
+  const previousOpenRef = useRef(open);
+  const focusCloseControl = open && !previousOpenRef.current;
   const normalizedRepoUrl = normalizeRepoUrl(repoUrl);
 
   const setSidebarOpen = useCallback(
@@ -121,6 +123,10 @@ export default function ChatSidebar({
     },
     [controlledOpen, onOpenChange]
   );
+
+  useEffect(() => {
+    previousOpenRef.current = open;
+  }, [open]);
 
   useEffect(() => {
     onStreaming?.(streaming);
@@ -454,6 +460,7 @@ export default function ChatSidebar({
           <IconControl
             label="Close chat"
             tooltipPlacement="left"
+            autoFocus={focusCloseControl}
             onClick={() => setSidebarOpen(false)}
           >
             <X />

@@ -348,7 +348,7 @@ html:not(.dark):not(.light) .icon-control__icon > .theme-toggle__system {
 .page-shell__actions
   > .icon-control-wrap:last-child
   .icon-control__tooltip[data-placement="bottom"],
-[aria-label="Map workspace"]
+.map-workspace-actions
   > .icon-control-wrap:last-child
   .icon-control__tooltip[data-placement="bottom"] {
   right: 0;
@@ -361,6 +361,19 @@ html:not(.dark):not(.light) .icon-control__icon > .theme-toggle__system {
   height: calc(100dvh - var(--impersonation-banner-height, 0px));
   min-width: 0;
   overflow: hidden;
+}
+
+.edge-legend {
+  position: absolute;
+  bottom: 1rem;
+  left: 1rem;
+  z-index: 10;
+  width: max-content;
+  max-width: calc(100vw - 2rem);
+}
+
+.edge-legend__panel {
+  max-width: 100%;
 }
 
 .editor-tool-surface {
@@ -400,6 +413,10 @@ html:not(.dark):not(.light) .icon-control__icon > .theme-toggle__system {
 }
 
 @media (max-width: 767px) {
+  .edge-legend {
+    bottom: calc(4.25rem + env(safe-area-inset-bottom));
+  }
+
   .project-editor-shell .react-flow__attribution {
     bottom: calc(4.25rem + env(safe-area-inset-bottom));
   }

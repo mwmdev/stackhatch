@@ -159,6 +159,35 @@ describe("ChatSidebar", () => {
     expect(screen.queryByLabelText("Open chat")).not.toBeInTheDocument();
   });
 
+  it("moves focus into the sidebar when a controlled chat opens", async () => {
+    const onOpenChange = vi.fn();
+    global.fetch = mockFetch({
+      "/messages": messagesWithHistory,
+    });
+
+    const { rerender } = render(
+      <ChatSidebar
+        projectId="p1"
+        open={false}
+        onOpenChange={onOpenChange}
+        showCollapsedButton={false}
+      />
+    );
+
+    rerender(
+      <ChatSidebar
+        projectId="p1"
+        open={true}
+        onOpenChange={onOpenChange}
+        showCollapsedButton={false}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Close chat" })).toHaveFocus();
+    });
+  });
+
   it("loads and displays message history", async () => {
     global.fetch = mockFetch({
       "/messages": messagesWithHistory,

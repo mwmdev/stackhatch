@@ -41,6 +41,9 @@ describe("ProjectStartWorkspace", () => {
 
     renderWorkspace();
 
+    expect(screen.getByRole("navigation", { name: "Map workspace" })).toHaveClass(
+      "map-workspace-actions"
+    );
     expect(screen.getByRole("heading", { name: "Start a new map" })).toBeInTheDocument();
     expect(
       screen.getAllByRole("button", { name: /map|requirements|repository|template/i })
