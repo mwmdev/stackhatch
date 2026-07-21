@@ -32,10 +32,9 @@ test.describe("launch experience", () => {
       "href",
       "#features"
     );
-    await expect(hero.getByRole("img", { name: /architecture map of its own/i })).toHaveAttribute(
-      "src",
-      "/screenshots/architecture-overview.webp"
-    );
+    await expect(
+      hero.getByRole("img", { name: /synthetic customer portal reference architecture/i })
+    ).toHaveAttribute("src", "/screenshots/architecture-overview.webp");
     const regionOrder = await page
       .locator("[data-landing-region]")
       .evaluateAll((regions) =>
@@ -67,7 +66,9 @@ test.describe("launch experience", () => {
     });
     const hero = heroHeading.locator("xpath=ancestor::section[1]");
     const heroCopy = page.getByTestId("hero-copy");
-    const productProof = hero.getByRole("img", { name: /architecture map of its own/i });
+    const productProof = hero.getByRole("img", {
+      name: /synthetic customer portal reference architecture/i,
+    });
     const trustSection = page.locator('[data-landing-region="trust"]');
 
     const geometry = await page.evaluate(() => {
