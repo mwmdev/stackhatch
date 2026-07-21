@@ -473,13 +473,18 @@ html:not(.dark):not(.light) .icon-control__icon > .theme-toggle__system {
 .page-shell__bar,
 .page-shell__main,
 .page-shell__footer {
-  width: min(100%, var(--shell-width-wide));
   margin-inline: auto;
   padding-inline: var(--page-gutter);
 }
 
+.page-shell__main,
+.page-shell__footer {
+  width: min(100%, var(--shell-width-wide));
+}
+
 .page-shell__bar {
   display: flex;
+  width: 100%;
   min-height: 4.25rem;
   align-items: center;
   gap: 1rem;

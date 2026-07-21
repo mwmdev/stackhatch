@@ -33,6 +33,52 @@ const shellVariants = [
 ];
 
 test.describe("system-wide UI polish", () => {
+  test("shared shell navigation bars span the full viewport", async ({ page }) => {
+    await page.setViewportSize(shellViewports.desktop);
+    await useTheme(page, "light");
+
+    for (const route of ["/support", "/app/maps", "/settings", "/admin"]) {
+      await page.goto(route);
+      await page.locator(".page-shell__bar").waitFor();
+
+      const layout = await page.evaluate(() => {
+        function measure(selector: string) {
+          const rect = document.querySelector<HTMLElement>(selector)?.getBoundingClientRect();
+          return {
+            left: rect?.left ?? -1,
+            right: rect?.right ?? -1,
+            width: rect?.width ?? 0,
+          };
+        }
+
+        return {
+          bar: measure(".page-shell__bar"),
+          main: measure(".page-shell__main"),
+          footer: measure(".page-shell__footer"),
+          viewportWidth: window.innerWidth,
+        };
+      });
+
+      expect(layout.bar.left, `${route} header left edge`).toBeCloseTo(0, 0);
+      expect(layout.bar.right, `${route} header right edge`).toBeCloseTo(layout.viewportWidth, 0);
+
+      if (route === "/support") {
+        for (const [region, regionBounds] of Object.entries({
+          main: layout.main,
+          footer: layout.footer,
+        })) {
+          expect(regionBounds.width, `${region} width`).toBeLessThan(layout.viewportWidth);
+          expect(regionBounds.left, `${region} left inset`).toBeGreaterThan(0);
+          expect(regionBounds.right, `${region} right inset`).toBeLessThan(layout.viewportWidth);
+          expect(regionBounds.left, `${region} centered`).toBeCloseTo(
+            layout.viewportWidth - regionBounds.right,
+            0
+          );
+        }
+      }
+    }
+  });
+
   for (const { route, title, theme, viewportName } of [
     {
       route: "/login",
@@ -114,7 +160,24 @@ test.describe("system-wide UI polish", () => {
         await expect(page.getByRole("link", { name: "Settings" })).toBeVisible();
         await expect(page.getByRole("link", { name: "Admin" })).toBeVisible();
       } else {
-        await expect(page.getByRole("link", { name: "Back to your maps" })).toBeVisible();
+        await expect(page.getByRole("link", { name: "New map" })).toHaveCount(1);
+        await expect(page.getByRole("link", { name: "Settings" })).toHaveAttribute(
+          "aria-current",
+          "page"
+        );
+        await expect(page.getByRole("link", { name: "Admin" })).toBeVisible();
+
+        const widths = await page.evaluate(() => {
+          const shellContent = document.querySelector<HTMLElement>(".page-shell__content");
+          const settingsContent = document.querySelector<HTMLElement>(
+            '[data-testid="settings-content"]'
+          );
+          return {
+            shell: shellContent?.getBoundingClientRect().width ?? 0,
+            settings: settingsContent?.getBoundingClientRect().width ?? 0,
+          };
+        });
+        expect(widths.settings).toBeCloseTo(widths.shell, 0);
       }
       await expectStablePageFrame(page, route === "/app/maps");
     });

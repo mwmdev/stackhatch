@@ -16,6 +16,16 @@ vi.mock("@/lib/analytics", () => ({ trackEvent: mockTrackEvent }));
 function mockFetchSettings(settings: Record<string, unknown>) {
   global.fetch = vi.fn((input: RequestInfo | URL, options?: RequestInit) => {
     const url = typeof input === "string" ? input : input.toString();
+    if (url === "/api/me") {
+      return Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            name: "Admin User",
+            role: "admin",
+          }),
+      });
+    }
     if (url === "/api/settings" && (!options || options.method !== "PATCH")) {
       return Promise.resolve({
         ok: true,
@@ -60,6 +70,12 @@ describe("SettingsPage", () => {
     expect(screen.queryByText("AI Prompts")).not.toBeInTheDocument();
     expect(screen.getAllByRole("main")).toHaveLength(1);
     expect(screen.getAllByRole("heading", { level: 1, name: "Settings" })).toHaveLength(1);
+    expect(screen.getByRole("link", { name: "New map" })).toHaveAttribute("href", "/project/new");
+    expect(await screen.findByRole("link", { name: "Admin" })).toHaveAttribute("href", "/admin");
+    expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("group", { name: "Account controls" })).toBeInTheDocument();
+    expect(screen.getByTestId("settings-content")).toHaveClass("min-w-0");
+    expect(screen.getByTestId("settings-content")).not.toHaveClass("max-w-3xl");
   });
 
   it("shows loading state initially", () => {
@@ -68,13 +84,21 @@ describe("SettingsPage", () => {
     expect(screen.getByText("Loading settings...")).toBeInTheDocument();
   });
 
-  it("shows a named icon control back to the safe return path", async () => {
+  it("shows a named contextual control back to the safe setup return path", async () => {
+    window.history.replaceState(
+      {},
+      "",
+      "/settings?setup=anthropic&returnTo=%2Fproject%2Fnew%3Fmode%3Drequirements"
+    );
     mockFetchSettings({ hasAnthropicKey: false });
     render(<SettingsPage />);
 
     await screen.findByText("Anthropic API Key");
-    expect(screen.getByRole("link", { name: "Back to your maps" })).toHaveAttribute("href", "/app");
-    expect(screen.getByRole("tooltip", { name: "Back to your maps" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Back to map setup" })).toHaveAttribute(
+      "href",
+      "/project/new?mode=requirements"
+    );
+    expect(screen.getByRole("tooltip", { name: "Back to map setup" })).toBeInTheDocument();
   });
 
   it("shows BYOK key status", async () => {

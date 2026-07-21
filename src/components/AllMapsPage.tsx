@@ -1,13 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FolderPlus, RefreshCw, Settings, Users } from "lucide-react";
+import Link from "next/link";
+import { RefreshCw } from "lucide-react";
+import AppPageActions from "@/components/shells/AppPageActions";
 import AppPageShell from "@/components/shells/AppPageShell";
-import IconControl from "@/components/ui/IconControl";
-import ThemeToggle from "@/components/ThemeToggle";
-import UserAvatar from "@/components/UserAvatar";
 
 interface ProjectSummary {
   id: string;
@@ -82,29 +80,7 @@ export default function AllMapsPage({ isAdmin }: { isAdmin: boolean }) {
       homeLabel="Resume map"
       title="All Maps"
       description="Browse, open, and manage your architecture maps."
-      actions={
-        <>
-          <Link
-            href="/project/new"
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-bold text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)]"
-          >
-            <FolderPlus className="h-4 w-4" aria-hidden="true" />
-            New map
-          </Link>
-          <div className="flex items-center gap-1" role="group" aria-label="Account controls">
-            <ThemeToggle />
-            {isAdmin && (
-              <IconControl href="/admin" label="Admin" tooltipPlacement="bottom">
-                <Users />
-              </IconControl>
-            )}
-            <IconControl href="/settings" label="Settings" tooltipPlacement="bottom">
-              <Settings />
-            </IconControl>
-            <UserAvatar />
-          </div>
-        </>
-      }
+      actions={<AppPageActions isAdmin={isAdmin} />}
       footer={
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <span className="font-display font-bold text-[var(--foreground)]">StackHatch</span>
