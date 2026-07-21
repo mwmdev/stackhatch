@@ -452,7 +452,7 @@ export default function ProjectStartWorkspace({
           className="pointer-events-none absolute inset-x-0 bottom-4 z-20 h-24 overflow-hidden"
           aria-hidden="true"
         >
-          <RoutingTrace variant="compact" className="project-start-routing-trace !top-0" />
+          <RoutingTrace variant="compact" className="!top-0" />
         </div>
 
         <section
@@ -569,7 +569,6 @@ export default function ProjectStartWorkspace({
                         key={source.method}
                         type="button"
                         onClick={() => chooseSource(source.method)}
-                        data-source-choice={source.method}
                         className="group flex min-h-64 min-w-0 flex-col rounded-[var(--radius-surface)] border border-t-2 border-[var(--border)] bg-[var(--background)] p-4 text-left transition-[background-color,box-shadow,transform] hover:-translate-y-0.5 hover:bg-[var(--surface-raised)] hover:shadow-[var(--shadow-low)] focus-visible:relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)] sm:min-h-72 sm:p-5"
                         style={{ borderTopColor: source.color }}
                       >

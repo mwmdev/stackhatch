@@ -51,12 +51,10 @@
   --danger-surface: #f8e5e2;
   --danger-border: #d68f89;
   --success: #17685f;
-  --success-fill: var(--oxide);
   --success-foreground: var(--ink);
   --success-surface: #d9efeb;
   --success-border: #73b8ae;
   --warning: #91451f;
-  --warning-fill: var(--signal);
   --warning-foreground: var(--ink);
   --warning-surface: #f8e4d8;
   --warning-border: #d99970;
@@ -759,31 +757,6 @@ html:not(.dark):not(.light) .icon-control__icon > .theme-toggle__system {
 .public-page-shell__footer-links a:hover {
   color: var(--foreground);
   background: var(--muted);
-}
-
-.public-login-shell .page-shell__main {
-  max-width: 36rem;
-  padding-block: clamp(3rem, 10vh, 6rem);
-  text-align: center;
-}
-
-.public-login-shell .page-shell__heading {
-  margin-inline: auto;
-}
-
-.public-login-shell .page-shell__title {
-  font-size: clamp(2rem, 6vw, 3rem);
-}
-
-.public-login-shell__panel {
-  padding-block: 1.5rem;
-  border-block: 1px solid var(--border);
-}
-
-.legal-page-shell .page-shell__description {
-  font-family: var(--font-utility), ui-monospace, monospace;
-  font-size: 0.8125rem;
-  letter-spacing: 0.04em;
 }
 
 .app-page-shell .page-shell__main {

@@ -68,7 +68,7 @@ export default async function LandingPage() {
   const starCount = githubStars === null ? null : formatGitHubStarCount(githubStars);
 
   return (
-    <div className={styles.landingPage} data-observatory-surface="landing">
+    <div className={styles.landingPage}>
       <header className={styles.header}>
         <div className={styles.headerInner}>
           <StackHatchWordmark href="/" label="StackHatch home" className={styles.wordmark} />

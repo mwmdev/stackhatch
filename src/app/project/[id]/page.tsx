@@ -1312,7 +1312,6 @@ export default function ProjectPage() {
       className="project-editor-shell observatory-editor flex flex-col bg-[var(--background)] text-[var(--foreground)] md:flex-row"
       data-testid="project-editor-shell"
       data-height-contract="viewport-minus-impersonation"
-      data-observatory-surface="editor"
     >
       <div
         id="editor-chat-sidebar"

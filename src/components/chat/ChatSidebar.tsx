@@ -449,10 +449,7 @@ export default function ChatSidebar({
   }
 
   return (
-    <div
-      className="relative flex h-[45vh] w-full flex-shrink-0 flex-col border-b border-[var(--boundary)] bg-[var(--paper)] md:h-full md:w-[400px] md:border-b-0 md:border-r"
-      data-observatory-panel="chat"
-    >
+    <div className="relative flex h-[45vh] w-full flex-shrink-0 flex-col border-b border-[var(--boundary)] bg-[var(--paper)] md:h-full md:w-[400px] md:border-b-0 md:border-r">
       <div
         aria-hidden="true"
         data-testid="chat-scroll-overlay"

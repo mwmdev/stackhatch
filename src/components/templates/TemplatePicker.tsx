@@ -66,7 +66,6 @@ function TemplateCard({
       onClick={() => onSelectTemplate(template)}
       disabled={Boolean(busyTemplateId)}
       aria-busy={busyTemplateId === template.id || undefined}
-      data-template-source={isCurated ? "curated" : "personal"}
       className="flex min-h-52 min-w-0 flex-col rounded-[var(--radius-surface)] border border-t-2 border-[var(--border)] bg-[var(--background)] p-4 text-left transition-[background-color,box-shadow,transform] hover:-translate-y-0.5 hover:bg-[var(--surface-raised)] hover:shadow-[var(--shadow-low)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)] disabled:cursor-wait disabled:opacity-60"
       style={{ borderTopColor: isCurated ? "var(--blueprint)" : "var(--oxide)" }}
     >

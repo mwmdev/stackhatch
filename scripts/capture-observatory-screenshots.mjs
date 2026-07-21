@@ -1,7 +1,10 @@
 import { chromium } from "@playwright/test";
-import { execFileSync } from "node:child_process";
+import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { promisify } from "node:util";
 
 const baseURL = process.env.STACKHATCH_SCREENSHOT_BASE_URL ?? "http://localhost:3101";
 const chromiumExecutable =
@@ -11,7 +14,7 @@ const chromiumExecutable =
     : undefined);
 const convertExecutable = process.env.IMAGEMAGICK_CONVERT ?? "convert";
 const outputDirectory = join(process.cwd(), "public", "screenshots");
-const temporaryDirectory = process.env.TMPDIR ?? "/tmp";
+const execFileAsync = promisify(execFile);
 
 const architecture = {
   nodes: [
@@ -155,16 +158,14 @@ const architecture = {
   },
 };
 
-function convert(source, destination, quality) {
+async function convert(source, destination, quality) {
   const args = [source, "-strip"];
   if (quality) args.push("-quality", String(quality));
   args.push(destination);
-  execFileSync(convertExecutable, args, { stdio: "inherit" });
+  await execFileAsync(convertExecutable, args);
 }
 
 async function preparePage(page, projectId) {
-  await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
-  await page.addInitScript(() => localStorage.setItem("theme", "light"));
   await page.goto(`${baseURL}/project/${projectId}`, { waitUntil: "networkidle" });
   await page.getByTestId("project-editor-shell").waitFor();
   await page.getByTestId("stack-node-app-api").waitFor();
@@ -175,15 +176,22 @@ async function preparePage(page, projectId) {
   await page.evaluate(() => document.fonts.ready);
 }
 
-const browser = await chromium.launch({ executablePath: chromiumExecutable, headless: true });
+const temporaryDirectory = await mkdtemp(join(tmpdir(), "stackhatch-observatory-"));
+let browser;
+let context;
+let page;
+let projectId;
 
 try {
-  const context = await browser.newContext({
+  browser = await chromium.launch({ executablePath: chromiumExecutable, headless: true });
+  context = await browser.newContext({
     viewport: { width: 1600, height: 1000 },
     deviceScaleFactor: 1,
     locale: "en-US",
   });
-  const page = await context.newPage();
+  page = await context.newPage();
+  await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
+  await page.addInitScript(() => localStorage.setItem("theme", "light"));
 
   const projectResponse = await page.request.post(`${baseURL}/api/projects`, {
     data: {
@@ -196,27 +204,43 @@ try {
     throw new Error(`Unable to create screenshot project: ${projectResponse.status()}`);
   }
   const project = await projectResponse.json();
+  projectId = project.id;
+  const conversions = [];
 
-  await preparePage(page, project.id);
+  await preparePage(page, projectId);
   await page.getByTestId("stack-node-app-api").click();
   await page.getByTestId("node-detail-panel").waitFor();
   const desktopSource = join(temporaryDirectory, "stackhatch-observatory-desktop.png");
   await page.screenshot({ path: desktopSource });
-  convert(desktopSource, join(outputDirectory, "architecture-overview.webp"), 88);
+  conversions.push([desktopSource, join(outputDirectory, "architecture-overview.webp"), 88]);
 
   await page.setViewportSize({ width: 760, height: 950 });
-  await preparePage(page, project.id);
+  await preparePage(page, projectId);
   const mobileSource = join(temporaryDirectory, "stackhatch-observatory-mobile.png");
   await page.screenshot({ path: mobileSource });
-  convert(mobileSource, join(outputDirectory, "architecture-overview-mobile.webp"), 88);
+  conversions.push([mobileSource, join(outputDirectory, "architecture-overview-mobile.webp"), 88]);
 
   await page.setViewportSize({ width: 1200, height: 630 });
-  await preparePage(page, project.id);
+  await preparePage(page, projectId);
   const openGraphSource = join(temporaryDirectory, "stackhatch-observatory-og.png");
   await page.screenshot({ path: openGraphSource });
-  convert(openGraphSource, join(outputDirectory, "architecture-overview-og.png"));
-
-  await context.close();
+  conversions.push([openGraphSource, join(outputDirectory, "architecture-overview-og.png")]);
+  await Promise.all(conversions.map((args) => convert(...args)));
 } finally {
-  await browser.close();
+  if (page && projectId) {
+    try {
+      await page.request.delete(`${baseURL}/api/projects/${projectId}`);
+    } catch {
+      // Cleanup continues even if the disposable development server has already stopped.
+    }
+  }
+  try {
+    await context?.close();
+  } finally {
+    try {
+      await browser?.close();
+    } finally {
+      await rm(temporaryDirectory, { recursive: true, force: true });
+    }
+  }
 }
