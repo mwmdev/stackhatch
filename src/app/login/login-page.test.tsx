@@ -45,6 +45,8 @@ describe("login callback handling", () => {
 
     expect(screen.getByText("Repository ready: acme/api")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Continue with GitHub" })).toBeInTheDocument();
+    expect(screen.getByText("Account access")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Repository ready: acme/api" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "StackHatch home" })).toHaveAttribute("href", "/");
     expect(screen.getByRole("button", { name: /^Theme:/ })).toBeInTheDocument();
     expect(screen.getAllByRole("main")).toHaveLength(1);

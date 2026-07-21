@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowRight, BookOpen, GitBranch, LifeBuoy, Mail, ShieldCheck, Star } from "lucide-react";
 import TrackedSourceLink from "@/components/public/TrackedSourceLink";
 import PublicPageShell from "@/components/shells/PublicPageShell";
+import styles from "../public-pages.module.css";
 
 export const metadata = {
   title: "Support",
@@ -38,98 +39,92 @@ export default function SupportPage() {
       eyebrow="Support"
       title="Get from repository to a map you can reason about."
       description="StackHatch helps developers see the pieces of a codebase, follow how they connect, and keep the architecture visible while the project changes."
+      className={styles.supportShell}
     >
-      <div className="space-y-12">
-        <section className="grid gap-6 border-y border-[var(--border)] py-6 sm:grid-cols-[auto_1fr] sm:items-start">
-          <LifeBuoy className="h-5 w-5 text-[var(--color-client)]" aria-hidden="true" />
-          <div>
-            <h2 className="font-semibold">Contact support</h2>
-            <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
-              Include your account email, browser, and the action that failed. Never email an API
-              key or private project content.
-            </p>
+      <div className={styles.publicLayout}>
+        <nav aria-label="Support topics" className={styles.sectionNav}>
+          {SUPPORT_PATHS.map((item) => (
+            <a key={item.id} href={`#${item.id}`}>
+              {item.title}
+            </a>
+          ))}
+        </nav>
+
+        <div className={styles.supportContent}>
+          <section className={styles.contactPanel}>
+            <LifeBuoy aria-hidden="true" />
+            <div className={styles.panelCopy}>
+              <h2>Contact support</h2>
+              <p>
+                Include your account email, browser, and the action that failed. Never email an API
+                key or private project content.
+              </p>
+            </div>
             <a
               href="mailto:support@stackhatch.io"
-              className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-semibold text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)]"
+              className={`${styles.actionLink} ${styles.primaryActionLink}`}
             >
-              <Mail className="h-4 w-4" />
+              <Mail className="h-4 w-4" aria-hidden="true" />
               support@stackhatch.io
             </a>
-          </div>
-        </section>
+          </section>
 
-        <section className="divide-y divide-[var(--border)] border-y border-[var(--border)]">
-          {SUPPORT_PATHS.map((item) => (
-            <article
-              key={item.title}
-              id={item.id}
-              className="grid gap-3 py-6 sm:grid-cols-[2rem_12rem_1fr] sm:items-start"
-            >
-              <BookOpen className="h-5 w-5 text-[var(--color-api)]" aria-hidden="true" />
-              <h2 className="font-semibold">{item.title}</h2>
-              <p className="text-sm leading-6 text-[var(--muted-foreground)]">{item.description}</p>
-            </article>
-          ))}
-        </section>
+          <section className={styles.supportPaths} aria-label="Support guidance">
+            {SUPPORT_PATHS.map((item) => (
+              <article key={item.title} id={item.id} className={styles.supportPath}>
+                <BookOpen aria-hidden="true" />
+                <h2>{item.title}</h2>
+                <p>{item.description}</p>
+              </article>
+            ))}
+          </section>
 
-        <section className="border-y border-[var(--border)] py-6">
-          <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-            <div className="flex min-w-0 gap-3">
-              <ShieldCheck
-                className="mt-1 h-5 w-5 flex-none text-[var(--color-api)]"
-                aria-hidden="true"
-              />
-              <div>
-                <h2 className="font-semibold">Trust basics</h2>
-                <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
-                  Review the privacy and terms pages before sharing customer-sensitive requirements.
-                </p>
-              </div>
+          <section className={styles.trustPanel}>
+            <ShieldCheck aria-hidden="true" />
+            <div className={styles.panelCopy}>
+              <h2>Trust basics</h2>
+              <p>
+                Review the privacy and terms pages before sharing customer-sensitive requirements.
+              </p>
             </div>
-            <div className="flex flex-wrap gap-3">
-              <Link
-                href="/privacy"
-                className="inline-flex min-h-11 items-center rounded-md border border-[var(--border)] px-4 py-2 text-sm font-semibold hover:bg-[var(--muted)]"
-              >
+            <div className={styles.trustActions}>
+              <Link href="/privacy" className={styles.actionLink}>
                 Privacy
               </Link>
-              <Link
-                href="/terms"
-                className="inline-flex min-h-11 items-center gap-2 rounded-md border border-[var(--border)] px-4 py-2 text-sm font-semibold hover:bg-[var(--muted)]"
-              >
+              <Link href="/terms" className={styles.actionLink}>
                 Terms
                 <ArrowRight className="h-4 w-4" />
               </Link>
             </div>
-          </div>
-        </section>
+          </section>
 
-        <section className="flex flex-wrap items-center gap-3">
-          <p className="mr-auto text-sm text-[var(--muted-foreground)]">
-            StackHatch is open source and developed in public.
-          </p>
-          <TrackedSourceLink
-            href="https://github.com/mwmdev/stackhatch"
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex min-h-11 items-center gap-2 rounded-md border border-[var(--border)] px-4 py-2 text-sm font-semibold hover:bg-[var(--muted)]"
-            location="navigation"
-          >
-            <GitBranch className="h-4 w-4" />
-            View source
-          </TrackedSourceLink>
-          <TrackedSourceLink
-            href="https://github.com/mwmdev/stackhatch"
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex min-h-11 items-center gap-2 rounded-md border border-[var(--border)] px-4 py-2 text-sm font-semibold hover:bg-[var(--muted)]"
-            location="navigation"
-            intent="star"
-          >
-            <Star className="h-4 w-4" />
-            Star on GitHub
-          </TrackedSourceLink>
-        </section>
+          <section className={styles.sourcePanel}>
+            <p>StackHatch is open source and developed in public.</p>
+            <div className={styles.sourceActions}>
+              <TrackedSourceLink
+                href="https://github.com/mwmdev/stackhatch"
+                target="_blank"
+                rel="noreferrer"
+                className={styles.actionLink}
+                location="navigation"
+              >
+                <GitBranch className="h-4 w-4" />
+                View source
+              </TrackedSourceLink>
+              <TrackedSourceLink
+                href="https://github.com/mwmdev/stackhatch"
+                target="_blank"
+                rel="noreferrer"
+                className={styles.actionLink}
+                location="navigation"
+                intent="star"
+              >
+                <Star className="h-4 w-4" />
+                Star on GitHub
+              </TrackedSourceLink>
+            </div>
+          </section>
+        </div>
       </div>
     </PublicPageShell>
   );

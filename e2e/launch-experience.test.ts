@@ -199,4 +199,36 @@ test.describe("launch experience", () => {
     expect(layout.screenshotCount).toBe(1);
     expect(layout.regionOrder).toEqual(["hero", "trust", "capabilities", "workflow", "final-cta"]);
   });
+
+  test("keeps the public observatory routes focused and contained on phone and desktop", async ({
+    page,
+  }) => {
+    for (const viewport of [
+      { width: 1440, height: 900 },
+      { width: 390, height: 844 },
+    ]) {
+      await page.setViewportSize(viewport);
+
+      for (const publicRoute of [
+        { path: "/login", heading: "Turn what you have into an architecture map." },
+        { path: "/support", heading: "Get from repository to a map you can reason about." },
+        { path: "/privacy", heading: "Privacy Policy" },
+        { path: "/terms", heading: "Terms of Service" },
+      ]) {
+        await page.goto(publicRoute.path);
+
+        await expect(
+          page.getByRole("heading", { level: 1, name: publicRoute.heading })
+        ).toBeVisible();
+        await expect(page.locator("main")).toHaveCount(1);
+        await expect(page.locator('[data-routing-trace="true"]')).toHaveCount(1);
+        expect(
+          await page.evaluate(() => ({
+            viewport: window.innerWidth,
+            scrollWidth: document.documentElement.scrollWidth,
+          }))
+        ).toEqual({ viewport: viewport.width, scrollWidth: viewport.width });
+      }
+    }
+  });
 });

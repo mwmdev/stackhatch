@@ -1,9 +1,11 @@
 .landingPage {
   --landing-width: 1180px;
   --landing-gutter: 48px;
-  --landing-contrast: #18212b;
-  --landing-on-contrast: #f4f7fa;
-  --landing-on-contrast-muted: #b8c3ce;
+  --landing-contrast: #10222f;
+  --landing-on-contrast: #edf5f4;
+  --landing-on-contrast-muted: #a9bdc3;
+  --landing-contrast-boundary: #35505d;
+  --landing-contrast-accent: #77b7e0;
   min-height: 100vh;
   overflow: clip;
   color: var(--foreground);
@@ -12,7 +14,11 @@
 }
 
 :global(.dark) .landingPage {
-  --landing-contrast: #0b1117;
+  --landing-contrast: var(--paper);
+  --landing-on-contrast: var(--foreground);
+  --landing-on-contrast-muted: var(--muted-foreground);
+  --landing-contrast-boundary: var(--boundary);
+  --landing-contrast-accent: var(--blueprint);
 }
 
 .landingPage h1,
@@ -331,6 +337,14 @@
   color: var(--brand);
 }
 
+.trustInner article:nth-child(2) svg {
+  color: var(--oxide);
+}
+
+.trustInner article:nth-child(3) svg {
+  color: var(--signal);
+}
+
 .trustInner h2 {
   font-size: 1rem;
   font-weight: 800;
@@ -411,6 +425,14 @@
   width: 24px;
   height: 24px;
   color: var(--brand);
+}
+
+.capabilityRow:nth-child(2) .capabilityIcon svg {
+  color: var(--oxide);
+}
+
+.capabilityRow:nth-child(3) .capabilityIcon svg {
+  color: var(--signal);
 }
 
 .capabilityRow h3 {
@@ -503,7 +525,7 @@
 }
 
 .finalCta .eyebrow {
-  color: #8badff;
+  color: var(--landing-contrast-accent);
 }
 
 .finalCta h2 {
@@ -532,7 +554,7 @@
 }
 
 .finalSignInLink {
-  border-color: #52606e;
+  border-color: var(--landing-contrast-boundary);
   color: var(--landing-on-contrast);
 }
 

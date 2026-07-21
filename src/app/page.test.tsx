@@ -124,6 +124,8 @@ describe("LandingPage", () => {
   it("preserves the primary and supporting destinations", async () => {
     await renderLandingPage();
 
+    expect(screen.getByRole("link", { name: "Features" })).toHaveAttribute("href", "#features");
+    expect(screen.queryByRole("link", { name: "Product" })).not.toBeInTheDocument();
     for (const signIn of screen.getAllByRole("link", { name: "Sign in" })) {
       expect(signIn).toHaveAttribute("href", "/login?callbackUrl=/app");
     }

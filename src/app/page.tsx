@@ -75,7 +75,7 @@ export default async function LandingPage() {
 
           <nav aria-label="Primary navigation" className={styles.primaryNav}>
             <div className={styles.navLinks}>
-              <a href="#features">Product</a>
+              <a href="#features">Features</a>
               <a href="#workflow">How it works</a>
               <TrackedSourceLink
                 href="https://github.com/mwmdev/stackhatch"
