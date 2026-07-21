@@ -1,65 +1,78 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f4f7fa;
-  --foreground: #18212b;
-  --muted: #e8edf2;
-  --muted-foreground: #5d6b79;
-  --border: #cbd5df;
-  --card: #ffffff;
-  --card-foreground: #18212b;
-  --surface-raised: #ffffff;
-  --surface-pressed: #dfe6ed;
-  --canvas: #f4f7fa;
-  --overlay: rgb(17 24 32 / 0.56);
-  --ring: #2864dc;
-  --shadow-color: rgb(24 33 43 / 0.16);
+  /* Architecture-observatory roles. Keep generic UI tokens mapped to these roles. */
+  --fog: #eef3f3;
+  --paper: #fafcfb;
+  --ink: #10222f;
+  --blueprint: #23658a;
+  --oxide: #3c9b92;
+  --signal: #e47b43;
+  --boundary: #c8d6d8;
+  --muted-surface: #e1e9e9;
+  --muted-ink: #526875;
+
+  --background: var(--fog);
+  --foreground: var(--ink);
+  --muted: var(--muted-surface);
+  --muted-foreground: var(--muted-ink);
+  --border: var(--boundary);
+  --card: var(--paper);
+  --card-foreground: var(--ink);
+  --surface-raised: var(--paper);
+  --surface-pressed: var(--muted-surface);
+  --canvas: var(--fog);
+  --overlay: rgb(16 34 47 / 0.58);
+  --ring: var(--blueprint);
+  --shadow-color: rgb(16 34 47 / 0.15);
   --impersonation-banner-height: 0px;
 
-  /* Shared interface geometry: quiet shells, compact chrome, generous targets. */
+  /* Instrument geometry: exact boundaries, compact chrome, generous targets. */
   --page-gutter: clamp(1rem, 3vw, 2rem);
   --shell-width-wide: 80rem;
   --shell-width-standard: 64rem;
   --shell-width-reading: 46rem;
   --control-size: 2.75rem;
-  --radius-control: 0.375rem;
-  --radius-surface: 0.5rem;
+  --radius-control: 0.25rem;
+  --radius-surface: 0.375rem;
   --surface-subtle: color-mix(in srgb, var(--card) 58%, var(--background));
-  --shadow-low: 0 10px 24px -22px var(--shadow-color);
+  --shadow-low: 0 12px 28px -24px var(--shadow-color);
 
-  --brand: #2864dc;
-  --brand-hover: #1f50b8;
-  --brand-foreground: #ffffff;
-  --accent: #ce7b22;
-  --accent-hover: #aa6118;
-  --accent-foreground: #ffffff;
-  --link: #2158c5;
-  --danger: #b83b3b;
-  --danger-hover: #942e2e;
-  --danger-foreground: #ffffff;
-  --danger-surface: #fce8e7;
-  --danger-border: #dc9894;
-  --success: #168f7a;
-  --success-foreground: #ffffff;
-  --success-surface: #dff3ef;
-  --success-border: #83c4b7;
-  --warning: #ce7b22;
-  --warning-foreground: #ffffff;
-  --warning-surface: #faeddd;
-  --warning-border: #dda462;
+  --brand: var(--blueprint);
+  --brand-hover: #194d6c;
+  --brand-foreground: var(--paper);
+  --accent: var(--signal);
+  --accent-hover: #f08f59;
+  --accent-foreground: var(--ink);
+  --link: var(--blueprint);
+  --danger: #a83737;
+  --danger-hover: #842929;
+  --danger-foreground: var(--paper);
+  --danger-surface: #f8e5e2;
+  --danger-border: #d68f89;
+  --success: #17685f;
+  --success-fill: var(--oxide);
+  --success-foreground: var(--ink);
+  --success-surface: #d9efeb;
+  --success-border: #73b8ae;
+  --warning: #91451f;
+  --warning-fill: var(--signal);
+  --warning-foreground: var(--ink);
+  --warning-surface: #f8e4d8;
+  --warning-border: #d99970;
 
-  --color-client: #2864dc;
-  --color-client-fill: #2864dc;
-  --color-client-foreground: #ffffff;
-  --color-api: #168f7a;
-  --color-api-fill: #168f7a;
-  --color-api-foreground: #ffffff;
+  --color-client: var(--blueprint);
+  --color-client-fill: var(--blueprint);
+  --color-client-foreground: var(--paper);
+  --color-api: var(--oxide);
+  --color-api-fill: var(--oxide);
+  --color-api-foreground: var(--ink);
   --color-services: #7656b5;
   --color-services-fill: #7656b5;
   --color-services-foreground: #ffffff;
-  --color-data: #ce7b22;
-  --color-data-fill: #ce7b22;
-  --color-data-foreground: #ffffff;
+  --color-data: var(--signal);
+  --color-data-fill: var(--signal);
+  --color-data-foreground: var(--ink);
   --color-infrastructure: #536678;
   --color-infrastructure-fill: #536678;
   --color-infrastructure-foreground: #ffffff;
@@ -94,53 +107,43 @@
 }
 
 .dark {
-  --background: #111820;
-  --foreground: #edf2f7;
-  --muted: #202b36;
-  --muted-foreground: #a9b5c1;
-  --border: #354350;
-  --card: #18212b;
-  --card-foreground: #edf2f7;
-  --surface-raised: #1b2631;
-  --surface-pressed: #293744;
-  --canvas: #111820;
+  --fog: #101b23;
+  --paper: #172730;
+  --ink: #edf5f4;
+  --blueprint: #77b7e0;
+  --oxide: #69c2b8;
+  --signal: #f0a172;
+  --boundary: #35505d;
+  --muted-surface: #223640;
+  --muted-ink: #a9bdc3;
+
   --overlay: rgb(4 9 14 / 0.7);
-  --ring: #75a0ff;
   --shadow-color: rgb(0 0 0 / 0.46);
 
-  --brand: #75a0ff;
-  --brand-hover: #91b4ff;
-  --brand-foreground: #101720;
-  --accent: #efa955;
-  --accent-hover: #ffc078;
-  --accent-foreground: #19130d;
-  --link: #8badff;
+  --brand-hover: #9ecbed;
+  --brand-foreground: #10222f;
+  --accent-hover: #ffc09a;
+  --accent-foreground: #10222f;
   --danger: #ed8585;
   --danger-hover: #f3a0a0;
-  --danger-foreground: #1c1010;
+  --danger-foreground: #10222f;
   --danger-surface: #3a2023;
   --danger-border: #854b50;
-  --success: #66c9b7;
-  --success-foreground: #071713;
+  --success: var(--oxide);
+  --success-foreground: #10222f;
   --success-surface: #17352f;
   --success-border: #347e71;
-  --warning: #efa955;
-  --warning-foreground: #19130d;
+  --warning: var(--signal);
+  --warning-foreground: #10222f;
   --warning-surface: #3b2b1a;
   --warning-border: #876338;
 
-  --color-client: #75a0ff;
-  --color-client-fill: #75a0ff;
-  --color-client-foreground: #101720;
-  --color-api: #66c9b7;
-  --color-api-fill: #66c9b7;
-  --color-api-foreground: #071713;
+  --color-client-foreground: #10222f;
+  --color-api-foreground: #10222f;
   --color-services: #b39ce3;
   --color-services-fill: #b39ce3;
   --color-services-foreground: #171221;
-  --color-data: #efa955;
-  --color-data-fill: #efa955;
-  --color-data-foreground: #19130d;
+  --color-data-foreground: #10222f;
   --color-infrastructure: #a7b7c6;
   --color-infrastructure-fill: #a7b7c6;
   --color-infrastructure-foreground: #101820;
@@ -187,6 +190,7 @@ body {
   color: var(--foreground);
   background: var(--background);
   font-family: var(--font-body), sans-serif;
+  line-height: 1.5;
   text-rendering: optimizeLegibility;
 }
 
@@ -194,37 +198,54 @@ body {
   display: inline-flex;
   min-height: var(--control-size);
   align-items: center;
-  gap: 0.625rem;
+  gap: 0.5625rem;
   color: var(--foreground);
   font-family: var(--font-display), var(--font-body), sans-serif;
   font-weight: 800;
-  letter-spacing: -0.025em;
+  letter-spacing: -0.035em;
   text-decoration: none;
 }
 
 .stackhatch-wordmark__hatch {
-  display: inline-grid;
-  width: 1.25rem;
-  gap: 0.1875rem;
+  display: inline-flex;
+  width: 1.5rem;
+  height: 1.5rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--blueprint) 42%, var(--boundary));
+  border-radius: 0.1875rem;
   color: var(--brand);
+  background: color-mix(in srgb, var(--paper) 72%, transparent);
 }
 
-.stackhatch-wordmark__hatch > span {
-  height: 2px;
-  background: currentColor;
+.stackhatch-wordmark__hatch svg {
+  width: 1.125rem;
+  height: 1.125rem;
+  overflow: visible;
 }
 
-.stackhatch-wordmark__hatch > span:nth-child(1) {
-  width: 65%;
+.stackhatch-wordmark__hatch path {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+  stroke-width: 1.25;
 }
 
-.stackhatch-wordmark__hatch > span:nth-child(2) {
-  width: 100%;
+.stackhatch-wordmark__hatch circle {
+  fill: var(--paper);
+  stroke: currentColor;
+  stroke-width: 1.25;
 }
 
-.stackhatch-wordmark__hatch > span:nth-child(3) {
-  width: 78%;
-  margin-left: auto;
+.stackhatch-wordmark__name {
+  display: inline-flex;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.stackhatch-wordmark__accent {
+  color: var(--blueprint);
 }
 
 .icon-control-wrap {
@@ -256,9 +277,13 @@ body {
   background: var(--muted);
 }
 
+.icon-control[data-active="true"] {
+  border-color: color-mix(in srgb, var(--blueprint) 48%, var(--boundary));
+}
+
 .icon-control[data-variant="outline"] {
   border-color: var(--border);
-  background: var(--card);
+  background: var(--paper);
 }
 
 .icon-control[data-variant="danger"] {
@@ -456,23 +481,120 @@ html:not(.dark):not(.light) .icon-control__icon > .theme-toggle__system {
   }
 }
 
+.routing-trace-clip {
+  position: absolute;
+  top: 4.25rem;
+  right: 0;
+  left: 0;
+  z-index: 0;
+  width: 100%;
+  max-width: 100vw;
+  height: clamp(5.5rem, 9vw, 7.5rem);
+  overflow: hidden;
+  color: var(--blueprint);
+  opacity: 0.3;
+  contain: paint;
+  pointer-events: none;
+}
+
+.routing-trace {
+  display: block;
+  width: max(100%, 40rem);
+  height: 100%;
+  pointer-events: none;
+}
+
+.routing-trace__path {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+  stroke-width: 1.25;
+  vector-effect: non-scaling-stroke;
+}
+
+.routing-trace__nodes {
+  fill: var(--paper);
+  stroke: currentColor;
+  stroke-width: 1.25;
+  vector-effect: non-scaling-stroke;
+}
+
+.routing-trace-clip[data-variant="compact"] {
+  height: 4.5rem;
+}
+
+.app-resolver-shell {
+  position: relative;
+  display: grid;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow: hidden;
+  place-items: center;
+  padding: var(--page-gutter);
+  color: var(--muted-foreground);
+  background: var(--background);
+}
+
+.app-resolver-shell .routing-trace-clip {
+  top: 50%;
+  height: 7.5rem;
+  transform: translateY(-5.75rem);
+}
+
+.app-resolver-shell__status {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  min-height: var(--control-size);
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--boundary);
+  border-radius: var(--radius-surface);
+  background: color-mix(in srgb, var(--paper) 94%, transparent);
+  box-shadow: var(--shadow-low);
+  font-family: var(--font-utility), ui-monospace, monospace;
+  font-size: 0.8125rem;
+  letter-spacing: 0.02em;
+}
+
+.app-resolver-shell__signal {
+  width: 0.5rem;
+  height: 0.5rem;
+  flex: none;
+  border: 1px solid var(--blueprint);
+  background: var(--paper);
+}
+
+.app-resolver-shell__status p {
+  margin: 0;
+}
+
 .page-shell {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-height: 100vh;
   min-height: 100dvh;
+  overflow-x: clip;
+  isolation: isolate;
   color: var(--foreground);
   background: var(--background);
 }
 
 .page-shell__site-header {
-  border-bottom: 1px solid var(--border);
-  background: var(--background);
+  position: relative;
+  z-index: 2;
+  border-bottom: 1px solid var(--boundary);
+  background: color-mix(in srgb, var(--paper) 86%, var(--background));
 }
 
 .page-shell__bar,
 .page-shell__main,
 .page-shell__footer {
+  position: relative;
+  z-index: 1;
   margin-inline: auto;
   padding-inline: var(--page-gutter);
 }
@@ -528,7 +650,7 @@ html:not(.dark):not(.light) .icon-control__icon > .theme-toggle__system {
   margin-bottom: 0.75rem;
   color: var(--muted-foreground);
   font-family: var(--font-utility), ui-monospace, monospace;
-  font-size: 0.75rem;
+  font-size: 0.6875rem;
   font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -538,8 +660,9 @@ html:not(.dark):not(.light) .icon-control__icon > .theme-toggle__system {
   margin: 0;
   color: var(--foreground);
   font-size: clamp(2rem, 5vw, 3.5rem);
+  font-weight: 800;
   line-height: 1.04;
-  letter-spacing: -0.04em;
+  letter-spacing: -0.045em;
 }
 
 .page-shell__description {
@@ -556,7 +679,7 @@ html:not(.dark):not(.light) .icon-control__icon > .theme-toggle__system {
 
 .page-shell__footer {
   padding-block: 1.5rem;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--boundary);
   color: var(--muted-foreground);
   font-size: 0.875rem;
 }
@@ -581,7 +704,7 @@ html:not(.dark):not(.light) .icon-control__icon > .theme-toggle__system {
   min-height: 2.75rem;
   align-items: center;
   padding-inline: 0.75rem;
-  border-radius: 0.375rem;
+  border-radius: var(--radius-control);
 }
 
 .public-page-shell__footer-links a:hover {
@@ -640,6 +763,10 @@ html:not(.dark):not(.light) .icon-control__icon > .theme-toggle__system {
 }
 
 @media (max-width: 639px) {
+  .routing-trace-clip {
+    top: 3.75rem;
+  }
+
   .page-shell__bar {
     min-height: 3.75rem;
     flex-wrap: wrap;

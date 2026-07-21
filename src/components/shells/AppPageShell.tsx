@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import RoutingTrace from "./RoutingTrace";
 import StackHatchWordmark from "./StackHatchWordmark";
 
 export type AppPageShellProps = {
@@ -33,6 +34,7 @@ export default function AppPageShell({
       className={["page-shell app-page-shell", className].filter(Boolean).join(" ")}
       data-density={density}
     >
+      <RoutingTrace variant="shell" />
       <header className="page-shell__site-header">
         <div className="page-shell__bar">
           <StackHatchWordmark href={homeHref} label={homeLabel} />

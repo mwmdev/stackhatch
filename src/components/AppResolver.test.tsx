@@ -17,9 +17,14 @@ describe("AppResolver", () => {
   });
 
   it("shows a status shell and replaces to the server-selected resume destination once", async () => {
-    const { rerender } = render(<AppResolver destination="/project/map-1?resume=1" />);
+    const { container, rerender } = render(<AppResolver destination="/project/map-1?resume=1" />);
 
+    expect(screen.getAllByRole("main")).toHaveLength(1);
     expect(screen.getByRole("status")).toHaveTextContent("Opening your map");
+    const traces = container.querySelectorAll('[data-routing-trace="true"]');
+    expect(traces).toHaveLength(1);
+    expect(traces[0]).toHaveAttribute("aria-hidden", "true");
+    expect(traces[0]).toHaveAttribute("focusable", "false");
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/project/map-1?resume=1"));
 
     rerender(<AppResolver destination="/project/map-1?resume=1" />);
