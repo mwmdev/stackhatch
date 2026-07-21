@@ -50,7 +50,14 @@ describe("LandingPage", () => {
 
     expect(screenshots).toHaveLength(1);
     expect(screenshots[0]).toHaveAttribute("src", "/screenshots/architecture-overview.webp");
-    expect(screenshots[0]).toHaveAccessibleName(/architecture map of its own/i);
+    expect(screenshots[0]).toHaveAccessibleName(
+      "Synthetic Customer Portal reference architecture in the real StackHatch editor with a component detail panel open"
+    );
+    expect(
+      screen.getByText(
+        "A synthetic Customer Portal reference architecture in the real StackHatch editor"
+      )
+    ).toBeInTheDocument();
   });
 
   it("uses one inert routing trace as decoration", async () => {

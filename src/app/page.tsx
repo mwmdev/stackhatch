@@ -149,12 +149,12 @@ export default async function LandingPage() {
                   loading="eager"
                   fetchPriority="high"
                   decoding="async"
-                  alt="StackHatch architecture map of its own Next.js codebase with a component detail panel open"
+                  alt="Synthetic Customer Portal reference architecture in the real StackHatch editor with a component detail panel open"
                 />
               </picture>
               <figcaption>
-                <span aria-hidden="true" />
-                StackHatch mapping its own codebase
+                <span aria-hidden="true" />A synthetic Customer Portal reference architecture in the
+                real StackHatch editor
               </figcaption>
             </figure>
           </div>
