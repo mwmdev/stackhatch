@@ -53,6 +53,17 @@ describe("LandingPage", () => {
     expect(screenshots[0]).toHaveAccessibleName(/architecture map of its own/i);
   });
 
+  it("uses one inert routing trace as decoration", async () => {
+    await renderLandingPage();
+
+    const traces = document.querySelectorAll('[data-routing-trace="true"]');
+    expect(traces).toHaveLength(1);
+    expect(traces[0]).toHaveAttribute("aria-hidden", "true");
+    expect(traces[0]).toHaveAttribute("focusable", "false");
+    expect(traces[0]).toHaveStyle({ pointerEvents: "none" });
+    expect(traces[0].closest('[data-routing-trace-clip="true"]')).toBeInTheDocument();
+  });
+
   it("separates concrete trust, product capabilities, and the working loop", async () => {
     await renderLandingPage();
 

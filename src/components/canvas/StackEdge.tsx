@@ -105,7 +105,7 @@ function EdgeLabel({
 
   return (
     <div
-      className={`stack-edge-label absolute rounded-full border border-[var(--border)] bg-[var(--card)] px-2 py-0.5 text-[10px] font-medium text-[var(--card-foreground)] shadow-sm transition-opacity ${
+      className={`stack-edge-label font-utility absolute rounded-[3px] border border-[var(--border)] bg-[var(--card)] px-2 py-0.5 text-[9px] font-semibold tracking-[0.04em] text-[var(--card-foreground)] shadow-sm transition-opacity ${
         visible ? "opacity-100" : "opacity-0"
       } ${
         canEdit && visible

@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Outfit } from "next/font/google";
 import {
   ArrowRight,
   CircleHelp,
@@ -13,6 +12,7 @@ import {
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import TrackedSourceLink from "@/components/public/TrackedSourceLink";
+import RoutingTrace from "@/components/shells/RoutingTrace";
 import StackHatchWordmark from "@/components/shells/StackHatchWordmark";
 import IconControl from "@/components/ui/IconControl";
 import { formatGitHubStarCount, getGitHubStarCount } from "@/lib/github-stars";
@@ -21,12 +21,6 @@ import styles from "./landing.module.css";
 export const metadata = {
   alternates: { canonical: "/" },
 } satisfies Metadata;
-
-const publicDisplay = Outfit({
-  subsets: ["latin"],
-  weight: ["600", "700", "800"],
-  variable: "--font-public-display",
-});
 
 const CAPABILITIES = [
   {
@@ -74,7 +68,7 @@ export default async function LandingPage() {
   const starCount = githubStars === null ? null : formatGitHubStarCount(githubStars);
 
   return (
-    <div className={`${styles.landingPage} ${publicDisplay.variable}`}>
+    <div className={styles.landingPage} data-observatory-surface="landing">
       <header className={styles.header}>
         <div className={styles.headerInner}>
           <StackHatchWordmark href="/" label="StackHatch home" className={styles.wordmark} />
@@ -119,6 +113,7 @@ export default async function LandingPage() {
 
       <main>
         <section className={styles.hero} aria-labelledby="hero-heading" data-landing-region="hero">
+          <RoutingTrace variant="compact" className={styles.heroTrace} />
           <div className={styles.heroInner}>
             <div className={styles.heroCopy} data-testid="hero-copy">
               <p className={styles.eyebrow}>Architecture workspace</p>
@@ -176,7 +171,8 @@ export default async function LandingPage() {
               <div>
                 <h2>Free to use. Bring your own key.</h2>
                 <p>
-                  Blank maps and templates need no key. AI-assisted work uses your Anthropic key.
+                  Blank maps and templates need no key. AI-assisted work uses your Anthropic API
+                  key.
                 </p>
               </div>
             </article>

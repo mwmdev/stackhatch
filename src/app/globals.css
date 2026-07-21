@@ -388,6 +388,43 @@ html:not(.dark):not(.light) .icon-control__icon > .theme-toggle__system {
   overflow: hidden;
 }
 
+.observatory-editor-project-bar {
+  position: relative;
+  min-height: 3.5rem;
+  overflow: hidden;
+  isolation: isolate;
+  background: color-mix(in srgb, var(--paper) 94%, var(--background));
+}
+
+.observatory-editor-project-bar > :not(.editor-routing-trace) {
+  position: relative;
+  z-index: 1;
+}
+
+.observatory-editor-project-bar .editor-routing-trace {
+  top: auto;
+  bottom: -0.125rem;
+  z-index: 0;
+  height: 1rem;
+  opacity: 0.5;
+}
+
+.observatory-editor-workbench {
+  border-top: 1px solid color-mix(in srgb, var(--blueprint) 14%, transparent);
+  background:
+    linear-gradient(color-mix(in srgb, var(--paper) 20%, transparent), transparent 10rem),
+    var(--canvas);
+}
+
+.observatory-editor .react-flow__node {
+  filter: drop-shadow(0 10px 14px color-mix(in srgb, var(--shadow-color) 56%, transparent));
+}
+
+.observatory-editor .react-flow__edge-path {
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+}
+
 .edge-legend {
   position: absolute;
   bottom: 1rem;

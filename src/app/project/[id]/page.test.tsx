@@ -742,6 +742,21 @@ describe("ProjectPage", () => {
       );
     });
 
+    it("keeps one inert editor trace outside the React Flow canvas", async () => {
+      mockFetchProject(projectWithNodes);
+      render(<ProjectPage />);
+
+      const canvas = await screen.findByTestId("react-flow-canvas");
+      const shell = screen.getByTestId("project-editor-shell");
+      const traces = shell.querySelectorAll('[data-routing-trace="true"]');
+
+      expect(traces).toHaveLength(1);
+      expect(traces[0]).toHaveAttribute("aria-hidden", "true");
+      expect(traces[0]).toHaveAttribute("focusable", "false");
+      expect(traces[0]).toHaveStyle({ pointerEvents: "none" });
+      expect(canvas).not.toContainElement(traces[0] as HTMLElement);
+    });
+
     it("opens editor display settings and persists toggle changes", async () => {
       mockFetchProject(emptyProject);
       render(<ProjectPage />);

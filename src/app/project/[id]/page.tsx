@@ -31,6 +31,7 @@ import {
   type EditorDisplaySettings,
 } from "@/components/canvas/EditorDisplaySettings";
 import ThemeToggle from "@/components/ThemeToggle";
+import RoutingTrace from "@/components/shells/RoutingTrace";
 import IconControl from "@/components/ui/IconControl";
 import {
   toReactFlowNodes,
@@ -1280,9 +1281,10 @@ export default function ProjectPage() {
 
   return (
     <div
-      className="project-editor-shell flex flex-col bg-[var(--background)] text-[var(--foreground)] md:flex-row"
+      className="project-editor-shell observatory-editor flex flex-col bg-[var(--background)] text-[var(--foreground)] md:flex-row"
       data-testid="project-editor-shell"
       data-height-contract="viewport-minus-impersonation"
+      data-observatory-surface="editor"
     >
       <div
         id="editor-chat-sidebar"
@@ -1309,10 +1311,11 @@ export default function ProjectPage() {
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {/* Project bar */}
         <div
-          className="flex min-w-0 flex-nowrap items-center gap-0 border-b border-[var(--border)] bg-[var(--background)] px-1 py-1.5 sm:gap-1 sm:px-2"
+          className="observatory-editor-project-bar flex min-w-0 flex-nowrap items-center gap-0 border-b border-[var(--border)] bg-[var(--background)] px-1 py-1.5 sm:gap-1 sm:px-2"
           data-testid="editor-project-bar"
           data-layout="single-row"
         >
+          <RoutingTrace variant="compact" className="editor-routing-trace" />
           <IconControl
             href="/app/maps"
             label="All maps"
@@ -1450,7 +1453,7 @@ export default function ProjectPage() {
         </p>
 
         {/* Canvas area */}
-        <div className="relative min-h-0 flex-1 overflow-hidden bg-[var(--canvas)]">
+        <div className="observatory-editor-workbench relative min-h-0 flex-1 overflow-hidden bg-[var(--canvas)]">
           <EditorDisplaySettingsProvider value={editorDisplaySettings}>
             <ReactFlow
               nodes={rfNodes}
