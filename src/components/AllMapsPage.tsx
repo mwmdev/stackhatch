@@ -80,6 +80,7 @@ export default function AllMapsPage({ isAdmin }: { isAdmin: boolean }) {
       homeLabel="Resume map"
       title="All Maps"
       description="Browse, open, and manage your architecture maps."
+      eyebrow="Map observatory"
       actions={<AppPageActions isAdmin={isAdmin} />}
       footer={
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -108,10 +109,7 @@ export default function AllMapsPage({ isAdmin }: { isAdmin: boolean }) {
       }
     >
       <div className="min-w-0">
-        <section
-          className="overflow-hidden rounded-md border border-[var(--border)] bg-[var(--card)]"
-          aria-label="Your maps"
-        >
+        <section className="overflow-hidden rounded-sm border border-[var(--border)] bg-[var(--card)]">
           {projectsError && (
             <div className="flex justify-end border-b border-[var(--border)] p-4">
               <button
@@ -138,38 +136,67 @@ export default function AllMapsPage({ isAdmin }: { isAdmin: boolean }) {
               No maps yet. Choose New map to create your first one.
             </div>
           ) : (
-            <div className="divide-y divide-[var(--border)]">
+            <div role="table" aria-label="Your maps" className="min-w-0">
+              <div
+                role="row"
+                className="font-utility hidden grid-cols-[minmax(11rem,1.1fr)_minmax(14rem,1.35fr)_9rem_5.5rem] border-b border-[var(--border)] bg-[var(--surface-subtle)] px-5 py-3 text-[0.6875rem] font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)] md:grid"
+              >
+                <span role="columnheader">Name</span>
+                <span role="columnheader">Description</span>
+                <span role="columnheader">Updated</span>
+                <span role="columnheader" className="text-right">
+                  Actions
+                </span>
+              </div>
               {projects.map((project) => (
                 <div
                   key={project.id}
-                  className="group relative min-w-0 bg-[var(--surface-raised)] px-5 py-4 transition-colors hover:bg-[var(--muted)] sm:px-6"
+                  role="row"
+                  className="group grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-4 border-b border-[var(--border)] bg-[var(--surface-raised)] px-4 py-4 transition-colors last:border-b-0 hover:bg-[var(--muted)] md:grid-cols-[minmax(11rem,1.1fr)_minmax(14rem,1.35fr)_9rem_5.5rem] md:items-center md:px-5"
                 >
-                  <button
-                    type="button"
-                    onClick={() => router.push(`/project/${project.id}`)}
-                    className="block min-h-20 w-full min-w-0 rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-4 focus-visible:ring-offset-[var(--surface-raised)]"
-                    data-testid={`project-card-${project.id}`}
-                  >
-                    <h2 className="min-w-0 truncate pr-16 font-semibold text-[var(--card-foreground)]">
-                      {project.name}
-                    </h2>
-                    {project.description && (
-                      <p className="mt-2 line-clamp-2 text-sm leading-6 text-[var(--muted-foreground)]">
-                        {project.description}
-                      </p>
-                    )}
-                    <p className="mt-3 text-xs text-[var(--muted-foreground)]">
-                      Updated {formatDate(project.updatedAt)}
+                  <div role="cell" className="col-span-2 min-w-0 md:col-span-1">
+                    <button
+                      type="button"
+                      onClick={() => router.push(`/project/${project.id}`)}
+                      className="group/open flex min-h-11 max-w-full items-center gap-3 rounded-sm text-left font-semibold text-[var(--card-foreground)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-raised)]"
+                      data-testid={`project-card-${project.id}`}
+                      aria-label={`Open ${project.name}`}
+                    >
+                      <span
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-sm border border-[var(--color-client)] bg-[var(--background)] font-utility text-xs font-bold text-[var(--color-client)] transition-colors group-hover/open:bg-[var(--muted)]"
+                        aria-hidden="true"
+                      >
+                        MAP
+                      </span>
+                      <span className="min-w-0 truncate">{project.name}</span>
+                    </button>
+                  </div>
+                  <div role="cell" className="col-span-2 min-w-0 md:col-span-1 md:pr-5">
+                    <span className="font-utility mb-1 block text-[0.625rem] font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)] md:hidden">
+                      Description
+                    </span>
+                    <p className="line-clamp-2 text-sm leading-5 text-[var(--muted-foreground)]">
+                      {project.description || "No description"}
                     </p>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDeleteTarget(project)}
-                    className="absolute right-3 top-3 inline-flex min-h-11 items-center rounded-md px-3 text-xs font-semibold text-[var(--muted-foreground)] hover:bg-[var(--danger-surface)] hover:text-[var(--danger)] focus-visible:text-[var(--danger)]"
-                    aria-label={`Delete ${project.name}`}
-                  >
-                    Delete
-                  </button>
+                  </div>
+                  <div role="cell" className="min-w-0">
+                    <span className="font-utility mb-1 block text-[0.625rem] font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)] md:hidden">
+                      Updated
+                    </span>
+                    <p className="font-utility text-xs text-[var(--muted-foreground)]">
+                      {formatDate(project.updatedAt)}
+                    </p>
+                  </div>
+                  <div role="cell" className="flex justify-end self-end md:self-center">
+                    <button
+                      type="button"
+                      onClick={() => setDeleteTarget(project)}
+                      className="inline-flex min-h-11 items-center rounded-sm px-3 text-xs font-semibold text-[var(--muted-foreground)] hover:bg-[var(--danger-surface)] hover:text-[var(--danger)] focus-visible:text-[var(--danger)]"
+                      aria-label={`Delete ${project.name}`}
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -187,7 +214,7 @@ export default function AllMapsPage({ isAdmin }: { isAdmin: boolean }) {
             role="dialog"
             aria-modal="true"
             aria-labelledby="delete-map-title"
-            className="mx-4 w-full max-w-sm rounded-xl bg-[var(--card)] p-6 shadow-xl"
+            className="mx-4 w-full max-w-sm rounded-sm border border-[var(--border)] bg-[var(--card)] p-6 shadow-xl"
             onClick={(event) => event.stopPropagation()}
           >
             <h2

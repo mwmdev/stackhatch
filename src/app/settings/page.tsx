@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useTheme } from "next-themes";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, KeyRound, Monitor, Moon, Sun } from "lucide-react";
 import AppPageActions from "@/components/shells/AppPageActions";
 import AppPageShell from "@/components/shells/AppPageShell";
 import IconControl from "@/components/ui/IconControl";
@@ -208,168 +208,222 @@ export default function SettingsPage() {
           ) : undefined
         }
       >
-        <div className="min-w-0 w-full" data-testid="settings-content">
-          {loading ? (
-            <div
-              className="border-y border-[var(--border)] py-16 text-center text-[var(--muted-foreground)]"
-              role="status"
+        <div className="w-full min-w-0" data-testid="settings-content">
+          <div className="grid min-w-0 gap-6 lg:grid-cols-[13rem_minmax(0,1fr)] lg:gap-10">
+            <nav
+              aria-label="Settings sections"
+              className="-mx-1 flex min-w-0 gap-1 overflow-x-auto border-y border-[var(--border)] px-1 py-2 lg:sticky lg:top-6 lg:mx-0 lg:flex-col lg:self-start lg:overflow-visible lg:border-y-0 lg:border-r lg:py-1 lg:pr-5"
             >
-              Loading settings...
-            </div>
-          ) : (
-            <div>
-              {isAnthropicSetup && (
-                <section className="border-y border-[var(--border)] py-6">
-                  <p className="font-utility text-xs font-bold uppercase tracking-[0.14em] text-[var(--color-data)]">
-                    One-time setup
-                  </p>
-                  <h2 className="font-display mt-2 text-2xl font-extrabold tracking-tight sm:text-3xl">
-                    {setupRepo
-                      ? "Connect Anthropic to map this repository."
-                      : setupMethod === "requirements"
-                        ? "Connect Anthropic to map your requirements."
-                        : "Connect Anthropic to use StackHatch."}
-                  </h2>
-                  <p className="mt-3 max-w-xl text-sm leading-6 text-[var(--muted-foreground)]">
-                    StackHatch is free and bring-your-own-key. Your key stays encrypted on the
-                    server and AI usage is billed directly to your Anthropic account.
-                  </p>
-                  <a
-                    href="https://console.anthropic.com/settings/keys"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-3 inline-flex text-sm font-semibold text-[var(--brand)] underline-offset-4 hover:underline"
-                  >
-                    Open Anthropic API key settings
-                  </a>
-                </section>
-              )}
-
-              <section
-                className={`${isAnthropicSetup ? "" : "border-t"} border-b border-[var(--border)] py-6`}
-              >
-                <div className="mb-4 flex items-center gap-2">
-                  <h2 className="text-lg font-semibold text-[var(--card-foreground)]">
-                    Anthropic API Key
-                  </h2>
-                  <span
-                    className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${hasAnthropicKey ? "border-[var(--success-border)] bg-[var(--success-surface)] text-[var(--success)]" : "border-[var(--danger-border)] bg-[var(--danger-surface)] text-[var(--danger)]"}`}
-                    data-testid={hasAnthropicKey ? "key-status-set" : "key-status-missing"}
-                  >
-                    {hasAnthropicKey ? "Set" : "Missing"}
-                  </span>
-                </div>
-                <p className="text-sm leading-6 text-[var(--muted-foreground)]">
-                  StackHatch is free. AI requests are billed directly to your Anthropic account.
-                  Your key is encrypted at rest, used only on the server, and never returned to this
-                  browser.
-                </p>
-                <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-                  <label className="sr-only" htmlFor="anthropic-api-key">
-                    API Key
-                  </label>
-                  <input
-                    id="anthropic-api-key"
-                    type="password"
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                    placeholder={hasAnthropicKey ? "Enter a replacement key" : "sk-ant-..."}
-                    autoComplete="off"
-                    spellCheck={false}
-                    className="min-h-11 flex-1 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleSaveApiKey}
-                    disabled={savingApiKey || !apiKey.trim()}
-                    className="min-h-11 rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-medium text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)] disabled:opacity-50"
-                  >
-                    {savingApiKey ? "Saving..." : hasAnthropicKey ? "Replace key" : "Save key"}
-                  </button>
-                  {hasAnthropicKey && (
-                    <button
-                      type="button"
-                      onClick={handleClearApiKey}
-                      disabled={savingApiKey}
-                      className="min-h-11 rounded-md border border-[var(--border)] px-4 py-2 text-sm font-medium hover:bg-[var(--muted)] disabled:opacity-50"
-                    >
-                      Remove
-                    </button>
-                  )}
-                </div>
-                {isAnthropicSetup && hasAnthropicKey && (
-                  <Link
-                    href={returnTo}
-                    className="mt-5 inline-flex min-h-11 items-center justify-center rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-bold text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)]"
-                  >
-                    {setupRepo ? `Continue to ${setupRepo}` : "Continue to your project"}
-                  </Link>
-                )}
-              </section>
-
-              <section
-                className={`border-b border-[var(--border)] py-6 ${isAnthropicSetup ? "opacity-80" : ""}`}
-              >
-                <h2 className="text-lg font-semibold text-[var(--card-foreground)]">
-                  Claude Model
-                </h2>
-                <p className="mt-2 text-sm text-[var(--muted-foreground)]">
-                  Choose the model used for your chat, repository analysis, alternatives, and PRD
-                  generation.
-                </p>
-                <label htmlFor="claude-model" className="mt-4 block text-sm font-medium">
-                  Model
-                </label>
-                <select
-                  id="claude-model"
-                  value={model}
-                  onChange={(e) => handleModelChange(e.target.value)}
-                  disabled={savingModel}
-                  className="mt-1 min-h-11 w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
+              {[
+                ["#anthropic-key", "01", "API key"],
+                ["#default-model", "02", "Default model"],
+                ["#appearance", "03", "Appearance"],
+              ].map(([href, index, label]) => (
+                <a
+                  key={href}
+                  href={href}
+                  className="group inline-flex min-h-11 shrink-0 items-center gap-3 rounded-sm border border-transparent px-3 text-sm font-semibold text-[var(--muted-foreground)] hover:border-[var(--border)] hover:bg-[var(--card)] hover:text-[var(--foreground)] lg:w-full"
                 >
-                  {AI_MODELS.map((option) => (
-                    <option key={option.id} value={option.id}>
-                      {option.name}
-                    </option>
-                  ))}
-                </select>
-                <p className="mt-2 text-xs text-[var(--muted-foreground)]">
-                  {savingModel
-                    ? "Saving model preference..."
-                    : "Your choice is private to your account."}
-                </p>
-              </section>
+                  <span
+                    className="font-utility text-[0.625rem] text-[var(--color-client)]"
+                    aria-hidden="true"
+                  >
+                    {index}
+                  </span>
+                  {label}
+                </a>
+              ))}
+            </nav>
 
-              <section
-                className={`border-b border-[var(--border)] py-6 ${isAnthropicSetup ? "opacity-80" : ""}`}
+            {loading ? (
+              <div
+                className="rounded-sm border border-[var(--border)] bg-[var(--card)] py-16 text-center text-[var(--muted-foreground)]"
+                role="status"
               >
-                <h2 className="text-lg font-semibold text-[var(--card-foreground)]">Theme</h2>
-                <p className="mb-3 mt-2 text-sm text-[var(--muted-foreground)]">
-                  Choose your preferred appearance.
-                </p>
-                <div className="flex flex-wrap gap-3">
-                  {(["light", "dark", "system"] as const).map((theme) => (
-                    <button
-                      key={theme}
-                      type="button"
-                      onClick={() => handleThemeChange(theme)}
-                      className={`rounded-md border px-4 py-2 text-sm font-medium capitalize transition-colors ${currentTheme === theme ? "border-[var(--color-client)] bg-[var(--brand)] text-[var(--brand-foreground)]" : "border-[var(--border)] hover:bg-[var(--muted)]"}`}
-                      aria-label={`Theme ${theme}`}
-                      aria-pressed={currentTheme === theme}
+                Loading settings...
+              </div>
+            ) : (
+              <div className="min-w-0 space-y-4">
+                {isAnthropicSetup && (
+                  <section className="rounded-sm border border-[var(--border)] border-l-2 border-l-[var(--color-data)] bg-[var(--card)] p-5 sm:p-6">
+                    <p className="font-utility text-xs font-bold uppercase tracking-[0.14em] text-[var(--warning)]">
+                      One-time setup
+                    </p>
+                    <h2 className="font-display mt-2 text-2xl font-extrabold tracking-tight sm:text-3xl">
+                      {setupRepo
+                        ? "Connect Anthropic to map this repository."
+                        : setupMethod === "requirements"
+                          ? "Connect Anthropic to map your requirements."
+                          : "Connect Anthropic to use StackHatch."}
+                    </h2>
+                    <p className="mt-3 max-w-xl text-sm leading-6 text-[var(--muted-foreground)]">
+                      StackHatch is free and bring-your-own-key. Your key stays encrypted on the
+                      server and AI usage is billed directly to your Anthropic account.
+                    </p>
+                    <a
+                      href="https://console.anthropic.com/settings/keys"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-3 inline-flex text-sm font-semibold text-[var(--brand)] underline-offset-4 hover:underline"
                     >
-                      {theme}
+                      Open Anthropic API key settings
+                    </a>
+                  </section>
+                )}
+
+                <section
+                  id="anthropic-key"
+                  className="scroll-mt-24 rounded-sm border border-[var(--border)] bg-[var(--card)] p-5 shadow-[var(--shadow-low)] sm:p-6"
+                >
+                  <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="font-utility mb-1 text-[0.625rem] font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
+                        Connection · 01
+                      </p>
+                      <h2 className="text-xl font-semibold text-[var(--card-foreground)]">
+                        Anthropic API Key
+                      </h2>
+                    </div>
+                    <span
+                      className={`inline-flex items-center gap-1.5 rounded-sm border px-2.5 py-1 font-utility text-[0.6875rem] font-bold uppercase tracking-[0.08em] ${hasAnthropicKey ? "border-[var(--success-border)] bg-[var(--success-surface)] text-[var(--success)]" : "border-[var(--danger-border)] bg-[var(--danger-surface)] text-[var(--danger)]"}`}
+                      data-testid={hasAnthropicKey ? "key-status-set" : "key-status-missing"}
+                    >
+                      <KeyRound className="h-3.5 w-3.5" aria-hidden="true" />
+                      {hasAnthropicKey ? "Set" : "Missing"}
+                    </span>
+                  </div>
+                  <p className="max-w-3xl text-sm leading-6 text-[var(--muted-foreground)]">
+                    StackHatch is free. AI requests are billed directly to your Anthropic account.
+                    Your key is encrypted at rest, used only on the server, and never returned to
+                    this browser.
+                  </p>
+                  <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+                    <label className="sr-only" htmlFor="anthropic-api-key">
+                      API Key
+                    </label>
+                    <input
+                      id="anthropic-api-key"
+                      type="password"
+                      value={apiKey}
+                      onChange={(e) => setApiKey(e.target.value)}
+                      placeholder={hasAnthropicKey ? "Enter a replacement key" : "sk-ant-..."}
+                      autoComplete="off"
+                      spellCheck={false}
+                      className="min-h-11 flex-1 rounded-sm border border-[var(--border)] bg-[var(--background)] px-3 py-2 font-utility text-sm focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleSaveApiKey}
+                      disabled={savingApiKey || !apiKey.trim()}
+                      className="min-h-11 rounded-sm bg-[var(--brand)] px-4 py-2 text-sm font-bold text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)] disabled:opacity-50"
+                    >
+                      {savingApiKey ? "Saving..." : hasAnthropicKey ? "Replace key" : "Save key"}
                     </button>
-                  ))}
-                </div>
-              </section>
-            </div>
-          )}
+                    {hasAnthropicKey && (
+                      <button
+                        type="button"
+                        onClick={handleClearApiKey}
+                        disabled={savingApiKey}
+                        className="min-h-11 rounded-sm border border-[var(--border)] px-4 py-2 text-sm font-medium hover:bg-[var(--muted)] disabled:opacity-50"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                  {isAnthropicSetup && hasAnthropicKey && (
+                    <Link
+                      href={returnTo}
+                      className="mt-5 inline-flex min-h-11 items-center justify-center rounded-sm bg-[var(--brand)] px-4 py-2 text-sm font-bold text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)]"
+                    >
+                      {setupRepo ? `Continue to ${setupRepo}` : "Continue to your project"}
+                    </Link>
+                  )}
+                </section>
+
+                <section
+                  id="default-model"
+                  className={`scroll-mt-24 rounded-sm border border-[var(--border)] bg-[var(--card)] p-5 shadow-[var(--shadow-low)] sm:p-6 ${isAnthropicSetup ? "opacity-80" : ""}`}
+                >
+                  <p className="font-utility mb-1 text-[0.625rem] font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
+                    Analysis · 02
+                  </p>
+                  <h2 className="text-xl font-semibold text-[var(--card-foreground)]">
+                    Default model
+                  </h2>
+                  <p className="mt-2 text-sm text-[var(--muted-foreground)]">
+                    Choose the model used for your chat, repository analysis, alternatives, and PRD
+                    generation.
+                  </p>
+                  <label htmlFor="claude-model" className="mt-5 block text-sm font-semibold">
+                    Model
+                  </label>
+                  <select
+                    id="claude-model"
+                    value={model}
+                    onChange={(e) => handleModelChange(e.target.value)}
+                    disabled={savingModel}
+                    className="mt-1 min-h-11 w-full rounded-sm border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
+                  >
+                    {AI_MODELS.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.name}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-2 font-utility text-xs text-[var(--muted-foreground)]">
+                    {savingModel
+                      ? "Saving model preference..."
+                      : "Your choice is private to your account."}
+                  </p>
+                </section>
+
+                <section
+                  id="appearance"
+                  className={`scroll-mt-24 rounded-sm border border-[var(--border)] bg-[var(--card)] p-5 shadow-[var(--shadow-low)] sm:p-6 ${isAnthropicSetup ? "opacity-80" : ""}`}
+                >
+                  <p className="font-utility mb-1 text-[0.625rem] font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
+                    Interface · 03
+                  </p>
+                  <h2 className="text-xl font-semibold text-[var(--card-foreground)]">
+                    Appearance
+                  </h2>
+                  <p className="mb-4 mt-2 text-sm text-[var(--muted-foreground)]">
+                    Choose your preferred theme. The setting follows you across the app.
+                  </p>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    {(
+                      [
+                        ["light", Sun],
+                        ["dark", Moon],
+                        ["system", Monitor],
+                      ] as const
+                    ).map(([theme, ThemeIcon]) => (
+                      <button
+                        key={theme}
+                        type="button"
+                        onClick={() => handleThemeChange(theme)}
+                        className={`flex min-h-24 flex-col items-start justify-between rounded-sm border p-4 text-sm font-semibold capitalize transition-colors ${currentTheme === theme ? "border-[var(--color-client)] bg-[var(--muted)] text-[var(--foreground)] ring-1 ring-[var(--color-client)]" : "border-[var(--border)] bg-[var(--background)] hover:bg-[var(--muted)]"}`}
+                        aria-label={`Theme ${theme}`}
+                        aria-pressed={currentTheme === theme}
+                      >
+                        <ThemeIcon
+                          className={`h-5 w-5 ${currentTheme === theme ? "text-[var(--color-client)]" : "text-[var(--muted-foreground)]"}`}
+                          aria-hidden="true"
+                        />
+                        {theme}
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              </div>
+            )}
+          </div>
         </div>
       </AppPageShell>
 
       {toast && (
         <div
-          className={`fixed bottom-6 right-6 rounded-lg px-4 py-3 text-sm font-medium shadow-lg ${toast.type === "success" ? "border border-[var(--success-border)] bg-[var(--success-surface)] text-[var(--success)]" : "border border-[var(--danger-border)] bg-[var(--danger-surface)] text-[var(--danger)]"}`}
+          className={`fixed bottom-4 left-4 right-4 z-50 max-w-sm rounded-sm px-4 py-3 text-sm font-medium shadow-lg sm:bottom-6 sm:left-auto sm:right-6 ${toast.type === "success" ? "border border-[var(--success-border)] bg-[var(--success-surface)] text-[var(--success)]" : "border border-[var(--danger-border)] bg-[var(--danger-surface)] text-[var(--danger)]"}`}
           role="status"
         >
           {toast.message}

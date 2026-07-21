@@ -64,13 +64,22 @@ describe("SettingsPage", () => {
       expect(screen.getByText("Anthropic API Key")).toBeInTheDocument();
     });
 
-    expect(screen.getByText("Theme")).toBeInTheDocument();
-    expect(screen.getByText("Claude Model")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Appearance" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Default model" })).toBeInTheDocument();
+    const sectionNavigation = screen.getByRole("navigation", { name: "Settings sections" });
+    expect(sectionNavigation).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "API key" })).toHaveAttribute("href", "#anthropic-key");
+    expect(screen.getByRole("link", { name: "Default model" })).toHaveAttribute(
+      "href",
+      "#default-model"
+    );
+    expect(screen.getByRole("link", { name: "Appearance" })).toHaveAttribute("href", "#appearance");
     expect(screen.queryByText("Node Subtypes")).not.toBeInTheDocument();
     expect(screen.queryByText("AI Prompts")).not.toBeInTheDocument();
     expect(screen.getAllByRole("main")).toHaveLength(1);
     expect(screen.getAllByRole("heading", { level: 1, name: "Settings" })).toHaveLength(1);
-    expect(screen.getByRole("link", { name: "New map" })).toHaveAttribute("href", "/project/new");
+    expect(screen.queryByRole("link", { name: "New map" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "All Maps" })).toHaveAttribute("href", "/app/maps");
     expect(await screen.findByRole("link", { name: "Admin" })).toHaveAttribute("href", "/admin");
     expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("group", { name: "Account controls" })).toBeInTheDocument();
@@ -133,7 +142,7 @@ describe("SettingsPage", () => {
     mockFetchSettings({});
     render(<SettingsPage />);
 
-    await screen.findByText("Theme");
+    await screen.findByRole("heading", { name: "Appearance" });
     expect(screen.getByLabelText("Theme dark")).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByLabelText("Theme light")).toHaveAttribute("aria-pressed", "false");
   });
@@ -142,7 +151,7 @@ describe("SettingsPage", () => {
     mockFetchSettings({});
     render(<SettingsPage />);
 
-    await screen.findByText("Theme");
+    await screen.findByRole("heading", { name: "Appearance" });
     fireEvent.click(screen.getByLabelText("Theme system"));
 
     await waitFor(() => {

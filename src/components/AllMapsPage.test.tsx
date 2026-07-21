@@ -72,16 +72,27 @@ describe("AllMapsPage", () => {
     await screen.findByRole("heading", { name: "All Maps" });
 
     const cards = screen.getAllByTestId(/project-card-/);
-    expect(cards.map((card) => card.textContent)).toEqual([
-      expect.stringContaining("Newest map"),
-      expect.stringContaining("Older map"),
+    expect(cards.map((card) => card.getAttribute("aria-label"))).toEqual([
+      "Open Newest map",
+      "Open Older map",
     ]);
+    expect(screen.getByRole("table", { name: "Your maps" })).toBeInTheDocument();
+    expect(screen.getAllByRole("row")).toHaveLength(3);
+    expect(screen.getAllByRole("columnheader").map((header) => header.textContent)).toEqual([
+      "Name",
+      "Description",
+      "Updated",
+      "Actions",
+    ]);
+    expect(screen.getByTestId("project-card-newest")).toHaveAccessibleName("Open Newest map");
     expect(screen.getAllByRole("link", { name: "New map" })).toHaveLength(1);
     expect(screen.getByRole("link", { name: "New map" })).toHaveAttribute("href", "/project/new");
     expect(screen.queryByText("Start fresh")).not.toBeInTheDocument();
     expect(screen.queryByText("Upload requirements")).not.toBeInTheDocument();
     expect(screen.queryByText("Map a repo")).not.toBeInTheDocument();
     expect(screen.queryByText("Use a template")).not.toBeInTheDocument();
+    expect(screen.queryByRole("searchbox")).not.toBeInTheDocument();
+    expect(screen.queryByText("Starred")).not.toBeInTheDocument();
     expect(screen.getAllByRole("main")).toHaveLength(1);
     expect(screen.getAllByRole("heading", { level: 1, name: "All Maps" })).toHaveLength(1);
     expect(screen.getByRole("main").closest(".app-page-shell")).toHaveAttribute(

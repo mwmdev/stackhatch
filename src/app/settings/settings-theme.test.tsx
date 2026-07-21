@@ -52,7 +52,7 @@ describe("SettingsPage theme integration", () => {
       </ThemeProvider>
     );
 
-    await screen.findByText("Theme");
+    await screen.findByRole("heading", { name: "Appearance" });
     expect(screen.getByLabelText("Theme system")).toHaveAttribute("aria-pressed", "true");
 
     const headerToggle = screen.getByRole("button", { name: "Theme: change appearance" });
