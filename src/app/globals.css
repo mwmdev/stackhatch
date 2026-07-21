@@ -425,6 +425,18 @@ html:not(.dark):not(.light) .icon-control__icon > .theme-toggle__system {
   stroke-linejoin: miter;
 }
 
+.observatory-node-detail label,
+.observatory-node-detail legend {
+  font-family: var(--font-utility), ui-monospace, monospace;
+  letter-spacing: 0.08em;
+}
+
+.observatory-node-detail textarea,
+.observatory-node-detail select {
+  border-radius: var(--radius-control);
+  background: var(--background);
+}
+
 .edge-legend {
   position: absolute;
   bottom: 1rem;

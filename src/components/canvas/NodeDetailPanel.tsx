@@ -87,7 +87,7 @@ export default function NodeDetailPanel({
 
   return (
     <div
-      className={`absolute inset-x-0 bottom-0 z-20 flex max-h-[70vh] w-full flex-col border-t border-[var(--border)] bg-[var(--background)] shadow-xl transition-transform duration-200 ease-out motion-reduce:transition-none md:inset-x-auto md:right-0 md:top-0 md:h-full md:max-h-none md:w-[400px] md:border-l md:border-t-0 ${
+      className={`observatory-node-detail absolute inset-x-0 bottom-0 z-20 flex max-h-[70vh] w-full flex-col border-t border-[var(--boundary)] bg-[var(--paper)] shadow-xl transition-transform duration-200 ease-out motion-reduce:transition-none md:inset-x-auto md:right-0 md:top-0 md:h-full md:max-h-none md:w-[400px] md:border-l md:border-t-0 ${
         open
           ? "pointer-events-auto translate-y-0 md:translate-x-0"
           : "pointer-events-none translate-y-full md:translate-x-full md:translate-y-0"
@@ -96,9 +96,9 @@ export default function NodeDetailPanel({
       data-testid="node-detail-panel"
     >
       {/* Header */}
-      <div className="flex items-center gap-3 border-b border-[var(--border)] px-4 py-3">
+      <div className="flex items-center gap-3 border-b border-[var(--boundary)] px-4 py-3">
         <div
-          className="flex h-8 w-8 items-center justify-center rounded"
+          className="flex h-8 w-8 items-center justify-center rounded-[2px] border border-current"
           style={{ backgroundColor: catConfig.fill, color: catConfig.foreground }}
         >
           <DynamicIcon name={catConfig.icon} size={18} />
@@ -107,7 +107,7 @@ export default function NodeDetailPanel({
           type="text"
           value={node.name}
           onChange={(e) => onUpdate(node.id, { name: e.target.value })}
-          className="flex-1 rounded bg-transparent px-1 text-lg font-semibold text-[var(--foreground)] outline-none focus:ring-2 focus:ring-[var(--ring)]"
+          className="font-display flex-1 rounded-[2px] bg-transparent px-1 text-lg font-bold text-[var(--foreground)] outline-none focus:ring-2 focus:ring-[var(--ring)]"
           aria-label="Node name"
         />
         <button
@@ -266,7 +266,7 @@ export default function NodeDetailPanel({
         )}
       </div>
 
-      <div className="flex items-center gap-2 border-t border-[var(--border)] px-4 py-3">
+      <div className="flex items-center gap-2 border-t border-[var(--boundary)] px-4 py-3">
         {canUseNodeLocking && (
           <button
             type="button"

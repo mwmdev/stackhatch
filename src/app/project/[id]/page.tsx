@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -75,6 +75,29 @@ interface Project {
   canvasState: StackArchitecture | null;
   createdAt: number;
   updatedAt: number;
+}
+
+function EditorStateShell({
+  eyebrow,
+  title,
+  children,
+}: {
+  eyebrow: string;
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <main className="app-resolver-shell text-[var(--foreground)]" data-testid="editor-state-shell">
+      <RoutingTrace variant="resolver" />
+      <section className="relative z-[1] w-full max-w-md rounded-[var(--radius-surface)] border border-[var(--boundary)] bg-[var(--paper)] p-6 shadow-[var(--shadow-low)]">
+        <p className="font-utility text-[0.6875rem] font-semibold uppercase tracking-[0.14em] text-[var(--blueprint)]">
+          {eyebrow}
+        </p>
+        <h1 className="font-display mt-2 text-2xl font-extrabold tracking-[-0.04em]">{title}</h1>
+        <div className="mt-4 text-sm leading-6 text-[var(--muted-foreground)]">{children}</div>
+      </section>
+    </main>
+  );
 }
 
 type ConnectionTypePopover =
@@ -1250,37 +1273,42 @@ export default function ProjectPage() {
   }, [project?.canvasState, rfNodes, rfEdges]);
   if (recoveringResume) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[var(--background)] text-[var(--muted-foreground)]">
+      <EditorStateShell eyebrow="Resume project" title="Finding your map">
         <p role="status" aria-live="polite">
           Finding another map...
         </p>
-      </div>
+      </EditorStateShell>
     );
   }
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[var(--background)] text-[var(--muted-foreground)]">
-        Loading...
-      </div>
+      <EditorStateShell eyebrow="Architecture workspace" title="Loading map">
+        <p role="status" aria-live="polite">
+          Loading...
+        </p>
+      </EditorStateShell>
     );
   }
 
   if (error || !project) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-[var(--background)]">
-        <p className="mb-4 text-[var(--danger)]">{error || "Project not found"}</p>
-        <Link href="/app/maps" className="text-[var(--color-client)] hover:underline">
+      <EditorStateShell eyebrow="Architecture workspace" title="Map unavailable">
+        <p className="text-[var(--danger)]">{error || "Project not found"}</p>
+        <Link
+          href="/app/maps"
+          className="mt-4 inline-flex min-h-11 items-center rounded-[var(--radius-control)] border border-[var(--boundary)] px-4 py-2 font-semibold text-[var(--blueprint)] hover:bg-[var(--muted)]"
+        >
           All Maps
         </Link>
-      </div>
+      </EditorStateShell>
     );
   }
 
   const projectIdentity = getProjectIdentity(project);
 
   return (
-    <div
+    <main
       className="project-editor-shell observatory-editor flex flex-col bg-[var(--background)] text-[var(--foreground)] md:flex-row"
       data-testid="project-editor-shell"
       data-height-contract="viewport-minus-impersonation"
@@ -1771,6 +1799,6 @@ export default function ProjectPage() {
           )}
         </div>
       </div>
-    </div>
+    </main>
   );
 }

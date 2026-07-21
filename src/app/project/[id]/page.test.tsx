@@ -531,8 +531,11 @@ describe("ProjectPage", () => {
   describe("loading state", () => {
     it("shows loading indicator on mount", () => {
       mockFetchProject(emptyProject);
-      render(<ProjectPage />);
+      const { container } = render(<ProjectPage />);
       expect(screen.getByText("Loading...")).toBeInTheDocument();
+      expect(screen.getAllByRole("main")).toHaveLength(1);
+      expect(screen.getByRole("heading", { level: 1, name: "Loading map" })).toBeInTheDocument();
+      expect(container.querySelectorAll('[data-routing-trace="true"]')).toHaveLength(1);
     });
 
     it("transitions from loading to loaded", async () => {
@@ -582,10 +585,15 @@ describe("ProjectPage", () => {
   describe("error state", () => {
     it("shows error when project not found", async () => {
       mockFetchNotFound();
-      render(<ProjectPage />);
+      const { container } = render(<ProjectPage />);
       await waitFor(() => {
         expect(screen.getByText("Project not found")).toBeInTheDocument();
       });
+      expect(screen.getAllByRole("main")).toHaveLength(1);
+      expect(
+        screen.getByRole("heading", { level: 1, name: "Map unavailable" })
+      ).toBeInTheDocument();
+      expect(container.querySelectorAll('[data-routing-trace="true"]')).toHaveLength(1);
       expect(screen.getByRole("link", { name: "All Maps" })).toHaveAttribute("href", "/app/maps");
       expect(
         (global.fetch as ReturnType<typeof vi.fn>).mock.calls.some(
@@ -607,10 +615,15 @@ describe("ProjectPage", () => {
       window.history.replaceState({}, "", "/project/test-project-id?resume=1");
       mockFetchNotFound();
 
-      render(<ProjectPage />);
+      const { container } = render(<ProjectPage />);
 
       await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/app?resumeRecovery=1"));
       expect(screen.getByRole("status")).toHaveTextContent("Finding another map");
+      expect(screen.getAllByRole("main")).toHaveLength(1);
+      expect(
+        screen.getByRole("heading", { level: 1, name: "Finding your map" })
+      ).toBeInTheDocument();
+      expect(container.querySelectorAll('[data-routing-trace="true"]')).toHaveLength(1);
       expect(screen.queryByText("Project not found")).not.toBeInTheDocument();
     });
 
