@@ -20,17 +20,17 @@ function EdgeLegendComponent() {
     <div className="edge-legend" data-testid="edge-legend">
       <button
         onClick={() => setVisible((v) => !v)}
-        className="rounded border border-[var(--border)] bg-[var(--card)] px-2 py-1 text-xs text-[var(--muted-foreground)] shadow-sm hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
+        className="font-utility min-h-11 rounded-[var(--radius-control)] border border-[var(--boundary)] bg-[var(--paper)] px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--muted-foreground)] shadow-sm hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
         data-testid="edge-legend-toggle"
       >
         {visible ? "Hide Legend" : "Edge Legend"}
       </button>
       {visible && (
         <div
-          className="edge-legend__panel mt-2 rounded-lg border border-[var(--border)] bg-[var(--card)] p-3 shadow-md"
+          className="edge-legend__panel mt-2 rounded-[var(--radius-surface)] border border-[var(--boundary)] bg-[var(--paper)] p-3 shadow-md"
           data-testid="edge-legend-panel"
         >
-          <div className="mb-2 text-xs font-semibold text-[var(--card-foreground)]">
+          <div className="font-utility mb-2 text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--card-foreground)]">
             Connection Types
           </div>
           <div className="flex flex-col gap-2">

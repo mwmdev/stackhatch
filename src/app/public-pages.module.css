@@ -1,0 +1,383 @@
+.loginShell :global(.page-shell__main) {
+  display: grid;
+  width: min(100%, 68rem);
+  max-width: none;
+  align-items: center;
+  grid-template-columns: minmax(0, 1fr) minmax(20rem, 0.78fr);
+  gap: clamp(2.5rem, 7vw, 7rem);
+  padding-block: clamp(3.5rem, 10vh, 7.5rem);
+  text-align: left;
+}
+
+.loginShell :global(.page-shell__heading) {
+  max-width: 36rem;
+  margin: 0;
+}
+
+.loginShell :global(.page-shell__title) {
+  font-size: clamp(2.75rem, 6vw, 5.25rem);
+  line-height: 0.96;
+}
+
+.loginShell :global(.page-shell__content) {
+  min-width: 0;
+  margin-top: 0;
+}
+
+.loginPanel {
+  position: relative;
+  padding: clamp(1.5rem, 4vw, 2.25rem);
+  border: 1px solid var(--boundary);
+  border-radius: var(--radius-surface);
+  background: color-mix(in srgb, var(--paper) 96%, transparent);
+  box-shadow: var(--shadow-low);
+}
+
+.instrumentLabel {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0 0 1.5rem;
+  color: var(--muted-foreground);
+  font-family: var(--font-utility), ui-monospace, monospace;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.instrumentLabel::before {
+  width: 0.55rem;
+  height: 0.55rem;
+  border: 1px solid var(--blueprint);
+  background: var(--paper);
+  content: "";
+}
+
+.loginContext {
+  margin: 0;
+  color: var(--foreground);
+  font-family: var(--font-display), sans-serif;
+  font-size: 1.25rem;
+  font-weight: 750;
+  letter-spacing: -0.025em;
+}
+
+.loginDescription {
+  margin: 0.65rem 0 1.5rem;
+  color: var(--muted-foreground);
+  font-size: 0.9rem;
+  line-height: 1.65;
+}
+
+.githubButton {
+  display: flex;
+  width: 100%;
+  min-height: 3rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--blueprint);
+  border-radius: var(--radius-control);
+  color: var(--brand-foreground);
+  background: var(--brand);
+  font-size: 0.875rem;
+  font-weight: 750;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease;
+}
+
+.githubButton:hover {
+  border-color: var(--brand-hover);
+  background: var(--brand-hover);
+}
+
+.githubButton:focus-visible,
+.sectionNav a:focus-visible,
+.actionLink:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--ring) 45%, transparent);
+  outline-offset: 2px;
+}
+
+.loginDisclaimer {
+  margin: 1.5rem 0 0;
+  padding-top: 1rem;
+  border-top: 1px solid var(--boundary);
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  line-height: 1.6;
+}
+
+.supportShell :global(.page-shell__main),
+.legalShell :global(.page-shell__main) {
+  width: min(100%, var(--shell-width-standard));
+  max-width: none;
+}
+
+.publicLayout {
+  display: grid;
+  align-items: start;
+  grid-template-columns: 11rem minmax(0, 1fr);
+  gap: clamp(2rem, 6vw, 5rem);
+}
+
+.sectionNav {
+  position: sticky;
+  top: 5.5rem;
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.5rem 0;
+  border-block: 1px solid var(--boundary);
+}
+
+.sectionNav a {
+  position: relative;
+  display: flex;
+  min-height: 2.75rem;
+  align-items: center;
+  padding: 0.65rem 0.75rem;
+  border-radius: var(--radius-control);
+  color: var(--muted-foreground);
+  font-size: 0.8125rem;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.sectionNav a:hover {
+  color: var(--foreground);
+  background: var(--muted);
+}
+
+.sectionNav a[aria-current="page"] {
+  color: var(--foreground);
+  background: var(--muted);
+}
+
+.sectionNav a[aria-current="page"]::before {
+  position: absolute;
+  top: 0.65rem;
+  bottom: 0.65rem;
+  left: 0;
+  width: 2px;
+  background: var(--blueprint);
+  content: "";
+}
+
+.supportContent {
+  display: grid;
+  min-width: 0;
+  gap: 2rem;
+}
+
+.contactPanel,
+.trustPanel {
+  display: grid;
+  align-items: start;
+  grid-template-columns: 2rem minmax(0, 1fr) auto;
+  gap: 1rem;
+  padding: clamp(1.25rem, 3vw, 1.75rem);
+  border: 1px solid var(--boundary);
+  border-radius: var(--radius-surface);
+  background: var(--paper);
+}
+
+.contactPanel > svg,
+.trustPanel > svg {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-top: 0.15rem;
+  color: var(--oxide);
+}
+
+.panelCopy h2,
+.supportPath h2,
+.legalArticle h2 {
+  margin: 0;
+  color: var(--foreground);
+  font-family: var(--font-display), sans-serif;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+}
+
+.panelCopy p,
+.supportPath p {
+  margin: 0.45rem 0 0;
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
+  line-height: 1.65;
+}
+
+.actionLink {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  align-self: center;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid var(--boundary);
+  border-radius: var(--radius-control);
+  color: var(--foreground);
+  background: var(--paper);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.actionLink:hover {
+  border-color: var(--blueprint);
+  background: var(--muted);
+}
+
+.primaryActionLink {
+  border-color: var(--brand);
+  color: var(--brand-foreground);
+  background: var(--brand);
+}
+
+.primaryActionLink:hover {
+  border-color: var(--brand-hover);
+  color: var(--brand-foreground);
+  background: var(--brand-hover);
+}
+
+.supportPaths {
+  border-block: 1px solid var(--boundary);
+}
+
+.supportPath {
+  display: grid;
+  scroll-margin-top: 6rem;
+  grid-template-columns: 2rem minmax(10rem, 0.6fr) minmax(0, 1fr);
+  gap: 1rem;
+  padding: 1.5rem 0;
+}
+
+.supportPath + .supportPath {
+  border-top: 1px solid var(--boundary);
+}
+
+.supportPath > svg {
+  width: 1.15rem;
+  height: 1.15rem;
+  margin-top: 0.15rem;
+  color: var(--blueprint);
+}
+
+.trustActions,
+.sourceActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.sourcePanel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--boundary);
+}
+
+.sourcePanel p {
+  min-width: 14rem;
+  flex: 1;
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
+}
+
+.legalArticle {
+  max-width: 46rem;
+  color: var(--muted-foreground);
+  font-size: 0.9375rem;
+  line-height: 1.8;
+}
+
+.legalArticle section {
+  scroll-margin-top: 6rem;
+  padding-block: 1.75rem;
+  border-top: 1px solid var(--boundary);
+}
+
+.legalArticle section:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.legalArticle h2 {
+  font-size: 1.1rem;
+}
+
+.legalArticle p {
+  margin: 0.65rem 0 0;
+}
+
+@media (max-width: 760px) {
+  .loginShell :global(.page-shell__main) {
+    grid-template-columns: 1fr;
+    gap: 2.5rem;
+    padding-block: 3rem 4rem;
+  }
+
+  .loginShell :global(.page-shell__title) {
+    font-size: clamp(2.5rem, 13vw, 4rem);
+  }
+
+  .publicLayout {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+
+  .sectionNav {
+    position: static;
+    display: flex;
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: thin;
+  }
+
+  .sectionNav a {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .contactPanel,
+  .trustPanel {
+    grid-template-columns: 1.75rem minmax(0, 1fr);
+  }
+
+  .contactPanel .actionLink,
+  .trustActions {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .supportPath {
+    grid-template-columns: 1.75rem minmax(0, 1fr);
+  }
+
+  .supportPath p {
+    grid-column: 2;
+  }
+}
+
+@media (max-width: 430px) {
+  .loginPanel {
+    padding: 1.25rem;
+  }
+
+  .trustActions,
+  .sourceActions {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .trustActions .actionLink,
+  .sourceActions .actionLink {
+    width: 100%;
+  }
+}

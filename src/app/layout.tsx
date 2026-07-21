@@ -44,7 +44,7 @@ export const metadata: Metadata = {
         url: "/screenshots/architecture-overview-og.png",
         width: 1200,
         height: 630,
-        alt: "The StackHatch codebase shown as an architecture map",
+        alt: "Synthetic Customer Portal reference architecture in the real StackHatch editor",
       },
     ],
   },

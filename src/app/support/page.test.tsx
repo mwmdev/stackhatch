@@ -17,6 +17,21 @@ describe("SupportPage", () => {
     expect(screen.getByRole("link", { name: "StackHatch home" })).toHaveAttribute("href", "/");
     expect(screen.getByRole("button", { name: /^Theme:/ })).toBeInTheDocument();
 
+    const topicNavigation = screen.getByRole("navigation", { name: "Support topics" });
+    expect(topicNavigation).toContainElement(
+      screen.getByRole("link", { name: "Map a repository" })
+    );
+    expect(topicNavigation).toContainElement(
+      screen.getByRole("link", { name: "Bring your Anthropic key" })
+    );
+    expect(topicNavigation).toContainElement(
+      screen.getByRole("link", { name: "Understand the evidence" })
+    );
+    expect(screen.getByRole("link", { name: "Map a repository" })).toHaveAttribute(
+      "href",
+      "#first-map"
+    );
+
     for (const heading of [
       "Map a repository",
       "Bring your Anthropic key",

@@ -32,10 +32,9 @@ test.describe("launch experience", () => {
       "href",
       "#features"
     );
-    await expect(hero.getByRole("img", { name: /architecture map of its own/i })).toHaveAttribute(
-      "src",
-      "/screenshots/architecture-overview.webp"
-    );
+    await expect(
+      hero.getByRole("img", { name: /synthetic customer portal reference architecture/i })
+    ).toHaveAttribute("src", "/screenshots/architecture-overview.webp");
     const regionOrder = await page
       .locator("[data-landing-region]")
       .evaluateAll((regions) =>
@@ -67,7 +66,9 @@ test.describe("launch experience", () => {
     });
     const hero = heroHeading.locator("xpath=ancestor::section[1]");
     const heroCopy = page.getByTestId("hero-copy");
-    const productProof = hero.getByRole("img", { name: /architecture map of its own/i });
+    const productProof = hero.getByRole("img", {
+      name: /synthetic customer portal reference architecture/i,
+    });
     const trustSection = page.locator('[data-landing-region="trust"]');
 
     const geometry = await page.evaluate(() => {
@@ -198,5 +199,37 @@ test.describe("launch experience", () => {
     expect(layout.headlineLines).toBeLessThanOrEqual(3);
     expect(layout.screenshotCount).toBe(1);
     expect(layout.regionOrder).toEqual(["hero", "trust", "capabilities", "workflow", "final-cta"]);
+  });
+
+  test("keeps the public observatory routes focused and contained on phone and desktop", async ({
+    page,
+  }) => {
+    for (const viewport of [
+      { width: 1440, height: 900 },
+      { width: 390, height: 844 },
+    ]) {
+      await page.setViewportSize(viewport);
+
+      for (const publicRoute of [
+        { path: "/login", heading: "Turn what you have into an architecture map." },
+        { path: "/support", heading: "Get from repository to a map you can reason about." },
+        { path: "/privacy", heading: "Privacy Policy" },
+        { path: "/terms", heading: "Terms of Service" },
+      ]) {
+        await page.goto(publicRoute.path);
+
+        await expect(
+          page.getByRole("heading", { level: 1, name: publicRoute.heading })
+        ).toBeVisible();
+        await expect(page.locator("main")).toHaveCount(1);
+        await expect(page.locator('[data-routing-trace="true"]')).toHaveCount(1);
+        expect(
+          await page.evaluate(() => ({
+            viewport: window.innerWidth,
+            scrollWidth: document.documentElement.scrollWidth,
+          }))
+        ).toEqual({ viewport: viewport.width, scrollWidth: viewport.width });
+      }
+    }
   });
 });

@@ -50,7 +50,25 @@ describe("LandingPage", () => {
 
     expect(screenshots).toHaveLength(1);
     expect(screenshots[0]).toHaveAttribute("src", "/screenshots/architecture-overview.webp");
-    expect(screenshots[0]).toHaveAccessibleName(/architecture map of its own/i);
+    expect(screenshots[0]).toHaveAccessibleName(
+      "Synthetic Customer Portal reference architecture in the real StackHatch editor with a component detail panel open"
+    );
+    expect(
+      screen.getByText(
+        "A synthetic Customer Portal reference architecture in the real StackHatch editor"
+      )
+    ).toBeInTheDocument();
+  });
+
+  it("uses one inert routing trace as decoration", async () => {
+    await renderLandingPage();
+
+    const traces = document.querySelectorAll('[data-routing-trace="true"]');
+    expect(traces).toHaveLength(1);
+    expect(traces[0]).toHaveAttribute("aria-hidden", "true");
+    expect(traces[0]).toHaveAttribute("focusable", "false");
+    expect(traces[0]).toHaveStyle({ pointerEvents: "none" });
+    expect(traces[0].closest('[data-routing-trace-clip="true"]')).toBeInTheDocument();
   });
 
   it("separates concrete trust, product capabilities, and the working loop", async () => {
@@ -113,6 +131,8 @@ describe("LandingPage", () => {
   it("preserves the primary and supporting destinations", async () => {
     await renderLandingPage();
 
+    expect(screen.getByRole("link", { name: "Features" })).toHaveAttribute("href", "#features");
+    expect(screen.queryByRole("link", { name: "Product" })).not.toBeInTheDocument();
     for (const signIn of screen.getAllByRole("link", { name: "Sign in" })) {
       expect(signIn).toHaveAttribute("href", "/login?callbackUrl=/app");
     }

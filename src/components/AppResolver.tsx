@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { consumeAuthenticationStarted, trackEvent } from "@/lib/analytics";
 import { appDestinationForBrowserUrl } from "@/lib/app-route";
 import { getPendingProjectStart } from "@/lib/project-start";
+import RoutingTrace from "@/components/shells/RoutingTrace";
 
 export default function AppResolver({ destination }: { destination: string }) {
   const router = useRouter();
@@ -27,10 +28,14 @@ export default function AppResolver({ destination }: { destination: string }) {
   }, [destination, router]);
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[var(--background)] px-6 text-[var(--muted-foreground)]">
-      <p role="status" aria-live="polite">
-        Opening your map...
-      </p>
+    <main className="app-resolver-shell">
+      <RoutingTrace variant="resolver" />
+      <div className="app-resolver-shell__status">
+        <span className="app-resolver-shell__signal" aria-hidden="true" />
+        <p role="status" aria-live="polite">
+          Opening your map...
+        </p>
+      </div>
     </main>
   );
 }

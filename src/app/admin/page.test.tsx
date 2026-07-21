@@ -45,6 +45,14 @@ describe("AdminPage", () => {
     await screen.findByRole("tab", { name: "Users" });
     expect(screen.getByRole("tab", { name: "Node Subtypes" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Prompts" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Users" })).toHaveAttribute(
+      "aria-controls",
+      "admin-panel-users"
+    );
+    expect(screen.getByRole("tabpanel", { name: "Users" })).toHaveAttribute(
+      "id",
+      "admin-panel-users"
+    );
     expect(screen.queryByRole("tab", { name: "Plans" })).not.toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Model" })).not.toBeInTheDocument();
     expect(screen.getAllByRole("main")).toHaveLength(1);
@@ -55,6 +63,9 @@ describe("AdminPage", () => {
     );
     expect(screen.getByTestId("admin-users-table-scroll")).toHaveClass("overflow-x-auto");
     expect(screen.getByRole("table")).toHaveClass("min-w-[44rem]");
+    expect(screen.getByRole("link", { name: "All Maps" })).toHaveAttribute("href", "/app/maps");
+    expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings");
+    expect(screen.queryByRole("link", { name: "New map" })).not.toBeInTheDocument();
   });
 
   it("keeps loading and denied states inside the dense authenticated shell", async () => {
@@ -71,6 +82,7 @@ describe("AdminPage", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Access denied");
     expect(screen.getAllByRole("main")).toHaveLength(1);
     expect(screen.getByRole("link", { name: "Resume map" })).toHaveAttribute("href", "/app");
+    expect(screen.queryByRole("link", { name: "Admin" })).not.toBeInTheDocument();
     expect(screen.getByRole("main").closest(".app-page-shell")).toHaveAttribute(
       "data-density",
       "dense"

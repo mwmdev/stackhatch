@@ -103,7 +103,7 @@ function StackNodeComponent({ id, data, selected }: NodeProps<StackNodeData>) {
       className={`stack-node group relative ${
         isNoteNode
           ? "rounded-[3px] border font-note shadow-lg shadow-[var(--shadow-color)]"
-          : "rounded-lg border-2 bg-[var(--card)] text-[var(--card-foreground)] shadow-md shadow-[var(--shadow-color)] hover:shadow-lg"
+          : "rounded-[3px] border bg-[var(--card)] text-[var(--card-foreground)] shadow-sm shadow-[var(--shadow-color)] hover:shadow-md"
       } ${
         selected ? "ring-2 ring-[var(--ring)]" : ""
       } ${data.locked ? "border border-dashed border-[var(--muted-foreground)]" : ""}`}
@@ -180,21 +180,21 @@ function StackNodeComponent({ id, data, selected }: NodeProps<StackNodeData>) {
           )}
         </div>
       ) : (
-        <div className="px-3 py-2.5">
+        <div className="px-3 py-3">
           {/* Header: icon + name */}
           <div className="flex items-center gap-2">
             <div
-              className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded"
+              className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-[2px] border border-current"
               style={{ backgroundColor: catConfig.fill, color: catConfig.foreground }}
             >
               <DynamicIcon name={iconName} size={14} />
             </div>
-            <span className="text-sm font-semibold leading-tight">{data.name}</span>
+            <span className="font-display text-sm font-bold leading-tight">{data.name}</span>
           </div>
 
           {/* Technology subtitle */}
           {data.technology && (
-            <div className="mt-1 pl-8 text-xs text-[var(--muted-foreground)]">
+            <div className="font-utility mt-1.5 pl-9 text-[10px] leading-4 text-[var(--muted-foreground)]">
               {containsHtml(data.technology) ? (
                 <span
                   dangerouslySetInnerHTML={{ __html: sanitizeHtml(data.technology) }}
@@ -210,7 +210,7 @@ function StackNodeComponent({ id, data, selected }: NodeProps<StackNodeData>) {
           {showNodeCategory && (
             <div className="mt-2">
               <span
-                className="inline-block rounded-full px-2 py-0.5 text-[10px] font-medium"
+                className="font-utility inline-block rounded-[2px] border border-current px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.06em]"
                 style={{ backgroundColor: catConfig.fill, color: catConfig.foreground }}
               >
                 {catConfig.displayName}

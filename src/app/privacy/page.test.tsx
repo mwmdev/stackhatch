@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import PrivacyPage from "./page";
 
@@ -12,6 +12,15 @@ describe("PrivacyPage", () => {
     expect(screen.getByText("Effective July 15, 2026")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "StackHatch home" })).toHaveAttribute("href", "/");
     expect(screen.getByRole("button", { name: /^Theme:/ })).toBeInTheDocument();
+    const legalNavigation = screen.getByRole("navigation", { name: "Legal pages" });
+    expect(within(legalNavigation).getByRole("link", { name: "Privacy" })).toHaveAttribute(
+      "aria-current",
+      "page"
+    );
+    expect(within(legalNavigation).getByRole("link", { name: "Terms" })).toHaveAttribute(
+      "href",
+      "/terms"
+    );
 
     for (const heading of [
       "Information We Use",

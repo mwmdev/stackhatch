@@ -160,7 +160,8 @@ test.describe("system-wide UI polish", () => {
         await expect(page.getByRole("link", { name: "Settings" })).toBeVisible();
         await expect(page.getByRole("link", { name: "Admin" })).toBeVisible();
       } else {
-        await expect(page.getByRole("link", { name: "New map" })).toHaveCount(1);
+        await expect(page.getByRole("link", { name: "New map" })).toHaveCount(0);
+        await expect(page.getByRole("link", { name: "All Maps" })).toBeVisible();
         await expect(page.getByRole("link", { name: "Settings" })).toHaveAttribute(
           "aria-current",
           "page"
@@ -193,6 +194,8 @@ test.describe("system-wide UI polish", () => {
 
       await expect(page.getByRole("heading", { level: 1, name: "Admin" })).toBeVisible();
       await expect(page.getByRole("link", { name: "Resume map" })).toBeVisible();
+      await expect(page.getByRole("link", { name: "All Maps" })).toBeVisible();
+      await expect(page.getByRole("link", { name: "Settings" })).toBeVisible();
       await expect(page.locator(".app-page-shell")).toHaveAttribute("data-density", "dense");
       await expect(page.getByRole("tab", { name: "Users" })).toBeVisible();
       await expect(page.locator("html")).toHaveClass(new RegExp(theme));

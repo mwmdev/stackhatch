@@ -449,12 +449,17 @@ export default function ChatSidebar({
   }
 
   return (
-    <div className="relative flex h-[45vh] w-full flex-shrink-0 flex-col border-b border-[var(--border)] bg-[var(--background)] md:h-full md:w-[400px] md:border-b-0 md:border-r">
+    <div className="relative flex h-[45vh] w-full flex-shrink-0 flex-col border-b border-[var(--boundary)] bg-[var(--paper)] md:h-full md:w-[400px] md:border-b-0 md:border-r">
       <div
         aria-hidden="true"
         data-testid="chat-scroll-overlay"
-        className="pointer-events-none absolute inset-x-0 top-0 z-10 h-[3.75rem] border-b border-[var(--border)] bg-[var(--background)]/95 backdrop-blur supports-[backdrop-filter]:bg-[var(--background)]/85"
-      />
+        className="pointer-events-none absolute inset-x-0 top-0 z-10 h-[3.75rem] border-b border-[var(--boundary)] bg-[var(--paper)]/95 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-[var(--paper)]/88"
+      >
+        <p className="font-utility text-[0.625rem] font-semibold uppercase tracking-[0.12em] text-[var(--blueprint)]">
+          Architecture chat
+        </p>
+        <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">Ask, compare, revise</p>
+      </div>
       {controlledOpen !== undefined && onOpenChange && (
         <div className="absolute right-2 top-2 z-20">
           <IconControl
@@ -566,8 +571,8 @@ export default function ChatSidebar({
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="border-t border-[var(--border)] bg-[var(--card)] p-3">
-        <div className="flex items-end gap-2 rounded-lg border border-[var(--border)] bg-[var(--background)] p-2 transition-colors focus-within:border-[var(--color-client)] focus-within:ring-2 focus-within:ring-[var(--color-client)]/20">
+      <div className="border-t border-[var(--boundary)] bg-[var(--paper)] p-3">
+        <div className="flex items-end gap-2 rounded-[var(--radius-control)] border border-[var(--boundary)] bg-[var(--background)] p-2 transition-colors focus-within:border-[var(--blueprint)] focus-within:ring-2 focus-within:ring-[var(--blueprint)]/20">
           <textarea
             ref={textareaRef}
             value={input}
