@@ -52,6 +52,11 @@ describe("ProjectStartWorkspace", () => {
     expect(screen.getAllByRole("link", { name: "All Maps" })).toHaveLength(1);
     expect(screen.getByRole("link", { name: "All Maps" })).toHaveAttribute("href", "/app/maps");
     expect(screen.queryByRole("link", { name: "Cancel map creation" })).not.toBeInTheDocument();
+
+    const traces = document.querySelectorAll('[data-routing-trace="true"]');
+    expect(traces).toHaveLength(1);
+    expect(traces[0]).toHaveAttribute("aria-hidden", "true");
+    expect(traces[0]).toHaveStyle({ pointerEvents: "none" });
   });
 
   it("allows canceling from the chooser when creation started in an existing map", () => {

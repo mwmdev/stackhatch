@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   ArrowLeft,
+  ArrowRight,
   FileText,
   FolderOpen,
   GitBranch,
@@ -17,6 +18,7 @@ import {
 } from "lucide-react";
 import TemplatePicker from "@/components/templates/TemplatePicker";
 import ThemeToggle from "@/components/ThemeToggle";
+import RoutingTrace from "@/components/shells/RoutingTrace";
 import StackHatchWordmark from "@/components/shells/StackHatchWordmark";
 import IconControl from "@/components/ui/IconControl";
 import { consumeAuthenticationStarted, trackEvent } from "@/lib/analytics";
@@ -401,12 +403,12 @@ export default function ProjectStartWorkspace({
 
   return (
     <div className="flex min-h-screen flex-col bg-[var(--canvas)] text-[var(--foreground)]">
-      <header className="z-20 border-b border-[var(--border)] bg-[var(--background)]">
-        <div className="flex min-h-14 items-center justify-between gap-3 px-3 sm:px-4">
+      <header className="z-20 border-b border-[var(--border)] bg-[var(--card)]">
+        <div className="mx-auto flex min-h-16 w-full max-w-[var(--shell-width-wide)] items-center justify-between gap-3 px-[var(--page-gutter)]">
           <StackHatchWordmark
             href="/app"
             label="StackHatch app"
-            className="rounded-md px-2 hover:bg-[var(--muted)]"
+            className="rounded-[var(--radius-control)] px-2 hover:bg-[var(--muted)]"
           />
           <nav aria-label="Map workspace" className="map-workspace-actions flex items-center gap-1">
             <IconControl
@@ -431,11 +433,11 @@ export default function ProjectStartWorkspace({
       </header>
 
       <main
-        className="relative flex flex-1 items-center justify-center overflow-hidden px-3 py-5 sm:px-6 sm:py-8"
+        className="relative flex flex-1 items-stretch justify-center overflow-x-clip px-3 py-4 sm:px-6 sm:py-8"
         style={{
           backgroundImage:
-            "linear-gradient(to right, color-mix(in srgb, var(--border) 42%, transparent) 1px, transparent 1px), linear-gradient(to bottom, color-mix(in srgb, var(--border) 42%, transparent) 1px, transparent 1px)",
-          backgroundSize: "28px 28px",
+            "linear-gradient(to right, color-mix(in srgb, var(--border) 34%, transparent) 1px, transparent 1px), linear-gradient(to bottom, color-mix(in srgb, var(--border) 34%, transparent) 1px, transparent 1px)",
+          backgroundSize: "32px 32px",
         }}
       >
         <div
@@ -446,246 +448,298 @@ export default function ProjectStartWorkspace({
           }}
           aria-hidden="true"
         />
+        <div
+          className="pointer-events-none absolute inset-x-0 bottom-4 z-20 h-24 overflow-hidden"
+          aria-hidden="true"
+        >
+          <RoutingTrace variant="compact" className="project-start-routing-trace !top-0" />
+        </div>
 
         <section
           aria-labelledby="project-start-title"
-          className="relative z-10 w-full max-w-4xl overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--card)] shadow-[0_22px_65px_-48px_var(--shadow-color)]"
+          className="relative z-10 w-full max-w-[76rem] overflow-hidden rounded-[var(--radius-surface)] border border-[var(--border)] bg-[var(--card)] shadow-[var(--shadow-low)]"
         >
-          <div className="px-4 pb-3 pt-4 sm:px-6 sm:pb-4 sm:pt-5">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                {modeDetails && ModeIcon ? (
-                  <div className="flex items-start gap-3">
-                    <div
-                      className="flex h-10 w-10 flex-none items-center justify-center rounded-md border border-[var(--border)] bg-[var(--background)]"
-                      style={{ color: modeDetails.color }}
-                    >
-                      <ModeIcon className="h-5 w-5" aria-hidden="true" />
-                    </div>
-                    <div>
-                      <h1
-                        ref={modeHeadingRef}
-                        id="project-start-title"
-                        tabIndex={-1}
-                        className="font-display text-2xl font-extrabold tracking-tight outline-none sm:text-3xl"
-                      >
-                        {modeDetails.modeTitle}
-                      </h1>
-                      <p className="mt-1 max-w-2xl text-sm leading-6 text-[var(--muted-foreground)]">
-                        {modeDetails.modeDescription}
-                      </p>
-                    </div>
+          <div className="grid min-h-full lg:grid-cols-[13rem_minmax(0,1fr)]">
+            <aside
+              aria-label="New map context"
+              className="border-b border-[var(--border)] bg-[var(--surface-subtle)] p-4 sm:p-5 lg:border-b-0 lg:border-r lg:p-6"
+            >
+              <p className="font-utility text-[0.6875rem] font-semibold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">
+                New map
+              </p>
+              <div className="mt-4 flex items-center gap-3 lg:mt-8 lg:items-start">
+                <span className="font-utility flex h-6 w-6 flex-none items-center justify-center rounded-full bg-[var(--brand)] text-[0.6875rem] font-bold text-[var(--brand-foreground)]">
+                  01
+                </span>
+                <div>
+                  <p className="text-sm font-bold">
+                    {modeDetails ? "Source detail" : "Choose source"}
+                  </p>
+                  <p className="mt-1 hidden text-xs leading-5 text-[var(--muted-foreground)] sm:block">
+                    One independent architecture map, ready to refine in the editor.
+                  </p>
+                </div>
+              </div>
+            </aside>
+
+            <div className="min-w-0">
+              <div className="border-b border-[var(--border)] px-4 py-5 sm:px-7 sm:py-7">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    {modeDetails && ModeIcon ? (
+                      <div className="flex items-start gap-3">
+                        <div
+                          className="flex h-10 w-10 flex-none items-center justify-center rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--background)]"
+                          style={{ color: modeDetails.color }}
+                        >
+                          <ModeIcon className="h-5 w-5" aria-hidden="true" />
+                        </div>
+                        <div className="min-w-0">
+                          <h1
+                            ref={modeHeadingRef}
+                            id="project-start-title"
+                            tabIndex={-1}
+                            className="font-display text-2xl font-extrabold tracking-tight outline-none sm:text-3xl"
+                          >
+                            {modeDetails.modeTitle}
+                          </h1>
+                          <p className="mt-1 max-w-2xl text-sm leading-6 text-[var(--muted-foreground)]">
+                            {modeDetails.modeDescription}
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="font-utility text-[0.6875rem] font-semibold uppercase tracking-[0.16em] text-[var(--brand)]">
+                          Architecture source
+                        </p>
+                        <h1
+                          id="project-start-title"
+                          className="font-display mt-2 text-2xl font-extrabold tracking-tight sm:text-3xl"
+                        >
+                          Start a new map
+                        </h1>
+                        <p className="mt-1 max-w-2xl text-sm leading-6 text-[var(--muted-foreground)]">
+                          Choose the source that best describes what you have. Your existing maps
+                          stay unchanged.
+                        </p>
+                      </>
+                    )}
                   </div>
-                ) : (
-                  <>
-                    <h1
-                      id="project-start-title"
-                      className="font-display text-2xl font-extrabold tracking-tight sm:text-3xl"
-                    >
-                      Start a new map
-                    </h1>
-                    <p className="mt-1 max-w-2xl text-sm leading-6 text-[var(--muted-foreground)]">
-                      Choose a starting point. Your existing maps stay unchanged.
-                    </p>
-                  </>
-                )}
+
+                  <div className="flex flex-none flex-wrap items-center justify-end gap-2">
+                    {mode && (
+                      <button
+                        type="button"
+                        aria-label="Choose another source"
+                        onClick={chooseAnotherSource}
+                        disabled={submitting}
+                        className="inline-flex min-h-11 items-center gap-2 rounded-[var(--radius-control)] border border-[var(--border)] px-3 py-2 text-sm font-semibold hover:bg-[var(--muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] disabled:opacity-50"
+                      >
+                        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+                        <span className="hidden sm:inline">Choose another source</span>
+                      </button>
+                    )}
+                    {returnTo && (
+                      <IconControl
+                        href={returnTo}
+                        label="Cancel map creation"
+                        tooltip="Cancel map creation"
+                        tooltipPlacement="left"
+                        onClick={cancelRequirementsRead}
+                        disabled={submitting}
+                        variant="outline"
+                      >
+                        <X />
+                      </IconControl>
+                    )}
+                  </div>
+                </div>
               </div>
 
-              <div className="flex flex-none flex-wrap items-center justify-end gap-2">
-                {mode && (
-                  <button
-                    type="button"
-                    aria-label="Choose another source"
-                    onClick={chooseAnotherSource}
-                    disabled={submitting}
-                    className="inline-flex min-h-11 items-center gap-2 rounded-md border border-[var(--border)] px-3 py-2 text-sm font-semibold hover:bg-[var(--muted)] disabled:opacity-50"
-                  >
-                    <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-                    <span className="hidden sm:inline">Choose another source</span>
-                  </button>
-                )}
-                {returnTo && (
-                  <IconControl
-                    href={returnTo}
-                    label="Cancel map creation"
-                    tooltip="Cancel map creation"
-                    tooltipPlacement="left"
-                    onClick={cancelRequirementsRead}
-                    disabled={submitting}
-                  >
-                    <X />
-                  </IconControl>
-                )}
-              </div>
+              {!mode && (
+                <div
+                  className="grid gap-3 p-3 sm:grid-cols-2 sm:p-5 lg:grid-cols-4 lg:p-7"
+                  aria-label="Map sources"
+                >
+                  {SOURCE_OPTIONS.map((source) => {
+                    const SourceIcon = source.icon;
+                    return (
+                      <button
+                        key={source.method}
+                        type="button"
+                        onClick={() => chooseSource(source.method)}
+                        data-source-choice={source.method}
+                        className="group flex min-h-64 min-w-0 flex-col rounded-[var(--radius-surface)] border border-t-2 border-[var(--border)] bg-[var(--background)] p-4 text-left transition-[background-color,box-shadow,transform] hover:-translate-y-0.5 hover:bg-[var(--surface-raised)] hover:shadow-[var(--shadow-low)] focus-visible:relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)] sm:min-h-72 sm:p-5"
+                        style={{ borderTopColor: source.color }}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <span
+                            className="flex h-11 w-11 items-center justify-center rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)]"
+                            style={{ color: source.color }}
+                          >
+                            <SourceIcon className="h-5 w-5" aria-hidden="true" />
+                          </span>
+                          <span className="font-utility rounded-[var(--radius-control)] border border-[var(--border)] px-2 py-1 text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
+                            {source.detail}
+                          </span>
+                        </div>
+                        <span className="font-display mt-6 text-lg font-bold leading-tight">
+                          {source.title}
+                        </span>
+                        <span className="mt-3 text-sm leading-6 text-[var(--muted-foreground)]">
+                          {source.description}
+                        </span>
+                        <span
+                          className="mt-auto flex items-center justify-between border-t border-[var(--border)] pt-4 text-xs font-bold uppercase tracking-[0.1em]"
+                          style={{ color: source.color }}
+                          aria-hidden="true"
+                        >
+                          Select source
+                          <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {mode && mode !== "template" && (
+                <div className="px-4 py-5 sm:px-7 sm:py-7">
+                  {settingsStatus === "loading" && (
+                    <p
+                      className="font-utility text-xs uppercase tracking-[0.12em] text-[var(--muted-foreground)]"
+                      role="status"
+                    >
+                      Checking AI setup...
+                    </p>
+                  )}
+
+                  {settingsStatus === "error" && (
+                    <div
+                      className="max-w-2xl rounded-[var(--radius-surface)] border border-[var(--danger-border)] bg-[var(--danger-surface)] p-5"
+                      role="alert"
+                    >
+                      <p className="text-sm text-[var(--danger)]">
+                        StackHatch could not check your Anthropic setup.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setSettingsRetry((attempt) => attempt + 1)}
+                        className="mt-3 min-h-11 rounded-[var(--radius-control)] border border-[var(--danger-border)] px-4 py-2 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+                      >
+                        Retry setup check
+                      </button>
+                    </div>
+                  )}
+
+                  {settingsStatus === "missing-key" && (
+                    <section className="max-w-2xl rounded-[var(--radius-surface)] border border-[var(--warning-border)] bg-[var(--warning-surface)] p-5">
+                      <KeyRound className="h-5 w-5 text-[var(--color-data)]" aria-hidden="true" />
+                      <h2 className="mt-3 font-semibold">Connect Anthropic first</h2>
+                      <p className="mt-1 max-w-xl text-sm leading-6 text-[var(--muted-foreground)]">
+                        This source uses your Anthropic API key. After setup, you will return to
+                        this source with the valid context preserved.
+                      </p>
+                      <Link
+                        href={setupHref}
+                        className="mt-4 inline-flex min-h-11 items-center rounded-[var(--radius-control)] bg-[var(--brand)] px-4 py-2 text-sm font-bold text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2"
+                      >
+                        Add Anthropic key
+                      </Link>
+                    </section>
+                  )}
+
+                  {settingsStatus === "ready" && mode === "blank" && (
+                    <section className="max-w-2xl rounded-[var(--radius-surface)] border border-[var(--border)] bg-[var(--background)] p-5 sm:p-6">
+                      <h2 className="font-semibold">Empty architecture canvas</h2>
+                      <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
+                        Create one separate map with no nodes or connections. No Anthropic key is
+                        required.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => void createBlankProject(true)}
+                        disabled={submitting}
+                        className="mt-5 min-h-11 rounded-[var(--radius-control)] bg-[var(--brand)] px-4 py-2 text-sm font-bold text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 disabled:opacity-50"
+                      >
+                        {blankButtonLabel}
+                      </button>
+                    </section>
+                  )}
+
+                  {settingsStatus === "ready" && mode === "requirements" && (
+                    <section className="max-w-2xl rounded-[var(--radius-surface)] border border-[var(--border)] bg-[var(--background)] p-5 sm:p-6">
+                      <h2 className="font-semibold">Choose your requirements file</h2>
+                      <p className="mt-1 text-sm leading-6 text-[var(--muted-foreground)]">
+                        The first non-empty Markdown heading becomes the map name. You can rename it
+                        later.
+                      </p>
+                      <label className="mt-5 inline-flex min-h-11 cursor-pointer items-center rounded-[var(--radius-control)] bg-[var(--brand)] px-4 py-2 text-sm font-bold text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)] focus-within:ring-2 focus-within:ring-[var(--ring)] focus-within:ring-offset-2 has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50">
+                        {submitting ? "Creating map..." : "Choose .md or .txt file"}
+                        <input
+                          type="file"
+                          accept=".md,.txt,text/markdown,text/plain"
+                          aria-label="Choose .md or .txt file"
+                          onChange={handleRequirementsFile}
+                          disabled={submitting}
+                          className="sr-only"
+                        />
+                      </label>
+                    </section>
+                  )}
+
+                  {settingsStatus === "ready" && mode === "repository" && (
+                    <form
+                      onSubmit={handleRepositorySubmit}
+                      className="max-w-2xl rounded-[var(--radius-surface)] border border-[var(--border)] bg-[var(--background)] p-5 sm:p-6"
+                    >
+                      <label htmlFor="new-project-repository" className="text-sm font-semibold">
+                        Public GitHub repository
+                      </label>
+                      <input
+                        id="new-project-repository"
+                        type="text"
+                        inputMode="url"
+                        value={repoUrl}
+                        onChange={(event) => setRepoUrl(event.target.value)}
+                        placeholder="owner/repo or https://github.com/owner/repo"
+                        disabled={submitting}
+                        autoFocus
+                        className="mt-2 min-h-11 w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--ring)] disabled:opacity-50"
+                      />
+                      <p className="mt-2 text-xs leading-5 text-[var(--muted-foreground)]">
+                        Public repositories only. Analysis runs with your Anthropic API key.
+                      </p>
+                      <button
+                        type="submit"
+                        disabled={submitting || !repoUrl.trim()}
+                        className="mt-5 min-h-11 w-full rounded-[var(--radius-control)] bg-[var(--brand)] px-4 py-2 text-sm font-bold text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 disabled:opacity-50"
+                      >
+                        {submitting ? "Creating map..." : "Map repository"}
+                      </button>
+                    </form>
+                  )}
+
+                  {error && (
+                    <div
+                      className="mt-5 flex max-w-2xl items-start gap-2 rounded-[var(--radius-surface)] border border-[var(--danger-border)] bg-[var(--danger-surface)] p-4 text-sm text-[var(--danger)]"
+                      role="alert"
+                    >
+                      <AlertCircle className="mt-0.5 h-4 w-4 flex-none" aria-hidden="true" />
+                      <span>{error}</span>
+                    </div>
+                  )}
+
+                  {submitting && (
+                    <p className="sr-only" role="status">
+                      Creating your map
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
-
-          {!mode && (
-            <div
-              className="grid gap-2 px-2 pb-2 sm:grid-cols-2 sm:px-3 sm:pb-3"
-              aria-label="Map sources"
-            >
-              {SOURCE_OPTIONS.map((source) => {
-                const SourceIcon = source.icon;
-                return (
-                  <button
-                    key={source.method}
-                    type="button"
-                    onClick={() => chooseSource(source.method)}
-                    className="group flex min-h-40 min-w-0 flex-col rounded-lg bg-[var(--background)] p-4 text-left transition-colors hover:bg-[var(--surface-raised)] focus:relative sm:p-5"
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <span
-                        className="flex h-10 w-10 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--background)]"
-                        style={{ color: source.color }}
-                      >
-                        <SourceIcon className="h-5 w-5" aria-hidden="true" />
-                      </span>
-                      <span className="font-utility rounded border border-[var(--border)] px-2 py-1 text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
-                        {source.detail}
-                      </span>
-                    </div>
-                    <span className="font-display mt-4 text-lg font-bold">{source.title}</span>
-                    <span className="mt-2 max-w-sm text-sm leading-6 text-[var(--muted-foreground)]">
-                      {source.description}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          {mode && mode !== "template" && (
-            <div className="px-5 py-6 sm:px-7 sm:py-8">
-              {settingsStatus === "loading" && (
-                <p className="text-sm text-[var(--muted-foreground)]" role="status">
-                  Checking AI setup...
-                </p>
-              )}
-
-              {settingsStatus === "error" && (
-                <div
-                  className="rounded-lg border border-[var(--danger-border)] bg-[var(--danger-surface)] p-5"
-                  role="alert"
-                >
-                  <p className="text-sm text-[var(--danger)]">
-                    StackHatch could not check your Anthropic setup.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setSettingsRetry((attempt) => attempt + 1)}
-                    className="mt-3 min-h-11 rounded-md border border-[var(--danger-border)] px-4 py-2 text-sm font-semibold"
-                  >
-                    Retry setup check
-                  </button>
-                </div>
-              )}
-
-              {settingsStatus === "missing-key" && (
-                <section className="rounded-lg border border-[var(--warning-border)] bg-[var(--warning-surface)] p-5">
-                  <KeyRound className="h-5 w-5 text-[var(--color-data)]" aria-hidden="true" />
-                  <h2 className="mt-3 font-semibold">Connect Anthropic first</h2>
-                  <p className="mt-1 max-w-xl text-sm leading-6 text-[var(--muted-foreground)]">
-                    This source uses your Anthropic API key. After setup, you will return to this
-                    source with the valid context preserved.
-                  </p>
-                  <Link
-                    href={setupHref}
-                    className="mt-4 inline-flex min-h-11 items-center rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-bold text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)]"
-                  >
-                    Add Anthropic key
-                  </Link>
-                </section>
-              )}
-
-              {settingsStatus === "ready" && mode === "blank" && (
-                <section className="max-w-xl rounded-lg border border-[var(--border)] bg-[var(--background)] p-5 sm:p-6">
-                  <h2 className="font-semibold">Empty architecture canvas</h2>
-                  <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
-                    Create one separate map with no nodes or connections. No Anthropic key is
-                    required.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => void createBlankProject(true)}
-                    disabled={submitting}
-                    className="mt-5 min-h-11 rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-bold text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)] disabled:opacity-50"
-                  >
-                    {blankButtonLabel}
-                  </button>
-                </section>
-              )}
-
-              {settingsStatus === "ready" && mode === "requirements" && (
-                <section className="max-w-xl rounded-lg border border-[var(--border)] bg-[var(--background)] p-5 sm:p-6">
-                  <h2 className="font-semibold">Choose your requirements file</h2>
-                  <p className="mt-1 text-sm leading-6 text-[var(--muted-foreground)]">
-                    The first non-empty Markdown heading becomes the map name. You can rename it
-                    later.
-                  </p>
-                  <label className="mt-5 inline-flex min-h-11 cursor-pointer items-center rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-bold text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)] has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50">
-                    {submitting ? "Creating map..." : "Choose .md or .txt file"}
-                    <input
-                      type="file"
-                      accept=".md,.txt,text/markdown,text/plain"
-                      aria-label="Choose .md or .txt file"
-                      onChange={handleRequirementsFile}
-                      disabled={submitting}
-                      className="sr-only"
-                    />
-                  </label>
-                </section>
-              )}
-
-              {settingsStatus === "ready" && mode === "repository" && (
-                <form
-                  onSubmit={handleRepositorySubmit}
-                  className="max-w-xl rounded-lg border border-[var(--border)] bg-[var(--background)] p-5 sm:p-6"
-                >
-                  <label htmlFor="new-project-repository" className="text-sm font-semibold">
-                    Public GitHub repository
-                  </label>
-                  <input
-                    id="new-project-repository"
-                    type="text"
-                    inputMode="url"
-                    value={repoUrl}
-                    onChange={(event) => setRepoUrl(event.target.value)}
-                    placeholder="owner/repo or https://github.com/owner/repo"
-                    disabled={submitting}
-                    autoFocus
-                    className="mt-2 min-h-11 w-full rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--ring)] disabled:opacity-50"
-                  />
-                  <p className="mt-2 text-xs leading-5 text-[var(--muted-foreground)]">
-                    Public repositories only. Analysis runs with your Anthropic API key.
-                  </p>
-                  <button
-                    type="submit"
-                    disabled={submitting || !repoUrl.trim()}
-                    className="mt-5 min-h-11 w-full rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-bold text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)] disabled:opacity-50"
-                  >
-                    {submitting ? "Creating map..." : "Map repository"}
-                  </button>
-                </form>
-              )}
-
-              {error && (
-                <div
-                  className="mt-5 flex max-w-xl items-start gap-2 rounded-lg border border-[var(--danger-border)] bg-[var(--danger-surface)] p-4 text-sm text-[var(--danger)]"
-                  role="alert"
-                >
-                  <AlertCircle className="mt-0.5 h-4 w-4 flex-none" aria-hidden="true" />
-                  <span>{error}</span>
-                </div>
-              )}
-
-              {submitting && (
-                <p className="sr-only" role="status">
-                  Creating your map
-                </p>
-              )}
-            </div>
-          )}
         </section>
       </main>
 

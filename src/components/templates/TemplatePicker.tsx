@@ -66,11 +66,13 @@ function TemplateCard({
       onClick={() => onSelectTemplate(template)}
       disabled={Boolean(busyTemplateId)}
       aria-busy={busyTemplateId === template.id || undefined}
-      className="rounded-md border border-[var(--border)] bg-[var(--background)] p-4 text-left transition-colors hover:bg-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)] disabled:cursor-wait disabled:opacity-60"
+      data-template-source={isCurated ? "curated" : "personal"}
+      className="flex min-h-52 min-w-0 flex-col rounded-[var(--radius-surface)] border border-t-2 border-[var(--border)] bg-[var(--background)] p-4 text-left transition-[background-color,box-shadow,transform] hover:-translate-y-0.5 hover:bg-[var(--surface-raised)] hover:shadow-[var(--shadow-low)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)] disabled:cursor-wait disabled:opacity-60"
+      style={{ borderTopColor: isCurated ? "var(--blueprint)" : "var(--oxide)" }}
     >
       <div className="flex items-start justify-between gap-3">
-        <h4 className="font-medium">{template.name}</h4>
-        <span className="font-utility rounded border border-[var(--border)] px-2 py-1 text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
+        <h4 className="font-display min-w-0 font-bold leading-tight">{template.name}</h4>
+        <span className="font-utility flex-none rounded-[var(--radius-control)] border border-[var(--border)] px-2 py-1 text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
           {isCurated ? "Built-in" : "Personal"}
         </span>
       </div>
@@ -79,16 +81,16 @@ function TemplateCard({
           {template.description}
         </p>
       )}
-      <p className="mt-3 whitespace-pre-line font-mono text-xs leading-5 text-[var(--muted-foreground)]">
+      <p className="mt-4 whitespace-pre-line border-t border-[var(--border)] pt-3 font-mono text-xs leading-5 text-[var(--muted-foreground)]">
         {summarizeTemplate(template.canvasState)}
       </p>
-      <p className="mt-2 text-xs text-[var(--muted-foreground)]">
+      <p className="mt-auto pt-3 font-utility text-[0.6875rem] uppercase tracking-[0.1em] text-[var(--muted-foreground)]">
         {isCurated
           ? "Included with StackHatch"
           : `Saved ${new Date(template.createdAt).toLocaleDateString()}`}
       </p>
       {busyTemplateId === template.id && (
-        <p className="mt-3 text-sm font-semibold text-[var(--color-client)]" role="status">
+        <p className="mt-3 text-sm font-semibold text-[var(--brand)]" role="status">
           Creating your copy...
         </p>
       )}
@@ -192,16 +194,19 @@ export default function TemplatePicker({
   }, [loadAttempt]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay)] px-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[var(--overlay)] p-3 sm:p-6">
       <div
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="template-picker-title"
-        className="flex max-h-[84vh] w-full max-w-3xl flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--card)] shadow-xl"
+        className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-4xl flex-col overflow-hidden rounded-[var(--radius-surface)] border border-[var(--border)] bg-[var(--card)] shadow-2xl sm:max-h-[calc(100dvh-3rem)]"
       >
-        <div className="border-b border-[var(--border)] p-6">
-          <h3 id="template-picker-title" className="text-lg font-semibold">
+        <div className="border-b border-[var(--border)] px-4 py-5 sm:px-6">
+          <p className="font-utility text-[0.6875rem] font-semibold uppercase tracking-[0.16em] text-[var(--brand)]">
+            Template source
+          </p>
+          <h3 id="template-picker-title" className="font-display mt-1 text-xl font-extrabold">
             Start from Template
           </h3>
           <p className="mt-1 text-sm leading-6 text-[var(--muted-foreground)]">
@@ -209,7 +214,7 @@ export default function TemplatePicker({
           </p>
         </div>
 
-        <div className="flex-1 space-y-8 overflow-y-auto p-6">
+        <div className="flex-1 space-y-7 overflow-y-auto p-4 sm:p-6">
           <section aria-labelledby="curated-templates-title">
             <div>
               <h4 id="curated-templates-title" className="font-display text-base font-bold">
@@ -219,7 +224,7 @@ export default function TemplatePicker({
                 Read-only starting points maintained by StackHatch.
               </p>
             </div>
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
               {CURATED_STARTER_TEMPLATES.map((template) => (
                 <TemplateCard
                   key={template.id}
@@ -246,20 +251,20 @@ export default function TemplatePicker({
                 Loading your templates...
               </p>
             ) : error ? (
-              <div className="mt-4 rounded-md border border-[var(--danger-border)] bg-[var(--danger-surface)] p-4">
+              <div className="mt-4 rounded-[var(--radius-surface)] border border-[var(--danger-border)] bg-[var(--danger-surface)] p-4">
                 <p className="text-sm text-[var(--danger)]" role="alert">
                   {error}. Built-in starters are still available.
                 </p>
                 <button
                   type="button"
                   onClick={() => setLoadAttempt((attempt) => attempt + 1)}
-                  className="mt-3 min-h-11 rounded-md border border-[var(--danger-border)] px-4 py-2 text-sm font-semibold text-[var(--danger)]"
+                  className="mt-3 min-h-11 rounded-[var(--radius-control)] border border-[var(--danger-border)] px-4 py-2 text-sm font-semibold text-[var(--danger)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
                 >
                   Retry templates
                 </button>
               </div>
             ) : templates.length === 0 ? (
-              <div className="mt-4 rounded-md border border-dashed border-[var(--border)] p-4">
+              <div className="mt-4 rounded-[var(--radius-surface)] border border-dashed border-[var(--border)] bg-[var(--surface-subtle)] p-4">
                 <p className="font-medium">No personal templates yet.</p>
                 <p className="mt-1 text-sm text-[var(--muted-foreground)]">
                   Save any architecture map as a template, then reuse it here.
@@ -267,14 +272,14 @@ export default function TemplatePicker({
                 {emptyStateHref && (
                   <Link
                     href={emptyStateHref}
-                    className="mt-3 inline-flex min-h-11 items-center text-sm font-semibold hover:text-[var(--brand)]"
+                    className="mt-3 inline-flex min-h-11 items-center text-sm font-semibold hover:text-[var(--brand)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
                   >
                     Choose another starting point
                   </Link>
                 )}
               </div>
             ) : (
-              <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 {templates.map((template) => (
                   <TemplateCard
                     key={template.id}
@@ -288,7 +293,7 @@ export default function TemplatePicker({
           </section>
         </div>
 
-        <div className="flex flex-col gap-3 border-t border-[var(--border)] p-6 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 border-t border-[var(--border)] bg-[var(--surface-subtle)] p-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           {selectionError ? (
             <div className="flex-1">
               <p className="text-sm text-[var(--danger)]" role="alert">
@@ -299,7 +304,7 @@ export default function TemplatePicker({
                   type="button"
                   onClick={onRetrySelection}
                   disabled={Boolean(busyTemplateId)}
-                  className="mt-2 min-h-11 rounded-md border border-[var(--danger-border)] px-4 py-2 text-sm font-semibold text-[var(--danger)] disabled:opacity-50"
+                  className="mt-2 min-h-11 rounded-[var(--radius-control)] border border-[var(--danger-border)] px-4 py-2 text-sm font-semibold text-[var(--danger)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] disabled:opacity-50"
                 >
                   Retry selected template
                 </button>
@@ -314,7 +319,7 @@ export default function TemplatePicker({
               if (!busyTemplateId) onCancel();
             }}
             aria-disabled={Boolean(busyTemplateId)}
-            className="min-h-11 rounded-md border border-[var(--border)] px-4 py-2 text-sm font-semibold hover:bg-[var(--muted)] aria-disabled:cursor-wait aria-disabled:opacity-50"
+            className="min-h-11 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-4 py-2 text-sm font-semibold hover:bg-[var(--muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] aria-disabled:cursor-wait aria-disabled:opacity-50"
           >
             Cancel
           </button>
