@@ -32,6 +32,15 @@ StackHatch does not maintain a separate private Notes panel.
   browser.
 - Each user selects their preferred supported Claude model.
 - Theme preferences follow the user across sessions.
+- Each user can add personal node subtypes to the built-in map vocabulary. Retired personal subtype
+  values remain visible on existing nodes until the user replaces them.
+- Users can permanently delete their account and active application data from Settings. Signing in
+  with GitHub again creates a fresh account; an old session cannot recover the deleted account.
 
-Administrators can manage users, impersonate an account for support, customize application-wide AI
-prompts, and add node subtypes. The only account roles are `user` and `admin`.
+StackHatch has no account roles, administrator page, or impersonation mode. Architecture prompts are
+immutable, reviewed application source rather than editable product settings. Rare account lookup
+and deletion operations are available only to a host-authorized operator using the explicit-path
+command-line tool.
+
+Account deletion removes the user's records from the active SQLite database in one transaction.
+SQLite WAL files and backups follow the operator's configured storage-retention lifecycle.

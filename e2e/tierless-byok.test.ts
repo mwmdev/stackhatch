@@ -123,10 +123,60 @@ test.describe("tierless BYOK experience", () => {
       const settings = JSON.parse(responseText) as Record<string, unknown>;
       expect(settings.hasAnthropicKey).toBe(true);
       expect(settings.model).toBe(selectedModel);
+      expect(settings.customSubtypes).toEqual(expect.any(Object));
       expect(Object.keys(settings)).not.toContain("apiKey");
       expect(Object.keys(settings)).not.toContain("anthropicApiKey");
+      expect(Object.keys(settings)).not.toContain("role");
+      expect(Object.keys(settings)).not.toContain("isAdmin");
     } finally {
       await clearAnthropicKey(page);
+    }
+  });
+
+  test("custom node subtypes are saved as personal settings without an administrator surface", async ({
+    page,
+  }) => {
+    const originalResponse = await page.request.get("/api/settings");
+    expect(originalResponse.status()).toBe(200);
+    const original = (await originalResponse.json()) as {
+      customSubtypes?: Record<string, Array<Record<string, string>>>;
+    };
+    const originalCatalog = original.customSubtypes ?? {};
+    const catalog = {
+      ...originalCatalog,
+      external: [
+        ...(originalCatalog.external ?? []).filter((entry) => entry.slug !== "playwright-vendor"),
+        { slug: "playwright-vendor", displayName: "Playwright Vendor", icon: "Box" },
+      ],
+    };
+
+    try {
+      const saveResponse = await page.request.patch("/api/settings", {
+        data: { customSubtypes: catalog },
+      });
+      expect(saveResponse.status()).toBe(200);
+      await expect
+        .poll(async () => {
+          const response = await page.request.get("/api/settings");
+          if (!response.ok()) return undefined;
+          const settings = (await response.json()) as {
+            customSubtypes?: Record<string, Array<Record<string, string>>>;
+          };
+          return settings.customSubtypes?.external?.find(
+            (entry) => entry.slug === "playwright-vendor"
+          )?.displayName;
+        })
+        .toBe("Playwright Vendor");
+
+      await page.goto("/settings");
+      await expect(page.getByRole("heading", { name: "Node subtypes" })).toBeVisible();
+      await expect(page.locator('input[value="Playwright Vendor"]')).toBeVisible();
+      await expect(page.getByRole("link", { name: "Admin" })).toHaveCount(0);
+    } finally {
+      const restoreResponse = await page.request.patch("/api/settings", {
+        data: { customSubtypes: originalCatalog },
+      });
+      expect(restoreResponse.status()).toBe(200);
     }
   });
 

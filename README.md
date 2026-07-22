@@ -27,6 +27,10 @@ The generated map is an explanation built from bounded repository evidence. It i
 
 StackHatch is free and bring-your-own-key. AI requests use your Anthropic API key, which is encrypted before storage and never returned to the browser. Anthropic bills usage directly to your account.
 
+There are no account roles, administrator pages, or impersonation mode. Each user manages their own
+model, theme, and custom node subtypes in Settings. The architecture prompts are checked into the
+application and cannot be edited through the product.
+
 ## Architecture
 
 - **Next.js and React** provide the public site, authenticated application, and route handlers.
@@ -34,7 +38,7 @@ StackHatch is free and bring-your-own-key. AI requests use your Anthropic API ke
 - **Auth.js** handles GitHub OAuth and application sessions.
 - **GitHub's API** provides public repository metadata and bounded source-tree evidence.
 - **Anthropic** turns that evidence and the current canvas context into architecture output.
-- **Drizzle and SQLite** persist users, settings, personal projects, maps (including Note nodes),
+- **Drizzle and SQLite** persist users, per-user settings, personal projects, maps (including Note nodes),
   messages, personal templates, and scan provenance.
 - **Docker** packages the standalone Next.js runtime for deployment.
 
@@ -45,7 +49,8 @@ Requirements: Node.js 22+, npm 10+, a GitHub OAuth app, and an Anthropic API key
 ```bash
 npm ci
 cp .env.example .env.local
-npm run db:migrate
+mkdir -p data && touch data/stackhatch.db
+npm run db:migrate:offline -- --database "$PWD/data/stackhatch.db"
 npm run dev
 ```
 
@@ -60,16 +65,57 @@ single-instance deployment:
 
 1. Copy `.env.example` to a deployment-only environment file and replace every placeholder secret.
 2. Mount a persistent volume at `/app/data` for SQLite.
-3. Build and start `docker-compose.yml` with `docker compose --env-file .env.local --profile prod
-up --build`. StackHatch runs the bundled database migrations before authenticated data access.
-4. Put TLS and a reverse proxy in front of port 3000, and set `NEXTAUTH_URL` and
+3. During a maintenance window, stop the application and migrate the mounted database with the
+   production migration command described below.
+4. Build and start `docker-compose.yml` with `docker compose --env-file .env.local --profile prod
+up --build`.
+5. Put TLS and a reverse proxy in front of port 3000, and set `NEXTAUTH_URL` and
    `NEXT_PUBLIC_SITE_URL` to the public HTTPS origin.
-5. Configure both Umami variables before building to enable the launch analytics contract. Compose
+6. Configure both Umami variables before building to enable the launch analytics contract. Compose
    passes them into the client bundle as build arguments; leaving either empty keeps analytics
    disabled without affecting product behavior.
 
 Keep `STACKHATCH_DEV_AUTH=0` in every public environment. Back up the SQLite volume and test
 restore procedures according to your own retention policy.
+
+## Database maintenance and account operations
+
+Production schema changes are an offline operation. Stop every StackHatch process that can access
+the database, take and verify a SQLite-consistent backup that includes its WAL state, and run the
+migration against an explicit absolute path before starting the application again:
+
+```bash
+# From a source checkout
+npm run db:migrate:offline -- --database /absolute/path/to/stackhatch.db
+
+# From the production artifact
+node operator/migrate-database.cjs --database /absolute/path/to/stackhatch.db
+```
+
+Users can permanently delete their own account from Settings. The active SQLite database removes
+their account, encrypted key, projects, messages, templates, preferences, and custom subtypes in one
+transaction. A later GitHub sign-in creates a fresh account; an old session does not regain access.
+SQLite WAL files and backups remain subject to the operator's storage-retention policy.
+
+Rare support operations use the host-authorized account command, not a web administrator account.
+The command always requires an explicit database path. Preview an exact account first, then delete
+only by the returned internal user ID and a confirmation containing the database fingerprint and
+that ID. Preview output is redacted and limited to identity hints, the internal ID, safe owned-record
+counts, the database fingerprint, and the confirmation format.
+
+```bash
+# From a source checkout
+npm run account:manage -- preview --database /absolute/path/to/stackhatch.db --id USER_ID
+npm run account:manage -- delete --database /absolute/path/to/stackhatch.db --id USER_ID --confirm 'DELETE FINGERPRINT USER_ID'
+
+# From the production artifact
+node operator/manage-account.cjs preview --database /absolute/path/to/stackhatch.db --id USER_ID
+node operator/manage-account.cjs delete --database /absolute/path/to/stackhatch.db --id USER_ID --confirm 'DELETE FINGERPRINT USER_ID'
+```
+
+Preview accepts exactly one of `--id`, `--github-id`, or `--email`. Substitute the reported
+fingerprint and full internal ID when constructing the delete confirmation. Keep the database
+offline for the delete step so no web request is using it concurrently.
 
 ## Quality checks
 

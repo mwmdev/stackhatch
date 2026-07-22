@@ -3,7 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { getDb } from "@/db";
 import { runMigrations } from "@/db/migrate";
-import { getApiKey, getModel } from "@/lib/ai/settings";
+import { getUserAiCredentials } from "@/lib/ai/settings";
 import { DEFAULT_ALTERNATIVES_PROMPT } from "@/lib/ai/default-prompts";
 import { buildCanvasContext } from "@/lib/ai/context-builder";
 import type { StackArchitecture, AlternativeNode } from "@/types/stack";
@@ -60,7 +60,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: "Project not found" }, { status: 404 });
   }
 
-  const apiKey = getApiKey(db, user.userId);
+  const { apiKey, model } = getUserAiCredentials(db, user.userId);
   if (!apiKey) {
     return NextResponse.json(
       {
@@ -71,8 +71,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       { status: 503 }
     );
   }
-
-  const model = getModel(db, userId);
 
   let architectureContext = "";
   if (project?.canvasState) {

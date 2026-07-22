@@ -5,8 +5,9 @@ import { runMigrations } from "@/db/migrate";
 import { deleteAccountById } from "@/lib/account-deletion";
 import { getAuthenticatedUser, isDevelopmentAuthEnabled } from "@/lib/auth";
 import { signOut } from "@/lib/auth-config";
+import { ACCOUNT_DELETION_CONFIRMATION } from "@/lib/account-deletion-contract";
 
-const requestSchema = z.object({ confirmation: z.literal("DELETE MY ACCOUNT") }).strict();
+const requestSchema = z.object({ confirmation: z.literal(ACCOUNT_DELETION_CONFIRMATION) }).strict();
 
 function hasMatchingOriginAndHost(request: Request) {
   const origin = request.headers.get("origin");

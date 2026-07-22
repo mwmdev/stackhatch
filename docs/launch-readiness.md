@@ -34,10 +34,11 @@ stars.
 
 - GitHub authentication and encrypted per-user Anthropic keys.
 - Per-user Claude model and theme preferences.
+- Per-user custom node subtypes and checked-in, immutable architecture prompts.
 - Repository analysis, requirements input, chat, and a fully editable canvas.
 - PNG, SVG, JSON, YAML, and PRD exports for every user.
 - Unlimited personal projects, Note nodes on architecture maps, and personal templates.
-- Support, privacy, terms, and administrator support tooling.
+- Self-service account deletion plus support, privacy, and terms surfaces.
 
 ## Risks and Validation
 
@@ -53,7 +54,15 @@ usage.
 
 ## Technical Notes
 
-The launch baseline includes Next.js, GitHub authentication, encrypted user settings, a fresh
-Drizzle schema, personal projects, Note nodes stored as part of each architecture map, personal
-templates, admin support tools, tests, and migrations. Production does not use a server-managed
-Anthropic key or model fallback.
+The launch baseline includes Next.js, GitHub authentication, encrypted per-user settings, per-user
+custom subtypes, checked-in prompt defaults, personal projects, Note nodes stored as part of each
+architecture map, personal templates, tests, and migrations. Production does not use a
+server-managed Anthropic key or model fallback, and the web product has no roles, administrator
+surface, or impersonation mode.
+
+Production migrations run offline during a maintenance window against an explicit database path.
+The same explicit-path boundary protects the narrow host-authorized account preview/delete command;
+it is not a replacement administrator product. Self-service deletion removes the user's active
+SQLite records transactionally, while WAL files and backups follow the deployment's retention
+policy. A later GitHub login provisions a fresh account rather than reviving deleted data or an old
+session.

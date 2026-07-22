@@ -45,6 +45,31 @@ test.describe("system-wide UI polish", () => {
     expect(impersonationResponse.status()).toBe(404);
   });
 
+  test("account deletion explains the active-store boundary before confirmation", async ({
+    page,
+  }) => {
+    await page.goto("/settings");
+
+    const trigger = page.getByRole("button", { name: "Delete account" });
+    await trigger.click();
+    const dialog = page.getByRole("dialog", { name: "Permanently delete your account?" });
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toContainText("active application database");
+    await expect(dialog).toContainText("SQLite WAL files and backups");
+
+    const confirmation = dialog.getByLabel(/Type DELETE MY ACCOUNT to confirm/);
+    const submit = dialog.getByRole("button", { name: "Permanently delete account" });
+    await expect(submit).toBeDisabled();
+    await confirmation.fill("DELETE MY ACCOUNTS");
+    await expect(submit).toBeDisabled();
+    await confirmation.fill("DELETE MY ACCOUNT");
+    await expect(submit).toBeEnabled();
+
+    await dialog.getByRole("button", { name: "Cancel" }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+  });
+
   test("shared shell navigation bars span the full viewport", async ({ page }) => {
     await page.setViewportSize(shellViewports.desktop);
     await useTheme(page, "light");

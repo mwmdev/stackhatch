@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { getDb } from "@/db";
 import { runMigrations } from "@/db/migrate";
-import { getApiKey, getModel } from "@/lib/ai/settings";
+import { getUserAiCredentials } from "@/lib/ai/settings";
 import { DEFAULT_PRD_PROMPT } from "@/lib/ai/default-prompts";
 import { buildCanvasContext } from "@/lib/ai/context-builder";
 import type { StackArchitecture } from "@/types/stack";
@@ -47,7 +47,7 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
     );
   }
 
-  const apiKey = getApiKey(db, user.userId);
+  const { apiKey, model } = getUserAiCredentials(db, user.userId);
   if (!apiKey) {
     return NextResponse.json(
       {
@@ -59,7 +59,6 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
     );
   }
 
-  const model = getModel(db, user.userId);
   const canvasContext = buildCanvasContext(architecture);
   const architectureJson = JSON.stringify(architecture, null, 2);
 

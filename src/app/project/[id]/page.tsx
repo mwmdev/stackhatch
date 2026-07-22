@@ -1154,7 +1154,7 @@ export default function ProjectPage() {
   useEffect(() => {
     async function loadProject() {
       try {
-        // Resolve shared subtype configuration before constructing persisted node data.
+        // Resolve this user's subtype configuration before constructing persisted node data.
         const [settingsResponse, res] = await Promise.all([
           fetch("/api/settings")
             .then((response) =>

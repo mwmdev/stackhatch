@@ -9,10 +9,9 @@ import { encryptSecret } from "@/lib/secrets";
 import { AI_MODEL_IDS, DEFAULT_AI_MODEL, normalizeAiModel } from "@/lib/ai/models";
 import {
   CustomSubtypesValidationError,
+  parseCustomSubtypes,
   serializeCustomSubtypes,
-  validateCustomSubtypes,
 } from "@/lib/custom-subtypes";
-import { getUserCustomSubtypes } from "@/lib/ai/settings";
 
 const VALID_THEMES = ["light", "dark", "system"] as const;
 const DEFAULT_THEME = "system";
@@ -35,6 +34,7 @@ function getPublicSettings(db: Db, userId: string) {
       anthropicApiKey: userSettings.anthropicApiKey,
       model: userSettings.model,
       theme: userSettings.theme,
+      customSubtypes: userSettings.customSubtypes,
     })
     .from(userSettings)
     .where(eq(userSettings.userId, userId))
@@ -46,7 +46,7 @@ function getPublicSettings(db: Db, userId: string) {
     theme: VALID_THEMES.includes(userConfig?.theme as (typeof VALID_THEMES)[number])
       ? userConfig!.theme
       : DEFAULT_THEME,
-    customSubtypes: getUserCustomSubtypes(db, userId),
+    customSubtypes: parseCustomSubtypes(userConfig?.customSubtypes),
   };
 }
 
@@ -94,8 +94,7 @@ export async function PATCH(request: NextRequest) {
     let serializedCustomSubtypes: string | undefined;
     if (parsed.data.customSubtypes !== undefined) {
       try {
-        const customSubtypes = validateCustomSubtypes(parsed.data.customSubtypes);
-        serializedCustomSubtypes = serializeCustomSubtypes(customSubtypes);
+        serializedCustomSubtypes = serializeCustomSubtypes(parsed.data.customSubtypes);
       } catch (error) {
         if (error instanceof CustomSubtypesValidationError) {
           return NextResponse.json({ error: error.message }, { status: 400 });

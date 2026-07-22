@@ -26,27 +26,39 @@ function assertLegacyProjectsHaveOwners(database: AppDatabase) {
   );
 }
 
-function assertLegacyCustomSubtypesAreValid(database: AppDatabase) {
+export function installLegacyCustomSubtypeMigrationGuard(database: AppDatabase) {
   const sqlite = database.$client;
   const settingsTable = sqlite
     .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'settings'")
     .get();
-  if (!settingsTable) return;
+  const row = settingsTable
+    ? (sqlite.prepare("SELECT value FROM settings WHERE key = 'customSubtypes'").get() as
+        | { value: string }
+        | undefined)
+    : undefined;
+  const capturedValue = row?.value ?? null;
 
-  const row = sqlite.prepare("SELECT value FROM settings WHERE key = 'customSubtypes'").get() as
-    | { value: string }
-    | undefined;
-  if (!row) return;
-
-  try {
-    parseCustomSubtypes(row.value);
-  } catch (error) {
-    const detail = error instanceof Error ? error.message : "the value is invalid";
-    throw new Error(
-      `Cannot migrate the global custom subtype catalog: ${detail}. ` +
-        "No schema changes were applied. Back up the database, repair or remove the settings.customSubtypes row, and restart StackHatch."
-    );
+  if (capturedValue !== null) {
+    try {
+      parseCustomSubtypes(capturedValue);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "the value is invalid";
+      throw new Error(
+        `Cannot migrate the global custom subtype catalog: ${detail}. ` +
+          "No schema changes were applied. Back up the database, repair or remove the settings.customSubtypes row, and restart StackHatch."
+      );
+    }
   }
+
+  sqlite.function("stackhatch_validated_custom_subtypes", { deterministic: true }, (value) => {
+    const currentValue = value === null ? null : String(value);
+    if (currentValue !== capturedValue) {
+      throw new Error("The legacy custom subtype catalog changed after migration preflight");
+    }
+    return capturedValue ?? "{}";
+  });
+
+  return capturedValue;
 }
 
 export function runMigrations(db?: AppDatabase) {
@@ -54,7 +66,7 @@ export function runMigrations(db?: AppDatabase) {
   if (migratedDatabases.has(database)) return;
 
   assertLegacyProjectsHaveOwners(database);
-  assertLegacyCustomSubtypesAreValid(database);
+  installLegacyCustomSubtypeMigrationGuard(database);
   const migrationsFolder = path.resolve(process.cwd(), "drizzle");
   migrate(database, { migrationsFolder });
   migratedDatabases.add(database);

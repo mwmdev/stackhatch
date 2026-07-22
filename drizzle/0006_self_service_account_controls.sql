@@ -1,8 +1,7 @@
 ALTER TABLE `user_settings` ADD `custom_subtypes` text DEFAULT '{}' NOT NULL;--> statement-breakpoint
 UPDATE `user_settings`
-SET `custom_subtypes` = COALESCE(
-	(SELECT `value` FROM `settings` WHERE `key` = 'customSubtypes'),
-	'{}'
+SET `custom_subtypes` = stackhatch_validated_custom_subtypes(
+	(SELECT `value` FROM `settings` WHERE `key` = 'customSubtypes')
 );--> statement-breakpoint
 INSERT INTO `user_settings` (
 	`user_id`,
@@ -18,9 +17,8 @@ SELECT
 	NULL,
 	'claude-sonnet-5',
 	'system',
-	COALESCE(
-		(SELECT `value` FROM `settings` WHERE `key` = 'customSubtypes'),
-		'{}'
+	stackhatch_validated_custom_subtypes(
+		(SELECT `value` FROM `settings` WHERE `key` = 'customSubtypes')
 	),
 	`users`.`created_at`,
 	`users`.`created_at`

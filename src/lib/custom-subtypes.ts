@@ -10,7 +10,12 @@ export interface CustomSubtypeEntry {
 
 export type CustomSubtypesMap = Partial<Record<NodeCategory, CustomSubtypeEntry[]>>;
 
-const MAX_ENTRIES_PER_CATEGORY = 20;
+export const CUSTOM_SUBTYPE_LIMITS = {
+  entriesPerCategory: 20,
+  slugLength: 40,
+  displayNameLength: 60,
+} as const;
+
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const LINE_BREAK_PATTERN = /[\r\n\u2028\u2029]/;
 const ENTRY_KEYS = ["displayName", "icon", "slug"];
@@ -44,6 +49,21 @@ export function isSupportedLucideIcon(icon: string): boolean {
   );
 }
 
+export function isValidCustomSubtypeSlug(slug: string): boolean {
+  return (
+    slug.length >= 1 && slug.length <= CUSTOM_SUBTYPE_LIMITS.slugLength && SLUG_PATTERN.test(slug)
+  );
+}
+
+export function isValidCustomSubtypeDisplayName(displayName: string): boolean {
+  return (
+    displayName.length >= 1 &&
+    displayName.length <= CUSTOM_SUBTYPE_LIMITS.displayNameLength &&
+    displayName === displayName.trim() &&
+    !LINE_BREAK_PATTERN.test(displayName)
+  );
+}
+
 export function validateCustomSubtypes(value: unknown): CustomSubtypesMap {
   if (!isPlainObject(value)) fail("the catalog must be an object");
 
@@ -56,8 +76,10 @@ export function validateCustomSubtypes(value: unknown): CustomSubtypesMap {
     if (!Array.isArray(rawEntries)) {
       fail(`category \"${category}\" must be an array`);
     }
-    if (rawEntries.length > MAX_ENTRIES_PER_CATEGORY) {
-      fail(`category \"${category}\" cannot contain more than 20 entries`);
+    if (rawEntries.length > CUSTOM_SUBTYPE_LIMITS.entriesPerCategory) {
+      fail(
+        `category \"${category}\" cannot contain more than ${CUSTOM_SUBTYPE_LIMITS.entriesPerCategory} entries`
+      );
     }
 
     const slugs = new Set<string>();
@@ -74,7 +96,11 @@ export function validateCustomSubtypes(value: unknown): CustomSubtypesMap {
       }
 
       const { slug, displayName, icon } = rawEntry;
-      if (typeof slug !== "string" || slug.length < 1 || slug.length > 40) {
+      if (
+        typeof slug !== "string" ||
+        slug.length < 1 ||
+        slug.length > CUSTOM_SUBTYPE_LIMITS.slugLength
+      ) {
         fail(`entry ${index + 1} in \"${category}\" has a slug outside 1-40 characters`);
       }
       if (!SLUG_PATTERN.test(slug)) {
@@ -87,7 +113,11 @@ export function validateCustomSubtypes(value: unknown): CustomSubtypesMap {
         fail(`slug \"${slug}\" in \"${category}\" must be unique`);
       }
 
-      if (typeof displayName !== "string" || displayName.length < 1 || displayName.length > 60) {
+      if (
+        typeof displayName !== "string" ||
+        displayName.length < 1 ||
+        displayName.length > CUSTOM_SUBTYPE_LIMITS.displayNameLength
+      ) {
         fail(`entry \"${slug}\" in \"${category}\" has a displayName outside 1-60 characters`);
       }
       if (displayName !== displayName.trim()) {

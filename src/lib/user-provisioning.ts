@@ -23,36 +23,43 @@ export function provisionUser(db: AppDatabase, input: ProvisionUserInput) {
     const existing = tx.select().from(users).where(eq(users.githubId, input.githubId)).get();
 
     if (existing) {
-      tx.update(users)
-        .set({
-          email: input.email ?? existing.email,
-          name: input.name ?? existing.name,
-          avatarUrl: input.avatarUrl ?? existing.avatarUrl,
-        })
-        .where(eq(users.id, existing.id))
-        .run();
+      const merged = {
+        ...existing,
+        email: input.email ?? existing.email,
+        name: input.name ?? existing.name,
+        avatarUrl: input.avatarUrl ?? existing.avatarUrl,
+      };
+      if (
+        merged.email !== existing.email ||
+        merged.name !== existing.name ||
+        merged.avatarUrl !== existing.avatarUrl
+      ) {
+        tx.update(users)
+          .set({ email: merged.email, name: merged.name, avatarUrl: merged.avatarUrl })
+          .where(eq(users.id, existing.id))
+          .run();
+      }
 
       tx.insert(userSettings)
         .values({ userId: existing.id, createdAt: now, updatedAt: now })
         .onConflictDoNothing()
         .run();
 
-      return tx.select().from(users).where(eq(users.id, existing.id)).get()!;
+      return merged;
     }
 
     const id = input.id ?? createId();
-    tx.insert(users)
-      .values({
-        id,
-        githubId: input.githubId,
-        email: input.email,
-        name: input.name,
-        avatarUrl: input.avatarUrl,
-        createdAt: now,
-      })
-      .run();
+    const created = {
+      id,
+      githubId: input.githubId,
+      email: input.email,
+      name: input.name,
+      avatarUrl: input.avatarUrl,
+      createdAt: now,
+    };
+    tx.insert(users).values(created).run();
     tx.insert(userSettings).values({ userId: id, createdAt: now, updatedAt: now }).run();
 
-    return tx.select().from(users).where(eq(users.id, id)).get()!;
+    return created;
   });
 }

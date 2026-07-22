@@ -44,6 +44,7 @@ describe("PrivacyPage", () => {
     ).toBeInTheDocument();
     expect(screen.getByText(/delete your account permanently from Settings/)).toBeInTheDocument();
     expect(screen.getByText(/active application database/)).toBeInTheDocument();
+    expect(screen.getByText(/creates a fresh account/)).toBeInTheDocument();
     expect(screen.getByText(/WAL files and backups follow/)).toBeInTheDocument();
   });
 });

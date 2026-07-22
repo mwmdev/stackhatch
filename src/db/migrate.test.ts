@@ -5,7 +5,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import * as schema from "./schema";
-import { runMigrations } from "./migrate";
+import { installLegacyCustomSubtypeMigrationGuard, runMigrations } from "./migrate";
 
 function applyMigration(sqlite: Database.Database, filename: string) {
   const sql = readFileSync(path.resolve(process.cwd(), "drizzle", filename), "utf8");
@@ -545,6 +545,27 @@ describe("self-service account controls migration", () => {
         value: catalog,
       }
     );
+  });
+
+  it("binds the exact validated legacy catalog into the migration transaction", () => {
+    const sqlite = createCurrentDatabase();
+    const database = drizzle(sqlite, { schema });
+    sqlite
+      .prepare("INSERT INTO settings (key, value) VALUES (?, ?)")
+      .run("customSubtypes", '{"client":[{"slug":"kiosk","displayName":"Kiosk","icon":"Box"}]}');
+
+    installLegacyCustomSubtypeMigrationGuard(database);
+    sqlite
+      .prepare("UPDATE settings SET value = ? WHERE key = 'customSubtypes'")
+      .run('{"client":[{"slug":"terminal","displayName":"Terminal","icon":"Box"}]}');
+
+    expect(() =>
+      sqlite
+        .prepare(
+          "SELECT stackhatch_validated_custom_subtypes(value) FROM settings WHERE key = 'customSubtypes'"
+        )
+        .get()
+    ).toThrow();
   });
 
   it("rolls back the complete migration when a later statement fails", () => {

@@ -6,11 +6,12 @@ import { messages, projects } from "@/db/schema";
 import { buildSystemPrompt, INIT_INSTRUCTION } from "@/lib/ai/system-prompt";
 import { buildMessages } from "@/lib/ai/context-builder";
 import { parseAIResponse } from "@/lib/ai/output-parser";
-import { getApiKey, getModel, getUserCustomSubtypes } from "@/lib/ai/settings";
+import { getUserAiSettings } from "@/lib/ai/settings";
 import type { ChatMessage } from "@/types/chat";
 import type { StackArchitecture } from "@/types/stack";
 import type { AuthenticatedUser } from "@/lib/auth";
 import { modelSupportsEffort } from "@/lib/ai/models";
+import { prepareAccessibleProjectCheck } from "@/lib/project-access";
 
 export function sseEvent(data: object): string {
   return `data: ${JSON.stringify(data)}\n\n`;
@@ -36,21 +37,6 @@ interface StreamChatOptions {
 }
 
 class ProjectOwnershipLostError extends Error {}
-
-function hasOriginalOwner(db: AppDatabase, projectId: string, userId: string) {
-  return Boolean(
-    db
-      .select({ id: projects.id })
-      .from(projects)
-      .where(and(eq(projects.id, projectId), eq(projects.userId, userId)))
-      .get()
-  );
-}
-
-function abortProviderStream(stream: unknown) {
-  const abort = (stream as { abort?: unknown }).abort;
-  if (typeof abort === "function") abort.call(stream);
-}
 
 function getErrorStatus(err: unknown): number | null {
   if (typeof err !== "object" || err === null) return null;
@@ -117,7 +103,7 @@ export function streamChat(
     );
   }
 
-  const apiKey = getApiKey(db, user.userId);
+  const { apiKey, model, customSubtypes } = getUserAiSettings(db, user.userId);
   if (!apiKey) {
     return new Response(
       sseEvent({
@@ -130,13 +116,12 @@ export function streamChat(
     );
   }
 
-  const model = getModel(db, user.userId);
-  const customSubtypes = getUserCustomSubtypes(db, user.userId);
   const systemPrompt = buildSystemPrompt(customSubtypes, {
     includeNoteNodes: true,
   });
 
   const originalOwnerId = user.userId;
+  const hasOriginalOwner = prepareAccessibleProjectCheck(db, projectId, originalOwnerId);
   let project: { description: string | null; canvasState: string | null };
   try {
     project = db.transaction((tx) => {
@@ -241,8 +226,8 @@ export function streamChat(
 
         for await (const event of anthropicStream) {
           if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
-            if (!hasOriginalOwner(db, projectId, originalOwnerId)) {
-              abortProviderStream(anthropicStream);
+            if (!hasOriginalOwner()) {
+              anthropicStream.abort();
               throw new ProjectOwnershipLostError();
             }
             const text = event.delta.text;
@@ -251,8 +236,8 @@ export function streamChat(
           }
         }
 
-        if (!hasOriginalOwner(db, projectId, originalOwnerId)) {
-          abortProviderStream(anthropicStream);
+        if (!hasOriginalOwner()) {
+          anthropicStream.abort();
           throw new ProjectOwnershipLostError();
         }
 
@@ -332,8 +317,8 @@ export function streamChat(
           }
         });
 
-        if (!hasOriginalOwner(db, projectId, originalOwnerId)) {
-          abortProviderStream(anthropicStream);
+        if (!hasOriginalOwner()) {
+          anthropicStream.abort();
           throw new ProjectOwnershipLostError();
         }
 

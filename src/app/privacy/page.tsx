@@ -86,7 +86,9 @@ export default function PrivacyPage() {
               is deleted. You can delete your account permanently from Settings. After deletion
               commits, your profile, encrypted AI key, projects, messages, templates, and
               preferences are removed from the active application database. StackHatch does not
-              currently apply an automatic expiration period.
+              currently apply an automatic expiration period. If you later sign in with GitHub
+              again, StackHatch creates a fresh account; the new account and any old session do not
+              restore deleted data.
             </p>
             <p className="mt-2">
               SQLite WAL files and backups follow the storage-retention lifecycle managed by the

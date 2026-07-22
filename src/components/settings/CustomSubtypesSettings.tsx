@@ -2,7 +2,10 @@
 
 import { useMemo, useState } from "react";
 import {
+  CUSTOM_SUBTYPE_LIMITS,
   isSupportedLucideIcon,
+  isValidCustomSubtypeDisplayName,
+  isValidCustomSubtypeSlug,
   validateCustomSubtypes,
   type CustomSubtypeEntry,
   type CustomSubtypesMap,
@@ -14,16 +17,8 @@ interface CustomSubtypesSettingsProps {
   initialCatalog: CustomSubtypesMap;
 }
 
-const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-const LINE_BREAK_PATTERN = /[\r\n\u2028\u2029]/;
-
 function cloneCatalog(catalog: CustomSubtypesMap): CustomSubtypesMap {
-  return Object.fromEntries(
-    Object.entries(catalog).map(([category, entries]) => [
-      category,
-      entries.map((entry) => ({ ...entry })),
-    ])
-  );
+  return structuredClone(catalog);
 }
 
 function catalogFingerprint(catalog: CustomSubtypesMap) {
@@ -36,7 +31,7 @@ function entryErrors(
   entries: CustomSubtypeEntry[]
 ) {
   const errors: Partial<Record<keyof CustomSubtypeEntry, string>> = {};
-  if (entry.slug.length < 1 || entry.slug.length > 40 || !SLUG_PATTERN.test(entry.slug)) {
+  if (!isValidCustomSubtypeSlug(entry.slug)) {
     errors.slug = "Use lowercase kebab-case, up to 40 characters.";
   } else if (Object.hasOwn(nodeConfig[category].subtypes, entry.slug)) {
     errors.slug = "This slug is already a built-in subtype.";
@@ -44,12 +39,7 @@ function entryErrors(
     errors.slug = "Each slug must be unique in its category.";
   }
 
-  if (
-    entry.displayName.length < 1 ||
-    entry.displayName.length > 60 ||
-    entry.displayName !== entry.displayName.trim() ||
-    LINE_BREAK_PATTERN.test(entry.displayName)
-  ) {
+  if (!isValidCustomSubtypeDisplayName(entry.displayName)) {
     errors.displayName = "Use 1–60 trimmed characters on one line.";
   }
 
@@ -73,7 +63,7 @@ export default function CustomSubtypesSettings({ initialCatalog }: CustomSubtype
     let valid = true;
     for (const category of categoryOrder) {
       const entries = draft[category] ?? [];
-      if (entries.length > 20) valid = false;
+      if (entries.length > CUSTOM_SUBTYPE_LIMITS.entriesPerCategory) valid = false;
       entries.forEach((entry, index) => {
         const errors = entryErrors(category, entry, entries);
         if (Object.keys(errors).length > 0) valid = false;
@@ -194,7 +184,7 @@ export default function CustomSubtypesSettings({ initialCatalog }: CustomSubtype
                 <button
                   type="button"
                   onClick={() => addEntry(category)}
-                  disabled={entries.length >= 20}
+                  disabled={entries.length >= CUSTOM_SUBTYPE_LIMITS.entriesPerCategory}
                   className="min-h-10 rounded-sm border border-[var(--border)] px-3 py-2 text-xs font-bold hover:bg-[var(--muted)] disabled:opacity-50"
                   aria-label={`Add ${categoryConfig.displayName} subtype`}
                 >

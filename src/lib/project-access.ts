@@ -20,6 +20,17 @@ export function hasAccessibleProject(db: AppDatabase, projectId: string, userId:
   );
 }
 
+export function prepareAccessibleProjectCheck(
+  db: AppDatabase,
+  projectId: string,
+  userId: string
+): () => boolean {
+  const statement = db.$client.prepare(
+    "SELECT 1 FROM projects WHERE id = ? AND user_id = ? LIMIT 1"
+  );
+  return () => Boolean(statement.get(projectId, userId));
+}
+
 export function getOwnedProject(db: AppDatabase, projectId: string, userId: string) {
   return db
     .select()

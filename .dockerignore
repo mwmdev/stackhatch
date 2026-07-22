@@ -1,5 +1,6 @@
 node_modules
 .next
+operator
 .git
 .beads
 .ralph-tui

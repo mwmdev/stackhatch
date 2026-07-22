@@ -100,23 +100,28 @@ messages {
   createdAt: integer (unix timestamp)
 }
 
-// settings table (key-value store for app settings)
-settings {
-  key: text (primary key)
-  value: text (not null)
+// per-user settings table
+user_settings {
+  userId: text (primary key, foreign key → users.id, cascade delete)
+  anthropicApiKey: text (nullable, encrypted)
+  model: text (not null)
+  theme: text (not null)
+  customSubtypes: text (validated JSON, not null)
 }
 ```
 
 - Create `src/db/index.ts` that initializes the Drizzle client with `better-sqlite3`, pointing to the `DATABASE_URL` env var path. Export the `db` instance
 - Configure `drizzle.config.ts` for migrations with `dialect: 'sqlite'`
 - Generate initial migration with `drizzle-kit generate`
-- Create a migration runner that runs on app startup (`src/db/migrate.ts`) using `drizzle-kit migrate`
-- Write unit tests for: inserting a project, querying projects, inserting messages for a project, cascade deleting messages when project is deleted, CRUD on settings
+- Create a shared migration runner plus an offline production entrypoint that requires an explicit
+  database path. Production migrations run while the application is stopped.
+- Write unit tests for: inserting a project, querying projects, inserting messages for a project,
+  cascade deleting messages when project is deleted, and isolated per-user settings
 
 **Acceptance Criteria:**
 
 - [ ] Database file is created at the configured path on first run
-- [ ] Migrations run automatically on app startup
+- [ ] Production migrations run offline against an explicit database path before app startup
 - [ ] All CRUD operations work: create/read/update/delete projects, insert/query messages, set/get settings
 - [ ] Cascade delete removes messages when a project is deleted
 - [ ] Unit tests pass for all database operations
@@ -229,16 +234,20 @@ interface StackArchitecture {
 
 ### T-006: API Route — Settings
 
-**Description:** As a user, I need an API endpoint to store and retrieve application settings (API key, model preference) so that configuration persists across sessions.
+**Description:** As a user, I need an API endpoint to store and retrieve my application settings so that configuration persists across sessions.
 
 **Technical Details:**
 
 - Create API routes:
-  - `GET /api/settings` — returns `{ hasAnthropicKey, model, theme, role, isAdmin }`; the API key itself is never returned
-  - `PATCH /api/settings` — accepts `apiKey`, `clearApiKey`, `model`, and `theme`
+  - `GET /api/settings` — returns `{ hasAnthropicKey, model, theme, customSubtypes }`; the API key itself is never returned
+  - `PATCH /api/settings` — accepts `apiKey`, `clearApiKey`, `model`, `theme`, and a complete validated `customSubtypes` catalog
 - Store each user's API key encrypted at rest and isolate it by authenticated user
+- Store custom subtype catalogs per user; reject invalid catalogs atomically and preserve retired
+  subtype values on existing nodes until replaced
 - Default model value if unset: `claude-sonnet-4-20250514`
 - Do not fall back to a server-managed API key or model
+- Provide a separate authenticated account-deletion endpoint that derives the target only from the
+  signed-in session and removes the user's active records transactionally after exact confirmation
 - Write integration tests
 
 **Acceptance Criteria:**
@@ -246,6 +255,8 @@ interface StackArchitecture {
 - [ ] Settings persist across app restarts
 - [ ] API keys are encrypted, write-only, and isolated per user
 - [ ] Clearing a key preserves the user&apos;s model preference
+- [ ] Custom subtypes are validated, persisted, and isolated per user
+- [ ] Account deletion cannot target another user and stale sessions cannot restore deleted access
 - [ ] Invalid keys are rejected with 400
 - [ ] Integration tests pass
 - [ ] Typecheck/lint passes
@@ -546,7 +557,9 @@ interface StackArchitecture {
 
 **Technical Details:**
 
-- Create `src/lib/ai/system-prompt.ts` containing the system prompt as a template literal
+- Create `src/lib/ai/system-prompt.ts` containing the system prompt as a checked-in template literal.
+  Prompts are immutable application source and are not editable through settings, an administrator
+  route, or operator tooling.
 - The system prompt must instruct Claude to:
   1. Act as a senior application architect with deep knowledge of modern tech stacks
   2. Conduct an interview by asking one focused question at a time (not all at once)
@@ -738,13 +751,14 @@ interface StackArchitecture {
 - FR-10: Users can send follow-up messages to modify the architecture; AI preserves locked nodes and updates unlocked ones
 - FR-11: Auto-layout (Dagre) arranges nodes top-to-bottom grouped by stack layer
 - FR-12: Canvas state and chat history persist in SQLite across sessions
-- FR-13: API key and Claude model are configurable via a settings page
+- FR-13: API key, Claude model, theme, and custom node subtypes are configurable per user via Settings
 - FR-14: Application supports light and dark themes with system preference detection
 - FR-15: Application runs in Docker for both development and production
+- FR-16: Users can permanently delete their own account and active application data from Settings
 
 ## Non-Goals (Out of Scope)
 
-- User authentication or multi-user support
+- Account roles, a web administrator product, or impersonation
 - Visual export (PNG, SVG, PDF)
 - Undo/redo on canvas
 - Real-time collaboration

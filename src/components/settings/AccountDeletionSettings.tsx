@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-
-const CONFIRMATION = "DELETE MY ACCOUNT";
+import { ACCOUNT_DELETION_CONFIRMATION } from "@/lib/account-deletion-contract";
 
 interface AccountDeletionSettingsProps {
   onDeleted?: () => void;
@@ -32,7 +31,7 @@ export default function AccountDeletionSettings({
   }
 
   async function deleteAccount() {
-    if (pending || confirmation !== CONFIRMATION) return;
+    if (pending || confirmation !== ACCOUNT_DELETION_CONFIRMATION) return;
     setPending(true);
     setError(null);
     let committed = false;
@@ -135,7 +134,7 @@ export default function AccountDeletionSettings({
               htmlFor="delete-account-confirmation"
               className="mt-5 block text-sm font-semibold"
             >
-              Type <span className="font-utility">{CONFIRMATION}</span> to confirm
+              Type <span className="font-utility">{ACCOUNT_DELETION_CONFIRMATION}</span> to confirm
             </label>
             <input
               ref={inputRef}
@@ -169,7 +168,7 @@ export default function AccountDeletionSettings({
               <button
                 type="button"
                 onClick={deleteAccount}
-                disabled={pending || confirmation !== CONFIRMATION}
+                disabled={pending || confirmation !== ACCOUNT_DELETION_CONFIRMATION}
                 className="min-h-11 rounded-sm bg-[var(--danger)] px-4 py-2 text-sm font-bold text-[var(--danger-foreground)] hover:bg-[var(--danger-hover)] disabled:opacity-50"
               >
                 {pending ? "Deleting account..." : "Permanently delete account"}
