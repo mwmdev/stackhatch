@@ -1,36 +1,15 @@
-import Database from "better-sqlite3";
-import { createHash } from "node:crypto";
-import { accessSync, constants, readFileSync, realpathSync, statSync } from "node:fs";
-import path from "node:path";
-import { drizzle } from "drizzle-orm/better-sqlite3";
-import * as schema from "@/db/schema";
-import type { AppDatabase } from "@/db";
 import { deleteAccountById, type AccountDeletionCounts } from "@/lib/account-deletion";
-import { isSqliteBusyError, sqliteErrorCode } from "@/lib/sqlite-errors";
+import {
+  assertCurrentOperatorSchema,
+  openOperatorDatabaseFile,
+  requireOperatorPragmas,
+  revalidateOperatorDatabase,
+  type OperatorDatabase,
+} from "@/lib/operator-database";
+import { isSqliteBusyError } from "@/lib/sqlite-errors";
 
-const REQUIRED_TABLES = [
-  "__drizzle_migrations",
-  "messages",
-  "projects",
-  "templates",
-  "user_project_state",
-  "user_settings",
-  "users",
-] as const;
-
-interface DatabaseIdentity {
-  canonicalPath: string;
-  device: number;
-  inode: number;
-}
-
-export interface OperatorDatabase {
-  db: AppDatabase;
-  canonicalPath: string;
-  databaseFingerprint: string;
-  close: () => void;
-  identity: DatabaseIdentity;
-}
+export type { OperatorDatabase } from "@/lib/operator-database";
+export { assertCurrentOperatorSchema, revalidateOperatorDatabase } from "@/lib/operator-database";
 
 export type AccountSelector = { id: string } | { githubId: string } | { email: string };
 
@@ -61,129 +40,6 @@ function asOperatorError(error: unknown, action: string): Error {
   return error instanceof Error ? error : new Error(`Unable to ${action}`);
 }
 
-function readIdentity(databasePath: string): DatabaseIdentity {
-  if (!databasePath.trim()) throw new Error("--database requires an explicit path");
-
-  const absolutePath = path.resolve(databasePath);
-  let canonicalPath: string;
-  try {
-    canonicalPath = realpathSync(absolutePath);
-    accessSync(canonicalPath, constants.R_OK | constants.W_OK);
-  } catch (error) {
-    const code = sqliteErrorCode(error);
-    if (code === "ENOENT") {
-      throw new Error("The explicit database path does not exist");
-    }
-    throw new Error("The explicit database path is not readable and writable");
-  }
-
-  const stat = statSync(canonicalPath);
-  if (!stat.isFile()) throw new Error("The explicit database path is not a regular file");
-  return { canonicalPath, device: stat.dev, inode: stat.ino };
-}
-
-function fingerprint(identity: DatabaseIdentity): string {
-  return createHash("sha256")
-    .update(
-      `stackhatch-database-v1\0${identity.canonicalPath}\0${identity.device}\0${identity.inode}`
-    )
-    .digest("hex")
-    .slice(0, 20);
-}
-
-function requirePragmas(db: AppDatabase) {
-  for (const pragma of ["foreign_keys", "secure_delete"] as const) {
-    if (db.$client.pragma(pragma, { simple: true }) !== 1) {
-      throw new Error(`${pragma} must be enabled for operator account operations`);
-    }
-  }
-}
-
-function tableColumns(sqlite: Database.Database, table: string): string[] {
-  return (sqlite.pragma(`table_info(${table})`) as Array<{ name: string }>).map(
-    (column) => column.name
-  );
-}
-
-function expectedMigrationVersion(): number {
-  try {
-    const journal = JSON.parse(
-      readFileSync(path.resolve(process.cwd(), "drizzle/meta/_journal.json"), "utf8")
-    ) as { entries?: Array<{ when: number }> };
-    const latest = journal.entries?.at(-1)?.when;
-    if (typeof latest !== "number") throw new Error("missing latest migration");
-    return latest;
-  } catch {
-    throw new Error("The bundled Drizzle migration journal is missing or invalid");
-  }
-}
-
-export function assertCurrentOperatorSchema(db: AppDatabase) {
-  const sqlite = db.$client;
-  const tables = new Set(
-    (
-      sqlite.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as Array<{
-        name: string;
-      }>
-    ).map(({ name }) => name)
-  );
-  const missing = REQUIRED_TABLES.filter((table) => !tables.has(table));
-  const userColumns = tables.has("users") ? tableColumns(sqlite, "users") : [];
-  const settingsColumns = tables.has("user_settings") ? tableColumns(sqlite, "user_settings") : [];
-
-  if (
-    missing.length > 0 ||
-    tables.has("settings") ||
-    userColumns.includes("role") ||
-    !settingsColumns.includes("custom_subtypes")
-  ) {
-    throw new Error(
-      "The database does not have the current StackHatch schema. Stop the app, verify a SQLite-consistent backup, and run the explicit offline migration command first."
-    );
-  }
-  const latestMigration = sqlite
-    .prepare(
-      "SELECT created_at AS createdAt FROM __drizzle_migrations ORDER BY created_at DESC LIMIT 1"
-    )
-    .get() as { createdAt: number } | undefined;
-  if (Number(latestMigration?.createdAt) !== expectedMigrationVersion()) {
-    throw new Error(
-      "The database does not have the current StackHatch schema. Stop the app, verify a SQLite-consistent backup, and run the explicit offline migration command first."
-    );
-  }
-  if (sqlite.prepare("SELECT 1 FROM pragma_foreign_key_check LIMIT 1").get()) {
-    throw new Error(
-      "The database failed foreign-key validation; no account operation was attempted"
-    );
-  }
-}
-
-function openOperatorDatabaseFile(
-  databasePath: string,
-  options: { requireCurrentSchema: boolean }
-): OperatorDatabase {
-  const identity = readIdentity(databasePath);
-  let sqlite: Database.Database | undefined;
-  try {
-    sqlite = new Database(identity.canonicalPath, { fileMustExist: true, timeout: 1_000 });
-    sqlite.pragma("foreign_keys = ON");
-    sqlite.pragma("secure_delete = ON");
-    const db = drizzle(sqlite, { schema });
-    requirePragmas(db);
-    if (options.requireCurrentSchema) assertCurrentOperatorSchema(db);
-    return {
-      db,
-      canonicalPath: identity.canonicalPath,
-      databaseFingerprint: fingerprint(identity),
-      identity,
-      close: () => sqlite?.close(),
-    };
-  } catch (error) {
-    sqlite?.close();
-    throw asOperatorError(error, "opening the database");
-  }
-}
-
 export function openOperatorDatabase(databasePath: string): OperatorDatabase {
   return openOperatorDatabaseFile(databasePath, { requireCurrentSchema: true });
 }
@@ -192,25 +48,9 @@ export function openOperatorMigrationDatabase(databasePath: string): OperatorDat
   return openOperatorDatabaseFile(databasePath, { requireCurrentSchema: false });
 }
 
-export function revalidateOperatorDatabase(operator: OperatorDatabase) {
-  let current: DatabaseIdentity;
-  try {
-    current = readIdentity(operator.canonicalPath);
-  } catch {
-    throw new Error("The database path changed since it was opened; no account was deleted");
-  }
-  if (
-    current.canonicalPath !== operator.identity.canonicalPath ||
-    current.device !== operator.identity.device ||
-    current.inode !== operator.identity.inode ||
-    fingerprint(current) !== operator.databaseFingerprint
-  ) {
-    throw new Error("The database path changed since it was opened; no account was deleted");
-  }
-}
-
 function redactOpaque(value: string): string {
-  const visible = value.slice(-4);
+  const visibleCount = value.length <= 1 ? 0 : value.length >= 5 ? 4 : 1;
+  const visible = visibleCount === 0 ? "" : value.slice(-visibleCount);
   return `${"*".repeat(Math.max(3, value.length - visible.length))}${visible}`;
 }
 
@@ -243,7 +83,7 @@ export function previewAccounts(
   operator: OperatorDatabase,
   selector: AccountSelector
 ): AccountPreview {
-  requirePragmas(operator.db);
+  requireOperatorPragmas(operator.db);
   assertCurrentOperatorSchema(operator.db);
   const exact = selectorSql(selector);
 
@@ -314,6 +154,8 @@ export function deleteOperatorAccount(
   if (preview.candidates.length === 0) {
     throw new Error(`No user exists for internal ID ${internalId}`);
   }
+  // Revalidate as close as possible to the destructive transaction so preview work cannot widen
+  // the confirmation window for an in-place database replacement.
   revalidateOperatorDatabase(operator);
 
   try {

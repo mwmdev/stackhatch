@@ -9,6 +9,10 @@ import { ACCOUNT_DELETION_CONFIRMATION } from "@/lib/account-deletion-contract";
 
 const requestSchema = z.object({ confirmation: z.literal(ACCOUNT_DELETION_CONFIRMATION) }).strict();
 
+function errorClass(error: unknown) {
+  return error instanceof Error ? error.name : "UnknownError";
+}
+
 function hasMatchingOriginAndHost(request: Request) {
   const origin = request.headers.get("origin");
   const host = request.headers.get("host");
@@ -64,12 +68,22 @@ export async function POST(request: Request) {
     let signedOut = true;
     try {
       await signOut({ redirect: false });
-    } catch {
+    } catch (error) {
       signedOut = false;
+      console.warn("stackhatch.account_deletion.sign_out_failed", {
+        userId: user.userId,
+        phase: "post_commit",
+        errorClass: errorClass(error),
+      });
     }
 
     return NextResponse.json({ committed: true, deleted: result.deleted, signedOut });
-  } catch {
+  } catch (error) {
+    console.error("stackhatch.account_deletion.transaction_failed", {
+      userId: user.userId,
+      phase: "transaction",
+      errorClass: errorClass(error),
+    });
     return NextResponse.json({ error: "Account deletion failed" }, { status: 500 });
   }
 }

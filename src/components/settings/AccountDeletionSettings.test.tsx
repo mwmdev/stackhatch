@@ -2,12 +2,23 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import AccountDeletionSettings from "./AccountDeletionSettings";
 
+const available = { enabled: true };
+
+function stageDeletion(onDeleted: () => void | Promise<void> = vi.fn()) {
+  render(<AccountDeletionSettings availability={available} onDeleted={onDeleted} />);
+  fireEvent.click(screen.getByRole("button", { name: "Delete account" }));
+  fireEvent.change(screen.getByLabelText(/Type DELETE MY ACCOUNT/), {
+    target: { value: "DELETE MY ACCOUNT" },
+  });
+  return onDeleted;
+}
+
 describe("AccountDeletionSettings", () => {
   beforeEach(() => vi.restoreAllMocks());
 
   it("requires the exact phrase, supports cancel, and returns focus to the trigger", async () => {
     const onDeleted = vi.fn();
-    render(<AccountDeletionSettings onDeleted={onDeleted} />);
+    render(<AccountDeletionSettings availability={available} onDeleted={onDeleted} />);
     const trigger = screen.getByRole("button", { name: "Delete account" });
     fireEvent.click(trigger);
 
@@ -28,7 +39,7 @@ describe("AccountDeletionSettings", () => {
   });
 
   it("closes with Escape and restores focus to the trigger", async () => {
-    render(<AccountDeletionSettings onDeleted={vi.fn()} />);
+    render(<AccountDeletionSettings availability={available} onDeleted={vi.fn()} />);
     const trigger = screen.getByRole("button", { name: "Delete account" });
     fireEvent.click(trigger);
     const dialog = screen.getByRole("dialog", { name: "Permanently delete your account?" });
@@ -38,15 +49,22 @@ describe("AccountDeletionSettings", () => {
     await waitFor(() => expect(trigger).toHaveFocus());
   });
 
-  it("locks duplicate submission and redirects only after a committed result", async () => {
+  it("disables deletion and explains why when the server marks it unavailable", () => {
+    render(
+      <AccountDeletionSettings
+        availability={{ enabled: false, reason: "Unavailable in development mode." }}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Delete account" })).toBeDisabled();
+    expect(screen.getByRole("status")).toHaveTextContent("Unavailable in development mode.");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("locks duplicate submission and enters a permanent committed state", async () => {
     let resolveRequest!: (response: Response) => void;
     global.fetch = vi.fn(() => new Promise<Response>((resolve) => (resolveRequest = resolve)));
-    const onDeleted = vi.fn();
-    render(<AccountDeletionSettings onDeleted={onDeleted} />);
-    fireEvent.click(screen.getByRole("button", { name: "Delete account" }));
-    fireEvent.change(screen.getByLabelText(/Type DELETE MY ACCOUNT/), {
-      target: { value: "DELETE MY ACCOUNT" },
-    });
+    const onDeleted = stageDeletion();
     const submit = screen.getByRole("button", { name: "Permanently delete account" });
     fireEvent.click(submit);
     fireEvent.click(submit);
@@ -54,6 +72,11 @@ describe("AccountDeletionSettings", () => {
     expect(screen.getByRole("button", { name: "Deleting account..." })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
     expect(onDeleted).not.toHaveBeenCalled();
+    const pendingDialog = screen.getByRole("dialog", {
+      name: "Permanently delete your account?",
+    });
+    expect(fireEvent.keyDown(pendingDialog, { key: "Tab" })).toBe(false);
+    expect(pendingDialog).toHaveFocus();
 
     resolveRequest(
       new Response(JSON.stringify({ committed: true, deleted: true, signedOut: false }), {
@@ -62,23 +85,98 @@ describe("AccountDeletionSettings", () => {
       })
     );
     await waitFor(() => expect(onDeleted).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole("button", { name: "Account deleted" })).toBeDisabled();
+    expect(screen.getByRole("status")).toHaveTextContent("account deletion committed");
+    expect(screen.getByRole("link", { name: "Return to StackHatch home" })).toHaveAttribute(
+      "href",
+      "/"
+    );
   });
 
-  it("announces a retryable failure and keeps the confirmation staged", async () => {
+  it.each([
+    ["returns", () => undefined],
+    [
+      "throws",
+      () => {
+        throw new Error("navigation failed");
+      },
+    ],
+  ])("keeps the committed fallback when navigation %s", async (_name, onDeleted) => {
     global.fetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ error: "Account deletion failed" }), {
-        status: 500,
+      new Response(JSON.stringify({ committed: true }), {
+        status: 200,
         headers: { "content-type": "application/json" },
       })
     );
-    render(<AccountDeletionSettings onDeleted={vi.fn()} />);
-    fireEvent.click(screen.getByRole("button", { name: "Delete account" }));
-    const input = screen.getByLabelText(/Type DELETE MY ACCOUNT/);
-    fireEvent.change(input, { target: { value: "DELETE MY ACCOUNT" } });
+    stageDeletion(onDeleted);
     fireEvent.click(screen.getByRole("button", { name: "Permanently delete account" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(/not deleted.*try again/i);
-    expect(input).toHaveValue("DELETE MY ACCOUNT");
+    expect(await screen.findByRole("status")).toHaveTextContent("account deletion committed");
+    expect(screen.getByRole("button", { name: "Account deleted" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
+  });
+
+  it("preserves a safe API rejection and allows an intentional retry", async () => {
+    global.fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ error: "Account deletion is temporarily unavailable" }), {
+        status: 503,
+        headers: { "content-type": "application/json" },
+      })
+    );
+    stageDeletion();
+    fireEvent.click(screen.getByRole("button", { name: "Permanently delete account" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Account deletion is temporarily unavailable"
+    );
+    expect(screen.getByLabelText(/Type DELETE MY ACCOUNT/)).toHaveValue("DELETE MY ACCOUNT");
     expect(screen.getByRole("button", { name: "Permanently delete account" })).toBeEnabled();
+  });
+
+  it("treats response loss followed by a 401 identity probe as committed", async () => {
+    global.fetch = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError("connection lost"))
+      .mockResolvedValueOnce(new Response(null, { status: 401 }));
+    const onDeleted = stageDeletion();
+    fireEvent.click(screen.getByRole("button", { name: "Permanently delete account" }));
+
+    await waitFor(() => expect(onDeleted).toHaveBeenCalledTimes(1));
+    expect(global.fetch).toHaveBeenNthCalledWith(2, "/api/me", { cache: "no-store" });
+    expect(screen.getByRole("button", { name: "Account deleted" })).toBeDisabled();
+  });
+
+  it("treats invalid success JSON followed by a reachable identity as retryable", async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("not json", { status: 200 }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ userId: "user-1" }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        })
+      );
+    stageDeletion();
+    fireEvent.click(screen.getByRole("button", { name: "Permanently delete account" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/account is still active/i);
+    expect(screen.getByRole("button", { name: "Permanently delete account" })).toBeEnabled();
+    expect(global.fetch).toHaveBeenNthCalledWith(2, "/api/me", { cache: "no-store" });
+  });
+
+  it("locks blind retries when an ambiguous result cannot be reconciled", async () => {
+    global.fetch = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError("connection lost"))
+      .mockRejectedValueOnce(new TypeError("probe failed"));
+    stageDeletion();
+    fireEvent.click(screen.getByRole("button", { name: "Permanently delete account" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/could not confirm/i);
+    expect(screen.getByRole("button", { name: "Deletion status unknown" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
+    expect(
+      screen.getByRole("link", { name: "Reload settings to check your account" })
+    ).toHaveAttribute("href", "/settings");
   });
 });

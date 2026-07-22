@@ -35,6 +35,7 @@ vi.mock("@/db/migrate", () => ({
 }));
 
 vi.mock("@/lib/auth", () => ({
+  isDevelopmentAuthEnabled: () => process.env.STACKHATCH_DEV_AUTH === "1",
   getAuthenticatedUser: vi.fn(() =>
     Promise.resolve({
       userId: mockUserId,
@@ -60,6 +61,7 @@ beforeEach(() => {
   mockUserId = "test-user-id";
   delete process.env.ANTHROPIC_API_KEY;
   delete process.env.ANTHROPIC_MODEL;
+  delete process.env.STACKHATCH_DEV_AUTH;
 });
 
 describe("GET /api/settings", () => {
@@ -73,6 +75,7 @@ describe("GET /api/settings", () => {
       model: DEFAULT_AI_MODEL,
       theme: "system",
       customSubtypes: {},
+      accountDeletion: { enabled: true },
     });
     expect(data.apiKey).toBeUndefined();
   });
@@ -108,6 +111,18 @@ describe("GET /api/settings", () => {
       customSubtypes: {
         client: [{ slug: "kiosk", displayName: "Kiosk", icon: "Box" }],
       },
+      accountDeletion: { enabled: true },
+    });
+  });
+
+  it("explains when account deletion is unavailable with development authentication", async () => {
+    process.env.STACKHATCH_DEV_AUTH = "1";
+
+    const data = await (await settingsRoute.GET()).json();
+
+    expect(data.accountDeletion).toEqual({
+      enabled: false,
+      reason: "Account deletion is unavailable while development authentication is enabled.",
     });
   });
 

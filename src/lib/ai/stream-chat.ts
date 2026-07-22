@@ -38,6 +38,31 @@ interface StreamChatOptions {
 
 class ProjectOwnershipLostError extends Error {}
 
+const PROJECT_UNAVAILABLE_ERROR = {
+  type: "error",
+  code: "PROJECT_UNAVAILABLE",
+  content: "This project is no longer available. Return to your maps or sign in again.",
+} as const;
+
+type OwnershipLossPhase = "request_persistence" | "provider_stream" | "persistence";
+
+function logProjectOwnershipLoss(userId: string, projectId: string, phase: OwnershipLossPhase) {
+  console.warn("stackhatch.assistant.project_ownership_lost", {
+    userId,
+    projectId,
+    phase,
+    errorCode: PROJECT_UNAVAILABLE_ERROR.code,
+  });
+}
+
+function abortProviderStream(stream: { abort(): void }) {
+  try {
+    stream.abort();
+  } catch {
+    // Ownership loss remains authoritative if the provider has already completed cancellation.
+  }
+}
+
 function getErrorStatus(err: unknown): number | null {
   if (typeof err !== "object" || err === null) return null;
   const status = (err as { status?: unknown }).status;
@@ -147,10 +172,11 @@ export function streamChat(
     });
   } catch (error) {
     if (!(error instanceof ProjectOwnershipLostError)) throw error;
-    return new Response(
-      sseEvent({ type: "error", code: "PROJECT_UNAVAILABLE", content: "Project not found." }),
-      { headers: SSE_HEADERS, status: 404 }
-    );
+    logProjectOwnershipLoss(originalOwnerId, projectId, "request_persistence");
+    return new Response(sseEvent(PROJECT_UNAVAILABLE_ERROR), {
+      headers: SSE_HEADERS,
+      status: 404,
+    });
   }
 
   // Load chat history
@@ -214,6 +240,7 @@ export function streamChat(
 
   const stream = new ReadableStream({
     async start(controller) {
+      let ownershipLossPhase: OwnershipLossPhase = "provider_stream";
       try {
         let fullResponse = "";
         const anthropicStream = client.messages.stream({
@@ -227,7 +254,7 @@ export function streamChat(
         for await (const event of anthropicStream) {
           if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
             if (!hasOriginalOwner()) {
-              anthropicStream.abort();
+              abortProviderStream(anthropicStream);
               throw new ProjectOwnershipLostError();
             }
             const text = event.delta.text;
@@ -236,8 +263,9 @@ export function streamChat(
           }
         }
 
+        ownershipLossPhase = "persistence";
         if (!hasOriginalOwner()) {
-          anthropicStream.abort();
+          abortProviderStream(anthropicStream);
           throw new ProjectOwnershipLostError();
         }
 
@@ -318,7 +346,7 @@ export function streamChat(
         });
 
         if (!hasOriginalOwner()) {
-          anthropicStream.abort();
+          abortProviderStream(anthropicStream);
           throw new ProjectOwnershipLostError();
         }
 
@@ -340,6 +368,8 @@ export function streamChat(
         controller.close();
       } catch (err) {
         if (err instanceof ProjectOwnershipLostError) {
+          logProjectOwnershipLoss(originalOwnerId, projectId, ownershipLossPhase);
+          controller.enqueue(encoder.encode(sseEvent(PROJECT_UNAVAILABLE_ERROR)));
           controller.close();
           return;
         }

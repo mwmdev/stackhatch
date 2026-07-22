@@ -92,6 +92,43 @@ npm run db:migrate:offline -- --database /absolute/path/to/stackhatch.db
 node operator/migrate-database.cjs --database /absolute/path/to/stackhatch.db
 ```
 
+For the included Compose deployment, use the `prod` service itself so the commands address the same
+`shastack-data` volume as the application. Record the immutable image digest, release owner,
+incident approver, backup directory, and command output with the deployment change before starting.
+
+```bash
+export BACKUP_DIR="$PWD/backups/stackhatch-$(date -u +%Y%m%dT%H%M%SZ)"
+mkdir -p "$BACKUP_DIR"
+
+# Stop traffic, archive the complete stopped SQLite volume, and verify the archive.
+docker compose --env-file .env.local --profile prod stop prod
+docker compose --env-file .env.local --profile prod run --rm --no-deps --user 0:0 \
+  -v "$BACKUP_DIR:/backup" --entrypoint sh prod \
+  -c 'tar -C /app/data -czf /backup/shastack-data.tgz .'
+tar -tzf "$BACKUP_DIR/shastack-data.tgz" >/dev/null
+
+# Exercise and then migrate the database through the bundled production command.
+docker compose --env-file .env.local --profile prod run --rm --no-deps prod \
+  node operator/migrate-database.cjs --database /app/data/stackhatch.db
+docker compose --env-file .env.local --profile prod up -d prod
+```
+
+If post-migration verification fails, keep `prod` stopped. Decide explicitly between forward repair
+and restore; never start the old image against the migrated database. To restore the verified volume
+archive, keep the service stopped and run:
+
+```bash
+docker compose --env-file .env.local --profile prod stop prod
+docker compose --env-file .env.local --profile prod run --rm --no-deps --user 0:0 \
+  -v "$BACKUP_DIR:/backup:ro" --entrypoint sh prod \
+  -c 'find /app/data -mindepth 1 -maxdepth 1 -exec rm -rf {} + && tar -C /app/data -xzf /backup/shastack-data.tgz'
+docker compose --env-file .env.local --profile prod up -d prod
+```
+
+After either path, confirm `PRAGMA integrity_check` and `PRAGMA foreign_key_check` through the
+approved SQLite operations procedure before reopening public traffic. Retain the backup and the
+matching pre-migration image until the validation window closes.
+
 Users can permanently delete their own account from Settings. The active SQLite database removes
 their account, encrypted key, projects, messages, templates, preferences, and custom subtypes in one
 transaction. A later GitHub sign-in creates a fresh account; an old session does not regain access.

@@ -4,27 +4,12 @@ import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { Handle, Position } from "reactflow";
 import type { NodeProps } from "reactflow";
 import * as icons from "lucide-react";
-import type { CSSProperties } from "react";
 import type { NodeCategory, NodeSubtype, NoteColor } from "@/types/stack";
 import { getCategoryConfig, getNoteColorConfig, resolveSubtypeConfig } from "@/lib/node-config";
 import type { CustomSubtypesMap } from "@/lib/custom-subtypes";
 import { sanitizeHtml, containsHtml } from "@/lib/sanitize-html";
+import DynamicLucideIcon from "@/components/ui/DynamicLucideIcon";
 import { useEditorDisplaySettings } from "./EditorDisplaySettings";
-
-function DynamicIcon({
-  name,
-  size,
-  className,
-  style,
-}: {
-  name: string;
-  size?: number;
-  className?: string;
-  style?: CSSProperties;
-}) {
-  const Icon = (icons as unknown as Record<string, typeof icons.Box>)[name] ?? icons.Box;
-  return <Icon size={size} className={className} style={style} />;
-}
 
 export interface StackNodeData {
   category: NodeCategory;
@@ -159,7 +144,7 @@ function StackNodeComponent({ id, data, selected }: NodeProps<StackNodeData>) {
             }}
           />
           <div className="flex items-start gap-2 pr-4">
-            <DynamicIcon
+            <DynamicLucideIcon
               name={iconName}
               size={17}
               className="mt-1 shrink-0 text-[var(--color-note-foreground)]"
@@ -188,7 +173,7 @@ function StackNodeComponent({ id, data, selected }: NodeProps<StackNodeData>) {
               className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-[2px] border border-current"
               style={{ backgroundColor: catConfig.fill, color: catConfig.foreground }}
             >
-              <DynamicIcon name={iconName} size={14} />
+              <DynamicLucideIcon name={iconName} size={14} />
             </div>
             <span className="font-display text-sm font-bold leading-tight">{data.name}</span>
           </div>

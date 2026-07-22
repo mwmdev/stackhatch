@@ -842,6 +842,7 @@ describe("streamChat", () => {
   });
 
   it("aborts provider output and persists nothing after account deletion is observed", async () => {
+    const ownershipLog = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const race = createRaceDatabases();
     const abort = vi.fn();
     let index = 0;
@@ -885,15 +886,33 @@ describe("streamChat", () => {
     expect(events.filter((event) => event.type === "text").map((event) => event.content)).toEqual([
       "A",
     ]);
+    expect(events.filter((event) => event.type === "error")).toEqual([
+      {
+        type: "error",
+        code: "PROJECT_UNAVAILABLE",
+        content: "This project is no longer available. Return to your maps or sign in again.",
+      },
+    ]);
     expect(events.some((event) => event.type === "done")).toBe(false);
     expect(abort).toHaveBeenCalledTimes(1);
     expect(race.streamDb.select().from(users).all()).toEqual([]);
     expect(race.streamDb.select().from(projects).all()).toEqual([]);
     expect(race.streamDb.select().from(messages).all()).toEqual([]);
+    expect(ownershipLog).toHaveBeenCalledWith("stackhatch.assistant.project_ownership_lost", {
+      userId: testUser.id,
+      projectId,
+      phase: "provider_stream",
+      errorCode: "PROJECT_UNAVAILABLE",
+    });
+    expect(JSON.stringify(ownershipLog.mock.calls)).not.toContain(
+      "Keep this history on provider failure"
+    );
     race.close();
+    ownershipLog.mockRestore();
   });
 
   it("begins final persistence by rechecking the original project owner", async () => {
+    const ownershipLog = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const race = createRaceDatabases();
     let finished = false;
     const providerStream = {
@@ -937,10 +956,26 @@ describe("streamChat", () => {
     const events = await readSSEEvents(response);
 
     expect(events.some((event) => event.type === "architecture")).toBe(false);
+    expect(events.filter((event) => event.type === "error")).toEqual([
+      {
+        type: "error",
+        code: "PROJECT_UNAVAILABLE",
+        content: "This project is no longer available. Return to your maps or sign in again.",
+      },
+    ]);
     expect(events.some((event) => event.type === "done")).toBe(false);
     expect(race.streamDb.select().from(users).all()).toEqual([]);
     expect(race.streamDb.select().from(projects).all()).toEqual([]);
     expect(race.streamDb.select().from(messages).all()).toEqual([]);
+    expect(ownershipLog).toHaveBeenCalledWith("stackhatch.assistant.project_ownership_lost", {
+      userId: testUser.id,
+      projectId,
+      phase: "persistence",
+      errorCode: "PROJECT_UNAVAILABLE",
+    });
+    expect(JSON.stringify(ownershipLog.mock.calls)).not.toContain("User message");
+    expect(JSON.stringify(ownershipLog.mock.calls)).not.toContain("https://github.com/acme/new");
     race.close();
+    ownershipLog.mockRestore();
   });
 });

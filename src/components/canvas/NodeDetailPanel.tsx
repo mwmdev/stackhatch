@@ -12,20 +12,8 @@ import {
 } from "@/lib/node-config";
 import type { CustomSubtypesMap } from "@/lib/custom-subtypes";
 import AlternativesSection from "@/components/canvas/AlternativesSection";
+import DynamicLucideIcon from "@/components/ui/DynamicLucideIcon";
 import { sanitizeHtml, containsHtml } from "@/lib/sanitize-html";
-
-function DynamicIcon({
-  name,
-  size,
-  className,
-}: {
-  name: string;
-  size?: number;
-  className?: string;
-}) {
-  const Icon = (icons as unknown as Record<string, typeof icons.Box>)[name] ?? icons.Box;
-  return <Icon size={size} className={className} />;
-}
 
 export interface NodeDetailPanelProps {
   node: StackNode | null;
@@ -102,7 +90,7 @@ export default function NodeDetailPanel({
           className="flex h-8 w-8 items-center justify-center rounded-[2px] border border-current"
           style={{ backgroundColor: catConfig.fill, color: catConfig.foreground }}
         >
-          <DynamicIcon name={catConfig.icon} size={18} />
+          <DynamicLucideIcon name={catConfig.icon} size={18} />
         </div>
         <input
           type="text"

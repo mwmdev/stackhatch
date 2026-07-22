@@ -10,7 +10,7 @@ import IconControl from "@/components/ui/IconControl";
 import CustomSubtypesSettings from "@/components/settings/CustomSubtypesSettings";
 import AccountDeletionSettings from "@/components/settings/AccountDeletionSettings";
 import { AI_MODELS, DEFAULT_AI_MODEL } from "@/lib/ai/models";
-import type { CustomSubtypesMap } from "@/lib/custom-subtypes";
+import { validateCustomSubtypes, type CustomSubtypesMap } from "@/lib/custom-subtypes";
 import { trackEvent } from "@/lib/analytics";
 import {
   buildProjectStartPath,
@@ -31,17 +31,44 @@ interface Settings {
   model?: string;
   theme?: string;
   customSubtypes?: CustomSubtypesMap;
+  accountDeletion: {
+    enabled: boolean;
+    reason?: string;
+  };
+}
+
+type SettingsLoadState = "loading" | "loaded" | "failed";
+
+function parseSettings(value: unknown): Settings {
+  if (!value || typeof value !== "object") throw new Error("Invalid settings response");
+  const settings = value as Partial<Settings>;
+  if (
+    !settings.accountDeletion ||
+    typeof settings.accountDeletion !== "object" ||
+    typeof settings.accountDeletion.enabled !== "boolean" ||
+    (settings.accountDeletion.reason !== undefined &&
+      typeof settings.accountDeletion.reason !== "string")
+  ) {
+    throw new Error("Invalid account deletion settings");
+  }
+
+  return {
+    ...settings,
+    customSubtypes: validateCustomSubtypes(settings.customSubtypes ?? {}),
+    accountDeletion: settings.accountDeletion,
+  };
 }
 
 export default function SettingsPage() {
   const { theme: currentTheme, setTheme } = useTheme();
   const initialThemeSetter = useRef(setTheme);
   const mounted = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
-  const [loading, setLoading] = useState(true);
+  const [loadState, setLoadState] = useState<SettingsLoadState>("loading");
   const [hasAnthropicKey, setHasAnthropicKey] = useState(false);
   const [apiKey, setApiKey] = useState("");
   const [model, setModel] = useState(DEFAULT_AI_MODEL);
   const [customSubtypes, setCustomSubtypes] = useState<CustomSubtypesMap>({});
+  const [accountDeletion, setAccountDeletion] = useState<Settings["accountDeletion"] | null>(null);
   const [savingApiKey, setSavingApiKey] = useState(false);
   const [savingModel, setSavingModel] = useState(false);
   const [returnTo, setReturnTo] = useState("/app");
@@ -50,6 +77,7 @@ export default function SettingsPage() {
   const [isAnthropicSetup, setIsAnthropicSetup] = useState(false);
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const setupStartTracked = useRef(false);
+  const settingsRequest = useRef(0);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -67,29 +95,43 @@ export default function SettingsPage() {
     );
   }, []);
 
-  useEffect(() => {
-    fetch("/api/settings")
-      .then(async (res) => {
-        if (!res.ok) throw new Error("Failed to load settings");
-        return res.json() as Promise<Settings>;
-      })
-      .then((data) => {
-        setHasAnthropicKey(Boolean(data.hasAnthropicKey));
-        if (data.model) setModel(data.model);
-        if (data.theme) initialThemeSetter.current(data.theme);
-        setCustomSubtypes(data.customSubtypes ?? {});
-      })
-      .catch(() => {
-        setToast({ type: "error", message: "Settings could not be loaded" });
-      })
-      .finally(() => setLoading(false));
+  const loadSettings = useCallback(async () => {
+    const request = ++settingsRequest.current;
+    setLoadState("loading");
+    setToast(null);
+    try {
+      const response = await fetch("/api/settings", { cache: "no-store" });
+      if (!response.ok) throw new Error("Failed to load settings");
+      const data = parseSettings(await response.json());
+      if (request !== settingsRequest.current) return;
+
+      setHasAnthropicKey(Boolean(data.hasAnthropicKey));
+      setModel(data.model ?? DEFAULT_AI_MODEL);
+      if (data.theme) initialThemeSetter.current(data.theme);
+      setCustomSubtypes(data.customSubtypes ?? {});
+      setAccountDeletion(data.accountDeletion);
+      setLoadState("loaded");
+    } catch {
+      if (request !== settingsRequest.current) return;
+      setAccountDeletion(null);
+      setLoadState("failed");
+      setToast({ type: "error", message: "Settings could not be loaded" });
+    }
   }, []);
 
   useEffect(() => {
-    if (loading || !isAnthropicSetup || hasAnthropicKey || setupStartTracked.current) return;
+    void loadSettings();
+    return () => {
+      settingsRequest.current += 1;
+    };
+  }, [loadSettings]);
+
+  useEffect(() => {
+    if (loadState !== "loaded" || !isAnthropicSetup || hasAnthropicKey || setupStartTracked.current)
+      return;
     setupStartTracked.current = true;
     trackEvent("anthropic_setup_started", { location: "settings" });
-  }, [hasAnthropicKey, isAnthropicSetup, loading]);
+  }, [hasAnthropicKey, isAnthropicSetup, loadState]);
 
   const showToast = useCallback((type: "success" | "error", message: string) => {
     setToast({ type, message });
@@ -243,12 +285,29 @@ export default function SettingsPage() {
               ))}
             </nav>
 
-            {loading ? (
+            {loadState === "loading" ? (
               <div
                 className="rounded-sm border border-[var(--border)] bg-[var(--card)] py-16 text-center text-[var(--muted-foreground)]"
                 role="status"
               >
                 Loading settings...
+              </div>
+            ) : loadState === "failed" ? (
+              <div
+                className="rounded-sm border border-[var(--danger-border)] bg-[var(--danger-surface)] p-6"
+                role="alert"
+              >
+                <h2 className="text-lg font-semibold">Settings could not be loaded</h2>
+                <p className="mt-2 text-sm text-[var(--muted-foreground)]">
+                  No account settings can be changed until the current values are loaded.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void loadSettings()}
+                  className="mt-4 min-h-11 rounded-sm bg-[var(--brand)] px-4 py-2 text-sm font-bold text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)]"
+                >
+                  Retry loading settings
+                </button>
               </div>
             ) : (
               <div className="min-w-0 space-y-4">
@@ -425,7 +484,7 @@ export default function SettingsPage() {
                 </section>
 
                 <CustomSubtypesSettings initialCatalog={customSubtypes} />
-                <AccountDeletionSettings />
+                <AccountDeletionSettings availability={accountDeletion!} />
               </div>
             )}
           </div>

@@ -73,6 +73,55 @@ describe("CustomSubtypesSettings", () => {
     expect(screen.getByRole("button", { name: "Save subtype changes" })).toBeDisabled();
   });
 
+  it("reconciles an ambiguous PATCH response from the authoritative settings catalog", async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("not json", { status: 200 }))
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            customSubtypes: {
+              client: [{ slug: "kiosk", displayName: "Committed remotely", icon: "Box" }],
+            },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } }
+        )
+      );
+
+    render(<CustomSubtypesSettings initialCatalog={initialCatalog} />);
+    fireEvent.change(screen.getByLabelText("Client subtype 1 display name"), {
+      target: { value: "Submitted locally" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save subtype changes" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /saved subtype settings were reloaded/i
+    );
+    expect(screen.getByLabelText("Client subtype 1 display name")).toHaveValue(
+      "Committed remotely"
+    );
+    expect(global.fetch).toHaveBeenNthCalledWith(2, "/api/settings", { cache: "no-store" });
+    expect(screen.getByRole("button", { name: "Save subtype changes" })).toBeDisabled();
+  });
+
+  it("keeps editing locked when an ambiguous PATCH cannot be reconciled", async () => {
+    global.fetch = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError("response lost"))
+      .mockRejectedValueOnce(new TypeError("refresh failed"));
+
+    render(<CustomSubtypesSettings initialCatalog={initialCatalog} />);
+    fireEvent.change(screen.getByLabelText("Client subtype 1 display name"), {
+      target: { value: "Possibly committed" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save subtype changes" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/could not confirm whether/i);
+    expect(screen.getByRole("button", { name: "Reload settings to continue" })).toBeDisabled();
+    expect(screen.getByLabelText("Client subtype 1 display name")).toBeDisabled();
+    expect(global.fetch).toHaveBeenNthCalledWith(2, "/api/settings", { cache: "no-store" });
+  });
+
   it("shows field-level validation and does not submit an invalid catalog", async () => {
     global.fetch = vi.fn();
     render(<CustomSubtypesSettings initialCatalog={initialCatalog} />);

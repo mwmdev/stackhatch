@@ -1,6 +1,6 @@
 import Database from "better-sqlite3";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, renameSync, rmSync } from "node:fs";
+import { copyFileSync, mkdtempSync, renameSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -148,6 +148,26 @@ describe("account operator boundary", () => {
     }
   });
 
+  it.each([
+    ["a", "***"],
+    ["ab", "***b"],
+    ["abc", "***c"],
+    ["abcd", "***d"],
+  ])("does not expose a short opaque GitHub ID (%s)", (githubId, redacted) => {
+    const sqlite = new Database(filename);
+    sqlite.prepare("UPDATE users SET github_id = ? WHERE id = 'target-user'").run(githubId);
+    sqlite.close();
+
+    const operator = openOperatorDatabase(filename);
+    try {
+      expect(previewAccounts(operator, { id: "target-user" }).candidates[0]?.githubId).toBe(
+        redacted
+      );
+    } finally {
+      operator.close();
+    }
+  });
+
   it("deletes one internal ID only after an exact database-bound confirmation", () => {
     const operator = openOperatorDatabase(filename);
     try {
@@ -245,6 +265,54 @@ describe("account operator boundary", () => {
         )
       ).toThrow("changed since it was opened");
     } finally {
+      operator.close();
+    }
+  });
+
+  it("fails closed if database contents are replaced in place while preserving the inode", () => {
+    const operator = openOperatorDatabase(filename);
+    const replacement = path.join(directory, "in-place-replacement.db");
+    seedDatabase(replacement);
+    const replacementWriter = new Database(replacement);
+    replacementWriter
+      .prepare("UPDATE users SET name = ? WHERE id = ?")
+      .run("Replacement", "control-user");
+    replacementWriter.close();
+    previewAccounts(operator, { id: "target-user" });
+    const originalInode = statSync(filename).ino;
+    copyFileSync(replacement, filename);
+    expect(statSync(filename).ino).toBe(originalInode);
+
+    try {
+      expect(() =>
+        deleteOperatorAccount(
+          operator,
+          "target-user",
+          buildDeletionConfirmation(operator.databaseFingerprint, "target-user")
+        )
+      ).toThrow("contents or path changed");
+    } finally {
+      operator.close();
+    }
+  });
+
+  it("fails closed when committed WAL state changes after confirmation", () => {
+    const operator = openOperatorDatabase(filename);
+    previewAccounts(operator, { id: "target-user" });
+    const writer = new Database(filename);
+    writer.pragma("journal_mode = WAL");
+    writer.prepare("UPDATE users SET name = ? WHERE id = ?").run("Changed", "control-user");
+
+    try {
+      expect(() =>
+        deleteOperatorAccount(
+          operator,
+          "target-user",
+          buildDeletionConfirmation(operator.databaseFingerprint, "target-user")
+        )
+      ).toThrow("contents or path changed");
+    } finally {
+      writer.close();
       operator.close();
     }
   });

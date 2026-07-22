@@ -4,7 +4,7 @@ import { userSettings } from "@/db/schema";
 import { runMigrations } from "@/db/migrate";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { getAuthenticatedUser } from "@/lib/auth";
+import { getAuthenticatedUser, isDevelopmentAuthEnabled } from "@/lib/auth";
 import { encryptSecret } from "@/lib/secrets";
 import { AI_MODEL_IDS, DEFAULT_AI_MODEL, normalizeAiModel } from "@/lib/ai/models";
 import {
@@ -40,6 +40,13 @@ function getPublicSettings(db: Db, userId: string) {
     .where(eq(userSettings.userId, userId))
     .get();
 
+  const accountDeletion = isDevelopmentAuthEnabled()
+    ? {
+        enabled: false,
+        reason: "Account deletion is unavailable while development authentication is enabled.",
+      }
+    : { enabled: true };
+
   return {
     hasAnthropicKey: Boolean(userConfig?.anthropicApiKey),
     model: normalizeAiModel(userConfig?.model),
@@ -47,6 +54,7 @@ function getPublicSettings(db: Db, userId: string) {
       ? userConfig!.theme
       : DEFAULT_THEME,
     customSubtypes: parseCustomSubtypes(userConfig?.customSubtypes),
+    accountDeletion,
   };
 }
 

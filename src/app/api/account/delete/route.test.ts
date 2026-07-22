@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   user: { userId: "user-1", githubId: "github-1" } as { userId: string; githubId: string } | null,
@@ -49,6 +49,10 @@ beforeEach(() => {
     deleted: true,
     counts: { users: 1, projects: 1, messages: 2, templates: 1, settings: 1, projectState: 1 },
   });
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 describe("POST /api/account/delete", () => {
@@ -106,6 +110,7 @@ describe("POST /api/account/delete", () => {
   });
 
   it("reports an honest committed outcome when cookie cleanup fails", async () => {
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     mocks.signOut.mockRejectedValueOnce(new Error("cookie failure"));
     const response = await POST(request());
     expect(response.status).toBe(200);
@@ -114,9 +119,17 @@ describe("POST /api/account/delete", () => {
       deleted: true,
       signedOut: false,
     });
+    expect(warning).toHaveBeenCalledWith("stackhatch.account_deletion.sign_out_failed", {
+      userId: "user-1",
+      phase: "post_commit",
+      errorClass: "Error",
+    });
+    expect(JSON.stringify(warning.mock.calls)).not.toContain("cookie failure");
+    expect(JSON.stringify(warning.mock.calls)).not.toContain("DELETE MY ACCOUNT");
   });
 
   it("does not sign out or claim a commit when deletion fails", async () => {
+    const failure = vi.spyOn(console, "error").mockImplementation(() => undefined);
     mocks.deleteAccountById.mockImplementationOnce(() => {
       throw new Error("database busy");
     });
@@ -124,5 +137,12 @@ describe("POST /api/account/delete", () => {
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toEqual({ error: "Account deletion failed" });
     expect(mocks.signOut).not.toHaveBeenCalled();
+    expect(failure).toHaveBeenCalledWith("stackhatch.account_deletion.transaction_failed", {
+      userId: "user-1",
+      phase: "transaction",
+      errorClass: "Error",
+    });
+    expect(JSON.stringify(failure.mock.calls)).not.toContain("database busy");
+    expect(JSON.stringify(failure.mock.calls)).not.toContain("DELETE MY ACCOUNT");
   });
 });

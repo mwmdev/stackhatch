@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
@@ -387,6 +387,35 @@ describe("project resume state migration", () => {
 });
 
 describe("self-service account controls migration", () => {
+  it("never applies a pending migration from a production request", () => {
+    const sqlite = createCurrentDatabase();
+    const beforeVersion = sqlite
+      .prepare("SELECT created_at AS createdAt FROM __drizzle_migrations")
+      .get();
+
+    vi.stubEnv("NODE_ENV", "production");
+    try {
+      expect(() => runMigrations(drizzle(sqlite, { schema }))).toThrow(
+        "explicit offline migration command"
+      );
+    } finally {
+      vi.unstubAllEnvs();
+    }
+
+    expect(
+      sqlite.prepare("SELECT created_at AS createdAt FROM __drizzle_migrations").get()
+    ).toEqual(beforeVersion);
+    expect(
+      (sqlite.pragma("table_info(users)") as Array<{ name: string }>).map(({ name }) => name)
+    ).toContain("role");
+    expect(
+      (sqlite.pragma("table_info(user_settings)") as Array<{ name: string }>).map(
+        ({ name }) => name
+      )
+    ).not.toContain("custom_subtypes");
+    sqlite.close();
+  });
+
   it("copies a valid legacy catalog to every user without changing existing personal settings", () => {
     const directory = mkdtempSync(path.join(tmpdir(), "stackhatch-migration-"));
     const filename = path.join(directory, "stackhatch.db");

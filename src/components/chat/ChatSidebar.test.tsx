@@ -458,6 +458,36 @@ describe("ChatSidebar", () => {
     );
   });
 
+  it("discards transient assistant text when the project becomes unavailable", async () => {
+    global.fetch = mockFetch({
+      "/messages": messagesWithHistory,
+      "/chat": () =>
+        createSSEResponse([
+          { type: "text", content: "Uncommitted private response" },
+          {
+            type: "error",
+            code: "PROJECT_UNAVAILABLE",
+            content: "server-controlled copy must not be trusted",
+          },
+        ]),
+    });
+
+    render(<ChatSidebar projectId="p1" defaultOpen={true} />);
+
+    const textarea = await screen.findByPlaceholderText("Message...");
+    fireEvent.change(textarea, { target: { value: "Continue" } });
+    fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
+
+    await screen.findByText(
+      "This project is no longer available. Return to your maps or sign in again."
+    );
+    expect(screen.queryByText("Uncommitted private response")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("server-controlled copy must not be trusted")
+    ).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Waiting for AI...")).toBeDisabled();
+  });
+
   it("never asks for an Anthropic key inside the project editor", async () => {
     global.fetch = vi.fn(async (input: RequestInfo | URL, options?: RequestInit) => {
       const url = String(input);

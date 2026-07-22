@@ -40,7 +40,12 @@ describe("SettingsPage theme integration", () => {
         settingsLoads += 1;
         return Promise.resolve({
           ok: true,
-          json: () => Promise.resolve({ hasAnthropicKey: false, theme: "system" }),
+          json: () =>
+            Promise.resolve({
+              hasAnthropicKey: false,
+              theme: "system",
+              accountDeletion: { enabled: true },
+            }),
         });
       }
       return Promise.resolve({ ok: false, json: () => Promise.resolve({}) });

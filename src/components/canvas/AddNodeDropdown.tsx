@@ -5,20 +5,8 @@ import * as icons from "lucide-react";
 import type { NodeCategory, NodeSubtype } from "@/types/stack";
 import { categoryOrder, nodeConfig, getSubtypesForCategory } from "@/lib/node-config";
 import type { CustomSubtypesMap } from "@/lib/custom-subtypes";
+import DynamicLucideIcon from "@/components/ui/DynamicLucideIcon";
 import IconControl from "@/components/ui/IconControl";
-
-function DynamicIcon({
-  name,
-  size,
-  className,
-}: {
-  name: string;
-  size?: number;
-  className?: string;
-}) {
-  const Icon = (icons as unknown as Record<string, typeof icons.Box>)[name] ?? icons.Box;
-  return <Icon size={size} className={className} />;
-}
 
 export interface AddNodeDropdownProps {
   onAddNode: (category: NodeCategory, subtype: NodeSubtype) => void;
@@ -108,7 +96,7 @@ export default function AddNodeDropdown({
                     className="flex h-6 w-6 items-center justify-center rounded"
                     style={{ backgroundColor: config.color, color: "white" }}
                   >
-                    <DynamicIcon name={config.icon} size={14} />
+                    <DynamicLucideIcon name={config.icon} size={14} />
                   </div>
                   <span className="flex-1 text-left font-medium text-[var(--foreground)]">
                     {config.displayName}
@@ -129,7 +117,7 @@ export default function AddNodeDropdown({
                           className="flex w-full items-center gap-2 px-3 py-1.5 pl-11 text-sm text-[var(--foreground)] hover:bg-[var(--border)] transition-colors"
                           data-testid={`subtype-${subtype}`}
                         >
-                          <DynamicIcon
+                          <DynamicLucideIcon
                             name={subtypeConfig.icon}
                             size={14}
                             className="text-[var(--muted-foreground)]"

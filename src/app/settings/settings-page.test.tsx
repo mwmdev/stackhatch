@@ -14,6 +14,10 @@ vi.mock("next-themes", () => ({
 vi.mock("@/lib/analytics", () => ({ trackEvent: mockTrackEvent }));
 
 function mockFetchSettings(settings: Record<string, unknown>) {
+  const settingsResponse = {
+    accountDeletion: { enabled: true },
+    ...settings,
+  };
   global.fetch = vi.fn((input: RequestInfo | URL, options?: RequestInit) => {
     const url = typeof input === "string" ? input : input.toString();
     if (url === "/api/me") {
@@ -28,7 +32,7 @@ function mockFetchSettings(settings: Record<string, unknown>) {
     if (url === "/api/settings" && (!options || options.method !== "PATCH")) {
       return Promise.resolve({
         ok: true,
-        json: () => Promise.resolve(settings),
+        json: () => Promise.resolve(settingsResponse),
       });
     }
     if (url === "/api/settings" && options?.method === "PATCH") {
@@ -37,7 +41,7 @@ function mockFetchSettings(settings: Record<string, unknown>) {
         ok: true,
         json: () =>
           Promise.resolve({
-            ...settings,
+            ...settingsResponse,
             ...update,
             ...(update.apiKey ? { hasAnthropicKey: true } : {}),
           }),
@@ -99,6 +103,57 @@ describe("SettingsPage", () => {
     mockFetchSettings({});
     render(<SettingsPage />);
     expect(screen.getByText("Loading settings...")).toBeInTheDocument();
+  });
+
+  it("keeps all mutation controls unmounted after a failed load and retries authoritatively", async () => {
+    let settingsLoads = 0;
+    global.fetch = vi.fn((input: RequestInfo | URL) => {
+      if (String(input) === "/api/me") {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ name: "User" }) });
+      }
+      settingsLoads += 1;
+      if (settingsLoads === 1) {
+        return Promise.resolve({ ok: false, json: () => Promise.resolve({}) });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            hasAnthropicKey: false,
+            customSubtypes: {},
+            accountDeletion: { enabled: true },
+          }),
+      });
+    }) as unknown as typeof global.fetch;
+
+    render(<SettingsPage />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Settings could not be loaded");
+    expect(screen.queryByRole("heading", { name: "Node subtypes" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Add .* subtype/ })).not.toBeInTheDocument();
+    expect(
+      (global.fetch as ReturnType<typeof vi.fn>).mock.calls.some(
+        (call: unknown[]) => (call[1] as RequestInit | undefined)?.method === "PATCH"
+      )
+    ).toBe(false);
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry loading settings" }));
+
+    expect(await screen.findByRole("heading", { name: "Node subtypes" })).toBeInTheDocument();
+    expect(settingsLoads).toBe(2);
+  });
+
+  it("disables and explains account deletion when development authentication is active", async () => {
+    mockFetchSettings({
+      accountDeletion: {
+        enabled: false,
+        reason: "Account deletion is unavailable while development authentication is enabled.",
+      },
+    });
+    render(<SettingsPage />);
+
+    expect(await screen.findByRole("button", { name: "Delete account" })).toBeDisabled();
+    expect(screen.getByText(/unavailable while development authentication/i)).toBeInTheDocument();
   });
 
   it("shows a named contextual control back to the safe setup return path", async () => {

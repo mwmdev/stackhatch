@@ -53,6 +53,9 @@ function isMissingApiKeyError(message: string) {
   return /AI_NOT_CONFIGURED|anthropic api key|api key not configured/i.test(message);
 }
 
+const PROJECT_UNAVAILABLE_MESSAGE =
+  "This project is no longer available. Return to your maps or sign in again.";
+
 function normalizeRepoUrl(repoUrl?: string | null) {
   const value = repoUrl?.trim();
   if (!value || value === "null" || value === "undefined") return "";
@@ -81,6 +84,8 @@ function scanErrorCategory(code?: string): AnalyticsErrorCategory {
       return "provider_unavailable";
     case "AI_REQUEST_FAILED":
       return "provider_unavailable";
+    case "PROJECT_UNAVAILABLE":
+      return "server";
     default:
       return "unknown";
   }
@@ -251,7 +256,14 @@ export default function ChatSidebar({
                 );
               }
             } else if (event.type === "error") {
-              setError(event.content);
+              if (event.code === "PROJECT_UNAVAILABLE") {
+                accumulated = "";
+                setStreamText("");
+                setInitialized(false);
+                setError(PROJECT_UNAVAILABLE_MESSAGE);
+              } else {
+                setError(event.content);
+              }
               if (context === "scan") {
                 trackEvent("repository_scan_failed", {
                   location: "editor",

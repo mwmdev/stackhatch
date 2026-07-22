@@ -4,26 +4,35 @@ import { useEffect, useRef, useState } from "react";
 import { ACCOUNT_DELETION_CONFIRMATION } from "@/lib/account-deletion-contract";
 
 interface AccountDeletionSettingsProps {
-  onDeleted?: () => void;
+  availability: {
+    enabled: boolean;
+    reason?: string;
+  };
+  onDeleted?: () => void | Promise<void>;
 }
 
+type DeletionPhase = "idle" | "pending" | "retryable-error" | "indeterminate" | "committed";
+
 export default function AccountDeletionSettings({
+  availability,
   onDeleted = () => window.location.assign("/"),
 }: AccountDeletionSettingsProps) {
   const [open, setOpen] = useState(false);
   const [confirmation, setConfirmation] = useState("");
-  const [pending, setPending] = useState(false);
+  const [phase, setPhase] = useState<DeletionPhase>("idle");
   const [error, setError] = useState<string | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const dialogRef = useRef<HTMLElement>(null);
+  const pending = phase === "pending";
+  const terminal = phase === "indeterminate" || phase === "committed";
 
   useEffect(() => {
     if (open) inputRef.current?.focus();
   }, [open]);
 
   function close() {
-    if (pending) return;
+    if (pending || terminal) return;
     setOpen(false);
     setConfirmation("");
     setError(null);
@@ -31,32 +40,84 @@ export default function AccountDeletionSettings({
   }
 
   async function deleteAccount() {
-    if (pending || confirmation !== ACCOUNT_DELETION_CONFIRMATION) return;
-    setPending(true);
+    if (
+      !availability.enabled ||
+      pending ||
+      terminal ||
+      confirmation !== ACCOUNT_DELETION_CONFIRMATION
+    )
+      return;
+    setPhase("pending");
     setError(null);
-    let committed = false;
 
+    async function finishCommittedDeletion() {
+      setPhase("committed");
+      setError(null);
+      try {
+        await onDeleted();
+      } catch {
+        // The terminal confirmation below remains available when navigation fails.
+      }
+    }
+
+    async function reconcileAmbiguousDeletion() {
+      try {
+        const identity = await fetch("/api/me", { cache: "no-store" });
+        if (identity.status === 401) {
+          await finishCommittedDeletion();
+          return;
+        }
+        if (identity.ok) {
+          setPhase("retryable-error");
+          setError(
+            "Account deletion could not be confirmed, and your account is still active. You can try again."
+          );
+          return;
+        }
+      } catch {
+        // The indeterminate state below prevents a blind duplicate deletion request.
+      }
+
+      setPhase("indeterminate");
+      setError(
+        "We could not confirm whether deletion committed. Reload or sign in again to check your account before taking another action."
+      );
+    }
+
+    let response: Response;
     try {
-      const response = await fetch("/api/account/delete", {
+      response = await fetch("/api/account/delete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ confirmation }),
       });
-      const result = (await response.json().catch(() => ({}))) as {
-        committed?: boolean;
-        error?: string;
-      };
-      if (!response.ok || result.committed !== true) {
-        throw new Error(result.error || "Account deletion failed");
-      }
-      committed = true;
     } catch {
-      setError("Your account was not deleted. Check your connection and try again.");
-    } finally {
-      setPending(false);
+      await reconcileAmbiguousDeletion();
+      return;
     }
 
-    if (committed) onDeleted();
+    if (!response.ok) {
+      const result = (await response.json().catch(() => ({}))) as { error?: unknown };
+      setPhase("retryable-error");
+      setError(
+        typeof result.error === "string" && result.error
+          ? result.error
+          : "Your account was not deleted. Check your connection and try again."
+      );
+      return;
+    }
+
+    try {
+      const result = (await response.json()) as { committed?: unknown };
+      if (result.committed === true) {
+        await finishCommittedDeletion();
+        return;
+      }
+    } catch {
+      // A successful HTTP response without a readable receipt is ambiguous.
+    }
+
+    await reconcileAmbiguousDeletion();
   }
 
   return (
@@ -72,10 +133,16 @@ export default function AccountDeletionSettings({
         Permanently remove your StackHatch account and its active application data. This action
         cannot be undone.
       </p>
+      {!availability.enabled && (
+        <p className="mt-3 text-sm font-medium text-[var(--danger)]" role="status">
+          {availability.reason ?? "Account deletion is currently unavailable."}
+        </p>
+      )}
       <button
         ref={triggerRef}
         type="button"
         onClick={() => setOpen(true)}
+        disabled={!availability.enabled}
         className="mt-5 min-h-11 rounded-sm bg-[var(--danger)] px-4 py-2 text-sm font-bold text-[var(--danger-foreground)] hover:bg-[var(--danger-hover)]"
       >
         Delete account
@@ -98,7 +165,11 @@ export default function AccountDeletionSettings({
                   'button:not([disabled]), input:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'
                 ) ?? []
               );
-              if (focusable.length === 0) return;
+              if (focusable.length === 0) {
+                event.preventDefault();
+                dialogRef.current?.focus();
+                return;
+              }
               const first = focusable[0];
               const last = focusable.at(-1)!;
               if (event.shiftKey && document.activeElement === first) {
@@ -109,6 +180,7 @@ export default function AccountDeletionSettings({
                 first.focus();
               }
             }}
+            tabIndex={-1}
             className="w-full max-w-lg rounded-sm border border-[var(--danger-border)] bg-[var(--card)] p-5 shadow-2xl sm:p-6"
           >
             <h3 id="delete-account-title" className="text-xl font-bold">
@@ -144,7 +216,7 @@ export default function AccountDeletionSettings({
                 setConfirmation(event.target.value);
                 setError(null);
               }}
-              disabled={pending}
+              disabled={pending || terminal}
               autoComplete="off"
               spellCheck={false}
               className="mt-2 min-h-11 w-full rounded-sm border border-[var(--border)] bg-[var(--background)] px-3 py-2 font-utility text-sm focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
@@ -156,11 +228,28 @@ export default function AccountDeletionSettings({
               </p>
             )}
 
+            {phase === "committed" && (
+              <div className="mt-3 text-sm" role="status" aria-live="polite">
+                <p>Your account deletion committed. This account cannot be used again.</p>
+                {/* A hard navigation remains usable after auth state and client routing are gone. */}
+                {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+                <a className="mt-2 inline-flex font-semibold underline" href="/">
+                  Return to StackHatch home
+                </a>
+              </div>
+            )}
+
+            {phase === "indeterminate" && (
+              <a className="mt-3 inline-flex text-sm font-semibold underline" href="/settings">
+                Reload settings to check your account
+              </a>
+            )}
+
             <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button
                 type="button"
                 onClick={close}
-                disabled={pending}
+                disabled={pending || terminal}
                 className="min-h-11 rounded-sm border border-[var(--border)] px-4 py-2 text-sm font-semibold hover:bg-[var(--muted)] disabled:opacity-50"
               >
                 Cancel
@@ -168,10 +257,16 @@ export default function AccountDeletionSettings({
               <button
                 type="button"
                 onClick={deleteAccount}
-                disabled={pending || confirmation !== ACCOUNT_DELETION_CONFIRMATION}
+                disabled={pending || terminal || confirmation !== ACCOUNT_DELETION_CONFIRMATION}
                 className="min-h-11 rounded-sm bg-[var(--danger)] px-4 py-2 text-sm font-bold text-[var(--danger-foreground)] hover:bg-[var(--danger-hover)] disabled:opacity-50"
               >
-                {pending ? "Deleting account..." : "Permanently delete account"}
+                {phase === "pending"
+                  ? "Deleting account..."
+                  : phase === "committed"
+                    ? "Account deleted"
+                    : phase === "indeterminate"
+                      ? "Deletion status unknown"
+                      : "Permanently delete account"}
               </button>
             </div>
           </section>

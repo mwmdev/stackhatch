@@ -1,6 +1,6 @@
 import type { NodeCategory } from "@/types/stack";
 import { nodeConfig, type SubtypeConfig } from "@/lib/node-config";
-import * as lucideIcons from "lucide-react";
+import { icons, type LucideIcon } from "lucide-react";
 
 export interface CustomSubtypeEntry {
   slug: string;
@@ -40,13 +40,12 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 export function isSupportedLucideIcon(icon: string): boolean {
-  const candidate = (lucideIcons as unknown as Record<string, unknown>)[icon];
-  return (
-    typeof candidate === "object" &&
-    candidate !== null &&
-    "$$typeof" in candidate &&
-    candidate.$$typeof === Symbol.for("react.forward_ref")
-  );
+  return Object.hasOwn(icons, icon);
+}
+
+export function getSupportedLucideIcon(icon: string): LucideIcon | undefined {
+  if (!Object.hasOwn(icons, icon)) return undefined;
+  return icons[icon as keyof typeof icons];
 }
 
 export function isValidCustomSubtypeSlug(slug: string): boolean {

@@ -1,6 +1,7 @@
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { getDb, type AppDatabase } from "./index";
 import { parseCustomSubtypes } from "@/lib/custom-subtypes";
+import { assertCurrentOperatorSchema } from "@/lib/operator-database";
 import path from "path";
 
 const migratedDatabases = new WeakSet<AppDatabase>();
@@ -61,7 +62,7 @@ export function installLegacyCustomSubtypeMigrationGuard(database: AppDatabase) 
   return capturedValue;
 }
 
-export function runMigrations(db?: AppDatabase) {
+export function applyPendingMigrations(db?: AppDatabase) {
   const database = db ?? getDb();
   if (migratedDatabases.has(database)) return;
 
@@ -70,4 +71,22 @@ export function runMigrations(db?: AppDatabase) {
   const migrationsFolder = path.resolve(process.cwd(), "drizzle");
   migrate(database, { migrationsFolder });
   migratedDatabases.add(database);
+}
+
+/**
+ * Prepare a database for an application request. Production requests may only validate schema:
+ * mutation is reserved for the explicit offline operator command. Development and tests retain
+ * automatic setup so disposable local databases remain convenient.
+ */
+export function runMigrations(db?: AppDatabase) {
+  const database = db ?? getDb();
+  if (migratedDatabases.has(database)) return;
+
+  if (process.env.NODE_ENV === "production") {
+    assertCurrentOperatorSchema(database);
+    migratedDatabases.add(database);
+    return;
+  }
+
+  applyPendingMigrations(database);
 }

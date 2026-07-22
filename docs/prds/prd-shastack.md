@@ -121,7 +121,7 @@ user_settings {
 **Acceptance Criteria:**
 
 - [ ] Database file is created at the configured path on first run
-- [ ] Production migrations run offline against an explicit database path before app startup
+- Production migrations run offline against an explicit database path before app startup
 - [ ] All CRUD operations work: create/read/update/delete projects, insert/query messages, set/get settings
 - [ ] Cascade delete removes messages when a project is deleted
 - [ ] Unit tests pass for all database operations
@@ -255,8 +255,8 @@ interface StackArchitecture {
 - [ ] Settings persist across app restarts
 - [ ] API keys are encrypted, write-only, and isolated per user
 - [ ] Clearing a key preserves the user&apos;s model preference
-- [ ] Custom subtypes are validated, persisted, and isolated per user
-- [ ] Account deletion cannot target another user and stale sessions cannot restore deleted access
+- Custom subtypes are validated, persisted, and isolated per user
+- Account deletion cannot target another user and stale sessions cannot restore deleted access
 - [ ] Invalid keys are rejected with 400
 - [ ] Integration tests pass
 - [ ] Typecheck/lint passes
