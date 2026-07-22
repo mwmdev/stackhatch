@@ -16,7 +16,7 @@ export default function PrivacyPage() {
       homeLabel="StackHatch home"
       eyebrow="Policy"
       title="Privacy Policy"
-      description="Effective July 15, 2026"
+      description="Effective July 22, 2026"
       className={styles.legalShell}
     >
       <div className={styles.publicLayout}>
@@ -83,16 +83,25 @@ export default function PrivacyPage() {
             <h2>Data Retention</h2>
             <p className="mt-2">
               Account and personal project data remain stored until the related project or account
-              is deleted. StackHatch does not currently apply an automatic expiration period.
-              Self-hosted operators control their own database backups and retention schedules.
+              is deleted. You can delete your account permanently from Settings. After deletion
+              commits, your profile, encrypted AI key, projects, messages, templates, and
+              preferences are removed from the active application database. StackHatch does not
+              currently apply an automatic expiration period.
+            </p>
+            <p className="mt-2">
+              SQLite WAL files and backups follow the storage-retention lifecycle managed by the
+              operator. Self-hosted operators control their own database backups and retention
+              schedules, so account deletion does not promise immediate byte-level removal from
+              every backup or storage layer.
             </p>
           </section>
 
           <section>
             <h2>Data Requests</h2>
             <p className="mt-2">
-              To request account deletion, project export, or correction of account data, contact
-              support@stackhatch.io from the email associated with the account.
+              Use Settings for self-service account deletion. To request project export or
+              correction of account data, contact support@stackhatch.io from the email associated
+              with the account.
             </p>
           </section>
         </article>

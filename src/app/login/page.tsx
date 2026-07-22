@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
-import { auth, signIn } from "@/lib/auth-config";
+import { signIn } from "@/lib/auth-config";
+import { getAuthenticatedUser } from "@/lib/auth";
 import AuthStartForm from "@/components/AuthStartForm";
 import PublicPageShell from "@/components/shells/PublicPageShell";
 import styles from "../public-pages.module.css";
@@ -50,8 +51,8 @@ export default async function LoginPage({
   const startContext = startMethod ? START_CONTEXT[startMethod] : null;
 
   // Check if user is already authenticated
-  const session = await auth();
-  if (session?.user) {
+  const user = await getAuthenticatedUser();
+  if (user) {
     redirect(callbackUrl);
   }
 

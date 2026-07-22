@@ -1,10 +1,15 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import Database from "better-sqlite3";
 import { eq, asc } from "drizzle-orm";
 import * as schema from "@/db/schema";
 import { projects, messages, users, userSettings } from "@/db/schema";
-import type { AppDatabase } from "@/db";
+import { createTestDb as createConfiguredTestDb, type AppDatabase } from "@/db";
+import { runMigrations } from "@/db/migrate";
+import { deleteAccountById } from "@/lib/account-deletion";
 import type { StackArchitecture } from "@/types/stack";
 import { encryptSecret } from "@/lib/secrets";
 import { DEFAULT_CHAT_PROMPT } from "@/lib/ai/default-prompts";
@@ -148,15 +153,10 @@ const authenticatedUser = {
   image: testUser.avatarUrl,
 };
 
-beforeEach(() => {
-  db = createTestDb();
-  vi.clearAllMocks();
-
-  // Insert a test user
-  db.insert(users).values(testUser).run();
-
-  // Insert a test project
-  db.insert(projects)
+function seedStreamDatabase(targetDb: AppDatabase) {
+  targetDb.insert(users).values(testUser).run();
+  targetDb
+    .insert(projects)
     .values({
       id: projectId,
       name: "Test Project",
@@ -167,8 +167,8 @@ beforeEach(() => {
       updatedAt: Date.now(),
     })
     .run();
-
-  db.insert(userSettings)
+  targetDb
+    .insert(userSettings)
     .values({
       userId: testUser.id,
       anthropicApiKey: encryptSecret("sk-ant-test123"),
@@ -177,6 +177,31 @@ beforeEach(() => {
       updatedAt: Date.now(),
     })
     .run();
+}
+
+function createRaceDatabases() {
+  const directory = mkdtempSync(join(tmpdir(), "stackhatch-stream-race-"));
+  const databasePath = join(directory, "race.db");
+  const streamDb = createConfiguredTestDb(databasePath);
+  runMigrations(streamDb);
+  seedStreamDatabase(streamDb);
+  const deletionDb = createConfiguredTestDb(databasePath);
+  runMigrations(deletionDb);
+  return {
+    streamDb,
+    deletionDb,
+    close() {
+      deletionDb.$client.close();
+      streamDb.$client.close();
+      rmSync(directory, { recursive: true, force: true });
+    },
+  };
+}
+
+beforeEach(() => {
+  db = createTestDb();
+  vi.clearAllMocks();
+  seedStreamDatabase(db);
 });
 
 describe("streamChat", () => {
@@ -365,6 +390,9 @@ describe("streamChat", () => {
     expect(errorEvent).toBeDefined();
     expect(errorEvent!.code).toBe("AI_RATE_LIMITED");
     expect(errorEvent!.content).toBe("AI provider rate limit exceeded. Please try again later.");
+    expect(db.select().from(messages).where(eq(messages.projectId, projectId)).all()).toEqual([
+      expect.objectContaining({ role: "user", content: "Hello" }),
+    ]);
   });
 
   it("normalizes Anthropic authentication errors", async () => {
@@ -811,5 +839,108 @@ describe("streamChat", () => {
       .all();
     expect(savedMessages).toHaveLength(2);
     expect(savedMessages.some((message) => message.id === "old-message")).toBe(false);
+  });
+
+  it("aborts provider output and persists nothing after account deletion is observed", async () => {
+    const race = createRaceDatabases();
+    const abort = vi.fn();
+    let index = 0;
+    const providerStream = {
+      abort,
+      [Symbol.asyncIterator]: () => ({
+        async next() {
+          if (index++ === 0) {
+            return {
+              done: false,
+              value: {
+                type: "content_block_delta",
+                delta: { type: "text_delta", text: "A" },
+              },
+            };
+          }
+          deleteAccountById(race.deletionDb, testUser.id);
+          return {
+            done: false,
+            value: {
+              type: "content_block_delta",
+              delta: { type: "text_delta", text: "B" },
+            },
+          };
+        },
+      }),
+    };
+    vi.mocked(Anthropic).mockImplementation(
+      () => ({ messages: { stream: vi.fn(() => providerStream) } }) as unknown as Anthropic
+    );
+
+    const response = streamChat(
+      race.streamDb,
+      projectId,
+      "Keep this history on provider failure",
+      undefined,
+      authenticatedUser
+    );
+    const events = await readSSEEvents(response);
+
+    expect(events.filter((event) => event.type === "text").map((event) => event.content)).toEqual([
+      "A",
+    ]);
+    expect(events.some((event) => event.type === "done")).toBe(false);
+    expect(abort).toHaveBeenCalledTimes(1);
+    expect(race.streamDb.select().from(users).all()).toEqual([]);
+    expect(race.streamDb.select().from(projects).all()).toEqual([]);
+    expect(race.streamDb.select().from(messages).all()).toEqual([]);
+    race.close();
+  });
+
+  it("begins final persistence by rechecking the original project owner", async () => {
+    const race = createRaceDatabases();
+    let finished = false;
+    const providerStream = {
+      [Symbol.asyncIterator]: () => ({
+        async next() {
+          if (!finished) {
+            finished = true;
+            return {
+              done: false,
+              value: {
+                type: "content_block_delta",
+                delta: { type: "text_delta", text: "Complete response" },
+              },
+            };
+          }
+          deleteAccountById(race.deletionDb, testUser.id);
+          return { done: true, value: undefined };
+        },
+      }),
+    };
+    vi.mocked(Anthropic).mockImplementation(
+      () => ({ messages: { stream: vi.fn(() => providerStream) } }) as unknown as Anthropic
+    );
+
+    const response = streamChat(
+      race.streamDb,
+      projectId,
+      "User message",
+      undefined,
+      authenticatedUser,
+      {
+        repositoryScanReplacement: {
+          repoUrl: "https://github.com/acme/new",
+          commitSha: "newsha",
+          scannedAt: 200,
+          analysisStatus: "complete",
+          analysisWarning: null,
+        },
+      }
+    );
+    const events = await readSSEEvents(response);
+
+    expect(events.some((event) => event.type === "architecture")).toBe(false);
+    expect(events.some((event) => event.type === "done")).toBe(false);
+    expect(race.streamDb.select().from(users).all()).toEqual([]);
+    expect(race.streamDb.select().from(projects).all()).toEqual([]);
+    expect(race.streamDb.select().from(messages).all()).toEqual([]);
+    race.close();
   });
 });

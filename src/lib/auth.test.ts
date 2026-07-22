@@ -6,7 +6,11 @@ import * as schema from "@/db/schema";
 import { userSettings, users } from "@/db/schema";
 
 let testDb: AppDatabase;
-let mockSessionUserId: string | null = "user-1";
+let mockSessionIdentity: { userId: string; githubId: string } | null = {
+  userId: "user-1",
+  githubId: "github-1",
+};
+let mockDatabaseFailure = false;
 
 function createTestDb() {
   const sqlite = new Database(":memory:");
@@ -34,7 +38,10 @@ function createTestDb() {
 }
 
 vi.mock("@/db", () => ({
-  getDb: () => testDb,
+  getDb: () => {
+    if (mockDatabaseFailure) throw new Error("database unavailable");
+    return testDb;
+  },
 }));
 
 vi.mock("@/db/migrate", () => ({
@@ -42,16 +49,15 @@ vi.mock("@/db/migrate", () => ({
 }));
 
 vi.mock("@/lib/auth-config", () => ({
-  auth: vi.fn(() =>
-    Promise.resolve(mockSessionUserId ? { user: { userId: mockSessionUserId } } : null)
-  ),
+  auth: vi.fn(() => Promise.resolve(mockSessionIdentity ? { user: mockSessionIdentity } : null)),
 }));
 
 const authModule = await import("@/lib/auth");
 
 beforeEach(() => {
   testDb = createTestDb();
-  mockSessionUserId = "user-1";
+  mockSessionIdentity = { userId: "user-1", githubId: "github-1" };
+  mockDatabaseFailure = false;
   delete process.env.STACKHATCH_DEV_AUTH;
 
   testDb
@@ -79,15 +85,25 @@ describe("database-backed authentication", () => {
   });
 
   it("rejects a session whose internal user no longer exists", async () => {
-    mockSessionUserId = "deleted-user";
+    mockSessionIdentity = { userId: "deleted-user", githubId: "github-1" };
 
     await expect(authModule.getAuthenticatedUser()).resolves.toBeNull();
     await expect(authModule.getAuthenticatedUserId()).resolves.toBeNull();
   });
 
   it("returns null without a session", async () => {
-    mockSessionUserId = null;
+    mockSessionIdentity = null;
 
+    await expect(authModule.getAuthenticatedUser()).resolves.toBeNull();
+  });
+
+  it("rejects a signed identity unless the internal ID and GitHub ID match one row", async () => {
+    mockSessionIdentity = { userId: "user-1", githubId: "different-github" };
+    await expect(authModule.getAuthenticatedUser()).resolves.toBeNull();
+  });
+
+  it("fails closed when identity lookup cannot reach the database", async () => {
+    mockDatabaseFailure = true;
     await expect(authModule.getAuthenticatedUser()).resolves.toBeNull();
   });
 });

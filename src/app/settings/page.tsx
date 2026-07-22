@@ -8,6 +8,7 @@ import AppPageActions from "@/components/shells/AppPageActions";
 import AppPageShell from "@/components/shells/AppPageShell";
 import IconControl from "@/components/ui/IconControl";
 import CustomSubtypesSettings from "@/components/settings/CustomSubtypesSettings";
+import AccountDeletionSettings from "@/components/settings/AccountDeletionSettings";
 import { AI_MODELS, DEFAULT_AI_MODEL } from "@/lib/ai/models";
 import type { CustomSubtypesMap } from "@/lib/custom-subtypes";
 import { trackEvent } from "@/lib/analytics";
@@ -203,7 +204,7 @@ export default function SettingsPage() {
         homeHref="/app"
         homeLabel="Resume map"
         title="Settings"
-        description="Manage your AI connection, model, appearance, and map vocabulary."
+        description="Manage your AI connection, model, appearance, map vocabulary, and account."
         actions={<AppPageActions currentPage="settings" />}
         navigation={
           isAnthropicSetup ? (
@@ -224,6 +225,7 @@ export default function SettingsPage() {
                 ["#default-model", "02", "Default model"],
                 ["#appearance", "03", "Appearance"],
                 ["#node-subtypes", "04", "Node subtypes"],
+                ["#delete-account", "05", "Delete account"],
               ].map(([href, index, label]) => (
                 <a
                   key={href}
@@ -423,6 +425,7 @@ export default function SettingsPage() {
                 </section>
 
                 <CustomSubtypesSettings initialCatalog={customSubtypes} />
+                <AccountDeletionSettings />
               </div>
             )}
           </div>

@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { runMigrations } from "@/db/migrate";
 import { users } from "@/db/schema";
@@ -15,7 +15,7 @@ export interface AuthenticatedUser {
   image?: string | null;
 }
 
-function isDevAuthEnabled() {
+export function isDevelopmentAuthEnabled() {
   return process.env.NODE_ENV !== "production" && process.env.STACKHATCH_DEV_AUTH === "1";
 }
 
@@ -39,10 +39,14 @@ function getDevUser(): AuthenticatedUser {
   };
 }
 
-function readUser(userId: string): AuthenticatedUser | null {
+function readUser(userId: string, githubId: string): AuthenticatedUser | null {
   const db = getDb();
   runMigrations(db);
-  const user = db.select().from(users).where(eq(users.id, userId)).get();
+  const user = db
+    .select()
+    .from(users)
+    .where(and(eq(users.id, userId), eq(users.githubId, githubId)))
+    .get();
 
   if (!user) return null;
 
@@ -56,13 +60,17 @@ function readUser(userId: string): AuthenticatedUser | null {
 }
 
 export async function getAuthenticatedUser(): Promise<AuthenticatedUser | null> {
-  if (isDevAuthEnabled()) return getDevUser();
+  if (isDevelopmentAuthEnabled()) return getDevUser();
 
-  const session = await auth();
-  const sessionUser = session?.user;
-  if (!sessionUser?.userId) return null;
+  try {
+    const session = await auth();
+    const sessionUser = session?.user;
+    if (!sessionUser?.userId || !sessionUser.githubId) return null;
 
-  return readUser(sessionUser.userId);
+    return readUser(sessionUser.userId, sessionUser.githubId);
+  } catch {
+    return null;
+  }
 }
 
 export async function getAuthenticatedUserId(): Promise<string | null> {

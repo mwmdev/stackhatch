@@ -77,7 +77,12 @@ describe("SettingsPage", () => {
       "href",
       "#node-subtypes"
     );
+    expect(screen.getByRole("link", { name: "Delete account" })).toHaveAttribute(
+      "href",
+      "#delete-account"
+    );
     expect(screen.getByRole("heading", { name: "Node subtypes" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Delete account" })).toBeInTheDocument();
     expect(screen.queryByText("AI Prompts")).not.toBeInTheDocument();
     expect(screen.getAllByRole("main")).toHaveLength(1);
     expect(screen.getAllByRole("heading", { level: 1, name: "Settings" })).toHaveLength(1);

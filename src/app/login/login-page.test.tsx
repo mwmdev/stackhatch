@@ -1,10 +1,14 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import LoginPage, { repoFromCallbackUrl, safeCallbackUrl } from "./page";
 
-vi.mock("@/lib/auth-config", () => ({
-  auth: vi.fn().mockResolvedValue(null),
-  signIn: vi.fn(),
+const mocks = vi.hoisted(() => ({
+  authenticatedUser: null as { userId: string; githubId: string } | null,
+}));
+
+vi.mock("@/lib/auth-config", () => ({ signIn: vi.fn() }));
+vi.mock("@/lib/auth", () => ({
+  getAuthenticatedUser: vi.fn(() => Promise.resolve(mocks.authenticatedUser)),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -16,6 +20,24 @@ vi.mock("next-themes", () => ({
 }));
 
 describe("login callback handling", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.authenticatedUser = null;
+  });
+
+  it("does not redirect an orphaned or database-unavailable cached session", async () => {
+    mocks.authenticatedUser = null;
+    await LoginPage({ searchParams: Promise.resolve({ callbackUrl: "/app" }) });
+    const { redirect } = await import("next/navigation");
+    expect(redirect).not.toHaveBeenCalled();
+  });
+
+  it("redirects only a current database-backed identity", async () => {
+    mocks.authenticatedUser = { userId: "user-1", githubId: "github-1" };
+    await LoginPage({ searchParams: Promise.resolve({ callbackUrl: "/app" }) });
+    const { redirect } = await import("next/navigation");
+    expect(redirect).toHaveBeenCalledWith("/app");
+  });
   it("accepts internal and same-origin callbacks", () => {
     expect(safeCallbackUrl("/app?repo=acme%2Fapi", "https://stackhatch.io")).toBe(
       "/app?repo=acme%2Fapi"

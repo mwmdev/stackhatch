@@ -9,7 +9,7 @@ describe("PrivacyPage", () => {
     expect(screen.getAllByRole("main")).toHaveLength(1);
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     expect(screen.getByRole("heading", { level: 1, name: "Privacy Policy" })).toBeInTheDocument();
-    expect(screen.getByText("Effective July 15, 2026")).toBeInTheDocument();
+    expect(screen.getByText("Effective July 22, 2026")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "StackHatch home" })).toHaveAttribute("href", "/");
     expect(screen.getByRole("button", { name: /^Theme:/ })).toBeInTheDocument();
     const legalNavigation = screen.getByRole("navigation", { name: "Legal pages" });
@@ -42,8 +42,8 @@ describe("PrivacyPage", () => {
     expect(
       screen.getByText(/Analytics never include repository names, project IDs, prompts, API keys/)
     ).toBeInTheDocument();
-    expect(
-      screen.getByText(/To request account deletion, project export, or correction of account data/)
-    ).toBeInTheDocument();
+    expect(screen.getByText(/delete your account permanently from Settings/)).toBeInTheDocument();
+    expect(screen.getByText(/active application database/)).toBeInTheDocument();
+    expect(screen.getByText(/WAL files and backups follow/)).toBeInTheDocument();
   });
 });

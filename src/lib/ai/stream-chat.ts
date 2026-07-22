@@ -1,4 +1,4 @@
-import { eq, asc } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { createId } from "@/lib/id";
 import Anthropic from "@anthropic-ai/sdk";
 import type { AppDatabase } from "@/db";
@@ -33,6 +33,23 @@ export interface RepositoryScanReplacement {
 interface StreamChatOptions {
   contextArchitecture?: StackArchitecture | null;
   repositoryScanReplacement?: RepositoryScanReplacement;
+}
+
+class ProjectOwnershipLostError extends Error {}
+
+function hasOriginalOwner(db: AppDatabase, projectId: string, userId: string) {
+  return Boolean(
+    db
+      .select({ id: projects.id })
+      .from(projects)
+      .where(and(eq(projects.id, projectId), eq(projects.userId, userId)))
+      .get()
+  );
+}
+
+function abortProviderStream(stream: unknown) {
+  const abort = (stream as { abort?: unknown }).abort;
+  if (typeof abort === "function") abort.call(stream);
 }
 
 function getErrorStatus(err: unknown): number | null {
@@ -119,17 +136,36 @@ export function streamChat(
     includeNoteNodes: true,
   });
 
-  // Save user message if present
-  if (userMessage) {
-    db.insert(messages)
-      .values({
-        id: createId(),
-        projectId,
-        role: "user",
-        content: userMessage,
-        createdAt: Date.now(),
-      })
-      .run();
+  const originalOwnerId = user.userId;
+  let project: { description: string | null; canvasState: string | null };
+  try {
+    project = db.transaction((tx) => {
+      const ownedProject = tx
+        .select({ description: projects.description, canvasState: projects.canvasState })
+        .from(projects)
+        .where(and(eq(projects.id, projectId), eq(projects.userId, originalOwnerId)))
+        .get();
+      if (!ownedProject) throw new ProjectOwnershipLostError();
+
+      if (userMessage) {
+        tx.insert(messages)
+          .values({
+            id: createId(),
+            projectId,
+            role: "user",
+            content: userMessage,
+            createdAt: Date.now(),
+          })
+          .run();
+      }
+      return ownedProject;
+    });
+  } catch (error) {
+    if (!(error instanceof ProjectOwnershipLostError)) throw error;
+    return new Response(
+      sseEvent({ type: "error", code: "PROJECT_UNAVAILABLE", content: "Project not found." }),
+      { headers: SSE_HEADERS, status: 404 }
+    );
   }
 
   // Load chat history
@@ -139,13 +175,6 @@ export function streamChat(
     .where(eq(messages.projectId, projectId))
     .orderBy(asc(messages.createdAt))
     .all();
-
-  // Load current canvas state for architecture context
-  const project = db
-    .select({ description: projects.description, canvasState: projects.canvasState })
-    .from(projects)
-    .where(eq(projects.id, projectId))
-    .get();
 
   let persistedArchitecture: StackArchitecture | null = null;
   if (project?.canvasState) {
@@ -212,10 +241,19 @@ export function streamChat(
 
         for await (const event of anthropicStream) {
           if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+            if (!hasOriginalOwner(db, projectId, originalOwnerId)) {
+              abortProviderStream(anthropicStream);
+              throw new ProjectOwnershipLostError();
+            }
             const text = event.delta.text;
             fullResponse += text;
             controller.enqueue(encoder.encode(sseEvent({ type: "text", content: text })));
           }
+        }
+
+        if (!hasOriginalOwner(db, projectId, originalOwnerId)) {
+          abortProviderStream(anthropicStream);
+          throw new ProjectOwnershipLostError();
         }
 
         // Parse the full response for architecture
@@ -241,6 +279,13 @@ export function streamChat(
 
         const saveTimestamp = Date.now();
         db.transaction((tx) => {
+          const ownedProject = tx
+            .select({ id: projects.id })
+            .from(projects)
+            .where(and(eq(projects.id, projectId), eq(projects.userId, originalOwnerId)))
+            .get();
+          if (!ownedProject) throw new ProjectOwnershipLostError();
+
           if (options.repositoryScanReplacement) {
             tx.delete(messages).where(eq(messages.projectId, projectId)).run();
           }
@@ -287,6 +332,11 @@ export function streamChat(
           }
         });
 
+        if (!hasOriginalOwner(db, projectId, originalOwnerId)) {
+          abortProviderStream(anthropicStream);
+          throw new ProjectOwnershipLostError();
+        }
+
         if (parsed.architecture) {
           controller.enqueue(
             encoder.encode(
@@ -304,6 +354,10 @@ export function streamChat(
         controller.enqueue(encoder.encode(sseEvent({ type: "done" })));
         controller.close();
       } catch (err) {
+        if (err instanceof ProjectOwnershipLostError) {
+          controller.close();
+          return;
+        }
         const error = normalizeAIError(err);
         controller.enqueue(encoder.encode(sseEvent({ type: "error", ...error })));
         controller.close();

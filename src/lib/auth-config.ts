@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import NextAuth from "next-auth";
 import GitHubProvider from "next-auth/providers/github";
 import { getDb } from "@/db";
@@ -9,6 +9,23 @@ import { provisionUser } from "@/lib/user-provisioning";
 function githubAvatarUrl(profile: object): string | null {
   if (!("avatar_url" in profile) || typeof profile.avatar_url !== "string") return null;
   return profile.avatar_url;
+}
+
+function clearCachedIdentity<
+  T extends {
+    userId?: unknown;
+    githubId?: unknown;
+    name?: unknown;
+    email?: unknown;
+    picture?: unknown;
+  },
+>(token: T): T {
+  delete token.userId;
+  delete token.githubId;
+  delete token.name;
+  delete token.email;
+  delete token.picture;
+  return token;
 }
 
 export const {
@@ -47,30 +64,48 @@ export const {
       }
     },
     async jwt({ token, account, profile }) {
-      if (!account || !profile?.id) return token;
+      const isFreshGitHubSignIn = account?.provider === "github" && profile?.id != null;
+      const githubId = isFreshGitHubSignIn
+        ? String(profile.id)
+        : typeof token.githubId === "string"
+          ? token.githubId
+          : null;
+      const userId = typeof token.userId === "string" ? token.userId : null;
 
-      const githubId = String(profile.id);
-      token.githubId = githubId;
+      if (!githubId || (!isFreshGitHubSignIn && !userId)) {
+        return clearCachedIdentity(token);
+      }
 
       try {
         const db = getDb();
         runMigrations(db);
-        const user = db.select().from(users).where(eq(users.githubId, githubId)).get();
+        const user = db
+          .select()
+          .from(users)
+          .where(
+            isFreshGitHubSignIn
+              ? eq(users.githubId, githubId)
+              : and(eq(users.id, userId!), eq(users.githubId, githubId))
+          )
+          .get();
 
-        if (user) {
+        if (user && user.githubId === githubId && (isFreshGitHubSignIn || user.id === userId)) {
           token.userId = user.id;
           token.githubId = user.githubId;
+          return token;
         }
       } catch (error) {
-        console.error("Error fetching user ID:", error);
+        console.error("Error validating account identity:", error);
       }
 
-      return token;
+      return clearCachedIdentity(token);
     },
     async session({ session, token }) {
-      if (session.user) {
-        session.user.githubId = typeof token.githubId === "string" ? token.githubId : undefined;
-        session.user.userId = typeof token.userId === "string" ? token.userId : undefined;
+      if (session.user && typeof token.githubId === "string" && typeof token.userId === "string") {
+        session.user.githubId = token.githubId;
+        session.user.userId = token.userId;
+      } else {
+        delete (session as { user?: typeof session.user }).user;
       }
       return session;
     },
