@@ -94,6 +94,40 @@ describe("provisionUser", () => {
     });
   });
 
+  it("reuses an explicitly requested internal ID from an older development identity", () => {
+    db.insert(users)
+      .values({
+        id: "dev-user",
+        githubId: "dev",
+        email: "old@stackhatch.local",
+        name: "Old Dev User",
+        avatarUrl: null,
+        createdAt: 50,
+      })
+      .run();
+
+    const user = provisionUser(db, {
+      id: "dev-user",
+      githubId: "dev-user",
+      email: "dev@stackhatch.local",
+      name: "Dev User",
+      avatarUrl: null,
+      now: 100,
+    });
+
+    expect(user).toMatchObject({
+      id: "dev-user",
+      githubId: "dev",
+      email: "dev@stackhatch.local",
+      name: "Dev User",
+    });
+    expect(db.select().from(users).all()).toHaveLength(1);
+    expect(db.select().from(userSettings).get()).toMatchObject({
+      userId: "dev-user",
+      customSubtypes: "{}",
+    });
+  });
+
   it("rolls back a new user when settings creation fails", () => {
     sqlite.exec(`
       CREATE TRIGGER reject_settings

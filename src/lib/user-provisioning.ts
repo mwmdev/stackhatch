@@ -20,7 +20,16 @@ export function provisionUser(db: AppDatabase, input: ProvisionUserInput) {
   const now = input.now ?? Date.now();
 
   return db.transaction((tx) => {
-    const existing = tx.select().from(users).where(eq(users.githubId, input.githubId)).get();
+    const existingByGithubId = tx
+      .select()
+      .from(users)
+      .where(eq(users.githubId, input.githubId))
+      .get();
+    // Development auth has used the same fixed internal ID across older GitHub-ID aliases.
+    // Reuse that trusted explicit ID instead of attempting a colliding insert.
+    const existing =
+      existingByGithubId ??
+      (input.id ? tx.select().from(users).where(eq(users.id, input.id)).get() : undefined);
 
     if (existing) {
       const merged = {
