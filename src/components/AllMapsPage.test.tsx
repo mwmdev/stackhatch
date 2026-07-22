@@ -66,7 +66,7 @@ describe("AllMapsPage", () => {
 
   it("renders the owned map response in API order with one New map action", async () => {
     mockFetch();
-    render(<AllMapsPage isAdmin={false} />);
+    render(<AllMapsPage />);
 
     expect(screen.getByText("Loading maps...")).toBeInTheDocument();
     await screen.findByRole("heading", { name: "All Maps" });
@@ -103,7 +103,7 @@ describe("AllMapsPage", () => {
 
   it("opens a selected map", async () => {
     mockFetch();
-    render(<AllMapsPage isAdmin={false} />);
+    render(<AllMapsPage />);
 
     fireEvent.click(await screen.findByTestId("project-card-older"));
     expect(push).toHaveBeenCalledWith("/project/older");
@@ -111,7 +111,7 @@ describe("AllMapsPage", () => {
 
   it("shows a recoverable load failure and retries", async () => {
     mockFetch({ projectResponses: [null, projects] });
-    render(<AllMapsPage isAdmin={false} />);
+    render(<AllMapsPage />);
 
     expect(await screen.findByText(/Maps could not be loaded/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
@@ -134,7 +134,7 @@ describe("AllMapsPage", () => {
         json: () => Promise.resolve([projects[0]]),
       } as Response);
     }) as unknown as typeof global.fetch;
-    render(<AllMapsPage isAdmin={false} />);
+    render(<AllMapsPage />);
 
     expect(await screen.findByText("Newest map")).toBeInTheDocument();
 
@@ -147,14 +147,14 @@ describe("AllMapsPage", () => {
 
   it("shows a recoverable network failure", async () => {
     mockFetch({ projectResponses: [new Error("offline")] });
-    render(<AllMapsPage isAdmin={false} />);
+    render(<AllMapsPage />);
 
     expect(await screen.findByText(/Check your connection/)).toBeInTheDocument();
   });
 
   it("confirms deletion before removing a map", async () => {
     mockFetch();
-    render(<AllMapsPage isAdmin={false} />);
+    render(<AllMapsPage />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Delete Newest map" }));
     expect(screen.getByRole("dialog", { name: "Delete map" })).toBeInTheDocument();
@@ -166,29 +166,20 @@ describe("AllMapsPage", () => {
     expect(global.fetch).toHaveBeenCalledWith("/api/projects/newest", { method: "DELETE" });
   });
 
-  it("keeps settings, theme, and admin navigation", async () => {
+  it("keeps settings and theme controls without privileged navigation", async () => {
     mockFetch();
-    render(<AllMapsPage isAdmin />);
+    render(<AllMapsPage />);
 
     await screen.findByText("Newest map");
     expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings");
-    expect(screen.getByRole("link", { name: "Admin" })).toHaveAttribute("href", "/admin");
+    expect(screen.queryByRole("link", { name: "Admin" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /theme/i })).toBeInTheDocument();
     expect(screen.getByRole("tooltip", { name: "Settings" })).toBeInTheDocument();
-    expect(screen.getByRole("tooltip", { name: "Admin" })).toBeInTheDocument();
-  });
-
-  it("hides admin navigation when the supplied role is not admin", async () => {
-    mockFetch();
-    render(<AllMapsPage isAdmin={false} />);
-
-    await screen.findByText("Newest map");
-    expect(screen.queryByRole("link", { name: "Admin" })).not.toBeInTheDocument();
   });
 
   it("directs an empty library to the single New map action", async () => {
     mockFetch({ projectResponses: [[]] });
-    render(<AllMapsPage isAdmin={false} />);
+    render(<AllMapsPage />);
 
     expect(await screen.findByText(/No maps yet\./)).toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: "New map" })).toHaveLength(1);

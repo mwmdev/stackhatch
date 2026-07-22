@@ -2,26 +2,23 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import * as schema from "@/db/schema";
-import { settings, userSettings, type UserRole } from "@/db/schema";
+import { userSettings } from "@/db/schema";
 import type { AppDatabase } from "@/db";
 import { decryptSecret } from "@/lib/secrets";
 import { DEFAULT_AI_MODEL } from "@/lib/ai/models";
 
 let testDb: AppDatabase;
-let mockUserRole: UserRole = "admin";
+let mockUserId = "test-user-id";
 
 function createTestDb() {
   const sqlite = new Database(":memory:");
   sqlite.exec(`
-    CREATE TABLE settings (
-      key TEXT PRIMARY KEY NOT NULL,
-      value TEXT NOT NULL
-    );
     CREATE TABLE user_settings (
       user_id TEXT PRIMARY KEY NOT NULL,
       anthropic_api_key TEXT,
       model TEXT DEFAULT '${DEFAULT_AI_MODEL}' NOT NULL,
       theme TEXT DEFAULT 'system' NOT NULL,
+      custom_subtypes TEXT DEFAULT '{}' NOT NULL,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );
@@ -40,8 +37,7 @@ vi.mock("@/db/migrate", () => ({
 vi.mock("@/lib/auth", () => ({
   getAuthenticatedUser: vi.fn(() =>
     Promise.resolve({
-      userId: "test-user-id",
-      role: mockUserRole,
+      userId: mockUserId,
       name: "Test User",
       email: "test@example.com",
       image: null,
@@ -61,7 +57,7 @@ function makeRequest(body: unknown) {
 
 beforeEach(() => {
   testDb = createTestDb();
-  mockUserRole = "admin";
+  mockUserId = "test-user-id";
   delete process.env.ANTHROPIC_API_KEY;
   delete process.env.ANTHROPIC_MODEL;
 });
@@ -76,9 +72,7 @@ describe("GET /api/settings", () => {
       hasAnthropicKey: false,
       model: DEFAULT_AI_MODEL,
       theme: "system",
-      customSubtypes: "{}",
-      role: "admin",
-      isAdmin: true,
+      customSubtypes: {},
     });
     expect(data.apiKey).toBeUndefined();
   });
@@ -96,10 +90,13 @@ describe("GET /api/settings", () => {
       })
       .run();
     testDb
-      .insert(settings)
-      .values({ key: "customSubtypes", value: '{"client":[{"slug":"kiosk"}]}' })
+      .update(userSettings)
+      .set({
+        customSubtypes: JSON.stringify({
+          client: [{ slug: "kiosk", displayName: "Kiosk", icon: "Box" }],
+        }),
+      })
       .run();
-    mockUserRole = "user";
 
     const res = await settingsRoute.GET();
     const data = await res.json();
@@ -108,31 +105,58 @@ describe("GET /api/settings", () => {
       hasAnthropicKey: true,
       model: "claude-opus-4-8",
       theme: "dark",
-      customSubtypes: '{"client":[{"slug":"kiosk"}]}',
-      role: "user",
-      isAdmin: false,
+      customSubtypes: {
+        client: [{ slug: "kiosk", displayName: "Kiosk", icon: "Box" }],
+      },
     });
   });
 
-  it("ignores server and global AI configuration", async () => {
+  it("ignores server AI configuration", async () => {
     process.env.ANTHROPIC_API_KEY = "sk-ant-env-key";
     process.env.ANTHROPIC_MODEL = "claude-opus-4-8";
-    testDb
-      .insert(settings)
-      .values([
-        { key: "apiKey", value: "sk-ant-global-key" },
-        { key: "model", value: "claude-opus-4-8" },
-        { key: "prompt_chat", value: "private prompt" },
-      ])
-      .run();
-
     const res = await settingsRoute.GET();
     const data = await res.json();
 
     expect(data.hasAnthropicKey).toBe(false);
     expect(data.model).toBe(DEFAULT_AI_MODEL);
     expect(data.apiKey).toBeUndefined();
-    expect(data.prompt_chat).toBeUndefined();
+  });
+
+  it("returns only the authenticated user's subtype catalog", async () => {
+    testDb
+      .insert(userSettings)
+      .values([
+        {
+          userId: "test-user-id",
+          model: DEFAULT_AI_MODEL,
+          customSubtypes: JSON.stringify({
+            client: [{ slug: "kiosk", displayName: "Kiosk", icon: "Box" }],
+          }),
+          createdAt: 1,
+          updatedAt: 1,
+        },
+        {
+          userId: "other-user-id",
+          model: DEFAULT_AI_MODEL,
+          customSubtypes: JSON.stringify({
+            data: [{ slug: "ledger", displayName: "Ledger", icon: "Database" }],
+          }),
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      ])
+      .run();
+
+    const first = await (await settingsRoute.GET()).json();
+    mockUserId = "other-user-id";
+    const second = await (await settingsRoute.GET()).json();
+
+    expect(first.customSubtypes).toEqual({
+      client: [{ slug: "kiosk", displayName: "Kiosk", icon: "Box" }],
+    });
+    expect(second.customSubtypes).toEqual({
+      data: [{ slug: "ledger", displayName: "Ledger", icon: "Database" }],
+    });
   });
 });
 
@@ -194,7 +218,87 @@ describe("PATCH /api/settings", () => {
     expect(data.model).toBe(DEFAULT_AI_MODEL);
     expect(data.apiKey).toBeUndefined();
     expect(testDb.select().from(userSettings).get()?.theme).toBe("light");
-    expect(testDb.select().from(settings).all()).toEqual([]);
+  });
+
+  it("stores a structured custom subtype catalog alongside other settings", async () => {
+    const customSubtypes = {
+      services: [{ slug: "fraud-engine", displayName: "Fraud engine", icon: "ShieldCheck" }],
+      client: [{ slug: "kiosk", displayName: "Kiosk", icon: "Box" }],
+    };
+
+    const res = await settingsRoute.PATCH(makeRequest({ customSubtypes, theme: "dark" }) as never);
+    const data = await res.json();
+    const stored = testDb.select().from(userSettings).get();
+
+    expect(res.status).toBe(200);
+    expect(data.customSubtypes).toEqual(customSubtypes);
+    expect(data.theme).toBe("dark");
+    expect(JSON.parse(stored!.customSubtypes)).toEqual(customSubtypes);
+    expect(stored?.theme).toBe("dark");
+  });
+
+  it.each([
+    [{ unknown: [] }, /unknown category/i],
+    [{ client: [{ slug: "extra", displayName: "Extra", icon: "Box", extra: true }] }, /exactly/i],
+    [{ client: [{ slug: "Not Kebab", displayName: "Name", icon: "Box" }] }, /kebab-case/i],
+    [{ client: [{ slug: "kiosk", displayName: " Kiosk", icon: "Box" }] }, /trimmed/i],
+    [{ client: [{ slug: "kiosk", displayName: "Kiosk\nterminal", icon: "Box" }] }, /line breaks/i],
+    [{ client: [{ slug: "", displayName: "Kiosk", icon: "Box" }] }, /1-40/i],
+    [{ client: [{ slug: "kiosk", displayName: "K".repeat(61), icon: "Box" }] }, /1-60/i],
+    [{ client: [{ slug: "kiosk", displayName: "Kiosk", icon: "MissingIcon" }] }, /Lucide/i],
+    [{ client: [{ slug: "web-app", displayName: "Web app", icon: "Box" }] }, /built-in/i],
+    [
+      {
+        client: [
+          { slug: "kiosk", displayName: "Kiosk", icon: "Box" },
+          { slug: "kiosk", displayName: "Kiosk 2", icon: "Box" },
+        ],
+      },
+      /unique/i,
+    ],
+    [
+      {
+        client: Array.from({ length: 21 }, (_, index) => ({
+          slug: `custom-${index}`,
+          displayName: `Custom ${index}`,
+          icon: "Box",
+        })),
+      },
+      /20/i,
+    ],
+  ])(
+    "rejects invalid custom subtype payload %# without partial persistence",
+    async (catalog, error) => {
+      testDb
+        .insert(userSettings)
+        .values({
+          userId: "test-user-id",
+          model: DEFAULT_AI_MODEL,
+          theme: "light",
+          createdAt: 1,
+          updatedAt: 1,
+        })
+        .run();
+
+      const res = await settingsRoute.PATCH(
+        makeRequest({ customSubtypes: catalog, theme: "dark" }) as never
+      );
+      const data = await res.json();
+      const stored = testDb.select().from(userSettings).get();
+
+      expect(res.status).toBe(400);
+      expect(data.error).toMatch(error);
+      expect(stored?.theme).toBe("light");
+      expect(stored?.customSubtypes).toBe("{}");
+    }
+  );
+
+  it("rejects an empty update and unknown settings keys", async () => {
+    expect((await settingsRoute.PATCH(makeRequest({}) as never)).status).toBe(400);
+    expect(
+      (await settingsRoute.PATCH(makeRequest({ customSubtypes: {}, surprise: true }) as never))
+        .status
+    ).toBe(400);
   });
 
   it("rejects unsupported models", async () => {

@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import UserAvatar from "./UserAvatar";
 
@@ -7,7 +7,7 @@ describe("UserAvatar", () => {
     global.fetch = vi.fn(() =>
       Promise.resolve({
         ok: true,
-        json: () => Promise.resolve({ name: "Free Customer", role: "free" }),
+        json: () => Promise.resolve({ name: "Free Customer" }),
       })
     ) as unknown as typeof fetch;
 
@@ -18,31 +18,11 @@ describe("UserAvatar", () => {
     });
   });
 
-  it("does not report a role after unmounting before /api/me resolves", async () => {
-    let resolveFetch!: (response: {
-      ok: boolean;
-      json: () => Promise<{ name: string; role: string }>;
-    }) => void;
-    global.fetch = vi.fn(
-      () =>
-        new Promise((resolve) => {
-          resolveFetch = resolve;
-        })
-    ) as unknown as typeof fetch;
-    const onRoleLoaded = vi.fn();
+  it("keeps a neutral fallback when the current identity cannot be loaded", async () => {
+    global.fetch = vi.fn(() => Promise.reject(new Error("offline"))) as unknown as typeof fetch;
 
-    const { unmount } = render(<UserAvatar onRoleLoaded={onRoleLoaded} />);
-    unmount();
+    render(<UserAvatar />);
 
-    await act(async () => {
-      resolveFetch({
-        ok: true,
-        json: () => Promise.resolve({ name: "Admin User", role: "admin" }),
-      });
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    expect(onRoleLoaded).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByLabelText("User")).toHaveTextContent("U"));
   });
 });

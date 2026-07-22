@@ -36,7 +36,6 @@ export default defineConfig({
     env: {
       ...process.env,
       STACKHATCH_DEV_AUTH: "1",
-      STACKHATCH_DEV_ROLE: "admin",
       NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET || "test-secret",
       STACKHATCH_ENCRYPTION_KEY:
         process.env.STACKHATCH_ENCRYPTION_KEY || "playwright-encryption-key",

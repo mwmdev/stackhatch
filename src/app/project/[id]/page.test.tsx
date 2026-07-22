@@ -52,6 +52,7 @@ vi.mock("reactflow", () => {
                 (node as { data?: { customSubtypes?: { client?: unknown[] } } }).data
                   ?.customSubtypes?.client ?? []
               ),
+              "data-node-subtype": (node as { data?: { subtype?: string } }).data?.subtype ?? "",
               onClick: (event: React.MouseEvent) => {
                 event.stopPropagation();
                 (
@@ -453,6 +454,25 @@ const projectWithPositions = {
   },
 };
 
+const projectWithRetiredSubtype = {
+  ...emptyProject,
+  canvasState: {
+    nodes: [
+      {
+        id: "retired-node",
+        category: "client",
+        subtype: "retired-kiosk",
+        name: "Lobby kiosk",
+        technology: "Chrome",
+        description: "A saved legacy node",
+        reasoning: "Imported",
+        locked: false,
+      },
+    ],
+    edges: [],
+  },
+};
+
 function mockFetchProject(
   project: unknown,
   options: {
@@ -467,8 +487,6 @@ function mockFetchProject(
         json: () =>
           Promise.resolve(
             options.settings ?? {
-              role: "user",
-              isAdmin: false,
               hasAnthropicKey: true,
               model: "claude-sonnet-5",
             }
@@ -842,7 +860,7 @@ describe("ProjectPage", () => {
       expect(screen.getByTestId("editor-tool-surface")).toHaveAttribute("data-obscured", "true");
     });
 
-    it("reserves viewport height for the impersonation banner", async () => {
+    it("uses the full viewport height contract", async () => {
       mockFetchProject(projectWithNodes);
       render(<ProjectPage />);
       await waitFor(() => {
@@ -852,7 +870,7 @@ describe("ProjectPage", () => {
       expect(screen.getByTestId("project-editor-shell")).toHaveClass("project-editor-shell");
       expect(screen.getByTestId("project-editor-shell")).toHaveAttribute(
         "data-height-contract",
-        "viewport-minus-impersonation"
+        "viewport"
       );
     });
 
@@ -1101,20 +1119,6 @@ describe("ProjectPage", () => {
       expect(prdButton.querySelector(".lucide-sparkles")).toBeInTheDocument();
     });
 
-    it("shows PRD export for admin users", async () => {
-      mockFetchProject(projectWithNodes, {
-        settings: { role: "admin", isAdmin: true },
-      });
-      render(<ProjectPage />);
-      await waitFor(() => {
-        expect(screen.getByRole("button", { name: "More project actions" })).toBeInTheDocument();
-      });
-      fireEvent.click(screen.getByRole("button", { name: "More project actions" }));
-      expect(
-        screen.getByRole("menuitem", { name: "Generate PRD from architecture" })
-      ).toBeInTheDocument();
-    });
-
     it("announces PRD progress and failure after the transient More menu closes", async () => {
       mockFetchProject(projectWithNodes);
       const baseFetch = global.fetch;
@@ -1232,10 +1236,10 @@ describe("ProjectPage", () => {
     it("applies shared custom subtypes when constructing persisted nodes", async () => {
       mockFetchProject(projectWithNodes, {
         settings: {
-          role: "user",
-          isAdmin: false,
           hasAnthropicKey: true,
-          customSubtypes: '{"client":[{"slug":"kiosk","displayName":"Kiosk","icon":"Box"}]}',
+          customSubtypes: {
+            client: [{ slug: "kiosk", displayName: "Kiosk", icon: "Box" }],
+          },
         },
       });
       render(<ProjectPage />);
@@ -1246,6 +1250,16 @@ describe("ProjectPage", () => {
           '[{"slug":"kiosk","displayName":"Kiosk","icon":"Box"}]'
         );
       });
+    });
+
+    it("loads a saved retired subtype without rewriting its raw value", async () => {
+      mockFetchProject(projectWithRetiredSubtype, { settings: { customSubtypes: {} } });
+      render(<ProjectPage />);
+
+      expect(await screen.findByTestId("mock-flow-node-retired-node")).toHaveAttribute(
+        "data-node-subtype",
+        "retired-kiosk"
+      );
     });
 
     it("loads edges into React Flow canvas", async () => {

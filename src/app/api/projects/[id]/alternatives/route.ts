@@ -3,7 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { getDb } from "@/db";
 import { runMigrations } from "@/db/migrate";
-import { getSettings, getApiKey, getModel, getPrompt } from "@/lib/ai/settings";
+import { getApiKey, getModel } from "@/lib/ai/settings";
 import { DEFAULT_ALTERNATIVES_PROMPT } from "@/lib/ai/default-prompts";
 import { buildCanvasContext } from "@/lib/ai/context-builder";
 import type { StackArchitecture, AlternativeNode } from "@/types/stack";
@@ -60,7 +60,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: "Project not found" }, { status: 404 });
   }
 
-  const settingsMap = getSettings(db);
   const apiKey = getApiKey(db, user.userId);
   if (!apiKey) {
     return NextResponse.json(
@@ -87,17 +86,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const { node } = parsed.data;
   const client = new Anthropic({ apiKey });
-  const alternativesPrompt = getPrompt(
-    settingsMap,
-    "prompt_alternatives",
-    DEFAULT_ALTERNATIVES_PROMPT
-  );
 
   try {
     const response = await client.messages.create({
       model,
       max_tokens: 1024,
-      system: alternativesPrompt,
+      system: DEFAULT_ALTERNATIVES_PROMPT,
       messages: [
         {
           role: "user",

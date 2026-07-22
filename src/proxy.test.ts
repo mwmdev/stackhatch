@@ -32,6 +32,16 @@ describe("proxy", () => {
     expect(getToken).not.toHaveBeenCalled();
   });
 
+  it.each(["/admin", "/admin/users"])(
+    "lets retired admin path %s reach the router instead of redirecting",
+    async (pathname) => {
+      const response = await proxy(makeRequest(pathname));
+
+      expect(response.headers.get("x-middleware-next")).toBe("1");
+      expect(getToken).not.toHaveBeenCalled();
+    }
+  );
+
   it("redirects protected paths to login when unauthenticated", async () => {
     getToken.mockResolvedValueOnce(null);
 

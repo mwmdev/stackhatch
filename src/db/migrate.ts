@@ -1,5 +1,6 @@
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { getDb, type AppDatabase } from "./index";
+import { parseCustomSubtypes } from "@/lib/custom-subtypes";
 import path from "path";
 
 const migratedDatabases = new WeakSet<AppDatabase>();
@@ -25,11 +26,35 @@ function assertLegacyProjectsHaveOwners(database: AppDatabase) {
   );
 }
 
+function assertLegacyCustomSubtypesAreValid(database: AppDatabase) {
+  const sqlite = database.$client;
+  const settingsTable = sqlite
+    .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'settings'")
+    .get();
+  if (!settingsTable) return;
+
+  const row = sqlite.prepare("SELECT value FROM settings WHERE key = 'customSubtypes'").get() as
+    | { value: string }
+    | undefined;
+  if (!row) return;
+
+  try {
+    parseCustomSubtypes(row.value);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : "the value is invalid";
+    throw new Error(
+      `Cannot migrate the global custom subtype catalog: ${detail}. ` +
+        "No schema changes were applied. Back up the database, repair or remove the settings.customSubtypes row, and restart StackHatch."
+    );
+  }
+}
+
 export function runMigrations(db?: AppDatabase) {
   const database = db ?? getDb();
   if (migratedDatabases.has(database)) return;
 
   assertLegacyProjectsHaveOwners(database);
+  assertLegacyCustomSubtypesAreValid(database);
   const migrationsFolder = path.resolve(process.cwd(), "drizzle");
   migrate(database, { migrationsFolder });
   migratedDatabases.add(database);

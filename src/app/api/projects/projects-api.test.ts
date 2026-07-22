@@ -10,7 +10,6 @@ let testDb: AppDatabase;
 
 const authState = vi.hoisted(() => ({
   userId: "test-user-id" as string | null,
-  impersonatedBy: false,
 }));
 
 function createTestDb() {
@@ -23,7 +22,6 @@ function createTestDb() {
       email TEXT,
       name TEXT,
       avatar_url TEXT,
-      role TEXT DEFAULT 'user' NOT NULL,
       created_at INTEGER NOT NULL
     );
     CREATE TABLE projects (
@@ -80,20 +78,10 @@ vi.mock("@/lib/auth", () => ({
     if (!authState.userId) return Promise.resolve(null);
     return Promise.resolve({
       userId: authState.userId,
-      role: "admin",
+      githubId: "123456789",
       name: "Test User",
       email: "test@example.com",
       image: null,
-      ...(authState.impersonatedBy
-        ? {
-            impersonatedBy: {
-              userId: "actual-admin",
-              role: "admin",
-              name: "Actual Admin",
-              email: "admin@example.com",
-            },
-          }
-        : {}),
     });
   }),
 }));
@@ -119,7 +107,6 @@ function makeParams(id: string) {
 
 beforeEach(() => {
   authState.userId = "test-user-id";
-  authState.impersonatedBy = false;
   testDb = createTestDb();
   // Create test user
   testDb
@@ -130,7 +117,6 @@ beforeEach(() => {
       email: "test@example.com",
       name: "Test User",
       avatarUrl: null,
-      role: "admin",
       createdAt: Date.now(),
     })
     .run();
@@ -199,10 +185,7 @@ describe("GET /api/projects", () => {
 
   it("returns only projects owned by the authenticated user", async () => {
     const now = Date.now();
-    testDb
-      .insert(users)
-      .values({ id: "other-user", githubId: "987654321", role: "user", createdAt: now })
-      .run();
+    testDb.insert(users).values({ id: "other-user", githubId: "987654321", createdAt: now }).run();
     testDb
       .insert(projects)
       .values([
@@ -452,7 +435,7 @@ describe("GET /api/projects/[id]", () => {
     const now = Date.now();
     testDb
       .insert(users)
-      .values({ id: "other-user", githubId: "other-github", role: "user", createdAt: now })
+      .values({ id: "other-user", githubId: "other-github", createdAt: now })
       .run();
     testDb
       .insert(projects)
@@ -554,7 +537,7 @@ describe("POST /api/projects/[id]/open", () => {
     expect(testDb.select().from(userProjectState).all()).toEqual([]);
   });
 
-  it("validates access but suppresses resume writes during impersonation", async () => {
+  it("updates resume state consistently for the current user", async () => {
     const now = Date.now();
     testDb
       .insert(projects)
@@ -579,8 +562,6 @@ describe("POST /api/projects/[id]/open", () => {
       .insert(userProjectState)
       .values({ userId: "test-user-id", lastOpenedProjectId: "previous" })
       .run();
-    authState.impersonatedBy = true;
-
     const response = await projectOpenRoute.POST(
       makeRequest("/api/projects/opened/open", { method: "POST" }) as never,
       makeParams("opened")
@@ -588,7 +569,7 @@ describe("POST /api/projects/[id]/open", () => {
 
     expect(response.status).toBe(200);
     expect(testDb.select().from(userProjectState).all()).toEqual([
-      { userId: "test-user-id", lastOpenedProjectId: "previous" },
+      { userId: "test-user-id", lastOpenedProjectId: "opened" },
     ]);
   });
 });
@@ -673,7 +654,7 @@ describe("PATCH /api/projects/[id]", () => {
     const now = Date.now();
     testDb
       .insert(users)
-      .values({ id: "other-user", githubId: "other-patch", role: "user", createdAt: now })
+      .values({ id: "other-user", githubId: "other-patch", createdAt: now })
       .run();
     testDb
       .insert(projects)
@@ -849,7 +830,7 @@ describe("DELETE /api/projects/[id]", () => {
     const now = Date.now();
     testDb
       .insert(users)
-      .values({ id: "other-user", githubId: "other-delete", role: "user", createdAt: now })
+      .values({ id: "other-user", githubId: "other-delete", createdAt: now })
       .run();
     testDb
       .insert(projects)

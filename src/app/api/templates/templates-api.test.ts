@@ -18,7 +18,6 @@ function createTestDb() {
       email TEXT,
       name TEXT,
       avatar_url TEXT,
-      role TEXT DEFAULT 'user' NOT NULL,
       created_at INTEGER NOT NULL
     );
     CREATE TABLE templates (
@@ -62,8 +61,8 @@ beforeEach(() => {
   testDb
     .insert(users)
     .values([
-      { id: "owner-id", githubId: "owner-github", role: "user", createdAt: now },
-      { id: "other-id", githubId: "other-github", role: "user", createdAt: now },
+      { id: "owner-id", githubId: "owner-github", createdAt: now },
+      { id: "other-id", githubId: "other-github", createdAt: now },
     ])
     .run();
 });

@@ -3,9 +3,10 @@ import { eq, desc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import Database from "better-sqlite3";
 import * as schema from "./schema";
-import { messages, projects, settings, templates, users } from "./schema";
+import { createTestDb as createConfiguredTestDb } from "./index";
+import { messages, projects, templates, userSettings, users } from "./schema";
 
-function createTestDb() {
+function createSchemaTestDb() {
   const sqlite = new Database(":memory:");
   sqlite.pragma("foreign_keys = ON");
 
@@ -17,7 +18,6 @@ function createTestDb() {
       email TEXT,
       name TEXT,
       avatar_url TEXT,
-      role TEXT DEFAULT 'user' NOT NULL,
       created_at INTEGER NOT NULL
     );
     CREATE TABLE projects (
@@ -43,9 +43,16 @@ function createTestDb() {
       created_at INTEGER NOT NULL,
       FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
     );
-    CREATE TABLE settings (
-      key TEXT PRIMARY KEY NOT NULL,
-      value TEXT NOT NULL
+    CREATE INDEX messages_project_id_idx ON messages (project_id);
+    CREATE TABLE user_settings (
+      user_id TEXT PRIMARY KEY NOT NULL,
+      anthropic_api_key TEXT,
+      model TEXT DEFAULT 'claude-sonnet-5' NOT NULL,
+      theme TEXT DEFAULT 'system' NOT NULL,
+      custom_subtypes TEXT DEFAULT '{}' NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
     CREATE TABLE templates (
       id TEXT PRIMARY KEY NOT NULL,
@@ -56,12 +63,13 @@ function createTestDb() {
       created_at INTEGER NOT NULL,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
+    CREATE INDEX templates_user_id_idx ON templates (user_id);
   `);
 
   return drizzle(sqlite, { schema });
 }
 
-let db: ReturnType<typeof createTestDb>;
+let db: ReturnType<typeof createSchemaTestDb>;
 
 const testUser = {
   id: "test-user-1",
@@ -69,12 +77,11 @@ const testUser = {
   email: "test@example.com",
   name: "Test User",
   avatarUrl: "https://example.com/avatar.png",
-  role: "user" as const,
   createdAt: Date.now(),
 };
 
 beforeEach(() => {
-  db = createTestDb();
+  db = createSchemaTestDb();
   // Create a test user for all project tests
   db.insert(users).values(testUser).run();
 });
@@ -244,51 +251,43 @@ describe("personal project resources", () => {
   });
 });
 
-describe("settings", () => {
-  it("inserts and retrieves a setting", () => {
-    db.insert(settings).values({ key: "theme", value: "dark" }).run();
+describe("user settings", () => {
+  it("stores a per-user custom subtype catalog with an empty default", () => {
+    const now = Date.now();
+    db.insert(userSettings).values({ userId: testUser.id, createdAt: now, updatedAt: now }).run();
 
-    const result = db.select().from(settings).where(eq(settings.key, "theme")).get();
-    expect(result?.value).toBe("dark");
-  });
-
-  it("upserts a setting (update on conflict)", () => {
-    db.insert(settings).values({ key: "prompt_chat", value: "old prompt" }).run();
-
-    // Upsert with onConflictDoUpdate
-    db.insert(settings)
-      .values({ key: "prompt_chat", value: "new prompt" })
-      .onConflictDoUpdate({ target: settings.key, set: { value: "new prompt" } })
-      .run();
-
-    const result = db.select().from(settings).where(eq(settings.key, "prompt_chat")).get();
-    expect(result?.value).toBe("new prompt");
-  });
-
-  it("retrieves all settings as key-value pairs", () => {
-    db.insert(settings)
-      .values([
-        { key: "prompt_chat", value: "chat prompt" },
-        { key: "customSubtypes", value: "{}" },
-        { key: "theme", value: "dark" },
-      ])
-      .run();
-
-    const rows = db.select().from(settings).all();
-    const kv = Object.fromEntries(rows.map((r) => [r.key, r.value]));
-
-    expect(kv).toEqual({
-      prompt_chat: "chat prompt",
+    expect(db.select().from(userSettings).get()).toMatchObject({
+      userId: testUser.id,
       customSubtypes: "{}",
-      theme: "dark",
+      model: "claude-sonnet-5",
+      theme: "system",
     });
   });
 
-  it("deletes a setting", () => {
-    db.insert(settings).values({ key: "theme", value: "light" }).run();
-    db.delete(settings).where(eq(settings.key, "theme")).run();
+  it("cascade deletes personal settings with the owning user", () => {
+    const now = Date.now();
+    db.insert(userSettings)
+      .values({
+        userId: testUser.id,
+        customSubtypes: '{"client":[]}',
+        createdAt: now,
+        updatedAt: now,
+      })
+      .run();
 
-    const result = db.select().from(settings).where(eq(settings.key, "theme")).get();
-    expect(result).toBeUndefined();
+    db.delete(users).where(eq(users.id, testUser.id)).run();
+
+    expect(db.select().from(userSettings).all()).toEqual([]);
+  });
+});
+
+describe("database connection", () => {
+  it("enables secure deletion on every configured connection", () => {
+    const configuredDb = createConfiguredTestDb();
+    try {
+      expect(configuredDb.$client.pragma("secure_delete", { simple: true })).toBe(1);
+    } finally {
+      configuredDb.$client.close();
+    }
   });
 });

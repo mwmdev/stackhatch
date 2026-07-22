@@ -9,9 +9,7 @@ export async function GET() {
 
   return NextResponse.json({
     userId: user.userId,
-    role: user.role,
     name: user.name,
     email: user.email,
-    impersonatedBy: user.impersonatedBy,
   });
 }

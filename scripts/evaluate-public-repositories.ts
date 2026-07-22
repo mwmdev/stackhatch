@@ -1,6 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { buildSystemPrompt } from "../src/lib/ai/system-prompt";
-import { DEFAULT_CHAT_PROMPT } from "../src/lib/ai/default-prompts";
 import { parseAIResponse } from "../src/lib/ai/output-parser";
 import { analyzeRepo, formatRepoAnalysis } from "../src/lib/github-analyzer";
 import { modelSupportsEffort, normalizeAiModel } from "../src/lib/ai/models";
@@ -17,7 +16,7 @@ if (!apiKey) {
 
 async function main() {
   const client = new Anthropic({ apiKey });
-  const system = buildSystemPrompt(undefined, DEFAULT_CHAT_PROMPT, { includeNoteNodes: true });
+  const system = buildSystemPrompt(undefined, { includeNoteNodes: true });
   const results = [];
 
   for (const repository of repositories) {

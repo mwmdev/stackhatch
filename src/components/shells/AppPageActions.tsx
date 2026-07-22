@@ -1,28 +1,16 @@
 "use client";
 
-import { useCallback, useState } from "react";
 import Link from "next/link";
-import { FolderPlus, Map as MapIcon, Settings, Users } from "lucide-react";
+import { FolderPlus, Map as MapIcon, Settings } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import UserAvatar from "@/components/UserAvatar";
 import IconControl from "@/components/ui/IconControl";
 
 export type AppPageActionsProps = {
-  currentPage?: "settings" | "admin";
-  isAdmin?: boolean;
+  currentPage?: "settings";
 };
 
-export default function AppPageActions({ currentPage, isAdmin: knownAdmin }: AppPageActionsProps) {
-  const [loadedIsAdmin, setLoadedIsAdmin] = useState(false);
-  const isAdmin = knownAdmin ?? loadedIsAdmin;
-
-  const handleRoleLoaded = useCallback(
-    (role?: string) => {
-      if (knownAdmin === undefined) setLoadedIsAdmin(role === "admin");
-    },
-    [knownAdmin]
-  );
-
+export default function AppPageActions({ currentPage }: AppPageActionsProps) {
   return (
     <>
       {currentPage ? (
@@ -45,16 +33,6 @@ export default function AppPageActions({ currentPage, isAdmin: knownAdmin }: App
       )}
       <div className="flex items-center gap-1" role="group" aria-label="Account controls">
         <ThemeToggle />
-        {isAdmin && (
-          <IconControl
-            href="/admin"
-            label="Admin"
-            tooltipPlacement="bottom"
-            active={currentPage === "admin"}
-          >
-            <Users />
-          </IconControl>
-        )}
         <IconControl
           href="/settings"
           label="Settings"
@@ -63,7 +41,7 @@ export default function AppPageActions({ currentPage, isAdmin: knownAdmin }: App
         >
           <Settings />
         </IconControl>
-        <UserAvatar onRoleLoaded={handleRoleLoaded} />
+        <UserAvatar />
       </div>
     </>
   );

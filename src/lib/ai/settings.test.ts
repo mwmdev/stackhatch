@@ -5,7 +5,7 @@ import * as schema from "@/db/schema";
 import { userSettings } from "@/db/schema";
 import type { AppDatabase } from "@/db";
 import { DEFAULT_AI_MODEL } from "@/lib/ai/models";
-import { getApiKey, getModel } from "@/lib/ai/settings";
+import { getApiKey, getModel, getUserCustomSubtypes } from "@/lib/ai/settings";
 import { encryptSecret } from "@/lib/secrets";
 
 let testDb: AppDatabase;
@@ -18,6 +18,7 @@ beforeEach(() => {
       anthropic_api_key TEXT,
       model TEXT DEFAULT '${DEFAULT_AI_MODEL}' NOT NULL,
       theme TEXT DEFAULT 'system' NOT NULL,
+      custom_subtypes TEXT DEFAULT '{}' NOT NULL,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );
@@ -85,5 +86,57 @@ describe("user AI settings", () => {
       .run();
 
     expect(getModel(testDb, "legacy-user")).toBe(DEFAULT_AI_MODEL);
+  });
+
+  it("resolves only the requested user's validated custom subtype catalog", () => {
+    testDb
+      .insert(userSettings)
+      .values([
+        {
+          userId: "user-1",
+          anthropicApiKey: null,
+          model: DEFAULT_AI_MODEL,
+          customSubtypes: JSON.stringify({
+            client: [{ slug: "kiosk", displayName: "Kiosk", icon: "Box" }],
+          }),
+          createdAt: 1,
+          updatedAt: 1,
+        },
+        {
+          userId: "user-2",
+          anthropicApiKey: null,
+          model: DEFAULT_AI_MODEL,
+          customSubtypes: JSON.stringify({
+            data: [{ slug: "ledger", displayName: "Ledger", icon: "Database" }],
+          }),
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      ])
+      .run();
+
+    expect(getUserCustomSubtypes(testDb, "user-1")).toEqual({
+      client: [{ slug: "kiosk", displayName: "Kiosk", icon: "Box" }],
+    });
+    expect(getUserCustomSubtypes(testDb, "user-2")).toEqual({
+      data: [{ slug: "ledger", displayName: "Ledger", icon: "Database" }],
+    });
+    expect(getUserCustomSubtypes(testDb, "missing-user")).toEqual({});
+  });
+
+  it("rejects malformed persisted custom subtype data", () => {
+    testDb
+      .insert(userSettings)
+      .values({
+        userId: "invalid-user",
+        anthropicApiKey: null,
+        model: DEFAULT_AI_MODEL,
+        customSubtypes: '{"client":"not-an-array"}',
+        createdAt: 1,
+        updatedAt: 1,
+      })
+      .run();
+
+    expect(() => getUserCustomSubtypes(testDb, "invalid-user")).toThrow(/must be an array/i);
   });
 });

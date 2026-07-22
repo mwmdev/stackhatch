@@ -25,7 +25,6 @@
   --overlay: rgb(16 34 47 / 0.58);
   --ring: var(--blueprint);
   --shadow-color: rgb(16 34 47 / 0.15);
-  --impersonation-banner-height: 0px;
 
   /* Instrument geometry: exact boundaries, compact chrome, generous targets. */
   --page-gutter: clamp(1rem, 3vw, 2rem);
@@ -380,8 +379,8 @@ html:not(.dark):not(.light) .icon-control__icon > .theme-toggle__system {
 }
 
 .project-editor-shell {
-  height: calc(100vh - var(--impersonation-banner-height, 0px));
-  height: calc(100dvh - var(--impersonation-banner-height, 0px));
+  height: 100vh;
+  height: 100dvh;
   min-width: 0;
   overflow: hidden;
 }

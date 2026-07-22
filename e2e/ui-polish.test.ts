@@ -33,11 +33,23 @@ const shellVariants = [
 ];
 
 test.describe("system-wide UI polish", () => {
+  test("retired administrator routes stay absent", async ({ page }) => {
+    const pageResponse = await page.goto("/admin");
+    const usersResponse = await page.request.get("/api/admin/users");
+    const impersonationResponse = await page.request.post("/api/admin/impersonation", {
+      data: { userId: "ignored" },
+    });
+
+    expect(pageResponse?.status()).toBe(404);
+    expect(usersResponse.status()).toBe(404);
+    expect(impersonationResponse.status()).toBe(404);
+  });
+
   test("shared shell navigation bars span the full viewport", async ({ page }) => {
     await page.setViewportSize(shellViewports.desktop);
     await useTheme(page, "light");
 
-    for (const route of ["/support", "/app/maps", "/settings", "/admin"]) {
+    for (const route of ["/support", "/app/maps", "/settings"]) {
       await page.goto(route);
       await page.locator(".page-shell__bar").waitFor();
 
@@ -158,7 +170,7 @@ test.describe("system-wide UI polish", () => {
       if (route === "/app/maps") {
         await expect(page.getByRole("link", { name: "New map" })).toHaveCount(1);
         await expect(page.getByRole("link", { name: "Settings" })).toBeVisible();
-        await expect(page.getByRole("link", { name: "Admin" })).toBeVisible();
+        await expect(page.getByRole("link", { name: "Admin" })).toHaveCount(0);
       } else {
         await expect(page.getByRole("link", { name: "New map" })).toHaveCount(0);
         await expect(page.getByRole("link", { name: "All Maps" })).toBeVisible();
@@ -166,7 +178,7 @@ test.describe("system-wide UI polish", () => {
           "aria-current",
           "page"
         );
-        await expect(page.getByRole("link", { name: "Admin" })).toBeVisible();
+        await expect(page.getByRole("link", { name: "Admin" })).toHaveCount(0);
 
         const widths = await page.evaluate(() => {
           const shellContent = document.querySelector<HTMLElement>(".page-shell__content");
@@ -181,25 +193,6 @@ test.describe("system-wide UI polish", () => {
         expect(widths.settings).toBeCloseTo(widths.shell, 0);
       }
       await expectStablePageFrame(page, route === "/app/maps");
-    });
-  }
-
-  for (const { theme, viewportName } of shellVariants) {
-    test(`admin keeps the dense app shell stable in ${theme} mode at ${viewportName} width`, async ({
-      page,
-    }) => {
-      await page.setViewportSize(shellViewports[viewportName]);
-      await useTheme(page, theme);
-      await page.goto("/admin");
-
-      await expect(page.getByRole("heading", { level: 1, name: "Admin" })).toBeVisible();
-      await expect(page.getByRole("link", { name: "Resume map" })).toBeVisible();
-      await expect(page.getByRole("link", { name: "All Maps" })).toBeVisible();
-      await expect(page.getByRole("link", { name: "Settings" })).toBeVisible();
-      await expect(page.locator(".app-page-shell")).toHaveAttribute("data-density", "dense");
-      await expect(page.getByRole("tab", { name: "Users" })).toBeVisible();
-      await expect(page.locator("html")).toHaveClass(new RegExp(theme));
-      await expectStablePageFrame(page, false);
     });
   }
 
@@ -244,54 +237,6 @@ test.describe("system-wide UI polish", () => {
       await page.keyboard.press("Tab");
     }
     await expect(blankSource).toBeFocused();
-  });
-
-  test("impersonation remains distinct without covering authenticated chrome", async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    const created = await page.request.post("/api/admin/users", {
-      data: {
-        name: `Polish target ${Date.now()}`,
-        email: "polish-target@example.test",
-        role: "user",
-      },
-    });
-    expect(created.status()).toBe(201);
-    const target = (await created.json()) as { id: string };
-
-    const impersonation = await page.request.post("/api/admin/impersonation", {
-      data: { userId: target.id },
-    });
-    expect(impersonation.ok()).toBe(true);
-
-    await page.goto("/project/new");
-    const banner = page.getByRole("status", { name: "Impersonation active" });
-    await expect(banner).toBeVisible();
-    await expect(page.getByRole("button", { name: "Stop impersonating" })).toBeVisible();
-
-    const geometry = await page.evaluate(() => {
-      const bannerBounds = document
-        .querySelector<HTMLElement>('[aria-label="Impersonation active"]')
-        ?.getBoundingClientRect();
-      const headerBounds = document
-        .querySelector<HTMLElement>("body header")
-        ?.getBoundingClientRect();
-      return {
-        bannerBottom: bannerBounds?.bottom ?? -1,
-        headerTop: headerBounds?.top ?? -1,
-        reservedHeight: Number.parseFloat(
-          getComputedStyle(document.documentElement).getPropertyValue(
-            "--impersonation-banner-height"
-          )
-        ),
-      };
-    });
-    expect(geometry.reservedHeight).toBeGreaterThan(0);
-    expect(geometry.headerTop).toBeGreaterThanOrEqual(geometry.bannerBottom - 1);
-
-    await page.getByRole("button", { name: "Stop impersonating" }).click();
-    await expect(banner).toHaveCount(0);
-    const removed = await page.request.delete(`/api/admin/users?userId=${target.id}`);
-    expect(removed.ok()).toBe(true);
   });
 
   test("the editor dock becomes a rail without clipping controls or menus", async ({ page }) => {

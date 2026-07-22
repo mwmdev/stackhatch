@@ -1,16 +1,16 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
-import * as schema from "@/db/schema";
-import { users } from "@/db/schema";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AppDatabase } from "@/db";
+import * as schema from "@/db/schema";
+import { userSettings, users } from "@/db/schema";
 
 let testDb: AppDatabase;
-let mockSessionUserId: string | null = "admin-user";
-let mockImpersonationCookie: string | undefined;
+let mockSessionUserId: string | null = "user-1";
 
 function createTestDb() {
   const sqlite = new Database(":memory:");
+  sqlite.pragma("foreign_keys = ON");
   sqlite.exec(`
     CREATE TABLE users (
       id TEXT PRIMARY KEY NOT NULL,
@@ -18,8 +18,16 @@ function createTestDb() {
       email TEXT,
       name TEXT,
       avatar_url TEXT,
-      role TEXT DEFAULT 'user' NOT NULL,
       created_at INTEGER NOT NULL
+    );
+    CREATE TABLE user_settings (
+      user_id TEXT PRIMARY KEY NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      anthropic_api_key TEXT,
+      model TEXT DEFAULT 'claude-sonnet-5' NOT NULL,
+      theme TEXT DEFAULT 'system' NOT NULL,
+      custom_subtypes TEXT DEFAULT '{}' NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
     );
   `);
   return drizzle(sqlite, { schema });
@@ -35,26 +43,7 @@ vi.mock("@/db/migrate", () => ({
 
 vi.mock("@/lib/auth-config", () => ({
   auth: vi.fn(() =>
-    Promise.resolve(
-      mockSessionUserId
-        ? {
-            user: {
-              userId: mockSessionUserId,
-            },
-          }
-        : null
-    )
-  ),
-}));
-
-vi.mock("next/headers", () => ({
-  cookies: vi.fn(() =>
-    Promise.resolve({
-      get: (name: string) =>
-        name === "stackhatch_impersonate_user" && mockImpersonationCookie
-          ? { value: mockImpersonationCookie }
-          : undefined,
-    })
+    Promise.resolve(mockSessionUserId ? { user: { userId: mockSessionUserId } } : null)
   ),
 }));
 
@@ -62,116 +51,70 @@ const authModule = await import("@/lib/auth");
 
 beforeEach(() => {
   testDb = createTestDb();
-  mockSessionUserId = "admin-user";
-  mockImpersonationCookie = undefined;
+  mockSessionUserId = "user-1";
+  delete process.env.STACKHATCH_DEV_AUTH;
 
   testDb
     .insert(users)
-    .values([
-      {
-        id: "admin-user",
-        githubId: "github-admin",
-        email: "admin@example.com",
-        name: "Admin User",
-        avatarUrl: null,
-        role: "admin",
-        createdAt: 1000,
-      },
-      {
-        id: "member",
-        githubId: "manual:member",
-        email: "member@example.com",
-        name: "Member",
-        avatarUrl: null,
-        role: "user",
-        createdAt: 2000,
-      },
-    ])
+    .values({
+      id: "user-1",
+      githubId: "github-1",
+      email: "user@example.com",
+      name: "User One",
+      avatarUrl: null,
+      createdAt: 1000,
+    })
     .run();
 });
 
-describe("auth impersonation", () => {
-  it("returns the actual admin without an impersonation cookie", async () => {
-    const user = await authModule.getAuthenticatedUser();
-
-    expect(user).toEqual(
-      expect.objectContaining({
-        userId: "admin-user",
-        role: "admin",
-      })
-    );
-    expect(user?.impersonatedBy).toBeUndefined();
+describe("database-backed authentication", () => {
+  it("resolves one current user identity without role or impersonation state", async () => {
+    await expect(authModule.getAuthenticatedUser()).resolves.toEqual({
+      userId: "user-1",
+      githubId: "github-1",
+      name: "User One",
+      email: "user@example.com",
+      image: null,
+    });
   });
 
-  it("returns the impersonated user while preserving the actual admin context", async () => {
-    mockImpersonationCookie = "member";
+  it("rejects a session whose internal user no longer exists", async () => {
+    mockSessionUserId = "deleted-user";
 
-    const user = await authModule.getAuthenticatedUser();
-
-    expect(user).toEqual(
-      expect.objectContaining({
-        userId: "member",
-        role: "user",
-        name: "Member",
-        impersonatedBy: expect.objectContaining({
-          userId: "admin-user",
-          role: "admin",
-        }),
-      })
-    );
+    await expect(authModule.getAuthenticatedUser()).resolves.toBeNull();
+    await expect(authModule.getAuthenticatedUserId()).resolves.toBeNull();
   });
 
-  it("ignores impersonation cookies for non-admin users", async () => {
-    mockSessionUserId = "member";
-    mockImpersonationCookie = "admin-user";
+  it("returns null without a session", async () => {
+    mockSessionUserId = null;
 
-    const user = await authModule.getAuthenticatedUser();
-
-    expect(user).toEqual(
-      expect.objectContaining({
-        userId: "member",
-        role: "user",
-      })
-    );
-    expect(user?.impersonatedBy).toBeUndefined();
-  });
-
-  it("exposes the real admin through getActualAuthenticatedUser", async () => {
-    mockImpersonationCookie = "member";
-
-    const user = await authModule.getActualAuthenticatedUser();
-
-    expect(user).toEqual(
-      expect.objectContaining({
-        userId: "admin-user",
-        role: "admin",
-      })
-    );
-  });
-});
-
-describe("role authorization", () => {
-  it("allows configured roles and returns a plain forbidden response otherwise", async () => {
-    expect(authModule.requireRole("user", ["user"])).toBeNull();
-
-    const response = authModule.requireRole("user", ["admin"]);
-    expect(response?.status).toBe(403);
-    await expect(response?.json()).resolves.toEqual({ error: "Forbidden" });
+    await expect(authModule.getAuthenticatedUser()).resolves.toBeNull();
   });
 });
 
 describe("development authentication", () => {
-  it("defaults the development user to the user role", async () => {
+  it("provisions the fixed development user and settings without a role", async () => {
     process.env.STACKHATCH_DEV_AUTH = "1";
-    delete process.env.STACKHATCH_DEV_ROLE;
 
-    try {
-      await expect(authModule.getAuthenticatedUser()).resolves.toEqual(
-        expect.objectContaining({ userId: "dev-user", role: "user" })
-      );
-    } finally {
-      delete process.env.STACKHATCH_DEV_AUTH;
-      delete process.env.STACKHATCH_DEV_ROLE;
-    }
+    await expect(authModule.getAuthenticatedUser()).resolves.toEqual({
+      userId: "dev-user",
+      githubId: "dev-user",
+      name: "Dev User",
+      email: "dev@stackhatch.local",
+      image: null,
+    });
+    expect(testDb.select().from(userSettings).all()).toEqual([
+      expect.objectContaining({ userId: "dev-user", customSubtypes: "{}" }),
+    ]);
+  });
+
+  it("preserves development user settings on repeat authentication", async () => {
+    process.env.STACKHATCH_DEV_AUTH = "1";
+    await authModule.getAuthenticatedUser();
+    testDb.update(userSettings).set({ theme: "dark" }).run();
+
+    await authModule.getAuthenticatedUser();
+
+    expect(testDb.select().from(userSettings).get()?.theme).toBe("dark");
   });
 });

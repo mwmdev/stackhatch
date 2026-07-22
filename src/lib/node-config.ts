@@ -6,6 +6,10 @@ export interface SubtypeConfig {
   icon: string; // lucide-react icon name
 }
 
+export interface ResolvedSubtypeConfig extends SubtypeConfig {
+  deprecated: boolean;
+}
+
 export interface CategoryConfig {
   displayName: string;
   color: string; // CSS variable name
@@ -181,6 +185,22 @@ export function getSubtypeConfig(
   const entry = custom?.[category]?.find((e) => e.slug === subtype);
   if (entry) return { displayName: entry.displayName, icon: entry.icon };
   return undefined;
+}
+
+export function resolveSubtypeConfig(
+  category: NodeCategory,
+  subtype: NodeSubtype,
+  custom?: CustomSubtypesMap
+): ResolvedSubtypeConfig {
+  const configured = getSubtypeConfig(category, subtype, custom);
+  if (configured) return { ...configured, deprecated: false };
+
+  const categoryConfig = getCategoryConfig(category);
+  return {
+    displayName: subtype,
+    icon: categoryConfig.icon,
+    deprecated: true,
+  };
 }
 
 export function getSubtypesForCategory(

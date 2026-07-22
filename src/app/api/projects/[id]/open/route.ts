@@ -16,13 +16,6 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
   const db = getDb();
   runMigrations(db);
 
-  if (user.impersonatedBy) {
-    if (!hasAccessibleProject(db, id, user.userId)) {
-      return NextResponse.json({ error: "Project not found" }, { status: 404 });
-    }
-    return NextResponse.json({ success: true });
-  }
-
   if (!recordProjectOpen(db, user.userId, id) && !hasAccessibleProject(db, id, user.userId)) {
     return NextResponse.json({ error: "Project not found" }, { status: 404 });
   }

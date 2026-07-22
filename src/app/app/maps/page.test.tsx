@@ -12,21 +12,18 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/lib/auth", () => ({ getAuthenticatedUser: mocks.getAuthenticatedUser }));
 vi.mock("next/navigation", () => ({ redirect: mocks.redirect }));
 vi.mock("@/components/AllMapsPage", () => ({
-  default: ({ isAdmin }: { isAdmin: boolean }) => (
-    <div data-testid="all-maps-page" data-admin={String(isAdmin)} />
-  ),
+  default: () => <div data-testid="all-maps-page" />,
 }));
 
 describe("AllMapsRoute", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("renders the map library for an authenticated user", async () => {
-    mocks.getAuthenticatedUser.mockResolvedValue({ userId: "user-1", role: "user" });
+    mocks.getAuthenticatedUser.mockResolvedValue({ userId: "user-1", githubId: "github-1" });
 
     render(await AllMapsRoute());
 
     expect(screen.getByTestId("all-maps-page")).toBeInTheDocument();
-    expect(screen.getByTestId("all-maps-page")).toHaveAttribute("data-admin", "false");
   });
 
   it("keeps the library authenticated", async () => {

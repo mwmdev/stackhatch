@@ -22,6 +22,7 @@ function createDatabase(dbPath?: string) {
   const sqlite = new Database(resolvedPath);
   sqlite.pragma("journal_mode = WAL");
   sqlite.pragma("foreign_keys = ON");
+  sqlite.pragma("secure_delete = ON");
 
   return drizzle(sqlite, { schema });
 }

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { getDb } from "@/db";
 import { runMigrations } from "@/db/migrate";
-import { getSettings, getApiKey, getModel, getPrompt } from "@/lib/ai/settings";
+import { getApiKey, getModel } from "@/lib/ai/settings";
 import { DEFAULT_PRD_PROMPT } from "@/lib/ai/default-prompts";
 import { buildCanvasContext } from "@/lib/ai/context-builder";
 import type { StackArchitecture } from "@/types/stack";
@@ -47,7 +47,6 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
     );
   }
 
-  const settingsMap = getSettings(db);
   const apiKey = getApiKey(db, user.userId);
   if (!apiKey) {
     return NextResponse.json(
@@ -61,7 +60,6 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
   }
 
   const model = getModel(db, user.userId);
-  const prdPrompt = getPrompt(settingsMap, "prompt_prd", DEFAULT_PRD_PROMPT);
   const canvasContext = buildCanvasContext(architecture);
   const architectureJson = JSON.stringify(architecture, null, 2);
 
@@ -71,7 +69,7 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
     const response = await client.messages.create({
       model,
       max_tokens: 4096,
-      system: prdPrompt,
+      system: DEFAULT_PRD_PROMPT,
       messages: [
         {
           role: "user",

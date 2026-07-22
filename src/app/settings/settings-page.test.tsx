@@ -21,8 +21,7 @@ function mockFetchSettings(settings: Record<string, unknown>) {
         ok: true,
         json: () =>
           Promise.resolve({
-            name: "Admin User",
-            role: "admin",
+            name: "Settings User",
           }),
       });
     }
@@ -74,13 +73,17 @@ describe("SettingsPage", () => {
       "#default-model"
     );
     expect(screen.getByRole("link", { name: "Appearance" })).toHaveAttribute("href", "#appearance");
-    expect(screen.queryByText("Node Subtypes")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Node subtypes" })).toHaveAttribute(
+      "href",
+      "#node-subtypes"
+    );
+    expect(screen.getByRole("heading", { name: "Node subtypes" })).toBeInTheDocument();
     expect(screen.queryByText("AI Prompts")).not.toBeInTheDocument();
     expect(screen.getAllByRole("main")).toHaveLength(1);
     expect(screen.getAllByRole("heading", { level: 1, name: "Settings" })).toHaveLength(1);
     expect(screen.queryByRole("link", { name: "New map" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "All Maps" })).toHaveAttribute("href", "/app/maps");
-    expect(await screen.findByRole("link", { name: "Admin" })).toHaveAttribute("href", "/admin");
+    expect(screen.queryByRole("link", { name: "Admin" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("group", { name: "Account controls" })).toBeInTheDocument();
     expect(screen.getByTestId("settings-content")).toHaveClass("min-w-0");

@@ -7,7 +7,9 @@ import { ArrowLeft, KeyRound, Monitor, Moon, Sun } from "lucide-react";
 import AppPageActions from "@/components/shells/AppPageActions";
 import AppPageShell from "@/components/shells/AppPageShell";
 import IconControl from "@/components/ui/IconControl";
+import CustomSubtypesSettings from "@/components/settings/CustomSubtypesSettings";
 import { AI_MODELS, DEFAULT_AI_MODEL } from "@/lib/ai/models";
+import type { CustomSubtypesMap } from "@/lib/custom-subtypes";
 import { trackEvent } from "@/lib/analytics";
 import {
   buildProjectStartPath,
@@ -27,6 +29,7 @@ interface Settings {
   hasAnthropicKey?: boolean;
   model?: string;
   theme?: string;
+  customSubtypes?: CustomSubtypesMap;
 }
 
 export default function SettingsPage() {
@@ -37,6 +40,7 @@ export default function SettingsPage() {
   const [hasAnthropicKey, setHasAnthropicKey] = useState(false);
   const [apiKey, setApiKey] = useState("");
   const [model, setModel] = useState(DEFAULT_AI_MODEL);
+  const [customSubtypes, setCustomSubtypes] = useState<CustomSubtypesMap>({});
   const [savingApiKey, setSavingApiKey] = useState(false);
   const [savingModel, setSavingModel] = useState(false);
   const [returnTo, setReturnTo] = useState("/app");
@@ -72,6 +76,7 @@ export default function SettingsPage() {
         setHasAnthropicKey(Boolean(data.hasAnthropicKey));
         if (data.model) setModel(data.model);
         if (data.theme) initialThemeSetter.current(data.theme);
+        setCustomSubtypes(data.customSubtypes ?? {});
       })
       .catch(() => {
         setToast({ type: "error", message: "Settings could not be loaded" });
@@ -198,7 +203,7 @@ export default function SettingsPage() {
         homeHref="/app"
         homeLabel="Resume map"
         title="Settings"
-        description="Manage your AI connection, model, and appearance."
+        description="Manage your AI connection, model, appearance, and map vocabulary."
         actions={<AppPageActions currentPage="settings" />}
         navigation={
           isAnthropicSetup ? (
@@ -218,6 +223,7 @@ export default function SettingsPage() {
                 ["#anthropic-key", "01", "API key"],
                 ["#default-model", "02", "Default model"],
                 ["#appearance", "03", "Appearance"],
+                ["#node-subtypes", "04", "Node subtypes"],
               ].map(([href, index, label]) => (
                 <a
                   key={href}
@@ -415,6 +421,8 @@ export default function SettingsPage() {
                     ))}
                   </div>
                 </section>
+
+                <CustomSubtypesSettings initialCatalog={customSubtypes} />
               </div>
             )}
           </div>

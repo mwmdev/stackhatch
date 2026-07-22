@@ -4,11 +4,9 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { AppDatabase } from "@/db";
 import { messages, projects } from "@/db/schema";
 import { buildSystemPrompt, INIT_INSTRUCTION } from "@/lib/ai/system-prompt";
-import { parseCustomSubtypes } from "@/lib/custom-subtypes";
 import { buildMessages } from "@/lib/ai/context-builder";
 import { parseAIResponse } from "@/lib/ai/output-parser";
-import { getSettings, getApiKey, getModel, getPrompt } from "@/lib/ai/settings";
-import { DEFAULT_CHAT_PROMPT } from "@/lib/ai/default-prompts";
+import { getApiKey, getModel, getUserCustomSubtypes } from "@/lib/ai/settings";
 import type { ChatMessage } from "@/types/chat";
 import type { StackArchitecture } from "@/types/stack";
 import type { AuthenticatedUser } from "@/lib/auth";
@@ -90,7 +88,6 @@ export function streamChat(
   user?: AuthenticatedUser,
   options: StreamChatOptions = {}
 ): Response {
-  const settingsMap = getSettings(db);
   if (!user) {
     return new Response(
       sseEvent({
@@ -117,9 +114,8 @@ export function streamChat(
   }
 
   const model = getModel(db, user.userId);
-  const customSubtypes = parseCustomSubtypes(settingsMap.customSubtypes);
-  const chatBase = getPrompt(settingsMap, "prompt_chat", DEFAULT_CHAT_PROMPT);
-  const systemPrompt = buildSystemPrompt(customSubtypes, chatBase, {
+  const customSubtypes = getUserCustomSubtypes(db, user.userId);
+  const systemPrompt = buildSystemPrompt(customSubtypes, {
     includeNoteNodes: true,
   });
 

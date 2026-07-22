@@ -20,48 +20,26 @@ function makeNode(overrides: Partial<StackNode> = {}): StackNode {
 describe("NodeDetailPanel", () => {
   it("renders nothing when node is null", () => {
     const { container } = render(
-      <NodeDetailPanel
-        node={null}
-        onUpdate={vi.fn()}
-        onDelete={vi.fn()}
-        onClose={vi.fn()}
-      />,
+      <NodeDetailPanel node={null} onUpdate={vi.fn()} onDelete={vi.fn()} onClose={vi.fn()} />
     );
     expect(container.innerHTML).toBe("");
   });
 
   it("renders node data correctly", () => {
     const node = makeNode();
-    render(
-      <NodeDetailPanel
-        node={node}
-        onUpdate={vi.fn()}
-        onDelete={vi.fn()}
-        onClose={vi.fn()}
-      />,
-    );
+    render(<NodeDetailPanel node={node} onUpdate={vi.fn()} onDelete={vi.fn()} onClose={vi.fn()} />);
 
     expect(screen.getByDisplayValue("PostgreSQL Database")).toBeInTheDocument();
     expect(screen.getByDisplayValue("PostgreSQL 16")).toBeInTheDocument();
-    expect(
-      screen.getByDisplayValue("Primary relational database"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("Chosen for strong ACID compliance"),
-    ).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Primary relational database")).toBeInTheDocument();
+    expect(screen.getByText("Chosen for strong ACID compliance")).toBeInTheDocument();
     expect(screen.getByLabelText("Lock node")).toBeInTheDocument();
   });
 
   it("slides into view when open", () => {
     const node = makeNode();
     render(
-      <NodeDetailPanel
-        node={node}
-        open
-        onUpdate={vi.fn()}
-        onDelete={vi.fn()}
-        onClose={vi.fn()}
-      />,
+      <NodeDetailPanel node={node} open onUpdate={vi.fn()} onDelete={vi.fn()} onClose={vi.fn()} />
     );
 
     const panel = screen.getByTestId("node-detail-panel");
@@ -78,7 +56,7 @@ describe("NodeDetailPanel", () => {
         onUpdate={vi.fn()}
         onDelete={vi.fn()}
         onClose={vi.fn()}
-      />,
+      />
     );
 
     const panel = screen.getByTestId("node-detail-panel");
@@ -88,14 +66,7 @@ describe("NodeDetailPanel", () => {
 
   it("renders correct category and subtype selections", () => {
     const node = makeNode();
-    render(
-      <NodeDetailPanel
-        node={node}
-        onUpdate={vi.fn()}
-        onDelete={vi.fn()}
-        onClose={vi.fn()}
-      />,
-    );
+    render(<NodeDetailPanel node={node} onUpdate={vi.fn()} onDelete={vi.fn()} onClose={vi.fn()} />);
 
     const categorySelect = screen.getByLabelText("Category") as HTMLSelectElement;
     expect(categorySelect.value).toBe("data");
@@ -109,12 +80,7 @@ describe("NodeDetailPanel", () => {
     const onUpdate = vi.fn();
     const node = makeNode();
     render(
-      <NodeDetailPanel
-        node={node}
-        onUpdate={onUpdate}
-        onDelete={vi.fn()}
-        onClose={vi.fn()}
-      />,
+      <NodeDetailPanel node={node} onUpdate={onUpdate} onDelete={vi.fn()} onClose={vi.fn()} />
     );
 
     const nameInput = screen.getByLabelText("Node name");
@@ -126,12 +92,7 @@ describe("NodeDetailPanel", () => {
     const onUpdate = vi.fn();
     const node = makeNode();
     render(
-      <NodeDetailPanel
-        node={node}
-        onUpdate={onUpdate}
-        onDelete={vi.fn()}
-        onClose={vi.fn()}
-      />,
+      <NodeDetailPanel node={node} onUpdate={onUpdate} onDelete={vi.fn()} onClose={vi.fn()} />
     );
 
     const techInput = screen.getByLabelText("Technology");
@@ -143,12 +104,7 @@ describe("NodeDetailPanel", () => {
     const onUpdate = vi.fn();
     const node = makeNode();
     render(
-      <NodeDetailPanel
-        node={node}
-        onUpdate={onUpdate}
-        onDelete={vi.fn()}
-        onClose={vi.fn()}
-      />,
+      <NodeDetailPanel node={node} onUpdate={onUpdate} onDelete={vi.fn()} onClose={vi.fn()} />
     );
 
     const categorySelect = screen.getByLabelText("Category");
@@ -164,12 +120,7 @@ describe("NodeDetailPanel", () => {
     const onUpdate = vi.fn();
     const node = makeNode();
     render(
-      <NodeDetailPanel
-        node={node}
-        onUpdate={onUpdate}
-        onDelete={vi.fn()}
-        onClose={vi.fn()}
-      />,
+      <NodeDetailPanel node={node} onUpdate={onUpdate} onDelete={vi.fn()} onClose={vi.fn()} />
     );
 
     const subtypeSelect = screen.getByLabelText("Subtype");
@@ -177,16 +128,41 @@ describe("NodeDetailPanel", () => {
     expect(onUpdate).toHaveBeenCalledWith("node-1", { subtype: "cache" });
   });
 
+  it("preserves a retired saved subtype as deprecated until replacement", () => {
+    const onUpdate = vi.fn();
+    const node = makeNode({ category: "client", subtype: "retired-kiosk" });
+    render(
+      <NodeDetailPanel
+        node={node}
+        customSubtypes={{}}
+        onUpdate={onUpdate}
+        onDelete={vi.fn()}
+        onClose={vi.fn()}
+      />
+    );
+
+    const subtypeSelect = screen.getByLabelText("Subtype") as HTMLSelectElement;
+    expect(subtypeSelect).toHaveValue("retired-kiosk");
+    expect(screen.getByRole("option", { name: "retired-kiosk (deprecated)" })).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText("Technology"), {
+      target: { value: "Chrome" },
+    });
+    expect(onUpdate).toHaveBeenCalledWith("node-1", { technology: "Chrome" });
+    expect(onUpdate).not.toHaveBeenCalledWith(
+      "node-1",
+      expect.objectContaining({ subtype: expect.anything() })
+    );
+
+    fireEvent.change(subtypeSelect, { target: { value: "web-app" } });
+    expect(onUpdate).toHaveBeenCalledWith("node-1", { subtype: "web-app" });
+  });
+
   it("calls onUpdate when description is changed", () => {
     const onUpdate = vi.fn();
     const node = makeNode();
     render(
-      <NodeDetailPanel
-        node={node}
-        onUpdate={onUpdate}
-        onDelete={vi.fn()}
-        onClose={vi.fn()}
-      />,
+      <NodeDetailPanel node={node} onUpdate={onUpdate} onDelete={vi.fn()} onClose={vi.fn()} />
     );
 
     const descInput = screen.getByLabelText("Description");
@@ -198,14 +174,7 @@ describe("NodeDetailPanel", () => {
 
   it("shows locked state as a footer icon when node is locked", () => {
     const node = makeNode({ locked: true });
-    render(
-      <NodeDetailPanel
-        node={node}
-        onUpdate={vi.fn()}
-        onDelete={vi.fn()}
-        onClose={vi.fn()}
-      />,
-    );
+    render(<NodeDetailPanel node={node} onUpdate={vi.fn()} onDelete={vi.fn()} onClose={vi.fn()} />);
 
     expect(screen.queryByText("Locked")).not.toBeInTheDocument();
     expect(screen.queryByText("Unlocked")).not.toBeInTheDocument();
@@ -216,12 +185,7 @@ describe("NodeDetailPanel", () => {
     const onUpdate = vi.fn();
     const node = makeNode({ locked: false });
     render(
-      <NodeDetailPanel
-        node={node}
-        onUpdate={onUpdate}
-        onDelete={vi.fn()}
-        onClose={vi.fn()}
-      />,
+      <NodeDetailPanel node={node} onUpdate={onUpdate} onDelete={vi.fn()} onClose={vi.fn()} />
     );
 
     const toggle = screen.getByLabelText("Lock node");
@@ -231,17 +195,10 @@ describe("NodeDetailPanel", () => {
 
   it("places the lock icon on the same footer row as delete", () => {
     const node = makeNode();
-    render(
-      <NodeDetailPanel
-        node={node}
-        onUpdate={vi.fn()}
-        onDelete={vi.fn()}
-        onClose={vi.fn()}
-      />,
-    );
+    render(<NodeDetailPanel node={node} onUpdate={vi.fn()} onDelete={vi.fn()} onClose={vi.fn()} />);
 
     expect(screen.getByLabelText("Lock node").parentElement).toBe(
-      screen.getByText("Delete Node").parentElement,
+      screen.getByText("Delete Node").parentElement
     );
   });
 
@@ -250,12 +207,7 @@ describe("NodeDetailPanel", () => {
     const onClose = vi.fn();
     const node = makeNode();
     render(
-      <NodeDetailPanel
-        node={node}
-        onUpdate={vi.fn()}
-        onDelete={onDelete}
-        onClose={onClose}
-      />,
+      <NodeDetailPanel node={node} onUpdate={vi.fn()} onDelete={onDelete} onClose={onClose} />
     );
 
     const deleteBtn = screen.getByText("Delete Node");
@@ -274,14 +226,7 @@ describe("NodeDetailPanel", () => {
   it("calls onClose when X button is clicked", () => {
     const onClose = vi.fn();
     const node = makeNode();
-    render(
-      <NodeDetailPanel
-        node={node}
-        onUpdate={vi.fn()}
-        onDelete={vi.fn()}
-        onClose={onClose}
-      />,
-    );
+    render(<NodeDetailPanel node={node} onUpdate={vi.fn()} onDelete={vi.fn()} onClose={onClose} />);
 
     const closeBtn = screen.getByLabelText("Close panel");
     fireEvent.click(closeBtn);
@@ -290,14 +235,7 @@ describe("NodeDetailPanel", () => {
 
   it("does not show reasoning section when reasoning is empty", () => {
     const node = makeNode({ reasoning: "" });
-    render(
-      <NodeDetailPanel
-        node={node}
-        onUpdate={vi.fn()}
-        onDelete={vi.fn()}
-        onClose={vi.fn()}
-      />,
-    );
+    render(<NodeDetailPanel node={node} onUpdate={vi.fn()} onDelete={vi.fn()} onClose={vi.fn()} />);
 
     expect(screen.queryByText("Reasoning")).not.toBeInTheDocument();
   });
@@ -323,7 +261,7 @@ describe("NodeDetailPanel", () => {
         onClose={vi.fn()}
         onSuggestAlternatives={onSuggestAlternatives}
         onSwapAlternative={onSwapAlternative}
-      />,
+      />
     );
 
     expect(screen.queryByLabelText("Technology")).not.toBeInTheDocument();
@@ -352,12 +290,7 @@ describe("NodeDetailPanel", () => {
       name: "REST API",
     });
     render(
-      <NodeDetailPanel
-        node={apiNode}
-        onUpdate={vi.fn()}
-        onDelete={vi.fn()}
-        onClose={vi.fn()}
-      />,
+      <NodeDetailPanel node={apiNode} onUpdate={vi.fn()} onDelete={vi.fn()} onClose={vi.fn()} />
     );
 
     const categorySelect = screen.getByLabelText("Category") as HTMLSelectElement;
@@ -376,12 +309,7 @@ describe("NodeDetailPanel", () => {
     const onDelete = vi.fn();
     const node = makeNode();
     const { rerender } = render(
-      <NodeDetailPanel
-        node={node}
-        onUpdate={vi.fn()}
-        onDelete={onDelete}
-        onClose={vi.fn()}
-      />,
+      <NodeDetailPanel node={node} onUpdate={vi.fn()} onDelete={onDelete} onClose={vi.fn()} />
     );
 
     // Trigger confirmation
@@ -391,12 +319,7 @@ describe("NodeDetailPanel", () => {
     // Change node
     const newNode = makeNode({ id: "node-2", name: "Redis Cache" });
     rerender(
-      <NodeDetailPanel
-        node={newNode}
-        onUpdate={vi.fn()}
-        onDelete={onDelete}
-        onClose={vi.fn()}
-      />,
+      <NodeDetailPanel node={newNode} onUpdate={vi.fn()} onDelete={onDelete} onClose={vi.fn()} />
     );
 
     // Confirmation should be reset

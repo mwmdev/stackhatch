@@ -27,7 +27,10 @@ async function renderPage(searchParams: Record<string, string | string[] | undef
 describe("AppPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.getAuthenticatedUser.mockResolvedValue({ userId: "subject-user", role: "user" });
+    mocks.getAuthenticatedUser.mockResolvedValue({
+      userId: "subject-user",
+      githubId: "github-subject",
+    });
   });
 
   it("resolves the authenticated subject's selected project into a recoverable destination", async () => {
@@ -40,19 +43,6 @@ describe("AppPage", () => {
       "data-destination",
       "/project/remembered-map?resume=1"
     );
-  });
-
-  it("uses the impersonated subject's project state", async () => {
-    mocks.getAuthenticatedUser.mockResolvedValue({
-      userId: "impersonated-user",
-      role: "user",
-      impersonatedBy: { userId: "admin-user", role: "admin" },
-    });
-    mocks.resolveProjectResume.mockReturnValue({ id: "subject-map" });
-
-    await renderPage();
-
-    expect(mocks.resolveProjectResume).toHaveBeenCalledWith({ name: "db" }, "impersonated-user");
   });
 
   it("sends an account with no maps to the canonical new-map chooser", async () => {

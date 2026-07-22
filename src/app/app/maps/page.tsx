@@ -6,5 +6,5 @@ export default async function AllMapsRoute() {
   const user = await getAuthenticatedUser();
   if (!user) redirect("/login?callbackUrl=%2Fapp%2Fmaps");
 
-  return <AllMapsPage isAdmin={user.role === "admin"} />;
+  return <AllMapsPage />;
 }

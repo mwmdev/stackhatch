@@ -1,12 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/db";
-import { settings, userSettings } from "@/db/schema";
+import { userSettings } from "@/db/schema";
 import { runMigrations } from "@/db/migrate";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { getAuthenticatedUser } from "@/lib/auth";
 import { encryptSecret } from "@/lib/secrets";
 import { AI_MODEL_IDS, DEFAULT_AI_MODEL, normalizeAiModel } from "@/lib/ai/models";
+import {
+  CustomSubtypesValidationError,
+  serializeCustomSubtypes,
+  validateCustomSubtypes,
+} from "@/lib/custom-subtypes";
+import { getUserCustomSubtypes } from "@/lib/ai/settings";
 
 const VALID_THEMES = ["light", "dark", "system"] as const;
 const DEFAULT_THEME = "system";
@@ -17,17 +23,13 @@ const updateSettingsSchema = z
     clearApiKey: z.boolean().optional(),
     model: z.enum(AI_MODEL_IDS).optional(),
     theme: z.enum(VALID_THEMES).optional(),
+    customSubtypes: z.unknown().optional(),
   })
   .strict();
 
 type Db = ReturnType<typeof getDb>;
 
-function getPublicSettings(db: Db, user: { userId: string; role: "user" | "admin" }) {
-  const customSubtypesRow = db
-    .select()
-    .from(settings)
-    .where(eq(settings.key, "customSubtypes"))
-    .get();
+function getPublicSettings(db: Db, userId: string) {
   const userConfig = db
     .select({
       anthropicApiKey: userSettings.anthropicApiKey,
@@ -35,7 +37,7 @@ function getPublicSettings(db: Db, user: { userId: string; role: "user" | "admin
       theme: userSettings.theme,
     })
     .from(userSettings)
-    .where(eq(userSettings.userId, user.userId))
+    .where(eq(userSettings.userId, userId))
     .get();
 
   return {
@@ -44,9 +46,7 @@ function getPublicSettings(db: Db, user: { userId: string; role: "user" | "admin
     theme: VALID_THEMES.includes(userConfig?.theme as (typeof VALID_THEMES)[number])
       ? userConfig!.theme
       : DEFAULT_THEME,
-    customSubtypes: customSubtypesRow?.value ?? "{}",
-    role: user.role,
-    isAdmin: user.role === "admin",
+    customSubtypes: getUserCustomSubtypes(db, userId),
   };
 }
 
@@ -59,7 +59,7 @@ export async function GET() {
 
     const db = getDb();
     runMigrations(db);
-    return NextResponse.json(getPublicSettings(db, user));
+    return NextResponse.json(getPublicSettings(db, user.userId));
   } catch {
     return NextResponse.json({ error: "Failed to fetch settings" }, { status: 500 });
   }
@@ -91,11 +91,25 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
+    let serializedCustomSubtypes: string | undefined;
+    if (parsed.data.customSubtypes !== undefined) {
+      try {
+        const customSubtypes = validateCustomSubtypes(parsed.data.customSubtypes);
+        serializedCustomSubtypes = serializeCustomSubtypes(customSubtypes);
+      } catch (error) {
+        if (error instanceof CustomSubtypesValidationError) {
+          return NextResponse.json({ error: error.message }, { status: 400 });
+        }
+        throw error;
+      }
+    }
+
     const hasUserConfigUpdate =
       parsed.data.apiKey !== undefined ||
       parsed.data.clearApiKey === true ||
       parsed.data.model !== undefined ||
-      parsed.data.theme !== undefined;
+      parsed.data.theme !== undefined ||
+      serializedCustomSubtypes !== undefined;
     if (!hasUserConfigUpdate) {
       return NextResponse.json({ error: "No settings to update" }, { status: 400 });
     }
@@ -117,12 +131,16 @@ export async function PATCH(request: NextRequest) {
           anthropicApiKey?: string | null;
           model?: (typeof AI_MODEL_IDS)[number];
           theme?: (typeof VALID_THEMES)[number];
+          customSubtypes?: string;
           updatedAt: number;
         } = { updatedAt: now };
         if (encrypted !== undefined) updates.anthropicApiKey = encrypted;
         if (parsed.data.clearApiKey === true) updates.anthropicApiKey = null;
         if (parsed.data.model !== undefined) updates.model = parsed.data.model;
         if (parsed.data.theme !== undefined) updates.theme = parsed.data.theme;
+        if (serializedCustomSubtypes !== undefined) {
+          updates.customSubtypes = serializedCustomSubtypes;
+        }
 
         db.update(userSettings).set(updates).where(eq(userSettings.userId, user.userId)).run();
       } else {
@@ -132,6 +150,7 @@ export async function PATCH(request: NextRequest) {
             anthropicApiKey: encrypted ?? null,
             model: parsed.data.model ?? DEFAULT_AI_MODEL,
             theme: parsed.data.theme ?? DEFAULT_THEME,
+            customSubtypes: serializedCustomSubtypes ?? "{}",
             createdAt: now,
             updatedAt: now,
           })
@@ -139,7 +158,7 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
-    return NextResponse.json(getPublicSettings(db, user));
+    return NextResponse.json(getPublicSettings(db, user.userId));
   } catch {
     return NextResponse.json({ error: "Failed to update settings" }, { status: 500 });
   }

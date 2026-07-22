@@ -5,19 +5,14 @@ import { useEffect, useState } from "react";
 interface CurrentUser {
   name?: string | null;
   email?: string | null;
-  role?: string;
 }
 
-export type UserAvatarProps = {
-  onRoleLoaded?: (role?: string) => void;
-};
-
 function getInitial(user: CurrentUser | null) {
-  const value = user?.name || user?.email || user?.role || "User";
+  const value = user?.name || user?.email || "User";
   return value.slice(0, 1).toUpperCase();
 }
 
-export default function UserAvatar({ onRoleLoaded }: UserAvatarProps) {
+export default function UserAvatar() {
   const [user, setUser] = useState<CurrentUser | null>(null);
 
   useEffect(() => {
@@ -27,19 +22,17 @@ export default function UserAvatar({ onRoleLoaded }: UserAvatarProps) {
       .then((data) => {
         if (!cancelled) {
           setUser(data);
-          onRoleLoaded?.(data?.role);
         }
       })
       .catch(() => {
         if (!cancelled) {
           setUser(null);
-          onRoleLoaded?.();
         }
       });
     return () => {
       cancelled = true;
     };
-  }, [onRoleLoaded]);
+  }, []);
 
   const label = user?.name || user?.email || "User";
 

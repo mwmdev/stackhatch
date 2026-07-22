@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import * as schema from "./schema";
 import { runMigrations } from "./migrate";
@@ -23,8 +24,8 @@ function applyMigration(sqlite: Database.Database, filename: string) {
   }
 }
 
-function createLegacyDatabase() {
-  const sqlite = new Database(":memory:");
+function createLegacyDatabase(filename = ":memory:") {
+  const sqlite = new Database(filename);
   sqlite.pragma("foreign_keys = ON");
   applyMigration(sqlite, "0000_useful_inhumans.sql");
   applyMigration(sqlite, "0001_skinny_old_lace.sql");
@@ -36,6 +37,31 @@ function createPreResumeDatabase() {
   const sqlite = createLegacyDatabase();
   applyMigration(sqlite, "0003_jittery_starhawk.sql");
   applyMigration(sqlite, "0004_remove_private_notes.sql");
+  return sqlite;
+}
+
+function createCurrentDatabase(filename = ":memory:") {
+  const sqlite = createLegacyDatabase(filename);
+  applyMigration(sqlite, "0003_jittery_starhawk.sql");
+  applyMigration(sqlite, "0004_remove_private_notes.sql");
+  applyMigration(sqlite, "0005_add_user_project_state.sql");
+
+  const journal = JSON.parse(
+    readFileSync(path.resolve(process.cwd(), "drizzle/meta/_journal.json"), "utf8")
+  ) as { entries: Array<{ idx: number; when: number }> };
+  const lastApplied = journal.entries.find((entry) => entry.idx === 5);
+  if (!lastApplied) throw new Error("Missing migration journal entry 0005");
+  sqlite.exec(`
+    CREATE TABLE __drizzle_migrations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      hash TEXT NOT NULL,
+      created_at NUMERIC
+    )
+  `);
+  sqlite
+    .prepare("INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?, ?)")
+    .run("test-fixture-through-0005", lastApplied.when);
+
   return sqlite;
 }
 
@@ -357,5 +383,203 @@ describe("project resume state migration", () => {
         .get()
     ).toEqual({ name: "user_project_state" });
     expect(sqlite.pragma("foreign_key_check")).toEqual([]);
+  });
+});
+
+describe("self-service account controls migration", () => {
+  it("copies a valid legacy catalog to every user without changing existing personal settings", () => {
+    const directory = mkdtempSync(path.join(tmpdir(), "stackhatch-migration-"));
+    const filename = path.join(directory, "stackhatch.db");
+    const sqlite = createCurrentDatabase(filename);
+    const catalog = '{ "client": [{"slug":"kiosk","displayName":"Kiosk","icon":"Box"}] }';
+
+    try {
+      sqlite.exec(`
+        INSERT INTO users (id, github_id, email, name, role, created_at)
+        VALUES
+          ('configured-user', 'github-configured', 'configured@example.com', 'Configured', 'admin', 100),
+          ('default-user', 'github-default', 'default@example.com', 'Default', 'user', 200);
+        INSERT INTO user_settings (
+          user_id, anthropic_api_key, model, theme, created_at, updated_at
+        ) VALUES (
+          'configured-user', 'encrypted:v1:opaque-bytes', 'claude-opus-4-8', 'dark', 301, 302
+        );
+        INSERT INTO projects (id, name, canvas_state, user_id, created_at, updated_at)
+        VALUES (
+          'project-1', 'Preserved map', '{"nodes":[{"id":"api"}],"edges":[]}',
+          'configured-user', 400, 401
+        );
+        INSERT INTO messages (id, project_id, role, content, created_at)
+        VALUES ('message-1', 'project-1', 'assistant', 'Preserved answer', 500);
+        INSERT INTO templates (id, user_id, name, canvas_state, created_at)
+        VALUES (
+          'template-1', 'configured-user', 'Preserved template',
+          '{"nodes":[{"id":"client"}],"edges":[]}', 600
+        );
+      `);
+      sqlite
+        .prepare("INSERT INTO settings (key, value) VALUES (?, ?)")
+        .run("customSubtypes", catalog);
+      const existingRowId = (
+        sqlite
+          .prepare("SELECT rowid AS rowId FROM user_settings WHERE user_id = 'configured-user'")
+          .get() as { rowId: number }
+      ).rowId;
+
+      runMigrations(drizzle(sqlite, { schema }));
+
+      expect(
+        sqlite
+          .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'settings'")
+          .get()
+      ).toBeUndefined();
+      expect(
+        (sqlite.pragma("table_info(users)") as Array<{ name: string }>).map((column) => column.name)
+      ).not.toContain("role");
+      expect(
+        sqlite
+          .prepare(
+            `SELECT rowid AS rowId, user_id, anthropic_api_key, model, theme,
+                    custom_subtypes, created_at, updated_at
+             FROM user_settings ORDER BY user_id`
+          )
+          .all()
+      ).toEqual([
+        {
+          rowId: existingRowId,
+          user_id: "configured-user",
+          anthropic_api_key: "encrypted:v1:opaque-bytes",
+          model: "claude-opus-4-8",
+          theme: "dark",
+          custom_subtypes: catalog,
+          created_at: 301,
+          updated_at: 302,
+        },
+        {
+          rowId: expect.any(Number),
+          user_id: "default-user",
+          anthropic_api_key: null,
+          model: "claude-sonnet-5",
+          theme: "system",
+          custom_subtypes: catalog,
+          created_at: 200,
+          updated_at: 200,
+        },
+      ]);
+      expect(
+        sqlite.prepare("SELECT canvas_state FROM projects WHERE id = 'project-1'").get()
+      ).toEqual({
+        canvas_state: '{"nodes":[{"id":"api"}],"edges":[]}',
+      });
+      expect(sqlite.prepare("SELECT content FROM messages WHERE id = 'message-1'").get()).toEqual({
+        content: "Preserved answer",
+      });
+      expect(
+        sqlite.prepare("SELECT canvas_state FROM templates WHERE id = 'template-1'").get()
+      ).toEqual({
+        canvas_state: '{"nodes":[{"id":"client"}],"edges":[]}',
+      });
+
+      const messageIndexes = sqlite.pragma("index_list(messages)") as Array<{ name: string }>;
+      const templateIndexes = sqlite.pragma("index_list(templates)") as Array<{ name: string }>;
+      expect(messageIndexes).toContainEqual(
+        expect.objectContaining({ name: "messages_project_id_idx" })
+      );
+      expect(templateIndexes).toContainEqual(
+        expect.objectContaining({ name: "templates_user_id_idx" })
+      );
+      expect(sqlite.pragma("foreign_key_check")).toEqual([]);
+
+      sqlite.prepare("DELETE FROM users WHERE id = ?").run("configured-user");
+      expect(sqlite.prepare("SELECT * FROM projects").all()).toEqual([]);
+      expect(sqlite.prepare("SELECT * FROM messages").all()).toEqual([]);
+      expect(sqlite.prepare("SELECT * FROM templates").all()).toEqual([]);
+      expect(sqlite.prepare("SELECT user_id FROM user_settings ORDER BY user_id").all()).toEqual([
+        { user_id: "default-user" },
+      ]);
+      expect(sqlite.pragma("foreign_key_check")).toEqual([]);
+    } finally {
+      sqlite.close();
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("uses an empty catalog when the legacy global row is missing", () => {
+    const sqlite = createCurrentDatabase();
+    sqlite.exec(`
+      INSERT INTO users (id, github_id, role, created_at)
+      VALUES ('user-1', 'github-user-1', 'user', 100);
+    `);
+
+    runMigrations(drizzle(sqlite, { schema }));
+
+    expect(sqlite.prepare("SELECT custom_subtypes FROM user_settings").get()).toEqual({
+      custom_subtypes: "{}",
+    });
+    expect(sqlite.pragma("foreign_key_check")).toEqual([]);
+  });
+
+  it.each([
+    ["not-json", "valid JSON"],
+    ['{"client":[{"slug":"web-app","displayName":"Collision","icon":"Box"}]}', "built-in"],
+  ])("rejects an invalid legacy catalog before schema mutation", (catalog, reason) => {
+    const sqlite = createCurrentDatabase();
+    sqlite
+      .prepare("INSERT INTO settings (key, value) VALUES (?, ?)")
+      .run("customSubtypes", catalog);
+
+    expect(() => runMigrations(drizzle(sqlite, { schema }))).toThrow(reason);
+    expect(() => runMigrations(drizzle(sqlite, { schema }))).toThrow(
+      "Back up the database, repair or remove the settings.customSubtypes row"
+    );
+    expect(
+      (sqlite.pragma("table_info(user_settings)") as Array<{ name: string }>).map(
+        (column) => column.name
+      )
+    ).not.toContain("custom_subtypes");
+    expect(
+      (sqlite.pragma("table_info(users)") as Array<{ name: string }>).map((column) => column.name)
+    ).toContain("role");
+    expect(sqlite.prepare("SELECT value FROM settings WHERE key = 'customSubtypes'").get()).toEqual(
+      {
+        value: catalog,
+      }
+    );
+  });
+
+  it("rolls back the complete migration when a later statement fails", () => {
+    const sqlite = createCurrentDatabase();
+    const catalog = '{"client":[{"slug":"kiosk","displayName":"Kiosk","icon":"Box"}]}';
+    sqlite.exec(`
+      INSERT INTO users (id, github_id, role, created_at)
+      VALUES ('user-1', 'github-user-1', 'user', 100);
+      INSERT INTO user_settings (user_id, model, theme, created_at, updated_at)
+      VALUES ('user-1', 'claude-opus-4-8', 'light', 200, 201);
+      CREATE INDEX messages_project_id_idx ON messages (project_id);
+    `);
+    sqlite
+      .prepare("INSERT INTO settings (key, value) VALUES (?, ?)")
+      .run("customSubtypes", catalog);
+
+    expect(() => runMigrations(drizzle(sqlite, { schema }))).toThrow(/messages_project_id_idx/);
+
+    expect(
+      (sqlite.pragma("table_info(user_settings)") as Array<{ name: string }>).map(
+        (column) => column.name
+      )
+    ).not.toContain("custom_subtypes");
+    expect(
+      (sqlite.pragma("table_info(users)") as Array<{ name: string }>).map((column) => column.name)
+    ).toContain("role");
+    expect(sqlite.prepare("SELECT value FROM settings WHERE key = 'customSubtypes'").get()).toEqual(
+      {
+        value: catalog,
+      }
+    );
+    expect(
+      sqlite
+        .prepare("SELECT model, theme, created_at, updated_at FROM user_settings WHERE user_id = ?")
+        .get("user-1")
+    ).toEqual({ model: "claude-opus-4-8", theme: "light", created_at: 200, updated_at: 201 });
   });
 });

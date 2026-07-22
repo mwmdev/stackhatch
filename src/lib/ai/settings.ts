@@ -1,17 +1,9 @@
 import type { AppDatabase } from "@/db";
-import { settings, userSettings } from "@/db/schema";
+import { userSettings } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { decryptSecret } from "@/lib/secrets";
 import { normalizeAiModel, type AiModelId } from "@/lib/ai/models";
-
-export function getSettings(db: AppDatabase) {
-  const rows = db.select().from(settings).all();
-  const map: Record<string, string> = {};
-  for (const row of rows) {
-    map[row.key] = row.value;
-  }
-  return map;
-}
+import { parseCustomSubtypes, type CustomSubtypesMap } from "@/lib/custom-subtypes";
 
 export function getUserAnthropicKey(db: AppDatabase, userId: string): string | null {
   const row = db
@@ -38,10 +30,12 @@ export function getModel(db: AppDatabase, userId: string): AiModelId {
   return normalizeAiModel(row?.model);
 }
 
-export function getPrompt(
-  settingsMap: Record<string, string>,
-  key: string,
-  defaultValue: string
-): string {
-  return settingsMap[key] || defaultValue;
+export function getUserCustomSubtypes(db: AppDatabase, userId: string): CustomSubtypesMap {
+  const row = db
+    .select({ customSubtypes: userSettings.customSubtypes })
+    .from(userSettings)
+    .where(eq(userSettings.userId, userId))
+    .get();
+
+  return parseCustomSubtypes(row?.customSubtypes);
 }

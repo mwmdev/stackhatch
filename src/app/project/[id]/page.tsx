@@ -50,7 +50,7 @@ import type {
 import { DEFAULT_NOTE_COLOR, getSubtypeConfig } from "@/lib/node-config";
 import { applyDagreLayout } from "@/lib/layout";
 import { mergeArchitecture } from "@/lib/merge-architecture";
-import { parseCustomSubtypes, type CustomSubtypesMap } from "@/lib/custom-subtypes";
+import type { CustomSubtypesMap } from "@/lib/custom-subtypes";
 import { trackEvent } from "@/lib/analytics";
 import {
   APP_RESUME_RECOVERY_PATH,
@@ -114,7 +114,7 @@ type ConnectionTypePopover =
     };
 
 interface SettingsResponse {
-  customSubtypes?: string;
+  customSubtypes?: CustomSubtypesMap;
   hasAnthropicKey?: boolean;
 }
 
@@ -1163,7 +1163,7 @@ export default function ProjectPage() {
             .catch(() => null),
           fetch(`/api/projects/${projectId}`),
         ]);
-        const loadedCustomSubtypes = parseCustomSubtypes(settingsResponse?.customSubtypes);
+        const loadedCustomSubtypes = settingsResponse?.customSubtypes ?? {};
         if (settingsResponse) setHasAnthropicKey(Boolean(settingsResponse.hasAnthropicKey));
         setCustomSubtypes(loadedCustomSubtypes);
         if (!res.ok) {
@@ -1311,7 +1311,7 @@ export default function ProjectPage() {
     <main
       className="project-editor-shell observatory-editor flex flex-col bg-[var(--background)] text-[var(--foreground)] md:flex-row"
       data-testid="project-editor-shell"
-      data-height-contract="viewport-minus-impersonation"
+      data-height-contract="viewport"
     >
       <div
         id="editor-chat-sidebar"

@@ -23,7 +23,7 @@ function formatDate(timestamp: number): string {
   });
 }
 
-export default function AllMapsPage({ isAdmin }: { isAdmin: boolean }) {
+export default function AllMapsPage() {
   const router = useRouter();
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -81,7 +81,7 @@ export default function AllMapsPage({ isAdmin }: { isAdmin: boolean }) {
       title="All Maps"
       description="Browse, open, and manage your architecture maps."
       eyebrow="Map observatory"
-      actions={<AppPageActions isAdmin={isAdmin} />}
+      actions={<AppPageActions />}
       footer={
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <span className="font-display font-bold text-[var(--foreground)]">StackHatch</span>

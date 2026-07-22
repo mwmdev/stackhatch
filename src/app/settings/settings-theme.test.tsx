@@ -33,7 +33,7 @@ describe("SettingsPage theme integration", () => {
       if (url === "/api/me") {
         return Promise.resolve({
           ok: true,
-          json: () => Promise.resolve({ name: "Admin User", role: "admin" }),
+          json: () => Promise.resolve({ name: "Settings User" }),
         });
       }
       if (url === "/api/settings" && !options?.method) {

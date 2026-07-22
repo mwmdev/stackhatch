@@ -7,6 +7,7 @@ import { projects, messages, users, userSettings } from "@/db/schema";
 import type { AppDatabase } from "@/db";
 import type { StackArchitecture } from "@/types/stack";
 import { encryptSecret } from "@/lib/secrets";
+import { DEFAULT_CHAT_PROMPT } from "@/lib/ai/default-prompts";
 
 // Mock the Anthropic SDK
 vi.mock("@anthropic-ai/sdk", () => {
@@ -30,7 +31,6 @@ function createTestDb(): AppDatabase {
       email TEXT,
       name TEXT,
       avatar_url TEXT,
-      role TEXT DEFAULT 'user' NOT NULL,
       created_at INTEGER NOT NULL
     );
     CREATE TABLE projects (
@@ -66,9 +66,12 @@ function createTestDb(): AppDatabase {
       anthropic_api_key TEXT,
       model TEXT DEFAULT 'claude-sonnet-5' NOT NULL,
       theme TEXT DEFAULT 'system' NOT NULL,
+      custom_subtypes TEXT DEFAULT '{}' NOT NULL,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );
+    INSERT INTO settings (key, value)
+    VALUES ('prompt_chat', 'LEGACY MUTABLE CHAT PROMPT');
   `);
 
   return drizzle(sqlite, { schema });
@@ -135,12 +138,11 @@ const testUser = {
   email: "test@example.com",
   name: "Test User",
   avatarUrl: "https://example.com/avatar.png",
-  role: "user" as const,
   createdAt: Date.now(),
 };
 const authenticatedUser = {
   userId: testUser.id,
-  role: testUser.role,
+  githubId: testUser.githubId,
   name: testUser.name,
   email: testUser.email,
   image: testUser.avatarUrl,
@@ -471,6 +473,55 @@ describe("streamChat", () => {
     await response.text();
 
     expect(streamFn).toHaveBeenCalledWith(expect.objectContaining({ model: "claude-opus-4-8" }));
+  });
+
+  it("uses the checked-in chat prompt with only the authenticated user's subtype catalog", async () => {
+    db.update(userSettings)
+      .set({
+        customSubtypes: JSON.stringify({
+          client: [{ slug: "owner-kiosk", displayName: "Owner kiosk", icon: "Box" }],
+        }),
+        updatedAt: Date.now(),
+      })
+      .where(eq(userSettings.userId, testUser.id))
+      .run();
+    db.insert(users)
+      .values({
+        id: "other-user",
+        githubId: "67890",
+        createdAt: Date.now(),
+      })
+      .run();
+    db.insert(userSettings)
+      .values({
+        userId: "other-user",
+        customSubtypes: JSON.stringify({
+          client: [{ slug: "other-kiosk", displayName: "Other kiosk", icon: "Box" }],
+        }),
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      })
+      .run();
+
+    const streamFn = vi.fn().mockReturnValue({
+      [Symbol.asyncIterator]: () => ({
+        async next() {
+          return { done: true, value: undefined };
+        },
+      }),
+    });
+    vi.mocked(Anthropic).mockImplementation(
+      () => ({ messages: { stream: streamFn } }) as unknown as Anthropic
+    );
+
+    const response = streamChat(db, projectId, "Hello", undefined, authenticatedUser);
+    await response.text();
+
+    const system = streamFn.mock.calls[0][0].system as string;
+    expect(system).toContain(DEFAULT_CHAT_PROMPT);
+    expect(system).toContain("owner-kiosk");
+    expect(system).not.toContain("other-kiosk");
+    expect(system).not.toContain("LEGACY MUTABLE CHAT PROMPT");
   });
 
   it("uses Sonnet by default", async () => {

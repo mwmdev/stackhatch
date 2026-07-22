@@ -2,15 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import * as schema from "@/db/schema";
-import { projects, userSettings, users, type UserRole } from "@/db/schema";
+import { projects, userSettings, users } from "@/db/schema";
 import type { AppDatabase } from "@/db";
 import { encryptSecret } from "@/lib/secrets";
 
 let testDb: AppDatabase;
-
-const authState = vi.hoisted(() => ({
-  role: "user" as UserRole,
-}));
 
 const githubMocks = vi.hoisted(() => ({
   analyzeRepo: vi.fn(),
@@ -36,7 +32,6 @@ function createTestDb() {
       email TEXT,
       name TEXT,
       avatar_url TEXT,
-      role TEXT DEFAULT 'user' NOT NULL,
       created_at INTEGER NOT NULL
     );
     CREATE TABLE projects (
@@ -71,6 +66,7 @@ function createTestDb() {
       anthropic_api_key TEXT,
       model TEXT DEFAULT 'claude-sonnet-5' NOT NULL,
       theme TEXT DEFAULT 'system' NOT NULL,
+      custom_subtypes TEXT DEFAULT '{}' NOT NULL,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -91,7 +87,7 @@ vi.mock("@/lib/auth", () => ({
   getAuthenticatedUser: vi.fn(() =>
     Promise.resolve({
       userId: "test-user-id",
-      role: authState.role,
+      githubId: "github-test-user",
       name: "Test User",
       email: "test@example.com",
       image: null,
@@ -130,7 +126,6 @@ function makeParams(id = "p1") {
 
 beforeEach(() => {
   testDb = createTestDb();
-  authState.role = "user";
   vi.clearAllMocks();
 
   testDb
@@ -141,7 +136,6 @@ beforeEach(() => {
       email: "test@example.com",
       name: "Test User",
       avatarUrl: null,
-      role: "user",
       createdAt: Date.now(),
     })
     .run();

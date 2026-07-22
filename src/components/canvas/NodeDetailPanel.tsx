@@ -65,6 +65,7 @@ export default function NodeDetailPanel({
   const isNoteNode = node.category === "note";
   const selectedNoteColor = getNoteColorConfig(node.noteColor).value;
   const subtypes = getSubtypesForCategory(node.category, customSubtypes);
+  const hasCurrentSubtype = Object.hasOwn(subtypes, node.subtype);
 
   function handleCategoryChange(newCategory: NodeCategory) {
     const newSubtypes = getSubtypesForCategory(newCategory, customSubtypes);
@@ -177,6 +178,11 @@ export default function NodeDetailPanel({
               className="w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
               aria-label="Subtype"
             >
+              {!hasCurrentSubtype && (
+                <option value={node.subtype} disabled>
+                  {node.subtype} (deprecated)
+                </option>
+              )}
               {Object.entries(subtypes).map(([key, config]) => (
                 <option key={key} value={key}>
                   {config.displayName}

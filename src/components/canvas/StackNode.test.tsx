@@ -163,6 +163,22 @@ describe("StackNode", () => {
     expect(screen.getByText("My App")).toBeInTheDocument();
   });
 
+  it("marks a retired subtype and renders it with the category fallback", () => {
+    const { container } = renderNode({
+      category: "client",
+      subtype: "retired-kiosk",
+      customSubtypes: {},
+      name: "Lobby kiosk",
+    });
+
+    expect(container.querySelector(".stack-node")).toHaveAttribute(
+      "data-subtype-status",
+      "deprecated"
+    );
+    expect(screen.getByText("Lobby kiosk")).toBeInTheDocument();
+    expect(screen.getByText("Client")).toBeInTheDocument();
+  });
+
   it("renders correct category color for api nodes", () => {
     renderNode({ category: "api", subtype: "rest-api", name: "REST API" });
     expect(screen.getByText("API Layer")).toBeInTheDocument();

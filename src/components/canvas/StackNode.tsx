@@ -6,7 +6,7 @@ import type { NodeProps } from "reactflow";
 import * as icons from "lucide-react";
 import type { CSSProperties } from "react";
 import type { NodeCategory, NodeSubtype, NoteColor } from "@/types/stack";
-import { getCategoryConfig, getNoteColorConfig, getSubtypeConfig } from "@/lib/node-config";
+import { getCategoryConfig, getNoteColorConfig, resolveSubtypeConfig } from "@/lib/node-config";
 import type { CustomSubtypesMap } from "@/lib/custom-subtypes";
 import { sanitizeHtml, containsHtml } from "@/lib/sanitize-html";
 import { useEditorDisplaySettings } from "./EditorDisplaySettings";
@@ -59,8 +59,8 @@ function StackNodeComponent({ id, data, selected }: NodeProps<StackNodeData>) {
   const menuRef = useRef<HTMLDivElement>(null);
 
   const catConfig = getCategoryConfig(data.category);
-  const subtypeConfig = getSubtypeConfig(data.category, data.subtype, data.customSubtypes);
-  const iconName = subtypeConfig?.icon ?? catConfig.icon;
+  const subtypeConfig = resolveSubtypeConfig(data.category, data.subtype, data.customSubtypes);
+  const iconName = subtypeConfig.icon;
   const isNoteNode = data.category === "note";
   const noteColor = getNoteColorConfig(data.noteColor);
   const description = data.description.trim();
@@ -125,6 +125,7 @@ function StackNodeComponent({ id, data, selected }: NodeProps<StackNodeData>) {
       tabIndex={0}
       aria-describedby={hasDescription ? tooltipId : undefined}
       data-testid={`stack-node-${id}`}
+      data-subtype-status={subtypeConfig.deprecated ? "deprecated" : "active"}
     >
       {!isNoteNode && (
         <Handle
