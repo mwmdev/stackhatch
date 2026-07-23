@@ -35,6 +35,8 @@ export interface ArchitectureUpdateMeta {
   provenance?: RepositoryScanProvenance;
 }
 
+export type ArchitectureStreamOutcome = "completed" | "ambiguous";
+
 interface ChatSidebarProps {
   projectId: string;
   repoUrl?: string | null;
@@ -49,9 +51,8 @@ interface ChatSidebarProps {
     meta?: ArchitectureUpdateMeta
   ) => Promise<void> | void;
   onArchitectureStreamStart?: () => Promise<void>;
-  onArchitectureStreamEnd?: (outcome: "completed" | "ambiguous") => Promise<void> | void;
+  onArchitectureStreamEnd?: (outcome: ArchitectureStreamOutcome) => Promise<void> | void;
   onStreaming?: (streaming: boolean) => void;
-  onScanStateChange?: (scanning: boolean) => void;
 }
 
 function isMissingApiKeyError(message: string) {
@@ -109,7 +110,6 @@ export default function ChatSidebar({
   onArchitectureStreamStart,
   onArchitectureStreamEnd,
   onStreaming,
-  onScanStateChange,
 }: ChatSidebarProps) {
   const [uncontrolledOpen, setUncontrolledOpen] = useState(defaultOpen);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -207,7 +207,7 @@ export default function ChatSidebar({
   async function processSSEStream(
     response: Response,
     context?: "scan"
-  ): Promise<"completed" | "ambiguous"> {
+  ): Promise<ArchitectureStreamOutcome> {
     const reader = response.body?.getReader();
     if (!reader) {
       if (context === "scan") {
@@ -342,7 +342,7 @@ export default function ChatSidebar({
     }
   }
 
-  async function finishArchitectureBarrier(outcome: "completed" | "ambiguous") {
+  async function finishArchitectureBarrier(outcome: ArchitectureStreamOutcome) {
     try {
       await onArchitectureStreamEnd?.(outcome);
     } catch {
@@ -355,7 +355,7 @@ export default function ChatSidebar({
     setError("");
     if (!(await establishArchitectureBarrier())) return;
 
-    let outcome: "completed" | "ambiguous" = "ambiguous";
+    let outcome: ArchitectureStreamOutcome = "ambiguous";
     try {
       const res = await fetch(`/api/projects/${projectId}/chat/init`, {
         method: "POST",
@@ -385,13 +385,9 @@ export default function ChatSidebar({
     setStreaming(true);
     setSidebarOpen(true);
     setError("");
-    onScanStateChange?.(true);
-    if (!(await establishArchitectureBarrier())) {
-      onScanStateChange?.(false);
-      return;
-    }
+    if (!(await establishArchitectureBarrier())) return;
 
-    let outcome: "completed" | "ambiguous" = "ambiguous";
+    let outcome: ArchitectureStreamOutcome = "ambiguous";
     trackEvent("repository_scan_started", { location: "editor" });
     try {
       const res = await fetch(`/api/projects/${projectId}/repo-scan`, {
@@ -423,7 +419,6 @@ export default function ChatSidebar({
       setStreaming(false);
     } finally {
       await finishArchitectureBarrier(outcome);
-      onScanStateChange?.(false);
     }
   }
 
@@ -452,7 +447,7 @@ export default function ChatSidebar({
 
     if (!(await establishArchitectureBarrier())) return;
 
-    let outcome: "completed" | "ambiguous" = "ambiguous";
+    let outcome: ArchitectureStreamOutcome = "ambiguous";
     try {
       const res = await fetch(`/api/projects/${projectId}/chat`, {
         method: "POST",

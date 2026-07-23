@@ -56,10 +56,7 @@ class RevisionCoordinator<TSnapshot> implements CanvasPersistenceCoordinator<TSn
   private disposed = false;
   private keepaliveRequested = false;
 
-  constructor(
-    private readonly options: Required<Pick<CanvasPersistenceOptions<TSnapshot>, "writer">> &
-      CanvasPersistenceOptions<TSnapshot>
-  ) {
+  constructor(private readonly options: CanvasPersistenceOptions<TSnapshot>) {
     this.latestSnapshot = this.clone(options.baseline);
   }
 

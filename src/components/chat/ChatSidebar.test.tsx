@@ -761,7 +761,6 @@ describe("ChatSidebar", () => {
   });
 
   it("tracks a successful repository scan without repository details", async () => {
-    const onScanStateChange = vi.fn();
     global.fetch = mockFetch({
       "/messages": emptyMessagesResponse,
       "/repo-scan": () =>
@@ -789,14 +788,7 @@ describe("ChatSidebar", () => {
         ]),
     });
 
-    render(
-      <ChatSidebar
-        projectId="p1"
-        repoUrl="owner/repo"
-        defaultOpen={true}
-        onScanStateChange={onScanStateChange}
-      />
-    );
+    render(<ChatSidebar projectId="p1" repoUrl="owner/repo" defaultOpen={true} />);
 
     await screen.findByText("Mapped the repository.");
     expect(mockTrackEvent).toHaveBeenCalledWith("repository_scan_started", {
@@ -806,7 +798,6 @@ describe("ChatSidebar", () => {
       location: "editor",
     });
     expect(JSON.stringify(mockTrackEvent.mock.calls)).not.toContain("owner/repo");
-    expect(onScanStateChange.mock.calls).toEqual([[true], [false]]);
   });
 
   it("treats a completed scan without architecture as a recoverable failure", async () => {

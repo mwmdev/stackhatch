@@ -45,4 +45,18 @@ describe("ThemeToggle", () => {
 
     expect(setTheme).toHaveBeenCalledWith(nextTheme);
   });
+
+  it("renders a repeatable disclosure row with the current value and announcement", () => {
+    render(<ThemeToggle variant="row" />);
+
+    const control = screen.getByRole("button", {
+      name: "Theme: Light. Change appearance",
+    });
+    expect(control).toHaveTextContent("Theme");
+    expect(control).toHaveTextContent("Light");
+
+    fireEvent.click(control);
+    expect(setTheme).toHaveBeenCalledWith("dark");
+    expect(screen.getByRole("status")).toHaveTextContent("Theme changed to Dark");
+  });
 });

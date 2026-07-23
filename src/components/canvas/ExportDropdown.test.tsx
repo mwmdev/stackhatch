@@ -127,10 +127,10 @@ describe("ExportDropdown", () => {
       "data-placement",
       "bottom"
     );
-    fireEvent.click(trigger);
-    expect(trigger).toHaveAttribute("aria-expanded", "true");
-    expect(trigger).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByTestId("export-dropdown")).toHaveAttribute("data-placement", "bottom");
+    const panel = screen.getByTestId("export-dropdown");
+    expect(trigger).toHaveAttribute("popovertarget", panel.id);
+    expect(panel).toHaveAttribute("popover", "auto");
+    expect(panel).toHaveAttribute("data-placement", "bottom");
   });
 
   it("renders PNG, SVG, JSON, and YAML export options", () => {
@@ -167,6 +167,8 @@ describe("ExportDropdown", () => {
 
     fireEvent.click(screen.getByLabelText("Export map"));
     fireEvent.click(screen.getByText("Export JSON"));
+
+    expect(screen.getByLabelText("Export map")).toHaveFocus();
 
     expect(clickedAnchor?.download).toBe("My App.json");
     expect(capturedBlob?.type).toBe("application/json");
