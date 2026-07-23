@@ -57,8 +57,9 @@ export default function AccountMenu({
 
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
 
-    fetch("/api/me")
+    fetch("/api/me", { signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) throw new Error("Identity request failed");
         return (await response.json()) as CurrentUser;
@@ -72,6 +73,7 @@ export default function AccountMenu({
 
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, []);
 
@@ -128,7 +130,7 @@ export default function AccountMenu({
       : undefined;
 
   return (
-    <div className="relative flex-none">
+    <div className="flex-none">
       <button
         type="button"
         aria-label="Account"

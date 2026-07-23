@@ -95,7 +95,11 @@ describe("AccountMenu", () => {
     global.fetch = vi.fn(() => request.promise) as unknown as typeof fetch;
     const { unmount } = render(<AccountMenu />);
 
+    const requestSignal = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0][1]
+      ?.signal as AbortSignal;
+
     unmount();
+    expect(requestSignal.aborted).toBe(true);
     await act(async () => {
       request.resolve({
         ok: true,
