@@ -4,6 +4,7 @@ import { existsSync } from "node:fs";
 const port = Number(process.env.PLAYWRIGHT_TEST_PORT) || 3099;
 const testDatabaseUrl =
   process.env.E2E_DATABASE_URL || `file:/tmp/stackhatch-playwright-${process.pid}.db`;
+process.env.E2E_DATABASE_URL = testDatabaseUrl;
 const nixChromium = "/run/current-system/sw/bin/chromium";
 const chromiumExecutable =
   process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ||
@@ -35,13 +36,14 @@ export default defineConfig({
     command: `npx next dev --port ${port}`,
     env: {
       ...process.env,
-      STACKHATCH_DEV_AUTH: "1",
+      NEXT_DIST_DIR: process.env.PLAYWRIGHT_NEXT_DIST_DIR || ".next-playwright",
+      STACKHATCH_DEV_AUTH: process.env.PLAYWRIGHT_DEV_AUTH || "1",
       NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET || "test-secret",
       STACKHATCH_ENCRYPTION_KEY:
         process.env.STACKHATCH_ENCRYPTION_KEY || "playwright-encryption-key",
       DATABASE_URL: testDatabaseUrl,
     },
     url: `http://localhost:${port}`,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: !process.env.CI && process.env.REAL_AUTH_SMOKE !== "1",
   },
 });

@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor, act, fireEvent } from "@testing-library/react";
+import { render, screen, waitFor, act, fireEvent, within } from "@testing-library/react";
 
 // Mock next/navigation
 const mockPush = vi.fn();
 const mockReplace = vi.fn();
+const { mockSignOut } = vi.hoisted(() => ({ mockSignOut: vi.fn() }));
 vi.mock("next/navigation", () => ({
   useParams: () => ({ id: "test-project-id" }),
   useRouter: () => ({ push: mockPush, replace: mockReplace }),
@@ -163,7 +164,7 @@ vi.mock("next-auth/react", () => ({
     },
     status: "authenticated",
   }),
-  signOut: vi.fn(),
+  signOut: mockSignOut,
   SessionProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
@@ -177,7 +178,8 @@ vi.mock("@/components/chat/ChatSidebar", () => ({
     canvasState,
     scanTrigger,
     onArchitecture,
-    onScanStateChange,
+    onArchitectureStreamStart,
+    onArchitectureStreamEnd,
   }: {
     projectId: string;
     defaultOpen: boolean;
@@ -197,8 +199,9 @@ vi.mock("@/components/chat/ChatSidebar", () => ({
           analysisWarning: string | null;
         };
       }
-    ) => void;
-    onScanStateChange?: (scanning: boolean) => void;
+    ) => Promise<void> | void;
+    onArchitectureStreamStart?: () => Promise<void>;
+    onArchitectureStreamEnd?: (outcome: "completed" | "ambiguous") => Promise<void> | void;
   }) => (
     <div
       data-testid="chat-sidebar"
@@ -215,39 +218,70 @@ vi.mock("@/components/chat/ChatSidebar", () => ({
       </button>
       <button
         type="button"
-        onClick={() => {
-          onScanStateChange?.(true);
-          onArchitecture?.(
-            {
-              nodes: [
-                {
-                  id: "replacement-api",
-                  category: "api",
-                  subtype: "rest-api",
-                  name: "Replacement API",
-                  technology: "Next.js",
-                  description: "Fresh scan",
-                  reasoning: "Observed",
-                  locked: false,
-                },
-              ],
-              edges: [],
-            },
-            {
-              source: "scan",
-              provenance: {
-                repoUrl: "https://github.com/example/repo",
-                commitSha: "replacement-sha",
-                scannedAt: 2000000,
-                analysisStatus: "partial",
-                analysisWarning: "One file was truncated.",
+        onClick={async () => {
+          let outcome: "completed" | "ambiguous" = "ambiguous";
+          try {
+            await onArchitectureStreamStart?.();
+            await onArchitecture?.(
+              {
+                nodes: [
+                  {
+                    id: "replacement-api",
+                    category: "api",
+                    subtype: "rest-api",
+                    name: "Replacement API",
+                    technology: "Next.js",
+                    description: "Fresh scan",
+                    reasoning: "Observed",
+                    locked: false,
+                  },
+                ],
+                edges: [],
               },
-            }
-          );
-          onScanStateChange?.(false);
+              {
+                source: "scan",
+                provenance: {
+                  repoUrl: "https://github.com/example/repo",
+                  commitSha: "replacement-sha",
+                  scannedAt: 2000000,
+                  analysisStatus: "partial",
+                  analysisWarning: "One file was truncated.",
+                },
+              }
+            );
+            outcome = "completed";
+          } catch {
+            // ChatSidebar reports the stream error after reconciling the project.
+          } finally {
+            await onArchitectureStreamEnd?.(outcome);
+          }
         }}
       >
         Mock scan replacement
+      </button>
+      <button
+        type="button"
+        onClick={async () => {
+          await onArchitectureStreamStart?.();
+          await onArchitectureStreamEnd?.("ambiguous");
+        }}
+      >
+        Mock dropped architecture stream
+      </button>
+      <button
+        type="button"
+        onClick={async () => {
+          try {
+            await onArchitectureStreamStart?.();
+          } catch {
+            // The editor rejected the cross-start.
+          }
+        }}
+      >
+        Mock start architecture stream
+      </button>
+      <button type="button" onClick={() => onArchitectureStreamEnd?.("completed")}>
+        Mock finish architecture stream
       </button>
     </div>
   ),
@@ -280,8 +314,18 @@ vi.mock("@/components/canvas/NodeDetailPanel", () => ({
 }));
 
 vi.mock("@/components/canvas/AddNodeDropdown", () => ({
-  default: ({ onAddNode }: { onAddNode: (cat: string, sub: string) => void }) => (
-    <button data-testid="add-node-button" onClick={() => onAddNode("data", "sql-db")}>
+  default: ({
+    onAddNode,
+    disabled,
+  }: {
+    onAddNode: (cat: string, sub: string) => void;
+    disabled?: boolean;
+  }) => (
+    <button
+      data-testid="add-node-button"
+      disabled={disabled}
+      onClick={() => onAddNode("data", "sql-db")}
+    >
       Add Node
     </button>
   ),
@@ -530,12 +574,23 @@ function mockFetchError() {
   ) as unknown as typeof global.fetch;
 }
 
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
+
 // Mock scrollIntoView (jsdom doesn't implement it)
 Element.prototype.scrollIntoView = vi.fn();
 
 describe("ProjectPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockSignOut.mockResolvedValue(undefined);
     window.localStorage.clear();
     window.history.replaceState({}, "", "/project/test-project-id");
     mockConsumePendingProjectStart.mockReturnValue(null);
@@ -554,6 +609,10 @@ describe("ProjectPage", () => {
       expect(screen.getAllByRole("main")).toHaveLength(1);
       expect(screen.getByRole("heading", { level: 1, name: "Loading map" })).toBeInTheDocument();
       expect(container.querySelectorAll('[data-routing-trace="true"]')).toHaveLength(1);
+      expect(screen.getByRole("link", { name: "All Maps" })).toHaveAttribute("href", "/app/maps");
+      expect(screen.getByRole("link", { name: "New Map" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Theme: change appearance" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Account" })).toBeInTheDocument();
     });
 
     it("transitions from loading to loaded", async () => {
@@ -613,6 +672,9 @@ describe("ProjectPage", () => {
       ).toBeInTheDocument();
       expect(container.querySelectorAll('[data-routing-trace="true"]')).toHaveLength(1);
       expect(screen.getByRole("link", { name: "All Maps" })).toHaveAttribute("href", "/app/maps");
+      expect(screen.getByRole("link", { name: "New Map" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Theme: change appearance" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Account" })).toBeInTheDocument();
       expect(
         (global.fetch as ReturnType<typeof vi.fn>).mock.calls.some(
           ([input, init]) =>
@@ -643,6 +705,9 @@ describe("ProjectPage", () => {
       ).toBeInTheDocument();
       expect(container.querySelectorAll('[data-routing-trace="true"]')).toHaveLength(1);
       expect(screen.queryByText("Project not found")).not.toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "All Maps" })).toHaveAttribute("href", "/app/maps");
+      expect(screen.getByRole("link", { name: "New Map" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Account" })).toBeInTheDocument();
     });
 
     it("does not recover a direct visit to a missing project", async () => {
@@ -718,6 +783,522 @@ describe("ProjectPage", () => {
     });
   });
 
+  describe("revision-ordered persistence", () => {
+    it("does not PATCH the loaded baseline", async () => {
+      mockFetchProject(projectWithNodes);
+      render(<ProjectPage />);
+
+      await screen.findByTestId("mock-flow-node-n1");
+      await act(() => new Promise((resolve) => setTimeout(resolve, 550)));
+
+      const patchCalls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.filter(
+        ([, options]) => (options as RequestInit | undefined)?.method === "PATCH"
+      );
+      expect(patchCalls).toHaveLength(0);
+    });
+
+    it("drains a pending client revision before normalizing an AI replacement", async () => {
+      mockFetchProject(projectWithNodes);
+      const baseFetch = global.fetch as ReturnType<typeof vi.fn>;
+      const firstPatch = deferred<Response>();
+      let patchCount = 0;
+      global.fetch = vi.fn((input: RequestInfo | URL, options?: RequestInit) => {
+        if (options?.method === "PATCH") {
+          patchCount += 1;
+          if (patchCount === 1) return firstPatch.promise;
+          return Promise.resolve({ ok: true, json: () => Promise.resolve({}) } as Response);
+        }
+        return baseFetch(input, options);
+      }) as unknown as typeof fetch;
+
+      render(<ProjectPage />);
+      await screen.findByTestId("mock-flow-node-n1");
+      fireEvent.click(screen.getByTestId("add-node-button"));
+      await waitFor(() => expect(patchCount).toBe(1));
+
+      fireEvent.click(screen.getByRole("button", { name: "Mock scan replacement" }));
+      expect(screen.getByTestId("project-editor-shell")).toHaveAttribute(
+        "data-ai-writer-phase",
+        "preparing"
+      );
+      expect(screen.getByTestId("react-flow-canvas")).toHaveAttribute("data-node-count", "3");
+      fireEvent.click(screen.getByTestId("add-node-button"));
+      expect(screen.getByTestId("react-flow-canvas")).toHaveAttribute("data-node-count", "3");
+
+      firstPatch.resolve({ ok: true, json: () => Promise.resolve({}) } as Response);
+      await waitFor(() => expect(patchCount).toBe(2));
+      await waitFor(() =>
+        expect(screen.getByTestId("project-editor-shell")).toHaveAttribute(
+          "data-ai-writer-phase",
+          "idle"
+        )
+      );
+
+      const patchCalls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.filter(
+        ([, options]) => options?.method === "PATCH"
+      );
+      const firstSnapshot = JSON.parse(
+        JSON.parse((patchCalls[0][1] as RequestInit).body as string).canvasState
+      );
+      const replacementSnapshot = JSON.parse(
+        JSON.parse((patchCalls[1][1] as RequestInit).body as string).canvasState
+      );
+      expect(firstSnapshot.nodes).toHaveLength(3);
+      expect(replacementSnapshot.nodes.map((node: { id: string }) => node.id)).toEqual([
+        "replacement-api",
+      ]);
+      expect(replacementSnapshot.positions["replacement-api"]).toEqual(
+        expect.objectContaining({ x: expect.any(Number), y: expect.any(Number) })
+      );
+      expect(replacementSnapshot.alternatives).toEqual({});
+    });
+
+    it("uses the post-drain save marker so an ambiguous stream preserves the saved client snapshot", async () => {
+      mockFetchProject(projectWithRepoAlternatives);
+      const baseFetch = global.fetch as ReturnType<typeof vi.fn>;
+      const firstPatch = deferred<Response>();
+      let projectGets = 0;
+      type SavedSnapshot = {
+        nodes: Array<{ id: string }>;
+        positions: Record<string, { x: number; y: number }>;
+        alternatives: Record<string, unknown[]>;
+      };
+      const savedSnapshots: SavedSnapshot[] = [];
+
+      global.fetch = vi.fn((input: RequestInfo | URL, options?: RequestInit) => {
+        const url = String(input);
+        if (options?.method === "PATCH") {
+          savedSnapshots.push(
+            JSON.parse(JSON.parse(options.body as string).canvasState) as SavedSnapshot
+          );
+          return firstPatch.promise;
+        }
+        if (url === "/api/projects/test-project-id" && !options?.method) {
+          projectGets += 1;
+          if (projectGets > 1) {
+            return Promise.resolve({
+              ok: true,
+              json: () =>
+                Promise.resolve({
+                  ...projectWithRepoAlternatives,
+                  updatedAt: projectWithRepoAlternatives.updatedAt + 1,
+                  canvasState: savedSnapshots.at(-1),
+                }),
+            } as Response);
+          }
+        }
+        return baseFetch(input, options);
+      }) as unknown as typeof fetch;
+
+      render(<ProjectPage />);
+      await screen.findByTestId("mock-flow-node-n1");
+      fireEvent.click(screen.getByTestId("add-node-button"));
+      await waitFor(() => expect(savedSnapshots).toHaveLength(1));
+
+      fireEvent.click(screen.getByRole("button", { name: "Mock dropped architecture stream" }));
+      expect(screen.getByTestId("project-editor-shell")).toHaveAttribute(
+        "data-ai-writer-phase",
+        "preparing"
+      );
+
+      firstPatch.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            ...projectWithRepoAlternatives,
+            updatedAt: projectWithRepoAlternatives.updatedAt + 1,
+            canvasState: savedSnapshots.at(-1),
+          }),
+      } as Response);
+
+      await waitFor(() =>
+        expect(screen.getByTestId("project-editor-shell")).toHaveAttribute(
+          "data-ai-writer-phase",
+          "idle"
+        )
+      );
+      const persistedSnapshot = savedSnapshots.at(-1);
+      expect(persistedSnapshot).toBeDefined();
+      if (!persistedSnapshot) throw new Error("Expected a persisted client snapshot");
+      expect(screen.getByTestId("react-flow-canvas")).toHaveAttribute("data-node-count", "3");
+      expect(persistedSnapshot.nodes).toHaveLength(3);
+      expect(Object.keys(persistedSnapshot.positions)).toHaveLength(3);
+      expect(persistedSnapshot.alternatives.n1).toHaveLength(1);
+      expect(
+        (global.fetch as ReturnType<typeof vi.fn>).mock.calls.filter(
+          ([, options]) => options?.method === "PATCH"
+        )
+      ).toHaveLength(1);
+
+      fireEvent.click(screen.getByTestId("mock-flow-node-n1"));
+      expect(screen.getByTestId("node-detail-panel")).toHaveAttribute(
+        "data-alternative-count",
+        "1"
+      );
+    });
+
+    it("adopts and normalizes authoritative state after an ambiguous advanced stream", async () => {
+      mockFetchProject(projectWithNodes);
+      const baseFetch = global.fetch as ReturnType<typeof vi.fn>;
+      let projectGets = 0;
+      const authoritative = {
+        ...projectWithNodes,
+        updatedAt: projectWithNodes.updatedAt + 1,
+        canvasState: {
+          nodes: [
+            {
+              ...projectWithNodes.canvasState!.nodes[0],
+              id: "authoritative-api",
+              name: "Authoritative API",
+            },
+          ],
+          edges: [],
+        },
+      };
+      global.fetch = vi.fn((input: RequestInfo | URL, options?: RequestInit) => {
+        const url = String(input);
+        if (url === "/api/projects/test-project-id" && !options?.method) {
+          projectGets += 1;
+          if (projectGets > 1) {
+            return Promise.resolve({
+              ok: true,
+              json: () => Promise.resolve(authoritative),
+            } as Response);
+          }
+        }
+        return baseFetch(input, options);
+      }) as unknown as typeof fetch;
+
+      render(<ProjectPage />);
+      await screen.findByTestId("mock-flow-node-n1");
+      fireEvent.click(screen.getByRole("button", { name: "Mock dropped architecture stream" }));
+
+      expect(await screen.findByTestId("mock-flow-node-authoritative-api")).toBeInTheDocument();
+      await waitFor(() =>
+        expect(screen.getByTestId("project-editor-shell")).toHaveAttribute(
+          "data-ai-writer-phase",
+          "idle"
+        )
+      );
+      const patchCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.find(
+        ([, options]) => options?.method === "PATCH"
+      );
+      const normalized = JSON.parse(
+        JSON.parse((patchCall?.[1] as RequestInit).body as string).canvasState
+      );
+      expect(normalized.positions["authoritative-api"]).toEqual(
+        expect.objectContaining({ x: expect.any(Number), y: expect.any(Number) })
+      );
+    });
+
+    it("restores the pre-stream snapshot when ambiguous authoritative state did not advance", async () => {
+      mockFetchProject(projectWithNodes);
+      render(<ProjectPage />);
+      await screen.findByTestId("mock-flow-node-n1");
+
+      fireEvent.click(screen.getByRole("button", { name: "Mock dropped architecture stream" }));
+
+      await waitFor(() =>
+        expect(screen.getByTestId("project-editor-shell")).toHaveAttribute(
+          "data-ai-writer-phase",
+          "idle"
+        )
+      );
+      expect(screen.getByTestId("react-flow-canvas")).toHaveAttribute("data-node-count", "2");
+      expect(
+        (global.fetch as ReturnType<typeof vi.fn>).mock.calls.filter(
+          ([, options]) => options?.method === "PATCH"
+        )
+      ).toHaveLength(0);
+    });
+
+    it("keeps the editor blocked after reconciliation fails and retries the decision", async () => {
+      mockFetchProject(projectWithNodes);
+      const baseFetch = global.fetch as ReturnType<typeof vi.fn>;
+      let projectGets = 0;
+      const authoritative = {
+        ...projectWithNodes,
+        updatedAt: projectWithNodes.updatedAt + 1,
+        canvasState: {
+          nodes: [
+            {
+              ...projectWithNodes.canvasState!.nodes[0],
+              id: "retried-authoritative-api",
+              name: "Retried authoritative API",
+            },
+          ],
+          edges: [],
+        },
+      };
+      global.fetch = vi.fn((input: RequestInfo | URL, options?: RequestInit) => {
+        const url = String(input);
+        if (url === "/api/projects/test-project-id" && !options?.method) {
+          projectGets += 1;
+          if (projectGets === 2) {
+            return Promise.resolve({ ok: false, status: 503 } as Response);
+          }
+          if (projectGets > 2) {
+            return Promise.resolve({
+              ok: true,
+              json: () => Promise.resolve(authoritative),
+            } as Response);
+          }
+        }
+        return baseFetch(input, options);
+      }) as unknown as typeof fetch;
+
+      render(<ProjectPage />);
+      await screen.findByTestId("mock-flow-node-n1");
+      fireEvent.click(screen.getByRole("button", { name: "Mock dropped architecture stream" }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent("Save status unknown");
+      expect(screen.getByTestId("project-editor-shell")).toHaveAttribute(
+        "data-ai-writer-phase",
+        "reconciliation-failed"
+      );
+      expect(screen.getByTestId("project-editor-shell")).toHaveAttribute(
+        "data-mutation-blocked",
+        "true"
+      );
+      expect(screen.getByTestId("add-node-button")).toBeDisabled();
+      const signOut = screen.getByRole("button", { name: "Sign out", hidden: true });
+      expect(signOut).toHaveAttribute("aria-disabled", "true");
+      expect(signOut).toHaveAccessibleDescription(
+        "Architecture save status is unknown; retry reconciliation"
+      );
+      fireEvent.click(signOut);
+      expect(mockSignOut).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByRole("button", { name: "Mock start architecture stream" }));
+      expect(screen.getByTestId("project-editor-shell")).toHaveAttribute(
+        "data-ai-writer-phase",
+        "reconciliation-failed"
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "Retry reconciliation" }));
+
+      expect(
+        await screen.findByTestId("mock-flow-node-retried-authoritative-api")
+      ).toBeInTheDocument();
+      await waitFor(() =>
+        expect(screen.getByTestId("project-editor-shell")).toHaveAttribute(
+          "data-ai-writer-phase",
+          "idle"
+        )
+      );
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expect(screen.getByTestId("add-node-button")).not.toBeDisabled();
+      expect(signOut).not.toHaveAttribute("aria-disabled");
+    });
+
+    it("restores the visible pre-stream canvas when replacement normalization fails", async () => {
+      mockFetchProject(projectWithNodes);
+      const baseFetch = global.fetch as ReturnType<typeof vi.fn>;
+      global.fetch = vi.fn((input: RequestInfo | URL, options?: RequestInit) => {
+        if (options?.method === "PATCH") {
+          return Promise.resolve({ ok: false, status: 500 } as Response);
+        }
+        return baseFetch(input, options);
+      }) as unknown as typeof fetch;
+
+      render(<ProjectPage />);
+      await screen.findByTestId("mock-flow-node-n1");
+      fireEvent.click(screen.getByRole("button", { name: "Mock scan replacement" }));
+
+      await waitFor(() =>
+        expect(screen.getByTestId("project-editor-shell")).toHaveAttribute(
+          "data-ai-writer-phase",
+          "idle"
+        )
+      );
+      expect(screen.getByTestId("mock-flow-node-n1")).toBeInTheDocument();
+      expect(screen.getByTestId("mock-flow-node-n2")).toBeInTheDocument();
+      expect(screen.queryByTestId("mock-flow-node-replacement-api")).not.toBeInTheDocument();
+      expect(screen.getByTestId("react-flow-canvas")).toHaveAttribute("data-node-count", "2");
+    });
+  });
+
+  describe("safe editor sign-out", () => {
+    it("signs out a clean editor without issuing a canvas PATCH", async () => {
+      mockFetchProject(projectWithNodes);
+      render(<ProjectPage />);
+      await screen.findByTestId("mock-flow-node-n1");
+
+      fireEvent.click(screen.getByRole("button", { name: "Sign out", hidden: true }));
+
+      await waitFor(() => expect(mockSignOut).toHaveBeenCalledWith({ redirectTo: "/" }));
+      expect(
+        (global.fetch as ReturnType<typeof vi.fn>).mock.calls.filter(
+          ([, options]) => options?.method === "PATCH"
+        )
+      ).toHaveLength(0);
+      expect(screen.getByTestId("project-editor-shell")).toHaveAttribute(
+        "data-mutation-blocked",
+        "true"
+      );
+    });
+
+    it("flushes the latest immutable snapshot before signing out and blocks later edits", async () => {
+      mockFetchProject(projectWithNodes);
+      const baseFetch = global.fetch as ReturnType<typeof vi.fn>;
+      const save = deferred<Response>();
+      const sequence: string[] = [];
+      global.fetch = vi.fn((input: RequestInfo | URL, options?: RequestInit) => {
+        if (options?.method === "PATCH") {
+          sequence.push("save");
+          return save.promise;
+        }
+        return baseFetch(input, options);
+      }) as unknown as typeof fetch;
+      mockSignOut.mockImplementation(async () => {
+        sequence.push("sign-out");
+      });
+
+      render(<ProjectPage />);
+      await screen.findByTestId("mock-flow-node-n1");
+      fireEvent.click(screen.getByTestId("add-node-button"));
+      fireEvent.click(screen.getByRole("button", { name: "Sign out", hidden: true }));
+
+      await waitFor(() => expect(sequence).toEqual(["save"]));
+      expect(screen.getByTestId("project-editor-shell")).toHaveAttribute(
+        "data-mutation-blocked",
+        "true"
+      );
+      expect(screen.getByTestId("add-node-button")).toBeDisabled();
+      fireEvent.click(screen.getByTestId("add-node-button"));
+      expect(screen.getByTestId("react-flow-canvas")).toHaveAttribute("data-node-count", "3");
+
+      save.resolve({ ok: true } as Response);
+      await waitFor(() => expect(sequence).toEqual(["save", "sign-out"]));
+
+      const patchCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.find(
+        ([, options]) => options?.method === "PATCH"
+      );
+      const snapshot = JSON.parse(
+        JSON.parse((patchCall?.[1] as RequestInit).body as string).canvasState
+      );
+      expect(snapshot.nodes).toHaveLength(3);
+    });
+
+    it("keeps a failed save retryable and does not call Auth.js early", async () => {
+      mockFetchProject(projectWithNodes);
+      const baseFetch = global.fetch as ReturnType<typeof vi.fn>;
+      let patchCount = 0;
+      global.fetch = vi.fn((input: RequestInfo | URL, options?: RequestInit) => {
+        if (options?.method === "PATCH") {
+          patchCount += 1;
+          return Promise.resolve(
+            patchCount === 1 ? ({ ok: false, status: 500 } as Response) : ({ ok: true } as Response)
+          );
+        }
+        return baseFetch(input, options);
+      }) as unknown as typeof fetch;
+
+      render(<ProjectPage />);
+      await screen.findByTestId("mock-flow-node-n1");
+      fireEvent.click(screen.getByTestId("add-node-button"));
+      fireEvent.click(screen.getByRole("button", { name: "Sign out", hidden: true }));
+
+      expect(
+        await screen.findByText("We couldn’t save your changes. You’re still signed in. Try again.")
+      ).toBeInTheDocument();
+      expect(mockSignOut).not.toHaveBeenCalled();
+      expect(screen.getByTestId("project-editor-shell")).toHaveAttribute(
+        "data-mutation-blocked",
+        "false"
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "Sign out", hidden: true }));
+      await waitFor(() => expect(mockSignOut).toHaveBeenCalledOnce());
+      const patchBodies = (global.fetch as ReturnType<typeof vi.fn>).mock.calls
+        .filter(([, options]) => options?.method === "PATCH")
+        .map(([, options]) => (options as RequestInit).body);
+      expect(patchBodies).toHaveLength(2);
+      expect(patchBodies[1]).toBe(patchBodies[0]);
+    });
+
+    it("keeps an expired-session snapshot frozen for same-tab retry", async () => {
+      mockFetchProject(projectWithNodes);
+      const baseFetch = global.fetch as ReturnType<typeof vi.fn>;
+      let patchCount = 0;
+      global.fetch = vi.fn((input: RequestInfo | URL, options?: RequestInit) => {
+        if (options?.method === "PATCH") {
+          patchCount += 1;
+          return Promise.resolve(
+            patchCount === 1 ? ({ ok: false, status: 401 } as Response) : ({ ok: true } as Response)
+          );
+        }
+        return baseFetch(input, options);
+      }) as unknown as typeof fetch;
+
+      render(<ProjectPage />);
+      await screen.findByTestId("mock-flow-node-n1");
+      fireEvent.click(screen.getByTestId("add-node-button"));
+      fireEvent.click(screen.getByRole("button", { name: "Sign out", hidden: true }));
+
+      expect(
+        await screen.findByText(
+          "Your session expired before changes could be saved. Keep this tab open."
+        )
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("link", { name: "Sign in in a new tab", hidden: true })
+      ).toHaveAttribute("href", "/api/auth/signin?callbackUrl=%2Fproject%2Ftest-project-id");
+      expect(mockSignOut).not.toHaveBeenCalled();
+      expect(screen.getByTestId("add-node-button")).toBeDisabled();
+
+      fireEvent.click(screen.getByRole("button", { name: "Sign out", hidden: true }));
+      await waitFor(() => expect(mockSignOut).toHaveBeenCalledOnce());
+      const patchBodies = (global.fetch as ReturnType<typeof vi.fn>).mock.calls
+        .filter(([, options]) => options?.method === "PATCH")
+        .map(([, options]) => (options as RequestInit).body);
+      expect(patchBodies[1]).toBe(patchBodies[0]);
+    });
+
+    it("restores editing after a detectable Auth.js rejection", async () => {
+      mockFetchProject(projectWithNodes);
+      mockSignOut.mockRejectedValueOnce(new Error("auth unavailable"));
+      render(<ProjectPage />);
+      await screen.findByTestId("mock-flow-node-n1");
+
+      fireEvent.click(screen.getByRole("button", { name: "Sign out", hidden: true }));
+
+      expect(
+        await screen.findByText("We couldn’t sign you out. You’re still signed in. Try again.")
+      ).toBeInTheDocument();
+      expect(screen.getByTestId("project-editor-shell")).toHaveAttribute(
+        "data-mutation-blocked",
+        "false"
+      );
+      expect(screen.getByTestId("add-node-button")).not.toBeDisabled();
+    });
+
+    it("keeps Account focusable but blocks sign-out and mutation during an AI stream", async () => {
+      mockFetchProject(projectWithNodes);
+      render(<ProjectPage />);
+      await screen.findByTestId("mock-flow-node-n1");
+
+      fireEvent.click(screen.getByRole("button", { name: "Mock start architecture stream" }));
+      await waitFor(() =>
+        expect(screen.getByTestId("project-editor-shell")).toHaveAttribute(
+          "data-ai-writer-phase",
+          "streaming"
+        )
+      );
+
+      const signOut = screen.getByRole("button", { name: "Sign out", hidden: true });
+      expect(signOut).not.toBeDisabled();
+      expect(signOut).toHaveAttribute("aria-disabled", "true");
+      expect(signOut).toHaveAccessibleDescription("Architecture update in progress");
+      fireEvent.click(signOut);
+      expect(mockSignOut).not.toHaveBeenCalled();
+      expect(screen.getByTestId("add-node-button")).toBeDisabled();
+
+      fireEvent.click(screen.getByRole("button", { name: "Mock finish architecture stream" }));
+      await waitFor(() => expect(signOut).not.toHaveAttribute("aria-disabled"));
+      expect(screen.getByTestId("add-node-button")).not.toBeDisabled();
+    });
+  });
+
   describe("toolbar", () => {
     it("tracks a template map on successful project load", async () => {
       mockGetPendingProjectStart.mockReturnValue("template");
@@ -771,6 +1352,69 @@ describe("ProjectPage", () => {
       expect(screen.getByTestId("editor-project-bar")).toContainElement(
         screen.getByLabelText("Theme: change appearance")
       );
+    });
+
+    it("encodes the compact and wide action matrix without duplicating compact direct controls", async () => {
+      mockFetchProject(projectWithRepo);
+      render(<ProjectPage />);
+      const bar = await screen.findByTestId("editor-project-bar");
+      const morePanel = screen.getByTestId("editor-more-popover");
+
+      expect(within(bar).getByRole("link", { name: "All maps" })).toBeInTheDocument();
+      expect(within(bar).getByRole("button", { name: "Export map" })).toBeInTheDocument();
+      expect(within(bar).getByRole("button", { name: "More project actions" })).toBeInTheDocument();
+      expect(within(bar).getByRole("button", { name: "Account" })).toBeInTheDocument();
+      expect(screen.getByTestId("wide-new-map").closest("[data-editor-action-group]")).toHaveClass(
+        "hidden",
+        "sm:block"
+      );
+      expect(
+        screen.getByTestId("wide-rescan-button").closest("[data-editor-action-group]")
+      ).toHaveClass("hidden", "sm:block");
+      expect(screen.getByTestId("compact-rescan-button")).toHaveClass("sm:hidden");
+      expect(within(morePanel).getByRole("link", { name: "New Map", hidden: true })).toHaveClass(
+        "sm:hidden"
+      );
+      expect(
+        within(morePanel).getByRole("button", {
+          name: "Theme: Light. Change appearance",
+          hidden: true,
+        }).parentElement
+      ).toHaveClass("sm:hidden");
+      expect(
+        within(morePanel).getByRole("button", {
+          name: "Generate PRD from architecture",
+          hidden: true,
+        })
+      ).toBeInTheDocument();
+      expect(
+        within(morePanel).getByRole("button", { name: "Save as Template", hidden: true })
+      ).toBeInTheDocument();
+    });
+
+    it("keeps compact More useful on an empty standalone map", async () => {
+      mockFetchProject(emptyProject);
+      render(<ProjectPage />);
+      await screen.findByRole("heading", { name: emptyProject.name });
+      const morePanel = screen.getByTestId("editor-more-popover");
+
+      expect(screen.getByRole("button", { name: "More project actions" })).toBeInTheDocument();
+      expect(
+        within(morePanel).getByRole("link", { name: "New Map", hidden: true })
+      ).toBeInTheDocument();
+      expect(
+        within(morePanel).getByRole("button", {
+          name: "Theme: Light. Change appearance",
+          hidden: true,
+        })
+      ).toBeInTheDocument();
+      expect(
+        within(morePanel).queryByRole("button", { name: /Generate PRD/i, hidden: true })
+      ).toBeNull();
+      expect(
+        within(morePanel).queryByRole("button", { name: "Save as Template", hidden: true })
+      ).toBeNull();
+      expect(screen.queryByRole("button", { name: "Export map" })).toBeNull();
     });
 
     it("keeps one inert editor trace outside the React Flow canvas", async () => {
@@ -908,9 +1552,7 @@ describe("ProjectPage", () => {
         expect(screen.getByTestId("react-flow-canvas")).toHaveAttribute("data-node-count", "2");
       });
 
-      const rescanButton = screen.getByLabelText(
-        "Re-scan repository: https://github.com/example/repo"
-      );
+      const rescanButton = screen.getByTestId("wide-rescan-button");
       expect(rescanButton).toHaveAttribute("title", "Re-scan: https://github.com/example/repo");
       expect(rescanButton.querySelector("svg")).toBeInTheDocument();
       expect(screen.getByRole("tooltip", { name: "Re-scan repository" })).toBeInTheDocument();
@@ -932,9 +1574,7 @@ describe("ProjectPage", () => {
     it("traps focus in the re-scan dialog and restores the invoking control", async () => {
       mockFetchProject(projectWithRepo);
       render(<ProjectPage />);
-      const rescanButton = await screen.findByLabelText(
-        "Re-scan repository: https://github.com/example/repo"
-      );
+      const rescanButton = await screen.findByTestId("wide-rescan-button");
 
       fireEvent.click(rescanButton);
       const keepButton = screen.getByRole("button", { name: "Keep current map" });
@@ -1024,7 +1664,10 @@ describe("ProjectPage", () => {
 
       await screen.findByRole("button", { name: "More project actions" });
       fireEvent.click(screen.getByRole("button", { name: "More project actions" }));
-      const saveButton = screen.getByRole("menuitem", { name: "Save as Template" });
+      const saveButton = screen.getByRole("button", {
+        name: "Save as Template",
+        hidden: true,
+      });
       expect(saveButton).toHaveAttribute("title", "Save current map as a personal template");
       fireEvent.click(saveButton);
 
@@ -1035,7 +1678,7 @@ describe("ProjectPage", () => {
       expect(screen.getByRole("button", { name: "More project actions" })).toHaveFocus();
 
       fireEvent.click(screen.getByRole("button", { name: "More project actions" }));
-      fireEvent.click(screen.getByRole("menuitem", { name: "Save as Template" }));
+      fireEvent.click(screen.getByRole("button", { name: "Save as Template", hidden: true }));
       fireEvent.change(screen.getByLabelText(/Template Name/), {
         target: { value: "Service boundary" },
       });
@@ -1066,14 +1709,14 @@ describe("ProjectPage", () => {
       expect(allMapsLink).not.toHaveTextContent("All Maps");
     });
 
-    it("shows a new project icon next to the project name", async () => {
+    it("shows the wide New Map action after project identity", async () => {
       mockFetchProject(emptyProject);
       render(<ProjectPage />);
       await waitFor(() => {
         expect(screen.getByText("Test Project")).toBeInTheDocument();
       });
 
-      const newProjectLink = screen.getByLabelText("New Map");
+      const newProjectLink = screen.getByTestId("wide-new-map");
       const projectTitle = screen.getByText("Test Project");
       expect(newProjectLink).toHaveAttribute(
         "href",
@@ -1083,7 +1726,7 @@ describe("ProjectPage", () => {
       expect(newProjectLink.querySelector(".lucide-folder-plus")).toBeInTheDocument();
       expect(
         Boolean(
-          newProjectLink.compareDocumentPosition(projectTitle) & Node.DOCUMENT_POSITION_FOLLOWING
+          projectTitle.compareDocumentPosition(newProjectLink) & Node.DOCUMENT_POSITION_FOLLOWING
         )
       ).toBe(true);
     });
@@ -1113,8 +1756,9 @@ describe("ProjectPage", () => {
         expect(screen.getByTestId("react-flow-canvas")).toHaveAttribute("data-node-count", "2");
       });
       fireEvent.click(screen.getByRole("button", { name: "More project actions" }));
-      const prdButton = screen.getByRole("menuitem", {
+      const prdButton = screen.getByRole("button", {
         name: "Generate PRD from architecture",
+        hidden: true,
       });
       expect(prdButton.querySelector(".lucide-sparkles")).toBeInTheDocument();
     });
@@ -1135,8 +1779,9 @@ describe("ProjectPage", () => {
       render(<ProjectPage />);
       await screen.findByTestId("react-flow-canvas");
       fireEvent.click(screen.getByRole("button", { name: "More project actions" }));
-      const prdAction = screen.getByRole("menuitem", {
+      const prdAction = screen.getByRole("button", {
         name: "Generate PRD from architecture",
+        hidden: true,
       });
       prdAction.focus();
       fireEvent.click(prdAction);
@@ -1201,25 +1846,22 @@ describe("ProjectPage", () => {
       });
     });
 
-    it("dismisses More when focus leaves without interrupting the next Tab target", async () => {
+    it("uses a native More disclosure with ordinary navigation and command semantics", async () => {
       mockFetchProject(projectWithNodes);
       render(<ProjectPage />);
       const moreButton = await screen.findByRole("button", { name: "More project actions" });
+      const morePanel = screen.getByTestId("editor-more-popover");
 
-      fireEvent.click(moreButton);
-      expect(moreButton).toHaveAttribute("aria-expanded", "true");
-      const lastAction = screen.getByRole("menuitem", { name: "Save as Template" });
-      const themeButton = screen.getByRole("button", { name: "Theme: change appearance" });
-      lastAction.focus();
-
-      fireEvent.blur(lastAction, { relatedTarget: themeButton });
-      themeButton.focus();
-
-      await waitFor(() => {
-        expect(screen.queryByRole("menu")).not.toBeInTheDocument();
-      });
-      expect(moreButton).toHaveAttribute("aria-expanded", "false");
-      expect(themeButton).toHaveFocus();
+      expect(moreButton).toHaveAttribute("popovertarget", morePanel.id);
+      expect(morePanel).toHaveAttribute("popover", "auto");
+      expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+      expect(screen.queryByRole("menuitem")).not.toBeInTheDocument();
+      expect(
+        within(morePanel).getByRole("link", { name: "New Map", hidden: true })
+      ).toHaveAttribute("href", "/project/new?returnTo=%2Fproject%2Ftest-project-id");
+      expect(
+        screen.getByRole("button", { name: "Save as Template", hidden: true })
+      ).toBeInTheDocument();
     });
   });
 

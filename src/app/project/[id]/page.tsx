@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -13,10 +13,15 @@ import ReactFlow, {
   type Node,
   type Edge,
   type Connection,
+  type NodeChange,
+  type EdgeChange,
   type ReactFlowInstance,
 } from "reactflow";
 import "reactflow/dist/style.css";
-import ChatSidebar, { type ArchitectureUpdateMeta } from "@/components/chat/ChatSidebar";
+import ChatSidebar, {
+  type ArchitectureStreamOutcome,
+  type ArchitectureUpdateMeta,
+} from "@/components/chat/ChatSidebar";
 import NodeDetailPanel from "@/components/canvas/NodeDetailPanel";
 import AddNodeDropdown from "@/components/canvas/AddNodeDropdown";
 import ConnectionTypeSelector from "@/components/canvas/ConnectionTypeSelector";
@@ -31,7 +36,9 @@ import {
   type EditorDisplaySettings,
 } from "@/components/canvas/EditorDisplaySettings";
 import ThemeToggle from "@/components/ThemeToggle";
+import AccountMenu, { AccountSessionExpiredError } from "@/components/AccountMenu";
 import RoutingTrace from "@/components/shells/RoutingTrace";
+import StackHatchWordmark from "@/components/shells/StackHatchWordmark";
 import IconControl from "@/components/ui/IconControl";
 import {
   toReactFlowNodes,
@@ -62,6 +69,11 @@ import {
   consumePendingProjectStart,
   getPendingProjectStart,
 } from "@/lib/project-start";
+import {
+  CanvasPersistenceUnauthorizedError,
+  createCanvasPersistenceCoordinator,
+  type CanvasPersistenceCoordinator,
+} from "@/lib/canvas-persistence";
 
 interface Project {
   id: string;
@@ -81,14 +93,26 @@ function EditorStateShell({
   eyebrow,
   title,
   children,
+  newMapHref,
 }: {
   eyebrow: string;
   title: string;
   children: ReactNode;
+  newMapHref: string;
 }) {
   return (
     <main className="app-resolver-shell text-[var(--foreground)]" data-testid="editor-state-shell">
       <RoutingTrace variant="resolver" />
+      <header className="absolute inset-x-0 top-0 z-10 flex min-w-0 items-center justify-between gap-3 border-b border-[var(--boundary)] bg-[var(--paper)] px-2 py-1.5 sm:px-4">
+        <StackHatchWordmark href="/app/maps" label="All Maps" />
+        <div className="flex flex-none items-center gap-1" aria-label="Application actions">
+          <IconControl href={newMapHref} label="New Map" tooltipPlacement="bottom">
+            <FolderPlus />
+          </IconControl>
+          <ThemeToggle />
+          <AccountMenu />
+        </div>
+      </header>
       <section className="relative z-[1] w-full max-w-md rounded-[var(--radius-surface)] border border-[var(--boundary)] bg-[var(--paper)] p-6 shadow-[var(--shadow-low)]">
         <p className="font-utility text-[0.6875rem] font-semibold uppercase tracking-[0.14em] text-[var(--blueprint)]">
           {eyebrow}
@@ -122,6 +146,19 @@ interface SettingsResponse {
 interface StoredCanvasState extends StackArchitecture {
   positions?: Record<string, { x: number; y: number }>;
   alternatives?: Record<string, AlternativeNode[]>;
+}
+
+function buildStoredCanvasState(
+  nodes: Node<StackNodeData>[],
+  edges: Edge<StackEdgeData>[],
+  alternatives: Record<string, AlternativeNode[]>
+): StoredCanvasState {
+  return {
+    nodes: fromReactFlowNodes(nodes),
+    edges: fromReactFlowEdges(edges),
+    positions: Object.fromEntries(nodes.map((node) => [node.id, node.position])),
+    alternatives,
+  };
 }
 
 const nodeTypes = { stackNode: StackNodeComponent };
@@ -196,12 +233,15 @@ export default function ProjectPage() {
   const [customSubtypes, setCustomSubtypes] = useState<CustomSubtypesMap>({});
   const [scanTrigger, setScanTrigger] = useState(0);
   const [chatStreaming, setChatStreaming] = useState(false);
+  const [architectureStreamPhase, setArchitectureStreamPhase] = useState<
+    "idle" | "preparing" | "streaming" | "reconciling" | "reconciliation-failed"
+  >("idle");
   const [chatOpen, setChatOpen] = useState(false);
   const [alternatives, setAlternatives] = useState<Record<string, AlternativeNode[]>>({});
   const [altLoading, setAltLoading] = useState(false);
   const [prdLoading, setPrdLoading] = useState(false);
   const [prdStatus, setPrdStatus] = useState("");
-  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const [signOutPending, setSignOutPending] = useState(false);
   const [saveTemplateModalOpen, setSaveTemplateModalOpen] = useState(false);
   const [templateSaving, setTemplateSaving] = useState(false);
   const [hasAnthropicKey, setHasAnthropicKey] = useState<boolean | null>(null);
@@ -230,38 +270,58 @@ export default function ProjectPage() {
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<StackNodeData>([]);
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<StackEdgeData>([]);
   const rfInstanceRef = useRef<ReactFlowInstance | null>(null);
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const repositoryScanPendingRef = useRef(false);
+  const persistenceRef = useRef<CanvasPersistenceCoordinator<StoredCanvasState> | null>(null);
   const rescanDialogRef = useRef<HTMLDivElement | null>(null);
   const rescanInvokerRef = useRef<HTMLButtonElement | null>(null);
   const saveTemplateDialogRef = useRef<HTMLDivElement | null>(null);
-  const moreMenuRef = useRef<HTMLDivElement | null>(null);
+  const morePopoverRef = useRef<HTMLDivElement | null>(null);
   const moreMenuInvokerRef = useRef<HTMLButtonElement | null>(null);
   const canvasFocusTargetRef = useRef<HTMLDivElement | null>(null);
   const nodePanelCloseTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const latestFlowRef = useRef<{
-    nodes: Node<StackNodeData>[];
-    edges: Edge<StackEdgeData>[];
-  }>({ nodes: [], edges: [] });
   const projectRef = useRef<Project | null>(null);
   const initializedRef = useRef(false);
+  const skipNextPersistencePublishRef = useRef(false);
   const alternativesRef = useRef<Record<string, AlternativeNode[]>>({});
+  const architectureStreamActiveRef = useRef(false);
+  const signOutPendingRef = useRef(false);
+  const authoritativeUpdatedAtRef = useRef<number | null>(null);
+  const preStreamRef = useRef<{ snapshot: StoredCanvasState; updatedAt: number } | null>(null);
   const firstMapTrackedRef = useRef(false);
   const openedProjectRef = useRef<string | null>(null);
   const canUseConnectionTypes = true;
+  const morePopoverId = `editor-more-${useId()}`;
+  const isCanvasMutationBlocked = useCallback(
+    () => architectureStreamActiveRef.current || signOutPendingRef.current,
+    []
+  );
 
   const startRepositoryRescan = useCallback(() => {
-    repositoryScanPendingRef.current = true;
-    clearTimeout(saveTimerRef.current);
+    if (isCanvasMutationBlocked()) return;
     setRescanConfirmOpen(false);
     setChatOpen(true);
     trackEvent("repository_rescan_started", { location: "editor" });
     setScanTrigger((trigger) => trigger + 1);
-  }, []);
+  }, [isCanvasMutationBlocked]);
 
   const focusCanvasTarget = useCallback(() => {
     window.requestAnimationFrame(() => canvasFocusTargetRef.current?.focus());
   }, []);
+
+  const handleNodesChange = useCallback(
+    (changes: NodeChange[]) => {
+      if (isCanvasMutationBlocked()) return;
+      onNodesChange(changes);
+    },
+    [isCanvasMutationBlocked, onNodesChange]
+  );
+
+  const handleEdgesChange = useCallback(
+    (changes: EdgeChange[]) => {
+      if (isCanvasMutationBlocked()) return;
+      onEdgesChange(changes);
+    },
+    [isCanvasMutationBlocked, onEdgesChange]
+  );
 
   const handleChatOpenChange = useCallback(
     (nextOpen: boolean) => {
@@ -272,8 +332,8 @@ export default function ProjectPage() {
   );
 
   const dismissMoreMenu = useCallback((restoreInvokerFocus = false) => {
+    morePopoverRef.current?.hidePopover?.();
     if (restoreInvokerFocus) moreMenuInvokerRef.current?.focus();
-    setMoreMenuOpen(false);
   }, []);
 
   const handleZoomIn = useCallback(() => {
@@ -310,32 +370,6 @@ export default function ProjectPage() {
     return () => clearTimeout(timer);
   }, [toast]);
 
-  useEffect(() => {
-    if (!moreMenuOpen) return;
-
-    function closeOnOutsideClick(event: MouseEvent) {
-      if (
-        !(event.target instanceof globalThis.Node) ||
-        !moreMenuRef.current?.contains(event.target)
-      ) {
-        dismissMoreMenu();
-      }
-    }
-
-    function closeOnEscape(event: KeyboardEvent) {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      dismissMoreMenu(true);
-    }
-
-    document.addEventListener("mousedown", closeOnOutsideClick);
-    window.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("mousedown", closeOnOutsideClick);
-      window.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [dismissMoreMenu, moreMenuOpen]);
-
   const loadedProjectId = project?.id;
   useEffect(() => {
     if (loadedProjectId !== projectId || openedProjectRef.current === projectId) return;
@@ -365,6 +399,7 @@ export default function ProjectPage() {
 
   const handleLockToggle = useCallback(
     (id: string, locked: boolean) => {
+      if (isCanvasMutationBlocked()) return;
       setRfNodes((nds) =>
         nds.map((n) => (n.id === id ? { ...n, data: { ...n.data, locked } } : n))
       );
@@ -380,11 +415,12 @@ export default function ProjectPage() {
       });
       setSelectedNode((prev) => (prev && prev.id === id ? { ...prev, locked } : prev));
     },
-    [setRfNodes]
+    [isCanvasMutationBlocked, setRfNodes]
   );
 
   const handleNodeDelete = useCallback(
     (id: string) => {
+      if (isCanvasMutationBlocked()) return;
       setRfNodes((nds) => nds.filter((n) => n.id !== id));
       setRfEdges((eds) => eds.filter((e) => e.source !== id && e.target !== id));
       setProject((prev) => {
@@ -400,82 +436,50 @@ export default function ProjectPage() {
       setNodePanelOpen(false);
       setSelectedNode(null);
     },
-    [setRfNodes, setRfEdges]
+    [isCanvasMutationBlocked, setRfNodes, setRfEdges]
   );
 
-  // --- Debounced save ---
+  // --- Revision-ordered canvas persistence ---
 
-  const saveCanvas = useCallback(
-    async (
-      nodes: Node<StackNodeData>[],
-      edges: Edge<StackEdgeData>[],
-      options?: { keepalive?: boolean }
-    ) => {
-      const stackNodes = fromReactFlowNodes(nodes);
-      const stackEdges = fromReactFlowEdges(edges);
-      const positions: Record<string, { x: number; y: number }> = {};
-      for (const node of nodes) {
-        positions[node.id] = node.position;
-      }
-      const stored: StoredCanvasState = {
-        nodes: stackNodes,
-        edges: stackEdges,
-        positions,
-        alternatives: alternativesRef.current,
-      };
+  const writeCanvasSnapshot = useCallback(
+    async (snapshot: StoredCanvasState, keepalive: boolean) => {
       const response = await fetch(`/api/projects/${projectId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        keepalive: options?.keepalive,
-        body: JSON.stringify({ canvasState: JSON.stringify(stored) }),
+        keepalive,
+        body: JSON.stringify({ canvasState: JSON.stringify(snapshot) }),
       });
       if (!response.ok) {
+        if (response.status === 401) throw new CanvasPersistenceUnauthorizedError();
         throw new Error("Failed to save canvas");
       }
-      // Keep project domain state in sync
-      setProject((prev) =>
-        prev
-          ? {
-              ...prev,
-              canvasState: { nodes: stackNodes, edges: stackEdges },
-            }
-          : prev
-      );
+      const receipt =
+        typeof response.json === "function"
+          ? ((await response.json().catch(() => null)) as Partial<Project> | null)
+          : null;
+      if (typeof receipt?.updatedAt === "number") {
+        authoritativeUpdatedAtRef.current = receipt.updatedAt;
+      }
     },
     [projectId]
   );
 
-  const debouncedSave = useCallback(
-    (nodes: Node<StackNodeData>[], edges: Edge<StackEdgeData>[]) => {
-      latestFlowRef.current = { nodes, edges };
-      clearTimeout(saveTimerRef.current);
-      if (repositoryScanPendingRef.current) return;
-      saveTimerRef.current = setTimeout(() => {
-        saveCanvas(nodes, edges).catch(() => {
-          setToast("Failed to save canvas");
-        });
-      }, 500);
-    },
-    [saveCanvas]
-  );
-
-  // Trigger debounced save when React Flow state changes
   useEffect(() => {
-    if (!initializedRef.current) return;
-    debouncedSave(rfNodes, rfEdges);
-  }, [rfNodes, rfEdges, debouncedSave]);
+    if (!initializedRef.current || !persistenceRef.current) return;
+    if (skipNextPersistencePublishRef.current) {
+      skipNextPersistencePublishRef.current = false;
+      return;
+    }
+    persistenceRef.current.publish(buildStoredCanvasState(rfNodes, rfEdges, alternatives));
+  }, [rfNodes, rfEdges, alternatives]);
 
-  // Flush a pending save on unmount so fast navigation does not drop edits.
   useEffect(() => {
     return () => {
-      if (!saveTimerRef.current || !initializedRef.current || repositoryScanPendingRef.current)
-        return;
-      clearTimeout(saveTimerRef.current);
-      void saveCanvas(latestFlowRef.current.nodes, latestFlowRef.current.edges, {
-        keepalive: true,
-      });
+      const coordinator = persistenceRef.current;
+      persistenceRef.current = null;
+      if (coordinator) void coordinator.dispose().catch(() => undefined);
     };
-  }, [saveCanvas]);
+  }, [projectId]);
 
   useEffect(() => {
     return () => clearTimeout(nodePanelCloseTimerRef.current);
@@ -646,6 +650,7 @@ export default function ProjectPage() {
 
   const addConnectionEdge = useCallback(
     (sourceId: string, targetId: string, type: ConnectionType) => {
+      if (isCanvasMutationBlocked()) return;
       const id = crypto.randomUUID();
       const label = getDefaultConnectionLabel(type);
       const rfEdge: Edge<StackEdgeData> = {
@@ -676,11 +681,12 @@ export default function ProjectPage() {
         };
       });
     },
-    [setRfEdges]
+    [isCanvasMutationBlocked, setRfEdges]
   );
 
   const handleConnect = useCallback(
     (connection: Connection) => {
+      if (isCanvasMutationBlocked()) return;
       if (!connection.source || !connection.target) return;
       if (!canUseConnectionTypes) {
         addConnectionEdge(connection.source, connection.target, "http");
@@ -693,7 +699,7 @@ export default function ProjectPage() {
         position: { x: 300, y: 300 },
       });
     },
-    [addConnectionEdge, canUseConnectionTypes]
+    [addConnectionEdge, canUseConnectionTypes, isCanvasMutationBlocked]
   );
 
   const handleEdgeClick = useCallback(
@@ -717,6 +723,7 @@ export default function ProjectPage() {
 
   const handleConnectionTypeSelect = useCallback(
     (type: ConnectionType) => {
+      if (isCanvasMutationBlocked()) return;
       if (!connectionTypePopover) return;
       if (connectionTypePopover.mode === "create") {
         addConnectionEdge(connectionTypePopover.sourceId, connectionTypePopover.targetId, type);
@@ -756,7 +763,13 @@ export default function ProjectPage() {
       setConnectionTypePopover(null);
       focusCanvasTarget();
     },
-    [addConnectionEdge, connectionTypePopover, focusCanvasTarget, setRfEdges]
+    [
+      addConnectionEdge,
+      connectionTypePopover,
+      focusCanvasTarget,
+      isCanvasMutationBlocked,
+      setRfEdges,
+    ]
   );
 
   const handleCancelConnection = useCallback(() => {
@@ -768,6 +781,7 @@ export default function ProjectPage() {
 
   const handleEdgeLabelChange = useCallback(
     (edgeId: string, newLabel: string) => {
+      if (isCanvasMutationBlocked()) return;
       setRfEdges((eds) =>
         eds.map((e) => (e.id === edgeId ? { ...e, data: { ...e.data!, label: newLabel } } : e))
       );
@@ -784,7 +798,7 @@ export default function ProjectPage() {
         };
       });
     },
-    [setRfEdges]
+    [isCanvasMutationBlocked, setRfEdges]
   );
 
   const edgesWithCallbacks = useMemo(
@@ -847,6 +861,7 @@ export default function ProjectPage() {
 
   const handleAddNode = useCallback(
     (category: NodeCategory, subtype: NodeSubtype) => {
+      if (isCanvasMutationBlocked()) return;
       const subtypeConfig = getSubtypeConfig(category, subtype, customSubtypes);
       const id = crypto.randomUUID();
       const newStackNode: StackNode = {
@@ -903,13 +918,21 @@ export default function ProjectPage() {
       });
       openNodePanel(newStackNode);
     },
-    [handleLockToggle, handleNodeDelete, setRfNodes, customSubtypes, openNodePanel]
+    [
+      customSubtypes,
+      handleLockToggle,
+      handleNodeDelete,
+      isCanvasMutationBlocked,
+      openNodePanel,
+      setRfNodes,
+    ]
   );
 
   // --- Detail panel update ---
 
   const handleNodeUpdate = useCallback(
     (id: string, updates: Partial<StackNode>) => {
+      if (isCanvasMutationBlocked()) return;
       setRfNodes((nds) =>
         nds.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...updates } } : n))
       );
@@ -925,7 +948,7 @@ export default function ProjectPage() {
       });
       setSelectedNode((prev) => (prev && prev.id === id ? { ...prev, ...updates } : prev));
     },
-    [setRfNodes]
+    [isCanvasMutationBlocked, setRfNodes]
   );
 
   const handleClosePanel = useCallback(() => {
@@ -937,7 +960,7 @@ export default function ProjectPage() {
 
   const handleSuggestAlternatives = useCallback(async () => {
     const node = selectedNode;
-    if (!node) return;
+    if (!node || isCanvasMutationBlocked()) return;
     trackEvent("alternatives_opened", { location: "editor" });
     if (hasAnthropicKey === false) {
       setAiSetupRequired(true);
@@ -965,18 +988,19 @@ export default function ProjectPage() {
         return;
       }
       const data = await res.json();
-      if (data.alternatives) {
+      if (data.alternatives && !isCanvasMutationBlocked()) {
         setAlternatives((prev) => ({ ...prev, [node.id]: data.alternatives }));
       }
     } finally {
       setAltLoading(false);
     }
-  }, [selectedNode, projectId, hasAnthropicKey]);
+  }, [selectedNode, projectId, hasAnthropicKey, isCanvasMutationBlocked]);
 
   // --- Swap alternative ---
 
   const handleSwapAlternative = useCallback(
     (alt: AlternativeNode) => {
+      if (isCanvasMutationBlocked()) return;
       const node = selectedNode;
       if (!node) return;
 
@@ -1008,7 +1032,7 @@ export default function ProjectPage() {
         return { ...prev, [node.id]: updated };
       });
     },
-    [selectedNode, handleNodeUpdate]
+    [selectedNode, handleNodeUpdate, isCanvasMutationBlocked]
   );
 
   // --- Save as template ---
@@ -1059,22 +1083,30 @@ export default function ProjectPage() {
 
   // --- AI architecture handler ---
 
-  const handleArchitecture = useCallback(
-    (incoming: StackArchitecture, meta?: ArchitectureUpdateMeta) => {
+  const adoptArchitecture = useCallback(
+    async (
+      incoming: StackArchitecture,
+      meta?: ArchitectureUpdateMeta,
+      forceReplacement = false
+    ) => {
       try {
+        const coordinator = persistenceRef.current;
+        if (!coordinator?.getState().suspended) {
+          throw new Error("Architecture replacement started without a persistence barrier");
+        }
         if (!incoming?.nodes || !Array.isArray(incoming.nodes)) {
           setToast("Failed to update canvas: invalid architecture data");
-          return;
+          throw new Error("Invalid architecture data");
         }
 
         const currentCanvas = projectRef.current?.canvasState;
         const isFirst = !currentCanvas || currentCanvas.nodes.length === 0;
-        const isRepositoryReplacement = meta?.source === "scan";
+        const isReplacement = forceReplacement || meta?.source === "scan";
 
         let finalArch: StackArchitecture;
         let posMap: Map<string, { x: number; y: number }>;
 
-        if (isFirst || isRepositoryReplacement) {
+        if (isFirst || isReplacement) {
           finalArch = incoming;
           const positions = applyDagreLayout(incoming.nodes, incoming.edges);
           posMap = new Map(positions.map((p) => [p.id, p.position]));
@@ -1100,8 +1132,8 @@ export default function ProjectPage() {
         const newRfNodes = buildRfNodes(finalArch.nodes, posMap);
         const newRfEdges = toReactFlowEdges(finalArch.edges);
 
-        if (isRepositoryReplacement) {
-          clearTimeout(saveTimerRef.current);
+        const replacementAlternatives = isReplacement ? {} : alternativesRef.current;
+        if (isReplacement) {
           alternativesRef.current = {};
           setAlternatives({});
           setSelectedNode(null);
@@ -1127,6 +1159,11 @@ export default function ProjectPage() {
               }
             : prev
         );
+
+        await coordinator.persistReplacement(
+          buildStoredCanvasState(newRfNodes, newRfEdges, replacementAlternatives)
+        );
+
         if (isFirst && !firstMapTrackedRef.current) {
           firstMapTrackedRef.current = true;
           const startMethod = consumePendingProjectStart();
@@ -1137,16 +1174,155 @@ export default function ProjectPage() {
         }
 
         setTimeout(() => rfInstanceRef.current?.fitView({ padding: 0.2, duration: 300 }), 100);
-      } catch {
+      } catch (error) {
         setToast("Failed to update canvas");
+        throw error;
       }
     },
     [rfNodes, buildRfNodes, setRfNodes, setRfEdges]
   );
 
-  const handleScanStateChange = useCallback((scanning: boolean) => {
-    repositoryScanPendingRef.current = scanning;
-    if (scanning) clearTimeout(saveTimerRef.current);
+  const handleArchitecture = useCallback(
+    (incoming: StackArchitecture, meta?: ArchitectureUpdateMeta) =>
+      adoptArchitecture(incoming, meta),
+    [adoptArchitecture]
+  );
+
+  const restoreCanvasSnapshot = useCallback(
+    (snapshot: StoredCanvasState) => {
+      const positions = snapshot.positions
+        ? new Map(Object.entries(snapshot.positions))
+        : new Map(
+            applyDagreLayout(snapshot.nodes, snapshot.edges).map((item) => [item.id, item.position])
+          );
+      const restoredNodes = buildRfNodes(snapshot.nodes, positions);
+      const restoredEdges = toReactFlowEdges(snapshot.edges);
+      const restoredAlternatives = snapshot.alternatives ?? {};
+
+      alternativesRef.current = restoredAlternatives;
+      setRfNodes(restoredNodes);
+      setRfEdges(restoredEdges);
+      setAlternatives(restoredAlternatives);
+      setSelectedNode(null);
+      setNodePanelOpen(false);
+      setConnectionTypePopover(null);
+      setProject((previous) =>
+        previous
+          ? {
+              ...previous,
+              canvasState: { nodes: snapshot.nodes, edges: snapshot.edges },
+            }
+          : previous
+      );
+    },
+    [buildRfNodes, setRfEdges, setRfNodes]
+  );
+
+  const releaseArchitectureBarrier = useCallback(() => {
+    persistenceRef.current?.resume();
+    architectureStreamActiveRef.current = false;
+    preStreamRef.current = null;
+    setArchitectureStreamPhase("idle");
+  }, []);
+
+  const handleArchitectureStreamStart = useCallback(async () => {
+    const coordinator = persistenceRef.current;
+    const currentProject = projectRef.current;
+    if (
+      !coordinator ||
+      !currentProject ||
+      architectureStreamActiveRef.current ||
+      signOutPendingRef.current
+    ) {
+      throw new Error("Architecture update is unavailable");
+    }
+
+    architectureStreamActiveRef.current = true;
+    const snapshot = coordinator.getLatestSnapshot();
+    setArchitectureStreamPhase("preparing");
+    try {
+      await coordinator.suspendAndFlush();
+      preStreamRef.current = {
+        snapshot,
+        updatedAt: authoritativeUpdatedAtRef.current ?? currentProject.updatedAt,
+      };
+      setArchitectureStreamPhase("streaming");
+    } catch (error) {
+      releaseArchitectureBarrier();
+      throw error;
+    }
+  }, [releaseArchitectureBarrier]);
+
+  const reconcileArchitectureStream = useCallback(async () => {
+    const coordinator = persistenceRef.current;
+    const preStream = preStreamRef.current;
+    if (!coordinator || !preStream) {
+      releaseArchitectureBarrier();
+      return;
+    }
+
+    setArchitectureStreamPhase("reconciling");
+    try {
+      const response = await fetch(`/api/projects/${projectId}`);
+      if (!response.ok) throw new Error("Failed to reconcile architecture update");
+      const authoritative = (await response.json()) as Project;
+      const serverAdvanced = authoritative.updatedAt !== preStream.updatedAt;
+      authoritativeUpdatedAtRef.current = authoritative.updatedAt;
+
+      if (serverAdvanced && authoritative.canvasState) {
+        setProject(authoritative);
+        await adoptArchitecture(authoritative.canvasState, undefined, true);
+      } else {
+        coordinator.restoreAcknowledgedSnapshot(preStream.snapshot);
+        restoreCanvasSnapshot(preStream.snapshot);
+      }
+      releaseArchitectureBarrier();
+    } catch {
+      setArchitectureStreamPhase("reconciliation-failed");
+    }
+  }, [adoptArchitecture, projectId, releaseArchitectureBarrier, restoreCanvasSnapshot]);
+
+  const handleArchitectureStreamEnd = useCallback(
+    async (outcome: ArchitectureStreamOutcome) => {
+      if (outcome === "completed") {
+        releaseArchitectureBarrier();
+        return;
+      }
+      await reconcileArchitectureStream();
+    },
+    [reconcileArchitectureStream, releaseArchitectureBarrier]
+  );
+
+  const handleBeforeSignOut = useCallback(async () => {
+    const coordinator = persistenceRef.current;
+    if (!coordinator || architectureStreamActiveRef.current) {
+      throw new Error("Architecture update in progress");
+    }
+
+    signOutPendingRef.current = true;
+    setSignOutPending(true);
+    try {
+      const liveSnapshot = buildStoredCanvasState(rfNodes, rfEdges, alternatives);
+      if (JSON.stringify(liveSnapshot) !== JSON.stringify(coordinator.getLatestSnapshot())) {
+        coordinator.publish(liveSnapshot);
+      }
+      await coordinator.flushLatest();
+      if (architectureStreamActiveRef.current || coordinator.getState().dirty) {
+        throw new Error("Canvas changes are not fully saved");
+      }
+    } catch (error) {
+      if (error instanceof CanvasPersistenceUnauthorizedError) {
+        const callbackUrl = encodeURIComponent(`/project/${projectId}`);
+        throw new AccountSessionExpiredError(`/api/auth/signin?callbackUrl=${callbackUrl}`);
+      }
+      throw error;
+    }
+  }, [alternatives, projectId, rfEdges, rfNodes]);
+
+  const handleSignOutFailure = useCallback((error: unknown) => {
+    if (error instanceof AccountSessionExpiredError) return;
+    signOutPendingRef.current = false;
+    setSignOutPending(false);
   }, []);
 
   // --- Load project ---
@@ -1154,6 +1330,7 @@ export default function ProjectPage() {
   useEffect(() => {
     async function loadProject() {
       try {
+        initializedRef.current = false;
         // Resolve this user's subtype configuration before constructing persisted node data.
         const [settingsResponse, res] = await Promise.all([
           fetch("/api/settings")
@@ -1185,6 +1362,7 @@ export default function ProjectPage() {
           );
         }
         setProject(data);
+        authoritativeUpdatedAtRef.current = data.updatedAt;
         const hasLoadedCanvas = (data.canvasState?.nodes?.length ?? 0) > 0;
         setChatOpen(!hasLoadedCanvas);
 
@@ -1201,12 +1379,12 @@ export default function ProjectPage() {
           });
         }
 
+        let persistenceBaseline: StoredCanvasState;
+
         // Initialize React Flow state from loaded canvas
         if (data.canvasState?.nodes?.length) {
           const stored = data.canvasState as StoredCanvasState;
-          if (stored.alternatives) {
-            setAlternatives(stored.alternatives);
-          }
+          setAlternatives(stored.alternatives ?? {});
           let posMap: Map<string, { x: number; y: number }>;
 
           if (stored.positions && Object.keys(stored.positions).length > 0) {
@@ -1233,14 +1411,21 @@ export default function ProjectPage() {
 
           setRfNodes(nodes);
           setRfEdges(edges);
-
-          // Mark as initialized after a tick to skip the debounced save effect
-          requestAnimationFrame(() => {
-            initializedRef.current = true;
-          });
+          persistenceBaseline = buildStoredCanvasState(nodes, edges, stored.alternatives ?? {});
         } else {
-          initializedRef.current = true;
+          setRfNodes([]);
+          setRfEdges([]);
+          setAlternatives({});
+          persistenceBaseline = { nodes: [], edges: [], positions: {}, alternatives: {} };
         }
+
+        persistenceRef.current = createCanvasPersistenceCoordinator({
+          baseline: persistenceBaseline,
+          writer: ({ snapshot }, { keepalive }) => writeCanvasSnapshot(snapshot, keepalive),
+          onBackgroundError: () => setToast("Failed to save canvas"),
+        });
+        skipNextPersistencePublishRef.current = true;
+        initializedRef.current = true;
       } catch {
         setError("Failed to load project");
       } finally {
@@ -1258,6 +1443,14 @@ export default function ProjectPage() {
     [project?.canvasState]
   );
   const nodeCount = project?.canvasState?.nodes?.length ?? 0;
+  const editorNewMapHref = buildProjectStartChooserPath(`/project/${projectId}`);
+  const canvasMutationBlocked = architectureStreamPhase !== "idle" || signOutPending;
+  const signOutBlockedReason =
+    architectureStreamPhase === "idle"
+      ? null
+      : architectureStreamPhase === "reconciliation-failed"
+        ? "Architecture save status is unknown; retry reconciliation"
+        : "Architecture update in progress";
   const toolSurfaceObscured = chatOpen || nodePanelOpen || connectionTypePopover !== null;
   const toolSurfaceDialogOpen = saveTemplateModalOpen || rescanConfirmOpen || aiSetupRequired;
   const liveCanvasState = useMemo<StackArchitecture | null>(() => {
@@ -1273,7 +1466,11 @@ export default function ProjectPage() {
   }, [project?.canvasState, rfNodes, rfEdges]);
   if (recoveringResume) {
     return (
-      <EditorStateShell eyebrow="Resume project" title="Finding your map">
+      <EditorStateShell
+        eyebrow="Resume project"
+        title="Finding your map"
+        newMapHref={editorNewMapHref}
+      >
         <p role="status" aria-live="polite">
           Finding another map...
         </p>
@@ -1283,7 +1480,11 @@ export default function ProjectPage() {
 
   if (loading) {
     return (
-      <EditorStateShell eyebrow="Architecture workspace" title="Loading map">
+      <EditorStateShell
+        eyebrow="Architecture workspace"
+        title="Loading map"
+        newMapHref={editorNewMapHref}
+      >
         <p role="status" aria-live="polite">
           Loading...
         </p>
@@ -1293,14 +1494,12 @@ export default function ProjectPage() {
 
   if (error || !project) {
     return (
-      <EditorStateShell eyebrow="Architecture workspace" title="Map unavailable">
+      <EditorStateShell
+        eyebrow="Architecture workspace"
+        title="Map unavailable"
+        newMapHref={editorNewMapHref}
+      >
         <p className="text-[var(--danger)]">{error || "Project not found"}</p>
-        <Link
-          href="/app/maps"
-          className="mt-4 inline-flex min-h-11 items-center rounded-[var(--radius-control)] border border-[var(--boundary)] px-4 py-2 font-semibold text-[var(--blueprint)] hover:bg-[var(--muted)]"
-        >
-          All Maps
-        </Link>
       </EditorStateShell>
     );
   }
@@ -1312,6 +1511,8 @@ export default function ProjectPage() {
       className="project-editor-shell observatory-editor flex flex-col bg-[var(--background)] text-[var(--foreground)] md:flex-row"
       data-testid="project-editor-shell"
       data-height-contract="viewport"
+      data-ai-writer-phase={architectureStreamPhase}
+      data-mutation-blocked={String(canvasMutationBlocked)}
     >
       <div
         id="editor-chat-sidebar"
@@ -1329,8 +1530,9 @@ export default function ProjectPage() {
           scanTrigger={scanTrigger}
           canvasState={liveCanvasState}
           onArchitecture={handleArchitecture}
+          onArchitectureStreamStart={handleArchitectureStreamStart}
+          onArchitectureStreamEnd={handleArchitectureStreamEnd}
           onStreaming={setChatStreaming}
-          onScanStateChange={handleScanStateChange}
         />
       </div>
 
@@ -1351,16 +1553,6 @@ export default function ProjectPage() {
           >
             <ArrowLeft />
           </IconControl>
-          <IconControl
-            href={buildProjectStartChooserPath(`/project/${projectId}`)}
-            label="New Map"
-            tooltip="New map"
-            tooltipPlacement="bottom"
-            title="New Map"
-          >
-            <FolderPlus />
-          </IconControl>
-
           <div
             className="min-w-0 flex-1 overflow-hidden px-1 sm:px-2"
             data-testid="project-identity"
@@ -1382,21 +1574,37 @@ export default function ProjectPage() {
           </div>
 
           <div className="ml-auto flex shrink-0 items-center gap-1">
-            {project.repoUrl && (
+            <div className="hidden sm:block" data-editor-action-group="wide-new-map">
               <IconControl
-                label={`Re-scan repository: ${project.repoUrl}`}
-                tooltip="Re-scan repository"
+                href={editorNewMapHref}
+                label="New Map"
+                tooltip="New map"
                 tooltipPlacement="bottom"
-                variant="outline"
-                title={`Re-scan: ${project.repoUrl}`}
-                onClick={(event) => {
-                  rescanInvokerRef.current = event.currentTarget;
-                  if (nodeCount > 0) setRescanConfirmOpen(true);
-                  else startRepositoryRescan();
-                }}
+                title="New Map"
+                data-testid="wide-new-map"
               >
-                <RefreshCw />
+                <FolderPlus />
               </IconControl>
+            </div>
+            {project.repoUrl && (
+              <div className="hidden sm:block" data-editor-action-group="wide-rescan">
+                <IconControl
+                  label={`Re-scan repository: ${project.repoUrl}`}
+                  tooltip="Re-scan repository"
+                  tooltipPlacement="bottom"
+                  variant="outline"
+                  title={`Re-scan: ${project.repoUrl}`}
+                  disabled={canvasMutationBlocked}
+                  data-testid="wide-rescan-button"
+                  onClick={(event) => {
+                    rescanInvokerRef.current = event.currentTarget;
+                    if (nodeCount > 0) setRescanConfirmOpen(true);
+                    else startRepositoryRescan();
+                  }}
+                >
+                  <RefreshCw />
+                </IconControl>
+              </div>
             )}
             {nodeCount > 0 && (
               <ExportDropdown
@@ -1406,72 +1614,94 @@ export default function ProjectPage() {
                 onError={setToast}
               />
             )}
-            {nodeCount > 0 && (
-              <div
-                ref={moreMenuRef}
-                className="relative"
-                onBlur={(event) => {
-                  const nextTarget = event.relatedTarget;
-                  if (
-                    nextTarget instanceof globalThis.Node &&
-                    event.currentTarget.contains(nextTarget)
-                  ) {
-                    return;
-                  }
-                  dismissMoreMenu();
-                }}
+            <div className="flex-none" data-editor-action-group="more">
+              <IconControl
+                controlRef={moreMenuInvokerRef}
+                label="More project actions"
+                tooltip="More"
+                tooltipPlacement="bottom"
+                popoverTarget={morePopoverId}
+                popoverTargetAction="toggle"
               >
-                <IconControl
-                  label="More project actions"
-                  tooltip="More"
-                  tooltipPlacement="bottom"
-                  pressed={moreMenuOpen}
-                  aria-expanded={moreMenuOpen}
-                  onClick={(event) => {
-                    moreMenuInvokerRef.current = event.currentTarget;
-                    setMoreMenuOpen((open) => !open);
-                  }}
+                <Ellipsis />
+              </IconControl>
+              <div
+                ref={morePopoverRef}
+                id={morePopoverId}
+                popover="auto"
+                data-testid="editor-more-popover"
+                className="fixed inset-auto right-16 top-16 z-50 m-0 max-h-[calc(100dvh-5rem)] w-64 max-w-[calc(100vw-2rem)] overflow-y-auto rounded-[var(--radius-surface)] border border-[var(--border)] bg-[var(--surface-raised)] p-1 shadow-xl"
+              >
+                <Link
+                  href={editorNewMapHref}
+                  className="flex min-h-11 items-center gap-3 rounded-[var(--radius-control)] px-3 py-2 text-sm font-semibold text-[var(--foreground)] hover:bg-[var(--muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] sm:hidden"
                 >
-                  <Ellipsis />
-                </IconControl>
-                {moreMenuOpen && (
-                  <div
-                    role="menu"
-                    aria-label="Project actions"
-                    className="absolute right-0 top-full z-40 mt-2 w-56 rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] p-1 shadow-lg"
+                  <FolderPlus className="h-4 w-4" aria-hidden="true" />
+                  New Map
+                </Link>
+                <div className="sm:hidden">
+                  <ThemeToggle variant="row" />
+                </div>
+                {project.repoUrl && (
+                  <button
+                    type="button"
+                    disabled={canvasMutationBlocked}
+                    onClick={() => {
+                      rescanInvokerRef.current = moreMenuInvokerRef.current;
+                      dismissMoreMenu();
+                      if (nodeCount > 0) setRescanConfirmOpen(true);
+                      else {
+                        startRepositoryRescan();
+                        moreMenuInvokerRef.current?.focus();
+                      }
+                    }}
+                    className="flex min-h-11 w-full items-center gap-3 rounded-[var(--radius-control)] px-3 py-2 text-left text-sm font-semibold text-[var(--foreground)] hover:bg-[var(--muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] disabled:opacity-50 sm:hidden"
+                    aria-label={`Re-scan repository: ${project.repoUrl}`}
+                    data-testid="compact-rescan-button"
                   >
+                    <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                    Re-scan repository
+                  </button>
+                )}
+                {nodeCount > 0 && (
+                  <>
                     <button
                       type="button"
-                      role="menuitem"
                       onClick={() => {
                         dismissMoreMenu(true);
                         void handleExportPrd();
                       }}
                       disabled={prdLoading}
-                      className="flex min-h-11 w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm text-[var(--foreground)] transition-colors hover:bg-[var(--muted)] disabled:opacity-50"
+                      className="flex min-h-11 w-full items-center gap-3 rounded-[var(--radius-control)] px-3 py-2 text-left text-sm text-[var(--foreground)] transition-colors hover:bg-[var(--muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] disabled:opacity-50"
                       aria-label="Generate PRD from architecture"
                     >
-                      <Sparkles className="h-[16px] w-[16px]" aria-hidden="true" />
+                      <Sparkles className="h-4 w-4" aria-hidden="true" />
                       <span>{prdLoading ? "Generating PRD..." : "Generate PRD"}</span>
                     </button>
                     <button
                       type="button"
-                      role="menuitem"
                       onClick={() => {
                         dismissMoreMenu();
                         setSaveTemplateModalOpen(true);
                       }}
-                      className="flex min-h-11 w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]"
+                      className="flex min-h-11 w-full items-center gap-3 rounded-[var(--radius-control)] px-3 py-2 text-left text-sm text-[var(--foreground)] transition-colors hover:bg-[var(--muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
                       title="Save current map as a personal template"
                     >
-                      <LayoutTemplate className="h-[16px] w-[16px]" aria-hidden="true" />
+                      <LayoutTemplate className="h-4 w-4" aria-hidden="true" />
                       <span>Save as Template</span>
                     </button>
-                  </div>
+                  </>
                 )}
               </div>
-            )}
-            <ThemeToggle />
+            </div>
+            <div className="hidden sm:block" data-editor-action-group="wide-theme">
+              <ThemeToggle />
+            </div>
+            <AccountMenu
+              beforeSignOut={handleBeforeSignOut}
+              signOutBlockedReason={signOutBlockedReason}
+              onSignOutFailure={handleSignOutFailure}
+            />
           </div>
         </div>
 
@@ -1481,16 +1711,40 @@ export default function ProjectPage() {
 
         {/* Canvas area */}
         <div className="observatory-editor-workbench relative min-h-0 flex-1 overflow-hidden bg-[var(--canvas)]">
+          {architectureStreamPhase === "reconciliation-failed" && (
+            <div
+              role="alert"
+              className="absolute left-1/2 top-4 z-40 flex w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 flex-col gap-3 rounded-[var(--radius-surface)] border border-[var(--danger)] bg-[var(--surface-raised)] p-4 shadow-xl sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div>
+                <p className="text-sm font-semibold text-[var(--foreground)]">
+                  Save status unknown
+                </p>
+                <p className="mt-1 text-xs leading-5 text-[var(--muted-foreground)]">
+                  Editing and sign out are paused until StackHatch confirms the AI update.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void reconcileArchitectureStream()}
+                className="min-h-11 shrink-0 rounded-[var(--radius-control)] bg-[var(--brand)] px-4 py-2 text-sm font-semibold text-[var(--brand-foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+              >
+                Retry reconciliation
+              </button>
+            </div>
+          )}
           <EditorDisplaySettingsProvider value={editorDisplaySettings}>
             <ReactFlow
               nodes={rfNodes}
               edges={edgesWithCallbacks}
-              onNodesChange={onNodesChange}
-              onEdgesChange={onEdgesChange}
+              onNodesChange={handleNodesChange}
+              onEdgesChange={handleEdgesChange}
               onConnect={handleConnect}
               onNodeClick={handleNodeClick}
               onEdgeClick={handleEdgeClick}
               onPaneClick={handlePaneClick}
+              nodesDraggable={!canvasMutationBlocked}
+              nodesConnectable={!canvasMutationBlocked}
               onInit={(instance) => {
                 rfInstanceRef.current = instance;
               }}
@@ -1533,6 +1787,7 @@ export default function ProjectPage() {
             onDisplaySettingsChange={setEditorDisplaySettings}
             obscured={toolSurfaceObscured}
             dialogOpen={toolSurfaceDialogOpen}
+            mutationBlocked={canvasMutationBlocked}
           />
 
           {/* Generating architecture overlay */}
@@ -1582,7 +1837,7 @@ export default function ProjectPage() {
           {canUseConnectionTypes && <EdgeLegend />}
 
           {/* Connection Type Selector popover */}
-          {canUseConnectionTypes && connectionTypePopover && (
+          {canUseConnectionTypes && connectionTypePopover && !canvasMutationBlocked && (
             <ConnectionTypeSelector
               position={connectionTypePopover.position}
               selectedType={
@@ -1610,6 +1865,7 @@ export default function ProjectPage() {
             canUseNodeLocking
             onSuggestAlternatives={handleSuggestAlternatives}
             onSwapAlternative={handleSwapAlternative}
+            mutationBlocked={canvasMutationBlocked}
           />
 
           {/* Save Template Modal */}

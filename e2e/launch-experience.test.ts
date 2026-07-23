@@ -211,7 +211,7 @@ test.describe("launch experience", () => {
       await page.setViewportSize(viewport);
 
       for (const publicRoute of [
-        { path: "/login", heading: "Turn what you have into an architecture map." },
+        { path: "/", heading: "Keep the whole stack in view" },
         { path: "/support", heading: "Get from repository to a map you can reason about." },
         { path: "/privacy", heading: "Privacy Policy" },
         { path: "/terms", heading: "Terms of Service" },

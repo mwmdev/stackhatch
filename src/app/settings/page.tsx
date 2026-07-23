@@ -243,11 +243,9 @@ export default function SettingsPage() {
   return (
     <>
       <AppPageShell
-        homeHref="/app"
-        homeLabel="Resume map"
         title="Settings"
         description="Manage your AI connection, model, appearance, map vocabulary, and account."
-        actions={<AppPageActions currentPage="settings" />}
+        actions={<AppPageActions settingsActive />}
         navigation={
           isAnthropicSetup ? (
             <IconControl href={returnTo} label="Back to map setup" tooltipPlacement="bottom">

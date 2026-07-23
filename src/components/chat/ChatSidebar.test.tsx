@@ -74,6 +74,16 @@ const messagesWithHistory = () =>
     )
   );
 
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
+
 describe("ChatSidebar", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -556,8 +566,201 @@ describe("ChatSidebar", () => {
     });
   });
 
+  it("waits for the persistence barrier before automatic initialization", async () => {
+    const barrier = deferred<void>();
+    let initCalled = false;
+    global.fetch = mockFetch({
+      "/messages": emptyMessagesResponse,
+      "/chat/init": () => {
+        initCalled = true;
+        return createSSEResponse([{ type: "done" }]);
+      },
+    });
+
+    render(
+      <ChatSidebar projectId="p1" defaultOpen onArchitectureStreamStart={() => barrier.promise} />
+    );
+
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith("/api/projects/p1/messages"));
+    expect(initCalled).toBe(false);
+    barrier.resolve();
+    await waitFor(() => expect(initCalled).toBe(true));
+  });
+
+  it("waits for the persistence barrier before normal chat", async () => {
+    const barrier = deferred<void>();
+    let chatCalled = false;
+    global.fetch = mockFetch({
+      "/messages": messagesWithHistory,
+      "/chat": () => {
+        chatCalled = true;
+        return createSSEResponse([{ type: "done" }]);
+      },
+    });
+
+    render(
+      <ChatSidebar projectId="p1" defaultOpen onArchitectureStreamStart={() => barrier.promise} />
+    );
+    const textarea = await screen.findByPlaceholderText("Message...");
+    fireEvent.change(textarea, { target: { value: "Map the new service" } });
+    fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
+
+    expect(chatCalled).toBe(false);
+    barrier.resolve();
+    await waitFor(() => expect(chatCalled).toBe(true));
+  });
+
+  it("waits for the persistence barrier before repository scan", async () => {
+    const barrier = deferred<void>();
+    let scanCalled = false;
+    global.fetch = mockFetch({
+      "/messages": messagesWithHistory,
+      "/repo-scan": () => {
+        scanCalled = true;
+        return createSSEResponse([
+          {
+            type: "architecture",
+            content: {
+              nodes: [
+                {
+                  id: "api",
+                  category: "api",
+                  subtype: "rest-api",
+                  name: "API",
+                  technology: "Next.js",
+                  description: "Routes",
+                  reasoning: "Observed",
+                  locked: false,
+                },
+              ],
+              edges: [],
+            },
+          },
+          { type: "done" },
+        ]);
+      },
+    });
+
+    render(
+      <ChatSidebar
+        projectId="p1"
+        repoUrl="owner/repo"
+        defaultOpen
+        scanTrigger={1}
+        onArchitectureStreamStart={() => barrier.promise}
+      />
+    );
+
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith("/api/projects/p1/messages"));
+    expect(scanCalled).toBe(false);
+    barrier.resolve();
+    await waitFor(() => expect(scanCalled).toBe(true));
+  });
+
+  it("prevents the architecture request when the persistence barrier fails", async () => {
+    let initCalled = false;
+    const onArchitectureStreamEnd = vi.fn();
+    global.fetch = mockFetch({
+      "/messages": emptyMessagesResponse,
+      "/chat/init": () => {
+        initCalled = true;
+        return createSSEResponse([{ type: "done" }]);
+      },
+    });
+
+    render(
+      <ChatSidebar
+        projectId="p1"
+        defaultOpen
+        onArchitectureStreamStart={() => Promise.reject(new Error("save failed"))}
+        onArchitectureStreamEnd={onArchitectureStreamEnd}
+      />
+    );
+
+    expect(
+      await screen.findByText("Your latest map changes could not be saved. Try again.")
+    ).toBeInTheDocument();
+    expect(initCalled).toBe(false);
+    expect(onArchitectureStreamEnd).not.toHaveBeenCalled();
+  });
+
+  it("awaits architecture normalization before completing the stream barrier", async () => {
+    const normalization = deferred<void>();
+    const onArchitecture = vi.fn(() => normalization.promise);
+    const onArchitectureStreamEnd = vi.fn();
+    global.fetch = mockFetch({
+      "/messages": emptyMessagesResponse,
+      "/chat/init": () =>
+        createSSEResponse([
+          {
+            type: "architecture",
+            content: {
+              nodes: [
+                {
+                  id: "api",
+                  category: "api",
+                  subtype: "rest-api",
+                  name: "API",
+                  technology: "Next.js",
+                  description: "Routes",
+                  reasoning: "Observed",
+                  locked: false,
+                },
+              ],
+              edges: [],
+            },
+          },
+          { type: "done" },
+        ]),
+    });
+
+    render(
+      <ChatSidebar
+        projectId="p1"
+        defaultOpen
+        onArchitectureStreamStart={() => Promise.resolve()}
+        onArchitecture={onArchitecture}
+        onArchitectureStreamEnd={onArchitectureStreamEnd}
+      />
+    );
+
+    await waitFor(() => expect(onArchitecture).toHaveBeenCalledOnce());
+    expect(onArchitectureStreamEnd).not.toHaveBeenCalled();
+    normalization.resolve();
+    await waitFor(() => expect(onArchitectureStreamEnd).toHaveBeenCalledWith("completed"));
+  });
+
+  it("reports a dropped stream as ambiguous before releasing its barrier", async () => {
+    const onArchitectureStreamEnd = vi.fn();
+    const droppedResponse = new Response(
+      new ReadableStream({
+        start(controller) {
+          controller.enqueue(
+            new TextEncoder().encode('data: {"type":"text","content":"Partial"}\n\n')
+          );
+          controller.close();
+        },
+      }),
+      { headers: { "Content-Type": "text/event-stream" } }
+    );
+    global.fetch = mockFetch({
+      "/messages": emptyMessagesResponse,
+      "/chat/init": () => droppedResponse,
+    });
+
+    render(
+      <ChatSidebar
+        projectId="p1"
+        defaultOpen
+        onArchitectureStreamStart={() => Promise.resolve()}
+        onArchitectureStreamEnd={onArchitectureStreamEnd}
+      />
+    );
+
+    await waitFor(() => expect(onArchitectureStreamEnd).toHaveBeenCalledWith("ambiguous"));
+  });
+
   it("tracks a successful repository scan without repository details", async () => {
-    const onScanStateChange = vi.fn();
     global.fetch = mockFetch({
       "/messages": emptyMessagesResponse,
       "/repo-scan": () =>
@@ -585,14 +788,7 @@ describe("ChatSidebar", () => {
         ]),
     });
 
-    render(
-      <ChatSidebar
-        projectId="p1"
-        repoUrl="owner/repo"
-        defaultOpen={true}
-        onScanStateChange={onScanStateChange}
-      />
-    );
+    render(<ChatSidebar projectId="p1" repoUrl="owner/repo" defaultOpen={true} />);
 
     await screen.findByText("Mapped the repository.");
     expect(mockTrackEvent).toHaveBeenCalledWith("repository_scan_started", {
@@ -602,7 +798,6 @@ describe("ChatSidebar", () => {
       location: "editor",
     });
     expect(JSON.stringify(mockTrackEvent.mock.calls)).not.toContain("owner/repo");
-    expect(onScanStateChange.mock.calls).toEqual([[true], [false]]);
   });
 
   it("treats a completed scan without architecture as a recoverable failure", async () => {

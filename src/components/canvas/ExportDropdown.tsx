@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useCallback, useId, useRef } from "react";
 import { Download } from "lucide-react";
 import { toPng, toSvg } from "html-to-image";
 import { getNodesBounds, getViewportForBounds } from "reactflow";
@@ -28,19 +28,14 @@ export default function ExportDropdown({
   onError,
   placement = "bottom",
 }: ExportDropdownProps) {
-  const [open, setOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const panelId = `export-popover-${useId()}`;
+  const panelRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    function handleClickOutside(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [open]);
+  const closeAndRestoreFocus = useCallback(() => {
+    panelRef.current?.hidePopover?.();
+    triggerRef.current?.focus();
+  }, []);
 
   const downloadTextFile = useCallback(
     (format: "json" | "yaml") => {
@@ -124,7 +119,7 @@ export default function ExportDropdown({
 
   const handleExport = useCallback(
     async (format: ExportFormat) => {
-      setOpen(false);
+      closeAndRestoreFocus();
       try {
         if (format === "json" || format === "yaml") {
           downloadTextFile(format);
@@ -135,43 +130,43 @@ export default function ExportDropdown({
         onError(`Failed to export as ${format.toUpperCase()}`);
       }
     },
-    [downloadImageFile, downloadTextFile, onError]
+    [closeAndRestoreFocus, downloadImageFile, downloadTextFile, onError]
   );
 
   return (
-    <div ref={dropdownRef} className="relative">
+    <div className="flex-none">
       <IconControl
+        controlRef={triggerRef}
         label="Export map"
         tooltipPlacement="bottom"
         variant="outline"
-        pressed={open}
-        onClick={() => setOpen((prev) => !prev)}
-        aria-expanded={open}
+        popoverTarget={panelId}
+        popoverTargetAction="toggle"
       >
         <Download />
       </IconControl>
 
-      {open && (
-        <div
-          className={`absolute right-0 z-30 w-36 rounded-lg border border-[var(--border)] bg-[var(--background)] shadow-lg ${
-            placement === "top" ? "bottom-full mb-2" : "top-full mt-1"
-          }`}
-          data-placement={placement}
-          data-testid="export-dropdown"
-        >
-          {(["png", "svg", "json", "yaml"] as const).map((format, index, formats) => (
-            <button
-              key={format}
-              onClick={() => handleExport(format)}
-              className={`flex w-full items-center gap-2 px-3 py-2 text-sm text-[var(--foreground)] transition-colors hover:bg-[var(--muted)] ${
-                index === 0 ? "rounded-t-lg" : ""
-              } ${index === formats.length - 1 ? "rounded-b-lg" : ""}`}
-            >
-              Export {format.toUpperCase()}
-            </button>
-          ))}
-        </div>
-      )}
+      <div
+        ref={panelRef}
+        id={panelId}
+        popover="auto"
+        className={`fixed inset-auto right-4 z-50 m-0 w-40 rounded-[var(--radius-surface)] border border-[var(--border)] bg-[var(--surface-raised)] p-1 shadow-xl ${
+          placement === "top" ? "bottom-16" : "top-16"
+        }`}
+        data-placement={placement}
+        data-testid="export-dropdown"
+      >
+        {(["png", "svg", "json", "yaml"] as const).map((format) => (
+          <button
+            type="button"
+            key={format}
+            onClick={() => handleExport(format)}
+            className="flex min-h-11 w-full items-center rounded-[var(--radius-control)] px-3 py-2 text-sm text-[var(--foreground)] transition-colors hover:bg-[var(--muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+          >
+            Export {format.toUpperCase()}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

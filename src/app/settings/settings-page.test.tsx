@@ -11,6 +11,8 @@ vi.mock("next-themes", () => ({
   useTheme: () => ({ theme: mockTheme, setTheme: mockSetTheme }),
 }));
 
+vi.mock("next-auth/react", () => ({ signOut: vi.fn() }));
+
 vi.mock("@/lib/analytics", () => ({ trackEvent: mockTrackEvent }));
 
 function mockFetchSettings(settings: Record<string, unknown>) {
@@ -90,10 +92,15 @@ describe("SettingsPage", () => {
     expect(screen.queryByText("AI Prompts")).not.toBeInTheDocument();
     expect(screen.getAllByRole("main")).toHaveLength(1);
     expect(screen.getAllByRole("heading", { level: 1, name: "Settings" })).toHaveLength(1);
-    expect(screen.queryByRole("link", { name: "New map" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "New Map" })).toHaveAttribute("href", "/project/new");
     expect(screen.getByRole("link", { name: "All Maps" })).toHaveAttribute("href", "/app/maps");
     expect(screen.queryByRole("link", { name: "Admin" })).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("button", { name: "Account" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Settings", hidden: true })).toHaveAttribute(
+      "aria-current",
+      "page"
+    );
+    expect(screen.queryByRole("tooltip", { name: "Settings" })).not.toBeInTheDocument();
     expect(screen.getByRole("group", { name: "Account controls" })).toBeInTheDocument();
     expect(screen.getByTestId("settings-content")).toHaveClass("min-w-0");
     expect(screen.getByTestId("settings-content")).not.toHaveClass("max-w-3xl");

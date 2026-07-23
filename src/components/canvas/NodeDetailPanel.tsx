@@ -28,6 +28,7 @@ export interface NodeDetailPanelProps {
   canUseNodeLocking?: boolean;
   onSuggestAlternatives?: () => void;
   onSwapAlternative?: (alt: AlternativeNode) => void;
+  mutationBlocked?: boolean;
 }
 
 export default function NodeDetailPanel({
@@ -43,6 +44,7 @@ export default function NodeDetailPanel({
   canUseNodeLocking = true,
   onSuggestAlternatives,
   onSwapAlternative,
+  mutationBlocked = false,
 }: NodeDetailPanelProps) {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const confirmDelete = confirmDeleteId === node?.id;
@@ -82,6 +84,8 @@ export default function NodeDetailPanel({
           : "pointer-events-none translate-y-full md:translate-x-full md:translate-y-0"
       }`}
       aria-hidden={!open}
+      aria-disabled={mutationBlocked || undefined}
+      inert={mutationBlocked || undefined}
       data-testid="node-detail-panel"
     >
       {/* Header */}

@@ -1,16 +1,46 @@
 "use client";
 
 import { useTheme } from "next-themes";
+import { useState } from "react";
 import IconControl from "@/components/ui/IconControl";
 
-export default function ThemeToggle() {
+interface ThemeToggleProps {
+  variant?: "icon" | "row";
+}
+
+function themeLabel(theme: string) {
+  return theme.slice(0, 1).toUpperCase() + theme.slice(1);
+}
+
+export default function ThemeToggle({ variant = "icon" }: ThemeToggleProps) {
   const { theme, setTheme } = useTheme();
   const currentTheme = theme ?? "system";
+  const [announcement, setAnnouncement] = useState("");
 
   function cycle() {
-    if (currentTheme === "light") setTheme("dark");
-    else if (currentTheme === "dark") setTheme("system");
-    else setTheme("light");
+    const nextTheme =
+      currentTheme === "light" ? "dark" : currentTheme === "dark" ? "system" : "light";
+    setTheme(nextTheme);
+    if (variant === "row") setAnnouncement(`Theme changed to ${themeLabel(nextTheme)}`);
+  }
+
+  if (variant === "row") {
+    return (
+      <button
+        type="button"
+        onClick={cycle}
+        aria-label={`Theme: ${themeLabel(currentTheme)}. Change appearance`}
+        className="flex min-h-11 w-full items-center justify-between gap-4 rounded-[var(--radius-control)] px-3 py-2 text-left text-sm font-semibold text-[var(--foreground)] hover:bg-[var(--muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+      >
+        <span>Theme</span>
+        <span className="text-xs font-medium text-[var(--muted-foreground)]">
+          {themeLabel(currentTheme)}
+        </span>
+        <span className="sr-only" role="status" aria-live="polite">
+          {announcement}
+        </span>
+      </button>
+    );
   }
 
   return (

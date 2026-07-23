@@ -21,6 +21,7 @@ interface EditorToolSurfaceProps {
   onDisplaySettingsChange: (next: EditorDisplaySettings) => void;
   obscured: boolean;
   dialogOpen: boolean;
+  mutationBlocked?: boolean;
 }
 
 function EditorToolSurface({
@@ -35,6 +36,7 @@ function EditorToolSurface({
   onDisplaySettingsChange,
   obscured,
   dialogOpen,
+  mutationBlocked = false,
 }: EditorToolSurfaceProps) {
   return (
     <div
@@ -60,6 +62,7 @@ function EditorToolSurface({
         customSubtypes={customSubtypes}
         iconOnly
         placement="responsive"
+        disabled={mutationBlocked}
       />
 
       <span className="editor-tool-surface__separator" aria-hidden="true" />

@@ -25,6 +25,23 @@ async function createCanvasProject(page: Page, name: string) {
   return (await response.json()) as { id: string };
 }
 
+async function keepEditorReady(page: Page) {
+  await page.route("**/api/projects/*/messages", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify([
+        {
+          id: "personal-tools-ready-message",
+          role: "assistant",
+          content: "The architecture is ready.",
+          createdAt: Date.now(),
+        },
+      ]),
+    });
+  });
+}
+
 test.describe("personal workspace tools", () => {
   test("the retired private Notes endpoints return normal 404 responses", async ({ page }) => {
     const project = await createCanvasProject(page, `Retired Notes API ${Date.now()}`);
@@ -45,6 +62,7 @@ test.describe("personal workspace tools", () => {
   test("a Note node can be created, edited, colored, and persists after reload", async ({
     page,
   }) => {
+    await keepEditorReady(page);
     const project = await createCanvasProject(page, `Note node E2E ${Date.now()}`);
     await page.goto(`/project/${project.id}`);
 
@@ -89,12 +107,13 @@ test.describe("personal workspace tools", () => {
   });
 
   test("a saved personal template creates a reusable map", async ({ page }) => {
+    await keepEditorReady(page);
     const source = await createCanvasProject(page, `Template source ${Date.now()}`);
     const templateName = `Onboarding map ${Date.now()}`;
     await page.goto(`/project/${source.id}`);
 
     await page.getByRole("button", { name: "More project actions" }).click();
-    await page.getByRole("menuitem", { name: "Save as Template" }).click();
+    await page.getByRole("button", { name: "Save as Template" }).click();
     await page.getByLabel(/Template Name/).fill(templateName);
     await page.getByLabel("Description").fill("A reusable starting point.");
     await page.getByRole("button", { name: "Save Template" }).click();

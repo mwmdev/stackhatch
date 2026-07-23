@@ -13,6 +13,7 @@ export interface AddNodeDropdownProps {
   customSubtypes?: CustomSubtypesMap;
   iconOnly?: boolean;
   placement?: "bottom" | "responsive";
+  disabled?: boolean;
 }
 
 export default function AddNodeDropdown({
@@ -20,6 +21,7 @@ export default function AddNodeDropdown({
   customSubtypes,
   iconOnly = false,
   placement = "bottom",
+  disabled = false,
 }: AddNodeDropdownProps) {
   const [open, setOpen] = useState(false);
   const [expandedCategory, setExpandedCategory] = useState<NodeCategory | null>(null);
@@ -55,6 +57,7 @@ export default function AddNodeDropdown({
           aria-expanded={open}
           onClick={() => setOpen((prev) => !prev)}
           data-testid="add-node-button"
+          disabled={disabled}
         >
           <icons.Plus />
         </IconControl>
@@ -66,6 +69,7 @@ export default function AddNodeDropdown({
           aria-label="Add node"
           aria-expanded={open}
           data-testid="add-node-button"
+          disabled={disabled}
         >
           <icons.Plus size={16} aria-hidden="true" />
           Add Node
