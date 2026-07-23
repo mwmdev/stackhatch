@@ -74,10 +74,10 @@ describe("ProjectStartWorkspace", () => {
     expect(screen.queryByRole("tooltip", { name: "Settings" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Cancel map creation" })).not.toBeInTheDocument();
 
-    const traces = document.querySelectorAll('[data-routing-trace="true"]');
-    expect(traces).toHaveLength(1);
-    expect(traces[0]).toHaveAttribute("aria-hidden", "true");
-    expect(traces[0]).toHaveStyle({ pointerEvents: "none" });
+    const illustrations = document.querySelectorAll('[data-stack-illustration="true"]');
+    expect(illustrations).toHaveLength(1);
+    expect(illustrations[0]).toHaveAttribute("aria-hidden", "true");
+    expect(illustrations[0]).toHaveStyle({ pointerEvents: "none" });
   });
 
   it("allows canceling from the chooser when creation started in an existing map", () => {

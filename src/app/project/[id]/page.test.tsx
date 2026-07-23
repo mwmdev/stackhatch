@@ -608,7 +608,7 @@ describe("ProjectPage", () => {
       expect(screen.getByText("Loading...")).toBeInTheDocument();
       expect(screen.getAllByRole("main")).toHaveLength(1);
       expect(screen.getByRole("heading", { level: 1, name: "Loading map" })).toBeInTheDocument();
-      expect(container.querySelectorAll('[data-routing-trace="true"]')).toHaveLength(1);
+      expect(container.querySelectorAll('[data-stack-illustration="true"]')).toHaveLength(1);
       expect(screen.getByRole("link", { name: "All Maps" })).toHaveAttribute("href", "/app/maps");
       expect(screen.getByRole("link", { name: "New Map" })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Theme: change appearance" })).toBeInTheDocument();
@@ -670,7 +670,7 @@ describe("ProjectPage", () => {
       expect(
         screen.getByRole("heading", { level: 1, name: "Map unavailable" })
       ).toBeInTheDocument();
-      expect(container.querySelectorAll('[data-routing-trace="true"]')).toHaveLength(1);
+      expect(container.querySelectorAll('[data-stack-illustration="true"]')).toHaveLength(1);
       expect(screen.getByRole("link", { name: "All Maps" })).toHaveAttribute("href", "/app/maps");
       expect(screen.getByRole("link", { name: "New Map" })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Theme: change appearance" })).toBeInTheDocument();
@@ -703,7 +703,7 @@ describe("ProjectPage", () => {
       expect(
         screen.getByRole("heading", { level: 1, name: "Finding your map" })
       ).toBeInTheDocument();
-      expect(container.querySelectorAll('[data-routing-trace="true"]')).toHaveLength(1);
+      expect(container.querySelectorAll('[data-stack-illustration="true"]')).toHaveLength(1);
       expect(screen.queryByText("Project not found")).not.toBeInTheDocument();
       expect(screen.getByRole("link", { name: "All Maps" })).toHaveAttribute("href", "/app/maps");
       expect(screen.getByRole("link", { name: "New Map" })).toBeInTheDocument();
@@ -1417,19 +1417,19 @@ describe("ProjectPage", () => {
       expect(screen.queryByRole("button", { name: "Export map" })).toBeNull();
     });
 
-    it("keeps one inert editor trace outside the React Flow canvas", async () => {
+    it("keeps one inert stack illustration outside the React Flow canvas", async () => {
       mockFetchProject(projectWithNodes);
       render(<ProjectPage />);
 
       const canvas = await screen.findByTestId("react-flow-canvas");
       const shell = screen.getByTestId("project-editor-shell");
-      const traces = shell.querySelectorAll('[data-routing-trace="true"]');
+      const illustrations = shell.querySelectorAll('[data-stack-illustration="true"]');
 
-      expect(traces).toHaveLength(1);
-      expect(traces[0]).toHaveAttribute("aria-hidden", "true");
-      expect(traces[0]).toHaveAttribute("focusable", "false");
-      expect(traces[0]).toHaveStyle({ pointerEvents: "none" });
-      expect(canvas).not.toContainElement(traces[0] as HTMLElement);
+      expect(illustrations).toHaveLength(1);
+      expect(illustrations[0]).toHaveAttribute("aria-hidden", "true");
+      expect(illustrations[0]).toHaveAttribute("focusable", "false");
+      expect(illustrations[0]).toHaveStyle({ pointerEvents: "none" });
+      expect(canvas).not.toContainElement(illustrations[0] as HTMLElement);
     });
 
     it("opens editor display settings and persists toggle changes", async () => {

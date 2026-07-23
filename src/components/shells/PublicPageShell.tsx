@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import ThemeToggle from "../ThemeToggle";
 import TrackedSourceLink from "../public/TrackedSourceLink";
-import RoutingTrace from "./RoutingTrace";
+import StackIllustration from "./StackIllustration";
 import StackHatchWordmark from "./StackHatchWordmark";
 
 export type PublicPageShellProps = {
@@ -53,7 +53,7 @@ export default function PublicPageShell({
 }: PublicPageShellProps) {
   return (
     <div className={["page-shell public-page-shell", className].filter(Boolean).join(" ")}>
-      <RoutingTrace variant="shell" />
+      <StackIllustration variant="shell" />
       <header className="page-shell__site-header">
         <div className="page-shell__bar">
           <StackHatchWordmark href={homeHref} label={homeLabel} />

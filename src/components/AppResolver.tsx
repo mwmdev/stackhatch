@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { consumeAuthenticationStarted, trackEvent } from "@/lib/analytics";
 import { appDestinationForBrowserUrl } from "@/lib/app-route";
 import { getPendingProjectStart } from "@/lib/project-start";
-import RoutingTrace from "@/components/shells/RoutingTrace";
+import StackIllustration from "@/components/shells/StackIllustration";
 
 export default function AppResolver({ destination }: { destination: string }) {
   const router = useRouter();
@@ -29,7 +29,7 @@ export default function AppResolver({ destination }: { destination: string }) {
 
   return (
     <main className="app-resolver-shell">
-      <RoutingTrace variant="resolver" />
+      <StackIllustration variant="resolver" />
       <div className="app-resolver-shell__status">
         <span className="app-resolver-shell__signal" aria-hidden="true" />
         <p role="status" aria-live="polite">

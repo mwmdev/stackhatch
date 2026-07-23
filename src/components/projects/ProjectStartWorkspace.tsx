@@ -17,7 +17,7 @@ import {
 import AccountMenu from "@/components/AccountMenu";
 import TemplatePicker from "@/components/templates/TemplatePicker";
 import ThemeToggle from "@/components/ThemeToggle";
-import RoutingTrace from "@/components/shells/RoutingTrace";
+import StackIllustration from "@/components/shells/StackIllustration";
 import StackHatchWordmark from "@/components/shells/StackHatchWordmark";
 import IconControl from "@/components/ui/IconControl";
 import { consumeAuthenticationStarted, trackEvent } from "@/lib/analytics";
@@ -436,7 +436,7 @@ export default function ProjectStartWorkspace({
           className="pointer-events-none absolute inset-x-0 bottom-4 z-20 h-24 overflow-hidden"
           aria-hidden="true"
         >
-          <RoutingTrace variant="compact" className="!top-0" />
+          <StackIllustration variant="compact" className="!top-0" />
         </div>
 
         <section
