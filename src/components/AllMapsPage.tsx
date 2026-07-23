@@ -76,8 +76,6 @@ export default function AllMapsPage() {
 
   return (
     <AppPageShell
-      homeHref="/app"
-      homeLabel="Resume map"
       title="All Maps"
       description="Browse, open, and manage your architecture maps."
       eyebrow="Map observatory"
@@ -133,7 +131,7 @@ export default function AllMapsPage() {
             </div>
           ) : projects.length === 0 ? (
             <div className="p-8 text-center text-sm text-[var(--muted-foreground)]">
-              No maps yet. Choose New map to create your first one.
+              No maps yet. Choose New Map to create your first one.
             </div>
           ) : (
             <div role="table" aria-label="Your maps" className="min-w-0">

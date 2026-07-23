@@ -10,6 +10,19 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockPush, replace: mockReplace }),
 }));
 
+vi.mock("@/components/AccountMenu", () => ({
+  default: () => (
+    <div>
+      <button type="button" aria-label="Account">
+        U
+      </button>
+      <div hidden>
+        <a href="/settings">Settings</a>
+      </div>
+    </div>
+  ),
+}));
+
 const template = {
   id: "template-1",
   name: "API boundary map",
@@ -51,6 +64,14 @@ describe("ProjectStartWorkspace", () => {
     expect(screen.queryByText(/use this source/i)).not.toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: "All Maps" })).toHaveLength(1);
     expect(screen.getByRole("link", { name: "All Maps" })).toHaveAttribute("href", "/app/maps");
+    expect(screen.getByRole("button", { name: "Account" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /theme/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Settings", hidden: true })).toHaveAttribute(
+      "href",
+      "/settings"
+    );
+    expect(screen.queryByRole("tooltip", { name: "All Maps" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tooltip", { name: "Settings" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Cancel map creation" })).not.toBeInTheDocument();
 
     const traces = document.querySelectorAll('[data-routing-trace="true"]');

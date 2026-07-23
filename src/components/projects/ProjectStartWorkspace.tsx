@@ -8,14 +8,13 @@ import {
   ArrowLeft,
   ArrowRight,
   FileText,
-  FolderOpen,
   GitBranch,
   KeyRound,
   LayoutTemplate,
   Plus,
-  Settings,
   X,
 } from "lucide-react";
+import AccountMenu from "@/components/AccountMenu";
 import TemplatePicker from "@/components/templates/TemplatePicker";
 import ThemeToggle from "@/components/ThemeToggle";
 import RoutingTrace from "@/components/shells/RoutingTrace";
@@ -406,28 +405,13 @@ export default function ProjectStartWorkspace({
       <header className="z-20 border-b border-[var(--border)] bg-[var(--card)]">
         <div className="mx-auto flex min-h-16 w-full max-w-[var(--shell-width-wide)] items-center justify-between gap-3 px-[var(--page-gutter)]">
           <StackHatchWordmark
-            href="/app"
-            label="StackHatch app"
+            href="/app/maps"
+            label="All Maps"
             className="rounded-[var(--radius-control)] px-2 hover:bg-[var(--muted)]"
           />
           <nav aria-label="Map workspace" className="map-workspace-actions flex items-center gap-1">
-            <IconControl
-              href="/app/maps"
-              label="All Maps"
-              tooltip="All Maps"
-              tooltipPlacement="bottom"
-            >
-              <FolderOpen />
-            </IconControl>
-            <IconControl
-              href="/settings"
-              label="Settings"
-              tooltip="Settings"
-              tooltipPlacement="bottom"
-            >
-              <Settings />
-            </IconControl>
             <ThemeToggle />
+            <AccountMenu />
           </nav>
         </div>
       </header>

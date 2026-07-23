@@ -55,8 +55,6 @@ describe("AppPageShell", () => {
   it("provides a dense app page with navigation, actions, and one main landmark", () => {
     const { container } = render(
       <AppPageShell
-        homeHref="/app"
-        homeLabel="All maps"
         eyebrow="Workspace"
         title="Settings"
         description="Manage your workspace."
@@ -71,7 +69,7 @@ describe("AppPageShell", () => {
 
     expect(screen.getAllByRole("main")).toHaveLength(1);
     expect(screen.getByRole("heading", { level: 1, name: "Settings" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "All maps" })).toHaveAttribute("href", "/app");
+    expect(screen.getByRole("link", { name: "All Maps" })).toHaveAttribute("href", "/app/maps");
     expect(screen.getByRole("navigation", { name: "Primary navigation" })).toHaveTextContent(
       "Maps"
     );

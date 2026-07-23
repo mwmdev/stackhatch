@@ -3,8 +3,6 @@ import RoutingTrace from "./RoutingTrace";
 import StackHatchWordmark from "./StackHatchWordmark";
 
 export type AppPageShellProps = {
-  homeHref: string;
-  homeLabel: string;
   eyebrow?: ReactNode;
   title: ReactNode;
   description?: ReactNode;
@@ -24,8 +22,6 @@ export default function AppPageShell({
   description,
   eyebrow,
   footer,
-  homeHref,
-  homeLabel,
   navigation,
   title,
 }: AppPageShellProps) {
@@ -37,7 +33,7 @@ export default function AppPageShell({
       <RoutingTrace variant="shell" />
       <header className="page-shell__site-header">
         <div className="page-shell__bar">
-          <StackHatchWordmark href={homeHref} label={homeLabel} />
+          <StackHatchWordmark href="/app/maps" label="All Maps" />
           {navigation ? (
             <nav className="page-shell__navigation" aria-label="Primary navigation">
               {navigation}

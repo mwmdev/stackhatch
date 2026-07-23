@@ -64,7 +64,7 @@ describe("AllMapsPage", () => {
     push.mockClear();
   });
 
-  it("renders the owned map response in API order with one New map action", async () => {
+  it("renders the owned map response in API order with one New Map action", async () => {
     mockFetch();
     render(<AllMapsPage />);
 
@@ -85,8 +85,9 @@ describe("AllMapsPage", () => {
       "Actions",
     ]);
     expect(screen.getByTestId("project-card-newest")).toHaveAccessibleName("Open Newest map");
-    expect(screen.getAllByRole("link", { name: "New map" })).toHaveLength(1);
-    expect(screen.getByRole("link", { name: "New map" })).toHaveAttribute("href", "/project/new");
+    expect(screen.getAllByRole("link", { name: "New Map" })).toHaveLength(1);
+    expect(screen.getByRole("link", { name: "New Map" })).toHaveAttribute("href", "/project/new");
+    expect(screen.getByRole("link", { name: "All Maps" })).toHaveAttribute("href", "/app/maps");
     expect(screen.queryByText("Start fresh")).not.toBeInTheDocument();
     expect(screen.queryByText("Upload requirements")).not.toBeInTheDocument();
     expect(screen.queryByText("Map a repo")).not.toBeInTheDocument();
@@ -166,22 +167,26 @@ describe("AllMapsPage", () => {
     expect(global.fetch).toHaveBeenCalledWith("/api/projects/newest", { method: "DELETE" });
   });
 
-  it("keeps settings and theme controls without privileged navigation", async () => {
+  it("keeps Settings reachable through Account alongside Theme", async () => {
     mockFetch();
     render(<AllMapsPage />);
 
     await screen.findByText("Newest map");
-    expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings");
+    expect(screen.getByRole("button", { name: "Account" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Settings", hidden: true })).toHaveAttribute(
+      "href",
+      "/settings"
+    );
     expect(screen.queryByRole("link", { name: "Admin" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /theme/i })).toBeInTheDocument();
-    expect(screen.getByRole("tooltip", { name: "Settings" })).toBeInTheDocument();
+    expect(screen.queryByRole("tooltip", { name: "Settings" })).not.toBeInTheDocument();
   });
 
-  it("directs an empty library to the single New map action", async () => {
+  it("directs an empty library to the single New Map action", async () => {
     mockFetch({ projectResponses: [[]] });
     render(<AllMapsPage />);
 
     expect(await screen.findByText(/No maps yet\./)).toBeInTheDocument();
-    expect(screen.getAllByRole("link", { name: "New map" })).toHaveLength(1);
+    expect(screen.getAllByRole("link", { name: "New Map" })).toHaveLength(1);
   });
 });
