@@ -234,7 +234,7 @@ export default function ProjectPage() {
   const [scanTrigger, setScanTrigger] = useState(0);
   const [chatStreaming, setChatStreaming] = useState(false);
   const [architectureStreamPhase, setArchitectureStreamPhase] = useState<
-    "idle" | "preparing" | "streaming" | "reconciling"
+    "idle" | "preparing" | "streaming" | "reconciling" | "reconciliation-failed"
   >("idle");
   const [chatOpen, setChatOpen] = useState(false);
   const [alternatives, setAlternatives] = useState<Record<string, AlternativeNode[]>>({});
@@ -284,6 +284,7 @@ export default function ProjectPage() {
   const alternativesRef = useRef<Record<string, AlternativeNode[]>>({});
   const architectureStreamActiveRef = useRef(false);
   const signOutPendingRef = useRef(false);
+  const authoritativeUpdatedAtRef = useRef<number | null>(null);
   const preStreamRef = useRef<{ snapshot: StoredCanvasState; updatedAt: number } | null>(null);
   const firstMapTrackedRef = useRef(false);
   const openedProjectRef = useRef<string | null>(null);
@@ -451,6 +452,13 @@ export default function ProjectPage() {
       if (!response.ok) {
         if (response.status === 401) throw new CanvasPersistenceUnauthorizedError();
         throw new Error("Failed to save canvas");
+      }
+      const receipt =
+        typeof response.json === "function"
+          ? ((await response.json().catch(() => null)) as Partial<Project> | null)
+          : null;
+      if (typeof receipt?.updatedAt === "number") {
+        authoritativeUpdatedAtRef.current = receipt.updatedAt;
       }
     },
     [projectId]
@@ -1230,13 +1238,14 @@ export default function ProjectPage() {
     }
 
     architectureStreamActiveRef.current = true;
-    preStreamRef.current = {
-      snapshot: coordinator.getLatestSnapshot(),
-      updatedAt: currentProject.updatedAt,
-    };
+    const snapshot = coordinator.getLatestSnapshot();
     setArchitectureStreamPhase("preparing");
     try {
       await coordinator.suspendAndFlush();
+      preStreamRef.current = {
+        snapshot,
+        updatedAt: authoritativeUpdatedAtRef.current ?? currentProject.updatedAt,
+      };
       setArchitectureStreamPhase("streaming");
     } catch (error) {
       releaseArchitectureBarrier();
@@ -1244,25 +1253,21 @@ export default function ProjectPage() {
     }
   }, [releaseArchitectureBarrier]);
 
-  const handleArchitectureStreamEnd = useCallback(
-    async (outcome: ArchitectureStreamOutcome) => {
-      const coordinator = persistenceRef.current;
-      const preStream = preStreamRef.current;
-      if (!coordinator || !preStream) {
-        releaseArchitectureBarrier();
-        return;
-      }
+  const reconcileArchitectureStream = useCallback(async () => {
+    const coordinator = persistenceRef.current;
+    const preStream = preStreamRef.current;
+    if (!coordinator || !preStream) {
+      releaseArchitectureBarrier();
+      return;
+    }
 
-      if (outcome === "completed") {
-        releaseArchitectureBarrier();
-        return;
-      }
-
-      setArchitectureStreamPhase("reconciling");
+    setArchitectureStreamPhase("reconciling");
+    try {
       const response = await fetch(`/api/projects/${projectId}`);
       if (!response.ok) throw new Error("Failed to reconcile architecture update");
       const authoritative = (await response.json()) as Project;
       const serverAdvanced = authoritative.updatedAt !== preStream.updatedAt;
+      authoritativeUpdatedAtRef.current = authoritative.updatedAt;
 
       if (serverAdvanced && authoritative.canvasState) {
         setProject(authoritative);
@@ -1272,8 +1277,20 @@ export default function ProjectPage() {
         restoreCanvasSnapshot(preStream.snapshot);
       }
       releaseArchitectureBarrier();
+    } catch {
+      setArchitectureStreamPhase("reconciliation-failed");
+    }
+  }, [adoptArchitecture, projectId, releaseArchitectureBarrier, restoreCanvasSnapshot]);
+
+  const handleArchitectureStreamEnd = useCallback(
+    async (outcome: ArchitectureStreamOutcome) => {
+      if (outcome === "completed") {
+        releaseArchitectureBarrier();
+        return;
+      }
+      await reconcileArchitectureStream();
     },
-    [adoptArchitecture, projectId, releaseArchitectureBarrier, restoreCanvasSnapshot]
+    [reconcileArchitectureStream, releaseArchitectureBarrier]
   );
 
   const handleBeforeSignOut = useCallback(async () => {
@@ -1345,6 +1362,7 @@ export default function ProjectPage() {
           );
         }
         setProject(data);
+        authoritativeUpdatedAtRef.current = data.updatedAt;
         const hasLoadedCanvas = (data.canvasState?.nodes?.length ?? 0) > 0;
         setChatOpen(!hasLoadedCanvas);
 
@@ -1428,7 +1446,11 @@ export default function ProjectPage() {
   const editorNewMapHref = buildProjectStartChooserPath(`/project/${projectId}`);
   const canvasMutationBlocked = architectureStreamPhase !== "idle" || signOutPending;
   const signOutBlockedReason =
-    architectureStreamPhase === "idle" ? null : "Architecture update in progress";
+    architectureStreamPhase === "idle"
+      ? null
+      : architectureStreamPhase === "reconciliation-failed"
+        ? "Architecture save status is unknown; retry reconciliation"
+        : "Architecture update in progress";
   const toolSurfaceObscured = chatOpen || nodePanelOpen || connectionTypePopover !== null;
   const toolSurfaceDialogOpen = saveTemplateModalOpen || rescanConfirmOpen || aiSetupRequired;
   const liveCanvasState = useMemo<StackArchitecture | null>(() => {
@@ -1689,6 +1711,28 @@ export default function ProjectPage() {
 
         {/* Canvas area */}
         <div className="observatory-editor-workbench relative min-h-0 flex-1 overflow-hidden bg-[var(--canvas)]">
+          {architectureStreamPhase === "reconciliation-failed" && (
+            <div
+              role="alert"
+              className="absolute left-1/2 top-4 z-40 flex w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 flex-col gap-3 rounded-[var(--radius-surface)] border border-[var(--danger)] bg-[var(--surface-raised)] p-4 shadow-xl sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div>
+                <p className="text-sm font-semibold text-[var(--foreground)]">
+                  Save status unknown
+                </p>
+                <p className="mt-1 text-xs leading-5 text-[var(--muted-foreground)]">
+                  Editing and sign out are paused until StackHatch confirms the AI update.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void reconcileArchitectureStream()}
+                className="min-h-11 shrink-0 rounded-[var(--radius-control)] bg-[var(--brand)] px-4 py-2 text-sm font-semibold text-[var(--brand-foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+              >
+                Retry reconciliation
+              </button>
+            </div>
+          )}
           <EditorDisplaySettingsProvider value={editorDisplaySettings}>
             <ReactFlow
               nodes={rfNodes}

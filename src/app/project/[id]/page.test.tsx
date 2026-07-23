@@ -853,6 +853,90 @@ describe("ProjectPage", () => {
       expect(replacementSnapshot.alternatives).toEqual({});
     });
 
+    it("uses the post-drain save marker so an ambiguous stream preserves the saved client snapshot", async () => {
+      mockFetchProject(projectWithRepoAlternatives);
+      const baseFetch = global.fetch as ReturnType<typeof vi.fn>;
+      const firstPatch = deferred<Response>();
+      let projectGets = 0;
+      type SavedSnapshot = {
+        nodes: Array<{ id: string }>;
+        positions: Record<string, { x: number; y: number }>;
+        alternatives: Record<string, unknown[]>;
+      };
+      const savedSnapshots: SavedSnapshot[] = [];
+
+      global.fetch = vi.fn((input: RequestInfo | URL, options?: RequestInit) => {
+        const url = String(input);
+        if (options?.method === "PATCH") {
+          savedSnapshots.push(
+            JSON.parse(JSON.parse(options.body as string).canvasState) as SavedSnapshot
+          );
+          return firstPatch.promise;
+        }
+        if (url === "/api/projects/test-project-id" && !options?.method) {
+          projectGets += 1;
+          if (projectGets > 1) {
+            return Promise.resolve({
+              ok: true,
+              json: () =>
+                Promise.resolve({
+                  ...projectWithRepoAlternatives,
+                  updatedAt: projectWithRepoAlternatives.updatedAt + 1,
+                  canvasState: savedSnapshots.at(-1),
+                }),
+            } as Response);
+          }
+        }
+        return baseFetch(input, options);
+      }) as unknown as typeof fetch;
+
+      render(<ProjectPage />);
+      await screen.findByTestId("mock-flow-node-n1");
+      fireEvent.click(screen.getByTestId("add-node-button"));
+      await waitFor(() => expect(savedSnapshots).toHaveLength(1));
+
+      fireEvent.click(screen.getByRole("button", { name: "Mock dropped architecture stream" }));
+      expect(screen.getByTestId("project-editor-shell")).toHaveAttribute(
+        "data-ai-writer-phase",
+        "preparing"
+      );
+
+      firstPatch.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            ...projectWithRepoAlternatives,
+            updatedAt: projectWithRepoAlternatives.updatedAt + 1,
+            canvasState: savedSnapshots.at(-1),
+          }),
+      } as Response);
+
+      await waitFor(() =>
+        expect(screen.getByTestId("project-editor-shell")).toHaveAttribute(
+          "data-ai-writer-phase",
+          "idle"
+        )
+      );
+      const persistedSnapshot = savedSnapshots.at(-1);
+      expect(persistedSnapshot).toBeDefined();
+      if (!persistedSnapshot) throw new Error("Expected a persisted client snapshot");
+      expect(screen.getByTestId("react-flow-canvas")).toHaveAttribute("data-node-count", "3");
+      expect(persistedSnapshot.nodes).toHaveLength(3);
+      expect(Object.keys(persistedSnapshot.positions)).toHaveLength(3);
+      expect(persistedSnapshot.alternatives.n1).toHaveLength(1);
+      expect(
+        (global.fetch as ReturnType<typeof vi.fn>).mock.calls.filter(
+          ([, options]) => options?.method === "PATCH"
+        )
+      ).toHaveLength(1);
+
+      fireEvent.click(screen.getByTestId("mock-flow-node-n1"));
+      expect(screen.getByTestId("node-detail-panel")).toHaveAttribute(
+        "data-alternative-count",
+        "1"
+      );
+    });
+
     it("adopts and normalizes authoritative state after an ambiguous advanced stream", async () => {
       mockFetchProject(projectWithNodes);
       const baseFetch = global.fetch as ReturnType<typeof vi.fn>;
@@ -926,6 +1010,84 @@ describe("ProjectPage", () => {
           ([, options]) => options?.method === "PATCH"
         )
       ).toHaveLength(0);
+    });
+
+    it("keeps the editor blocked after reconciliation fails and retries the decision", async () => {
+      mockFetchProject(projectWithNodes);
+      const baseFetch = global.fetch as ReturnType<typeof vi.fn>;
+      let projectGets = 0;
+      const authoritative = {
+        ...projectWithNodes,
+        updatedAt: projectWithNodes.updatedAt + 1,
+        canvasState: {
+          nodes: [
+            {
+              ...projectWithNodes.canvasState!.nodes[0],
+              id: "retried-authoritative-api",
+              name: "Retried authoritative API",
+            },
+          ],
+          edges: [],
+        },
+      };
+      global.fetch = vi.fn((input: RequestInfo | URL, options?: RequestInit) => {
+        const url = String(input);
+        if (url === "/api/projects/test-project-id" && !options?.method) {
+          projectGets += 1;
+          if (projectGets === 2) {
+            return Promise.resolve({ ok: false, status: 503 } as Response);
+          }
+          if (projectGets > 2) {
+            return Promise.resolve({
+              ok: true,
+              json: () => Promise.resolve(authoritative),
+            } as Response);
+          }
+        }
+        return baseFetch(input, options);
+      }) as unknown as typeof fetch;
+
+      render(<ProjectPage />);
+      await screen.findByTestId("mock-flow-node-n1");
+      fireEvent.click(screen.getByRole("button", { name: "Mock dropped architecture stream" }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent("Save status unknown");
+      expect(screen.getByTestId("project-editor-shell")).toHaveAttribute(
+        "data-ai-writer-phase",
+        "reconciliation-failed"
+      );
+      expect(screen.getByTestId("project-editor-shell")).toHaveAttribute(
+        "data-mutation-blocked",
+        "true"
+      );
+      expect(screen.getByTestId("add-node-button")).toBeDisabled();
+      const signOut = screen.getByRole("button", { name: "Sign out", hidden: true });
+      expect(signOut).toHaveAttribute("aria-disabled", "true");
+      expect(signOut).toHaveAccessibleDescription(
+        "Architecture save status is unknown; retry reconciliation"
+      );
+      fireEvent.click(signOut);
+      expect(mockSignOut).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByRole("button", { name: "Mock start architecture stream" }));
+      expect(screen.getByTestId("project-editor-shell")).toHaveAttribute(
+        "data-ai-writer-phase",
+        "reconciliation-failed"
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "Retry reconciliation" }));
+
+      expect(
+        await screen.findByTestId("mock-flow-node-retried-authoritative-api")
+      ).toBeInTheDocument();
+      await waitFor(() =>
+        expect(screen.getByTestId("project-editor-shell")).toHaveAttribute(
+          "data-ai-writer-phase",
+          "idle"
+        )
+      );
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expect(screen.getByTestId("add-node-button")).not.toBeDisabled();
+      expect(signOut).not.toHaveAttribute("aria-disabled");
     });
 
     it("restores the visible pre-stream canvas when replacement normalization fails", async () => {

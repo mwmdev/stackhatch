@@ -44,6 +44,6 @@ export default defineConfig({
       DATABASE_URL: testDatabaseUrl,
     },
     url: `http://localhost:${port}`,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: !process.env.CI && process.env.REAL_AUTH_SMOKE !== "1",
   },
 });
