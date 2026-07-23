@@ -18,11 +18,9 @@ export default function StackHatchWordmark({
     >
       <span className="stackhatch-wordmark__hatch" aria-hidden="true">
         <svg viewBox="0 0 24 24" focusable="false">
-          <path d="M3 6h7v5h5v7h6" />
-          <circle cx="3" cy="6" r="1.5" />
-          <circle cx="10" cy="11" r="1.5" />
-          <circle cx="15" cy="18" r="1.5" />
-          <circle cx="21" cy="18" r="1.5" />
+          <path d="m4 7.5 8-4.5 8 4.5-8 4.5z" />
+          <path d="m4 11.5 8 4.5 8-4.5" />
+          <path d="m4 15.5 8 4.5 8-4.5" />
         </svg>
       </span>
       <span className="stackhatch-wordmark__name" aria-hidden="true">

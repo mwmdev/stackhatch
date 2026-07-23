@@ -499,6 +499,7 @@ test.describe("system-wide UI polish", () => {
       await expect(bar.getByRole("button", { name: "More project actions" })).toBeVisible();
       await expect(bar.getByRole("button", { name: "Account" })).toBeVisible();
       await expect(page.getByTestId("wide-new-map")).toBeHidden();
+      await expect(bar.locator('[data-stack-illustration="true"]')).toBeHidden();
 
       const moreTrigger = bar.getByRole("button", { name: "More project actions" });
       const morePanel = page.getByTestId("editor-more-popover");

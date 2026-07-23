@@ -229,12 +229,6 @@ body {
   stroke-width: 1.25;
 }
 
-.stackhatch-wordmark__hatch circle {
-  fill: var(--paper);
-  stroke: currentColor;
-  stroke-width: 1.25;
-}
-
 .stackhatch-wordmark__name {
   display: inline-flex;
   font-size: 1rem;
@@ -393,17 +387,19 @@ html:not(.dark):not(.light) .icon-control__icon > .theme-toggle__system {
   background: color-mix(in srgb, var(--paper) 94%, var(--background));
 }
 
-.observatory-editor-project-bar > :not(.editor-routing-trace) {
+.observatory-editor-project-bar > :not(.editor-stack-illustration) {
   position: relative;
   z-index: 1;
 }
 
-.observatory-editor-project-bar .editor-routing-trace {
-  top: auto;
-  bottom: -0.125rem;
+.observatory-editor-project-bar .editor-stack-illustration {
+  top: 50%;
+  right: clamp(10rem, 22vw, 28rem);
   z-index: 0;
-  height: 1rem;
-  opacity: 0.5;
+  width: clamp(18rem, 38vw, 32rem);
+  height: 3.25rem;
+  transform: translateY(-50%);
+  opacity: 0.28;
 }
 
 .observatory-editor-workbench {
@@ -527,47 +523,74 @@ html:not(.dark):not(.light) .icon-control__icon > .theme-toggle__system {
   }
 }
 
-.routing-trace-clip {
+.stack-illustration-clip {
   position: absolute;
   top: 4.25rem;
-  right: 0;
-  left: 0;
+  right: clamp(-7rem, -5vw, -3.5rem);
   z-index: 0;
-  width: 100%;
+  width: clamp(30rem, 58vw, 54rem);
   max-width: 100vw;
-  height: clamp(5.5rem, 9vw, 7.5rem);
+  height: clamp(8rem, 14vw, 11rem);
   overflow: hidden;
   color: var(--blueprint);
-  opacity: 0.3;
+  opacity: 0.22;
   contain: paint;
   pointer-events: none;
 }
 
-.routing-trace {
+.stack-illustration {
   display: block;
-  width: max(100%, 40rem);
+  width: 100%;
   height: 100%;
   pointer-events: none;
 }
 
-.routing-trace__path {
+.stack-illustration__sheet {
   fill: none;
   stroke: currentColor;
-  stroke-linecap: square;
-  stroke-linejoin: miter;
   stroke-width: 1.25;
   vector-effect: non-scaling-stroke;
 }
 
-.routing-trace__nodes {
-  fill: var(--paper);
+.stack-illustration__sheet--back {
+  opacity: 0.42;
+}
+
+.stack-illustration__sheet--middle {
+  opacity: 0.68;
+}
+
+.stack-illustration__sheet--front {
+  opacity: 0.94;
+}
+
+.stack-illustration__modules {
+  fill: none;
   stroke: currentColor;
-  stroke-width: 1.25;
+  stroke-width: 1;
+  opacity: 0.54;
   vector-effect: non-scaling-stroke;
 }
 
-.routing-trace-clip[data-variant="compact"] {
-  height: 4.5rem;
+.stack-illustration__cut {
+  fill: none;
+  stroke: var(--signal);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.stack-illustration__hatch {
+  fill: none;
+  stroke: var(--signal);
+  stroke-linecap: square;
+  stroke-width: 1;
+  opacity: 0.72;
+  vector-effect: non-scaling-stroke;
+}
+
+.stack-illustration-clip[data-variant="compact"] {
+  width: clamp(24rem, 48vw, 42rem);
+  height: 7rem;
 }
 
 .app-resolver-shell {
@@ -582,10 +605,13 @@ html:not(.dark):not(.light) .icon-control__icon > .theme-toggle__system {
   background: var(--background);
 }
 
-.app-resolver-shell .routing-trace-clip {
+.app-resolver-shell .stack-illustration-clip {
   top: 50%;
-  height: 7.5rem;
-  transform: translateY(-5.75rem);
+  right: 50%;
+  width: min(42rem, 92vw);
+  height: 10rem;
+  transform: translate(50%, -7rem);
+  opacity: 0.3;
 }
 
 .app-resolver-shell__status {
@@ -784,8 +810,16 @@ html:not(.dark):not(.light) .icon-control__icon > .theme-toggle__system {
 }
 
 @media (max-width: 639px) {
-  .routing-trace-clip {
+  .stack-illustration-clip {
     top: 3.75rem;
+    right: -10rem;
+    width: 30rem;
+    height: 8rem;
+    opacity: 0.18;
+  }
+
+  .observatory-editor-project-bar .editor-stack-illustration {
+    display: none;
   }
 
   .page-shell__bar {

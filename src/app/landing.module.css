@@ -161,12 +161,14 @@
   gap: clamp(40px, 4vw, 56px);
 }
 
-.heroTrace {
+.heroIllustration {
   top: auto;
-  bottom: clamp(60px, 7vw, 94px);
+  right: clamp(-120px, -6vw, -72px);
+  bottom: clamp(34px, 5vw, 68px);
   z-index: 0;
-  height: 4rem;
-  opacity: 0.58;
+  width: clamp(30rem, 52vw, 48rem);
+  height: clamp(9rem, 15vw, 13rem);
+  opacity: 0.48;
 }
 
 .eyebrow {
@@ -692,10 +694,12 @@
     margin: 0 !important;
   }
 
-  .heroTrace {
-    bottom: 32px;
-    height: 3.5rem;
-    opacity: 0.42;
+  .heroIllustration {
+    right: -10rem;
+    bottom: 18px;
+    width: 28rem;
+    height: 8rem;
+    opacity: 0.32;
   }
 
   .trustInner {

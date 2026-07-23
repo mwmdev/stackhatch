@@ -60,15 +60,15 @@ describe("LandingPage", () => {
     ).toBeInTheDocument();
   });
 
-  it("uses one inert routing trace as decoration", async () => {
+  it("uses one inert architectural stack as decoration", async () => {
     await renderLandingPage();
 
-    const traces = document.querySelectorAll('[data-routing-trace="true"]');
-    expect(traces).toHaveLength(1);
-    expect(traces[0]).toHaveAttribute("aria-hidden", "true");
-    expect(traces[0]).toHaveAttribute("focusable", "false");
-    expect(traces[0]).toHaveStyle({ pointerEvents: "none" });
-    expect(traces[0].closest('[data-routing-trace-clip="true"]')).toBeInTheDocument();
+    const illustrations = document.querySelectorAll('[data-stack-illustration="true"]');
+    expect(illustrations).toHaveLength(1);
+    expect(illustrations[0]).toHaveAttribute("aria-hidden", "true");
+    expect(illustrations[0]).toHaveAttribute("focusable", "false");
+    expect(illustrations[0]).toHaveStyle({ pointerEvents: "none" });
+    expect(illustrations[0].closest('[data-stack-illustration-clip="true"]')).toBeInTheDocument();
   });
 
   it("separates concrete trust, product capabilities, and the working loop", async () => {

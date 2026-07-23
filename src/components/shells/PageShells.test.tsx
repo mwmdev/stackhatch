@@ -29,10 +29,10 @@ describe("PublicPageShell", () => {
     expect(screen.getByText("Last updated today.")).toBeInTheDocument();
     expect(screen.getByRole("main")).toHaveAttribute("data-width", "reading");
 
-    const traces = container.querySelectorAll('[data-routing-trace="true"]');
-    expect(traces).toHaveLength(1);
-    expect(traces[0]).toHaveAttribute("aria-hidden", "true");
-    expect(traces[0]).toHaveAttribute("focusable", "false");
+    const illustrations = container.querySelectorAll('[data-stack-illustration="true"]');
+    expect(illustrations).toHaveLength(1);
+    expect(illustrations[0]).toHaveAttribute("aria-hidden", "true");
+    expect(illustrations[0]).toHaveAttribute("focusable", "false");
   });
 
   it("provides the shared public footer when no custom footer is supplied", () => {
@@ -82,9 +82,9 @@ describe("AppPageShell", () => {
       "dense"
     );
 
-    const traces = container.querySelectorAll('[data-routing-trace="true"]');
-    expect(traces).toHaveLength(1);
-    expect(traces[0]).toHaveAttribute("aria-hidden", "true");
-    expect(traces[0]).toHaveAttribute("focusable", "false");
+    const illustrations = container.querySelectorAll('[data-stack-illustration="true"]');
+    expect(illustrations).toHaveLength(1);
+    expect(illustrations[0]).toHaveAttribute("aria-hidden", "true");
+    expect(illustrations[0]).toHaveAttribute("focusable", "false");
   });
 });

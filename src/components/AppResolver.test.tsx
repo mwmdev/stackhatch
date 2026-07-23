@@ -21,10 +21,10 @@ describe("AppResolver", () => {
 
     expect(screen.getAllByRole("main")).toHaveLength(1);
     expect(screen.getByRole("status")).toHaveTextContent("Opening your map");
-    const traces = container.querySelectorAll('[data-routing-trace="true"]');
-    expect(traces).toHaveLength(1);
-    expect(traces[0]).toHaveAttribute("aria-hidden", "true");
-    expect(traces[0]).toHaveAttribute("focusable", "false");
+    const illustrations = container.querySelectorAll('[data-stack-illustration="true"]');
+    expect(illustrations).toHaveLength(1);
+    expect(illustrations[0]).toHaveAttribute("aria-hidden", "true");
+    expect(illustrations[0]).toHaveAttribute("focusable", "false");
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/project/map-1?resume=1"));
 
     rerender(<AppResolver destination="/project/map-1?resume=1" />);
