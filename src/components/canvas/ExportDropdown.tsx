@@ -136,14 +136,12 @@ export default function ExportDropdown({
   return (
     <div className="flex-none">
       <IconControl
+        controlRef={triggerRef}
         label="Export map"
         tooltipPlacement="bottom"
         variant="outline"
         popoverTarget={panelId}
         popoverTargetAction="toggle"
-        onClick={(event) => {
-          triggerRef.current = event.currentTarget;
-        }}
       >
         <Download />
       </IconControl>

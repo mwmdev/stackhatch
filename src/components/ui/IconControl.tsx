@@ -8,6 +8,7 @@ import {
   type KeyboardEvent,
   type MouseEvent,
   type ReactNode,
+  type Ref,
 } from "react";
 
 type IconControlBaseProps = {
@@ -28,6 +29,7 @@ type IconControlButtonProps = IconControlBaseProps &
     ButtonHTMLAttributes<HTMLButtonElement>,
     "aria-label" | "aria-pressed" | "children" | "className" | "disabled"
   > & {
+    controlRef?: Ref<HTMLButtonElement>;
     href?: never;
     pressed?: boolean;
   };
@@ -37,6 +39,7 @@ type IconControlLinkProps = IconControlBaseProps &
     AnchorHTMLAttributes<HTMLAnchorElement>,
     "aria-label" | "aria-current" | "children" | "className" | "href"
   > & {
+    controlRef?: never;
     href: string;
     pressed?: never;
   };
@@ -76,6 +79,7 @@ export default function IconControl(props: IconControlProps) {
       active: _active,
       children: _children,
       className: _className,
+      controlRef: _controlRef,
       disabled: _disabled,
       label: _label,
       pressed: _pressed,
@@ -128,10 +132,12 @@ export default function IconControl(props: IconControlProps) {
   } else {
     const {
       onClick,
+      onKeyDown,
       pressed,
       active: _active,
       children: _children,
       className: _className,
+      controlRef,
       disabled: _disabled,
       label: _label,
       tooltip: _tooltip,
@@ -140,9 +146,22 @@ export default function IconControl(props: IconControlProps) {
       ...buttonProps
     } = props;
 
+    const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+      onKeyDown?.(event);
+      if (
+        !event.defaultPrevented &&
+        event.key === " " &&
+        typeof buttonProps.popoverTarget === "string"
+      ) {
+        event.preventDefault();
+        event.currentTarget.click();
+      }
+    };
+
     control = (
       <button
         {...buttonProps}
+        ref={controlRef}
         type={buttonProps.type ?? "button"}
         aria-label={label}
         aria-describedby={tooltipId}
@@ -152,6 +171,7 @@ export default function IconControl(props: IconControlProps) {
         data-variant={variant}
         className={controlClassName(className)}
         onClick={onClick}
+        onKeyDown={handleKeyDown}
       >
         {icon}
       </button>

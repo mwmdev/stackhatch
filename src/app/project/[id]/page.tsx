@@ -1594,14 +1594,12 @@ export default function ProjectPage() {
             )}
             <div className="flex-none" data-editor-action-group="more">
               <IconControl
+                controlRef={moreMenuInvokerRef}
                 label="More project actions"
                 tooltip="More"
                 tooltipPlacement="bottom"
                 popoverTarget={morePopoverId}
                 popoverTargetAction="toggle"
-                onClick={(event) => {
-                  moreMenuInvokerRef.current = event.currentTarget;
-                }}
               >
                 <Ellipsis />
               </IconControl>

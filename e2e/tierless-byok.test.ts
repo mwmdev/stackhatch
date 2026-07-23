@@ -101,7 +101,9 @@ test.describe("tierless BYOK experience", () => {
 
       await expect(page.getByTestId("key-status-set")).toBeVisible();
       await expect(keyInput).toHaveValue("");
-      await expect(page.getByRole("status")).toContainText("Anthropic API key saved");
+      await expect(
+        page.getByRole("status").filter({ hasText: "Anthropic API key saved" })
+      ).toBeVisible();
 
       const modelSelect = page.getByLabel("Model");
       const currentModel = await modelSelect.inputValue();
@@ -112,7 +114,9 @@ test.describe("tierless BYOK experience", () => {
       expect(selectedModel).toBeTruthy();
 
       await modelSelect.selectOption(selectedModel!);
-      await expect(page.getByRole("status")).toContainText("Claude model saved");
+      await expect(
+        page.getByRole("status").filter({ hasText: "Claude model saved" })
+      ).toBeVisible();
       await expect(modelSelect).toHaveValue(selectedModel!);
 
       const response = await page.request.get("/api/settings");

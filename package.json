@@ -21,6 +21,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:e2e:real-auth": "REAL_AUTH_SMOKE=1 PLAYWRIGHT_DEV_AUTH=0 playwright test e2e/real-auth-logout.test.ts",
     "screenshots:capture": "node scripts/capture-observatory-screenshots.mjs",
     "test:coverage": "vitest run --coverage",
     "eval:repositories": "tsx scripts/evaluate-public-repositories.ts",

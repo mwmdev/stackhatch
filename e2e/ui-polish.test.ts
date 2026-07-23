@@ -1,5 +1,55 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { createProjectAndNavigate, fulfillSSE, textSSE } from "./helpers/sse-mock";
+
+const persistedCanvas = {
+  nodes: [
+    {
+      id: "web-client",
+      category: "client",
+      subtype: "web-app",
+      name: "Web Client",
+      technology: "Next.js",
+      description: "Renders the product experience.",
+      reasoning: "Keeps the client boundary explicit.",
+      locked: false,
+    },
+    {
+      id: "api-gateway",
+      category: "api",
+      subtype: "rest-api",
+      name: "API Gateway",
+      technology: "TypeScript",
+      description: "Routes application requests.",
+      reasoning: "Centralizes the public API boundary.",
+      locked: false,
+    },
+  ],
+  edges: [
+    {
+      id: "client-to-api",
+      source: "web-client",
+      target: "api-gateway",
+      connectionType: "http",
+      label: "HTTPS",
+    },
+  ],
+  positions: {
+    "web-client": { x: 80, y: 120 },
+    "api-gateway": { x: 420, y: 120 },
+  },
+  alternatives: {
+    "web-client": [
+      {
+        name: "Svelte Client",
+        technology: "SvelteKit",
+        description: "A smaller client alternative.",
+        reasoning: "Useful when bundle size is the primary constraint.",
+        category: "client",
+        subtype: "web-app",
+      },
+    ],
+  },
+};
 
 async function useTheme(page: Page, theme: "light" | "dark") {
   await page.addInitScript((value) => localStorage.setItem("theme", value), theme);
@@ -18,6 +68,82 @@ async function expectStablePageFrame(page: Page, themeControl = true) {
     scrollWidth: document.documentElement.scrollWidth,
   }));
   expect(layout.scrollWidth).toBe(layout.clientWidth);
+}
+
+async function expectInsideViewport(locator: Locator) {
+  const bounds = await locator.boundingBox();
+  expect(bounds).not.toBeNull();
+  const viewport = locator.page().viewportSize();
+  expect(viewport).not.toBeNull();
+  expect(bounds?.x ?? -1).toBeGreaterThanOrEqual(0);
+  expect(bounds?.y ?? -1).toBeGreaterThanOrEqual(0);
+  expect((bounds?.x ?? 0) + (bounds?.width ?? 0)).toBeLessThanOrEqual(viewport?.width ?? 0);
+  expect((bounds?.y ?? 0) + (bounds?.height ?? 0)).toBeLessThanOrEqual(viewport?.height ?? 0);
+}
+
+async function expectAccountDisclosure(page: Page, settingsActive = false) {
+  const trigger = page.getByRole("button", { name: "Account", exact: true });
+  const panel = page.getByTestId("account-popover");
+  const settings = panel.getByRole("link", { name: "Settings" });
+  const signOut = panel.getByRole("button", { name: "Sign out" });
+
+  await trigger.press("Enter");
+  await expect(panel).toBeVisible();
+  if (settingsActive) await expect(settings).toHaveAttribute("aria-current", "page");
+  else await expect(settings).not.toHaveAttribute("aria-current", "page");
+
+  await page.keyboard.press("Tab");
+  await expect(settings).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(signOut).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(settings).toBeFocused();
+
+  await page.keyboard.press("Escape");
+  await expect(panel).toBeHidden();
+  await expect(trigger).toBeFocused();
+
+  await trigger.press("Space");
+  await expect(panel).toBeVisible();
+  const theme = page.getByRole("button", { name: "Theme: change appearance" }).first();
+  await theme.click();
+  await expect(panel).toBeHidden();
+  await expect(theme).toBeFocused();
+}
+
+async function createPersistedProject(page: Page, name: string, repoUrl?: string) {
+  const response = await page.request.post("/api/projects", {
+    data: {
+      name,
+      canvasState: JSON.stringify(persistedCanvas),
+      ...(repoUrl ? { repoUrl } : {}),
+    },
+  });
+  expect(response.status()).toBe(201);
+  return (await response.json()) as { id: string };
+}
+
+async function mockCompletedChatInit(page: Page) {
+  await page.route("**/api/projects/*/chat/init", async (route) => {
+    await fulfillSSE(route, textSSE("What are you building?"));
+  });
+}
+
+async function mockExistingChatHistory(page: Page) {
+  await page.route("**/api/projects/*/messages", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify([
+        {
+          id: "playwright-ready-message",
+          role: "assistant",
+          content: "The architecture is ready.",
+          createdAt: Date.now(),
+        },
+      ]),
+    });
+  });
 }
 
 const shellViewports = {
@@ -45,29 +171,14 @@ test.describe("system-wide UI polish", () => {
     expect(impersonationResponse.status()).toBe(404);
   });
 
-  test("account deletion explains the active-store boundary before confirmation", async ({
-    page,
-  }) => {
+  test("account deletion truthfully reports the development-auth boundary", async ({ page }) => {
     await page.goto("/settings");
 
     const trigger = page.getByRole("button", { name: "Delete account" });
-    await trigger.click();
-    const dialog = page.getByRole("dialog", { name: "Permanently delete your account?" });
-    await expect(dialog).toBeVisible();
-    await expect(dialog).toContainText("active application database");
-    await expect(dialog).toContainText("SQLite WAL files and backups");
-
-    const confirmation = dialog.getByLabel(/Type DELETE MY ACCOUNT to confirm/);
-    const submit = dialog.getByRole("button", { name: "Permanently delete account" });
-    await expect(submit).toBeDisabled();
-    await confirmation.fill("DELETE MY ACCOUNTS");
-    await expect(submit).toBeDisabled();
-    await confirmation.fill("DELETE MY ACCOUNT");
-    await expect(submit).toBeEnabled();
-
-    await dialog.getByRole("button", { name: "Cancel" }).click();
-    await expect(dialog).toHaveCount(0);
-    await expect(trigger).toBeFocused();
+    await expect(trigger).toBeDisabled();
+    await expect(page.getByRole("status")).toContainText(
+      "Account deletion is unavailable while development authentication is enabled."
+    );
   });
 
   test("shared shell navigation bars span the full viewport", async ({ page }) => {
@@ -118,8 +229,8 @@ test.describe("system-wide UI polish", () => {
 
   for (const { route, title, theme, viewportName } of [
     {
-      route: "/login",
-      title: "Turn what you have into an architecture map.",
+      route: "/",
+      title: "Keep the whole stack in view",
       theme: "light" as const,
       viewportName: "mobile" as const,
     },
@@ -150,7 +261,9 @@ test.describe("system-wide UI polish", () => {
       await page.goto(route);
 
       await expect(page.getByRole("heading", { level: 1, name: title })).toBeVisible();
-      await expect(page.getByRole("link", { name: "StackHatch home" })).toBeVisible();
+      await expect(
+        page.getByRole("banner").getByRole("link", { name: "StackHatch home" })
+      ).toBeVisible();
       await expect(page.locator("html")).toHaveClass(new RegExp(theme));
       await expectStablePageFrame(page);
     });
@@ -194,15 +307,14 @@ test.describe("system-wide UI polish", () => {
       await expect(page.locator("html")).toHaveClass(new RegExp(theme));
       if (route === "/app/maps") {
         await expect(page.getByRole("link", { name: "New map" })).toHaveCount(1);
-        await expect(page.getByRole("link", { name: "Settings" })).toBeVisible();
+        await expect(page.getByRole("button", { name: "Account", exact: true })).toBeVisible();
+        await expect(page.getByRole("link", { name: "Settings" })).toHaveCount(0);
         await expect(page.getByRole("link", { name: "Admin" })).toHaveCount(0);
       } else {
-        await expect(page.getByRole("link", { name: "New map" })).toHaveCount(0);
+        await expect(page.getByRole("link", { name: "New map" })).toHaveCount(1);
         await expect(page.getByRole("link", { name: "All Maps" })).toBeVisible();
-        await expect(page.getByRole("link", { name: "Settings" })).toHaveAttribute(
-          "aria-current",
-          "page"
-        );
+        await expect(page.getByRole("button", { name: "Account", exact: true })).toBeVisible();
+        await expect(page.getByRole("link", { name: "Settings" })).toHaveCount(0);
         await expect(page.getByRole("link", { name: "Admin" })).toHaveCount(0);
 
         const widths = await page.evaluate(() => {
@@ -217,7 +329,7 @@ test.describe("system-wide UI polish", () => {
         });
         expect(widths.settings).toBeCloseTo(widths.shell, 0);
       }
-      await expectStablePageFrame(page, route === "/app/maps");
+      await expectStablePageFrame(page);
     });
   }
 
@@ -231,7 +343,8 @@ test.describe("system-wide UI polish", () => {
 
       await expect(page.getByRole("heading", { level: 1, name: "Start a new map" })).toBeVisible();
       await expect(page.getByRole("link", { name: "All Maps" })).toHaveCount(1);
-      await expect(page.getByRole("link", { name: "Settings" })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Account", exact: true })).toBeVisible();
+      await expect(page.getByRole("link", { name: "Settings" })).toHaveCount(0);
       await expect(page.getByRole("button", { name: /Blank map/ })).toBeVisible();
       await expect(page.getByText(/Use this source/i)).toHaveCount(0);
       await expect(page.locator("html")).toHaveClass(new RegExp(theme));
@@ -248,7 +361,8 @@ test.describe("system-wide UI polish", () => {
 
     await expect(page.getByRole("heading", { level: 1, name: "Start a new map" })).toBeVisible();
     await expect(page.getByRole("link", { name: "All Maps" })).toHaveCount(1);
-    await expect(page.getByRole("link", { name: "Settings" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Account", exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Settings" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: /Blank map/ })).toBeVisible();
     await expect(page.getByText(/Use this source/i)).toHaveCount(0);
     await expectStablePageFrame(page);
@@ -264,10 +378,312 @@ test.describe("system-wide UI polish", () => {
     await expect(blankSource).toBeFocused();
   });
 
-  test("the editor dock becomes a rail without clipping controls or menus", async ({ page }) => {
+  test("Account is a native keyboard disclosure on every authenticated surface", async ({
+    page,
+  }) => {
+    await page.setViewportSize(shellViewports.desktop);
+    await useTheme(page, "light");
+
+    for (const surface of [
+      { route: "/app/maps", title: "All Maps", settingsActive: false },
+      { route: "/project/new", title: "Start a new map", settingsActive: false },
+      { route: "/settings", title: "Settings", settingsActive: true },
+    ]) {
+      await page.goto(surface.route);
+      await expect(page.getByRole("heading", { level: 1, name: surface.title })).toBeVisible();
+      await expectAccountDisclosure(page, surface.settingsActive);
+    }
+
+    await mockCompletedChatInit(page);
+    await createProjectAndNavigate(page, `Account disclosure ${Date.now()}`);
+    await expectAccountDisclosure(page);
+  });
+
+  test("Account Settings navigation and sign-out initiation remain ordinary actions", async ({
+    page,
+  }) => {
+    await page.goto("/app/maps");
+    await page.getByRole("button", { name: "Account", exact: true }).press("Enter");
+    await page.getByTestId("account-popover").getByRole("link", { name: "Settings" }).click();
+    await expect(page).toHaveURL(/\/settings$/);
+    await expect(page.getByRole("heading", { level: 1, name: "Settings" })).toBeVisible();
+
+    await page.goto("/app/maps");
+    const signOutRequest = page.waitForRequest(
+      (request) => request.url().endsWith("/api/auth/signout") && request.method() === "POST"
+    );
+    await page.getByRole("button", { name: "Account", exact: true }).press("Space");
+    await page.getByTestId("account-popover").getByRole("button", { name: "Sign out" }).click();
+    await signOutRequest;
+    await expect(page).toHaveURL(/\/$/);
+  });
+
+  test("long account identity stays inside compact 320px and 390px viewports", async ({
+    page,
+  }, testInfo) => {
+    await page.route("**/api/me", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          name: "Alexandria-Cassandra With An Exceptionally Long Display Name",
+          email: "alexandria-cassandra.with-a-long-address@architecture-observatory.example",
+        }),
+      });
+    });
+
+    for (const viewport of [
+      { width: 320, height: 720 },
+      { width: 390, height: 844 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await page.goto("/app/maps");
+      await page.getByRole("button", { name: "Account", exact: true }).press("Space");
+      const panel = page.getByTestId("account-popover");
+      await expect(panel).toContainText("Alexandria-Cassandra");
+      await expect(panel).toContainText("architecture-observatory.example");
+      await expectInsideViewport(panel);
+      await expectStablePageFrame(page);
+
+      if (viewport.width === 390) {
+        await page.screenshot({ path: testInfo.outputPath("account-compact-390.png") });
+      }
+      await page.keyboard.press("Escape");
+    }
+  });
+
+  test("compact editor Account, More, and Export stay keyboard-reachable in one row", async ({
+    page,
+  }, testInfo) => {
+    await mockExistingChatHistory(page);
+    const project = await createPersistedProject(
+      page,
+      `A deliberately long architecture map name ${Date.now()}`,
+      "https://github.com/stackhatch/example-architecture"
+    );
+    await useTheme(page, "dark");
+
+    for (const viewport of [
+      { width: 320, height: 720 },
+      { width: 390, height: 844 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await page.goto(`/project/${project.id}`);
+      await expect(page.getByTestId("stack-node-web-client")).toBeVisible();
+
+      const bar = page.getByTestId("editor-project-bar");
+      await expect(bar).toHaveAttribute("data-layout", "single-row");
+      const barGeometry = await bar.evaluate((element) => {
+        const bounds = element.getBoundingClientRect();
+        const visibleControlCenters = Array.from(element.querySelectorAll<HTMLElement>("a, button"))
+          .map((control) => control.getBoundingClientRect())
+          .filter((control) => control.width > 0 && control.height > 0)
+          .map((control) => control.top + control.height / 2);
+        return {
+          height: bounds.height,
+          left: bounds.left,
+          right: bounds.right,
+          centerSpread: Math.max(...visibleControlCenters) - Math.min(...visibleControlCenters),
+          scrollWidth: document.documentElement.scrollWidth,
+          clientWidth: document.documentElement.clientWidth,
+        };
+      });
+      expect(barGeometry.left).toBeGreaterThanOrEqual(0);
+      expect(barGeometry.right).toBeLessThanOrEqual(viewport.width);
+      expect(barGeometry.height).toBeLessThanOrEqual(60);
+      expect(barGeometry.centerSpread).toBeLessThanOrEqual(1);
+      expect(barGeometry.scrollWidth).toBe(barGeometry.clientWidth);
+
+      await expect(bar.getByRole("link", { name: "All maps" })).toBeVisible();
+      await expect(bar.getByRole("button", { name: "Export map" })).toBeVisible();
+      await expect(bar.getByRole("button", { name: "More project actions" })).toBeVisible();
+      await expect(bar.getByRole("button", { name: "Account" })).toBeVisible();
+      await expect(page.getByTestId("wide-new-map")).toBeHidden();
+
+      const moreTrigger = bar.getByRole("button", { name: "More project actions" });
+      const morePanel = page.getByTestId("editor-more-popover");
+      await moreTrigger.press("Space");
+      await expect(morePanel).toBeVisible();
+      await expectInsideViewport(morePanel);
+      await page.keyboard.press("Escape");
+      await expect(morePanel).toBeHidden();
+      await expect(moreTrigger).toBeFocused();
+
+      await moreTrigger.press("Enter");
+      await expect(morePanel).toBeVisible();
+      await page.keyboard.press("Tab");
+      await expect(morePanel.getByRole("link", { name: "New Map" })).toBeFocused();
+
+      const rowTheme = morePanel.getByRole("button", { name: /^Theme:/ });
+      await rowTheme.click();
+      await expect(morePanel).toBeVisible();
+      await expect(rowTheme.getByRole("status")).toHaveText(/Theme changed to/);
+      await page.keyboard.press("Escape");
+      await expect(morePanel).toBeHidden();
+      await expect(moreTrigger).toBeFocused();
+
+      await moreTrigger.click();
+      await expect(morePanel).toBeVisible();
+      const accountTrigger = bar.getByRole("button", { name: "Account", exact: true });
+      await accountTrigger.click();
+      await expect(morePanel).toBeHidden();
+      await expect(accountTrigger).toBeFocused();
+      await expect(page.getByTestId("account-popover")).toBeVisible();
+      await page.keyboard.press("Escape");
+
+      const exportTrigger = bar.getByRole("button", { name: "Export map" });
+      const exportPanel = page.getByTestId("export-dropdown");
+      await exportTrigger.press("Space");
+      await expect(exportPanel).toBeVisible();
+      await expectInsideViewport(exportPanel);
+      await page.keyboard.press("Escape");
+      await expect(exportPanel).toBeHidden();
+      await expect(exportTrigger).toBeFocused();
+
+      await exportTrigger.press("Enter");
+      await expect(exportPanel).toBeVisible();
+      await page.keyboard.press("Tab");
+      await expect(exportPanel.getByRole("button", { name: "Export PNG" })).toBeFocused();
+      await page.keyboard.press("Shift+Tab");
+      await expect(exportTrigger).toBeFocused();
+      await page.keyboard.press("Escape");
+      await expect(exportPanel).toBeHidden();
+      await expect(exportTrigger).toBeFocused();
+
+      if (viewport.width === 390) {
+        await moreTrigger.click();
+        await page.screenshot({ path: testInfo.outputPath("editor-compact-390.png") });
+        await page.keyboard.press("Escape");
+      }
+    }
+  });
+
+  test("the last accepted editor revision survives reload with full map provenance", async ({
+    page,
+  }) => {
+    await mockExistingChatHistory(page);
+    const repoUrl = "https://github.com/stackhatch/persistence-proof";
+    const project = await createPersistedProject(page, `Persistence proof ${Date.now()}`, repoUrl);
+    await page.goto(`/project/${project.id}`);
+
+    await expect(page.getByTestId("project-identity")).toHaveAttribute(
+      "aria-label",
+      new RegExp(repoUrl.replaceAll("/", "\\/"))
+    );
+    await page.getByTestId("stack-node-web-client").click();
+    await page.getByLabel("Node name").fill("Accepted Web Client");
+
+    let acceptedCanvas: typeof persistedCanvas | undefined;
+    await expect
+      .poll(async () => {
+        const response = await page.request.get(`/api/projects/${project.id}`);
+        const body = (await response.json()) as {
+          canvasState: typeof persistedCanvas;
+          repoUrl: string;
+        };
+        acceptedCanvas = body.canvasState;
+        return {
+          name: body.canvasState.nodes.find((node) => node.id === "web-client")?.name,
+          repoUrl: body.repoUrl,
+        };
+      })
+      .toEqual({ name: "Accepted Web Client", repoUrl });
+
+    await page.reload();
+    await expect(page.getByTestId("stack-node-web-client")).toContainText("Accepted Web Client");
+    await expect(page.getByTestId("project-provenance")).toContainText("Repository map");
+    const reopened = (await (await page.request.get(`/api/projects/${project.id}`)).json()) as {
+      canvasState: typeof persistedCanvas;
+    };
+    expect(reopened.canvasState).toEqual(acceptedCanvas);
+    expect(reopened.canvasState.edges).toEqual(persistedCanvas.edges);
+    expect(reopened.canvasState.positions).toEqual(persistedCanvas.positions);
+    expect(reopened.canvasState.alternatives).toEqual(persistedCanvas.alternatives);
+  });
+
+  test("dirty editor sign-out waits for the accepted save before Auth.js", async ({ page }) => {
+    await mockExistingChatHistory(page);
+    const project = await createPersistedProject(page, `Ordered sign-out ${Date.now()}`);
+    const sequence: string[] = [];
+    let releaseSave = () => {};
+    let markSaveStarted = () => {};
+    const saveGate = new Promise<void>((resolve) => {
+      releaseSave = resolve;
+    });
+    const saveStarted = new Promise<void>((resolve) => {
+      markSaveStarted = resolve;
+    });
+
+    await page.route(`**/api/projects/${project.id}`, async (route) => {
+      if (route.request().method() !== "PATCH") {
+        await route.continue();
+        return;
+      }
+      sequence.push("save");
+      markSaveStarted();
+      await saveGate;
+      await route.continue();
+    });
+    page.on("request", (request) => {
+      if (request.url().endsWith("/api/auth/signout")) sequence.push("sign-out");
+    });
+
+    await page.goto(`/project/${project.id}`);
+    await page.getByTestId("stack-node-web-client").click();
+    await page.getByLabel("Node name").fill("Save before leaving");
+    await saveStarted;
+
+    await page.getByRole("button", { name: "Account", exact: true }).click();
+    await page.getByTestId("account-popover").getByRole("button", { name: "Sign out" }).click();
+    await expect(page.getByTestId("account-popover").getByRole("status")).toHaveText(
+      "Saving changes…"
+    );
+    expect(sequence).toEqual(["save"]);
+
+    const signOutRequest = page.waitForRequest((request) =>
+      request.url().endsWith("/api/auth/signout")
+    );
+    releaseSave();
+    await signOutRequest;
+    expect(sequence).toEqual(["save", "sign-out"]);
+    await expect(page).toHaveURL(/\/$/);
+  });
+
+  test("an active architecture stream explains why editor sign-out is unavailable", async ({
+    page,
+  }) => {
+    let releaseStream = () => {};
+    const streamGate = new Promise<void>((resolve) => {
+      releaseStream = resolve;
+    });
+    let signOutRequests = 0;
+    page.on("request", (request) => {
+      if (request.url().endsWith("/api/auth/signout")) signOutRequests += 1;
+    });
     await page.route("**/api/projects/*/chat/init", async (route) => {
+      await streamGate;
       await fulfillSSE(route, textSSE("What are you building?"));
     });
+
+    try {
+      await createProjectAndNavigate(page, `Blocked sign-out ${Date.now()}`);
+      const trigger = page.getByRole("button", { name: "Account", exact: true });
+      await trigger.press("Enter");
+      const panel = page.getByTestId("account-popover");
+      await expect(panel).toBeVisible();
+      await expect(panel).toContainText("Architecture update in progress");
+      const signOut = panel.locator("button", { hasText: "Sign out" });
+      await expect(signOut).toHaveAttribute("aria-disabled", "true");
+      await expect(signOut).toHaveAccessibleDescription("Architecture update in progress");
+      await signOut.dispatchEvent("click");
+      expect(signOutRequests).toBe(0);
+    } finally {
+      releaseStream();
+    }
+  });
+
+  test("the editor dock becomes a rail without clipping controls or menus", async ({ page }) => {
+    await mockCompletedChatInit(page);
     await useTheme(page, "dark");
     await createProjectAndNavigate(page, "UI polish geometry");
     const projectUrl = page.url();

@@ -1,7 +1,15 @@
 import nextConfig from "eslint-config-next";
 
 const eslintConfig = [
-  { ignores: ["coverage/**", "test-results/**", "playwright-report/**", "operator/**"] },
+  {
+    ignores: [
+      ".next-playwright/**",
+      "coverage/**",
+      "test-results/**",
+      "playwright-report/**",
+      "operator/**",
+    ],
+  },
   ...nextConfig,
 ];
 

@@ -36,6 +36,22 @@ describe("IconControl", () => {
     expect(button).toBeDisabled();
   });
 
+  it("normalizes Space activation for a native popover target", () => {
+    const onClick = vi.fn();
+    render(
+      <>
+        <IconControl label="More actions" popoverTarget="more-actions" onClick={onClick}>
+          <TestIcon />
+        </IconControl>
+        <div id="more-actions" popover="auto" />
+      </>
+    );
+
+    const trigger = screen.getByRole("button", { name: "More actions" });
+    expect(fireEvent.keyDown(trigger, { key: " " })).toBe(false);
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
   it("renders active link semantics without nesting interactive elements", () => {
     render(
       <IconControl href="/app" label="All maps" active>
