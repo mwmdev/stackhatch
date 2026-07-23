@@ -177,6 +177,8 @@ vi.mock("@/components/chat/ChatSidebar", () => ({
     canvasState,
     scanTrigger,
     onArchitecture,
+    onArchitectureStreamStart,
+    onArchitectureStreamEnd,
     onScanStateChange,
   }: {
     projectId: string;
@@ -197,7 +199,9 @@ vi.mock("@/components/chat/ChatSidebar", () => ({
           analysisWarning: string | null;
         };
       }
-    ) => void;
+    ) => Promise<void> | void;
+    onArchitectureStreamStart?: () => Promise<void>;
+    onArchitectureStreamEnd?: (outcome: "completed" | "ambiguous") => Promise<void> | void;
     onScanStateChange?: (scanning: boolean) => void;
   }) => (
     <div
@@ -215,39 +219,57 @@ vi.mock("@/components/chat/ChatSidebar", () => ({
       </button>
       <button
         type="button"
-        onClick={() => {
+        onClick={async () => {
           onScanStateChange?.(true);
-          onArchitecture?.(
-            {
-              nodes: [
-                {
-                  id: "replacement-api",
-                  category: "api",
-                  subtype: "rest-api",
-                  name: "Replacement API",
-                  technology: "Next.js",
-                  description: "Fresh scan",
-                  reasoning: "Observed",
-                  locked: false,
-                },
-              ],
-              edges: [],
-            },
-            {
-              source: "scan",
-              provenance: {
-                repoUrl: "https://github.com/example/repo",
-                commitSha: "replacement-sha",
-                scannedAt: 2000000,
-                analysisStatus: "partial",
-                analysisWarning: "One file was truncated.",
+          let outcome: "completed" | "ambiguous" = "ambiguous";
+          try {
+            await onArchitectureStreamStart?.();
+            await onArchitecture?.(
+              {
+                nodes: [
+                  {
+                    id: "replacement-api",
+                    category: "api",
+                    subtype: "rest-api",
+                    name: "Replacement API",
+                    technology: "Next.js",
+                    description: "Fresh scan",
+                    reasoning: "Observed",
+                    locked: false,
+                  },
+                ],
+                edges: [],
               },
-            }
-          );
-          onScanStateChange?.(false);
+              {
+                source: "scan",
+                provenance: {
+                  repoUrl: "https://github.com/example/repo",
+                  commitSha: "replacement-sha",
+                  scannedAt: 2000000,
+                  analysisStatus: "partial",
+                  analysisWarning: "One file was truncated.",
+                },
+              }
+            );
+            outcome = "completed";
+          } catch {
+            // ChatSidebar reports the stream error after reconciling the project.
+          } finally {
+            await onArchitectureStreamEnd?.(outcome);
+            onScanStateChange?.(false);
+          }
         }}
       >
         Mock scan replacement
+      </button>
+      <button
+        type="button"
+        onClick={async () => {
+          await onArchitectureStreamStart?.();
+          await onArchitectureStreamEnd?.("ambiguous");
+        }}
+      >
+        Mock dropped architecture stream
       </button>
     </div>
   ),
@@ -530,6 +552,16 @@ function mockFetchError() {
   ) as unknown as typeof global.fetch;
 }
 
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
+
 // Mock scrollIntoView (jsdom doesn't implement it)
 Element.prototype.scrollIntoView = vi.fn();
 
@@ -715,6 +747,178 @@ describe("ProjectPage", () => {
         start_method: "blank",
       });
       expect(mockConsumePendingProjectStart).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("revision-ordered persistence", () => {
+    it("does not PATCH the loaded baseline", async () => {
+      mockFetchProject(projectWithNodes);
+      render(<ProjectPage />);
+
+      await screen.findByTestId("mock-flow-node-n1");
+      await act(() => new Promise((resolve) => setTimeout(resolve, 550)));
+
+      const patchCalls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.filter(
+        ([, options]) => (options as RequestInit | undefined)?.method === "PATCH"
+      );
+      expect(patchCalls).toHaveLength(0);
+    });
+
+    it("drains a pending client revision before normalizing an AI replacement", async () => {
+      mockFetchProject(projectWithNodes);
+      const baseFetch = global.fetch as ReturnType<typeof vi.fn>;
+      const firstPatch = deferred<Response>();
+      let patchCount = 0;
+      global.fetch = vi.fn((input: RequestInfo | URL, options?: RequestInit) => {
+        if (options?.method === "PATCH") {
+          patchCount += 1;
+          if (patchCount === 1) return firstPatch.promise;
+          return Promise.resolve({ ok: true, json: () => Promise.resolve({}) } as Response);
+        }
+        return baseFetch(input, options);
+      }) as unknown as typeof fetch;
+
+      render(<ProjectPage />);
+      await screen.findByTestId("mock-flow-node-n1");
+      fireEvent.click(screen.getByTestId("add-node-button"));
+      await waitFor(() => expect(patchCount).toBe(1));
+
+      fireEvent.click(screen.getByRole("button", { name: "Mock scan replacement" }));
+      expect(screen.getByTestId("project-editor-shell")).toHaveAttribute(
+        "data-ai-writer-phase",
+        "preparing"
+      );
+      expect(screen.getByTestId("react-flow-canvas")).toHaveAttribute("data-node-count", "3");
+      fireEvent.click(screen.getByTestId("add-node-button"));
+      expect(screen.getByTestId("react-flow-canvas")).toHaveAttribute("data-node-count", "3");
+
+      firstPatch.resolve({ ok: true, json: () => Promise.resolve({}) } as Response);
+      await waitFor(() => expect(patchCount).toBe(2));
+      await waitFor(() =>
+        expect(screen.getByTestId("project-editor-shell")).toHaveAttribute(
+          "data-ai-writer-phase",
+          "idle"
+        )
+      );
+
+      const patchCalls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.filter(
+        ([, options]) => options?.method === "PATCH"
+      );
+      const firstSnapshot = JSON.parse(
+        JSON.parse((patchCalls[0][1] as RequestInit).body as string).canvasState
+      );
+      const replacementSnapshot = JSON.parse(
+        JSON.parse((patchCalls[1][1] as RequestInit).body as string).canvasState
+      );
+      expect(firstSnapshot.nodes).toHaveLength(3);
+      expect(replacementSnapshot.nodes.map((node: { id: string }) => node.id)).toEqual([
+        "replacement-api",
+      ]);
+      expect(replacementSnapshot.positions["replacement-api"]).toEqual(
+        expect.objectContaining({ x: expect.any(Number), y: expect.any(Number) })
+      );
+      expect(replacementSnapshot.alternatives).toEqual({});
+    });
+
+    it("adopts and normalizes authoritative state after an ambiguous advanced stream", async () => {
+      mockFetchProject(projectWithNodes);
+      const baseFetch = global.fetch as ReturnType<typeof vi.fn>;
+      let projectGets = 0;
+      const authoritative = {
+        ...projectWithNodes,
+        updatedAt: projectWithNodes.updatedAt + 1,
+        canvasState: {
+          nodes: [
+            {
+              ...projectWithNodes.canvasState!.nodes[0],
+              id: "authoritative-api",
+              name: "Authoritative API",
+            },
+          ],
+          edges: [],
+        },
+      };
+      global.fetch = vi.fn((input: RequestInfo | URL, options?: RequestInit) => {
+        const url = String(input);
+        if (url === "/api/projects/test-project-id" && !options?.method) {
+          projectGets += 1;
+          if (projectGets > 1) {
+            return Promise.resolve({
+              ok: true,
+              json: () => Promise.resolve(authoritative),
+            } as Response);
+          }
+        }
+        return baseFetch(input, options);
+      }) as unknown as typeof fetch;
+
+      render(<ProjectPage />);
+      await screen.findByTestId("mock-flow-node-n1");
+      fireEvent.click(screen.getByRole("button", { name: "Mock dropped architecture stream" }));
+
+      expect(await screen.findByTestId("mock-flow-node-authoritative-api")).toBeInTheDocument();
+      await waitFor(() =>
+        expect(screen.getByTestId("project-editor-shell")).toHaveAttribute(
+          "data-ai-writer-phase",
+          "idle"
+        )
+      );
+      const patchCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.find(
+        ([, options]) => options?.method === "PATCH"
+      );
+      const normalized = JSON.parse(
+        JSON.parse((patchCall?.[1] as RequestInit).body as string).canvasState
+      );
+      expect(normalized.positions["authoritative-api"]).toEqual(
+        expect.objectContaining({ x: expect.any(Number), y: expect.any(Number) })
+      );
+    });
+
+    it("restores the pre-stream snapshot when ambiguous authoritative state did not advance", async () => {
+      mockFetchProject(projectWithNodes);
+      render(<ProjectPage />);
+      await screen.findByTestId("mock-flow-node-n1");
+
+      fireEvent.click(screen.getByRole("button", { name: "Mock dropped architecture stream" }));
+
+      await waitFor(() =>
+        expect(screen.getByTestId("project-editor-shell")).toHaveAttribute(
+          "data-ai-writer-phase",
+          "idle"
+        )
+      );
+      expect(screen.getByTestId("react-flow-canvas")).toHaveAttribute("data-node-count", "2");
+      expect(
+        (global.fetch as ReturnType<typeof vi.fn>).mock.calls.filter(
+          ([, options]) => options?.method === "PATCH"
+        )
+      ).toHaveLength(0);
+    });
+
+    it("restores the visible pre-stream canvas when replacement normalization fails", async () => {
+      mockFetchProject(projectWithNodes);
+      const baseFetch = global.fetch as ReturnType<typeof vi.fn>;
+      global.fetch = vi.fn((input: RequestInfo | URL, options?: RequestInit) => {
+        if (options?.method === "PATCH") {
+          return Promise.resolve({ ok: false, status: 500 } as Response);
+        }
+        return baseFetch(input, options);
+      }) as unknown as typeof fetch;
+
+      render(<ProjectPage />);
+      await screen.findByTestId("mock-flow-node-n1");
+      fireEvent.click(screen.getByRole("button", { name: "Mock scan replacement" }));
+
+      await waitFor(() =>
+        expect(screen.getByTestId("project-editor-shell")).toHaveAttribute(
+          "data-ai-writer-phase",
+          "idle"
+        )
+      );
+      expect(screen.getByTestId("mock-flow-node-n1")).toBeInTheDocument();
+      expect(screen.getByTestId("mock-flow-node-n2")).toBeInTheDocument();
+      expect(screen.queryByTestId("mock-flow-node-replacement-api")).not.toBeInTheDocument();
+      expect(screen.getByTestId("react-flow-canvas")).toHaveAttribute("data-node-count", "2");
     });
   });
 

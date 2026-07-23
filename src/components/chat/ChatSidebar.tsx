@@ -44,7 +44,12 @@ interface ChatSidebarProps {
   showCollapsedButton?: boolean;
   scanTrigger?: number;
   canvasState?: StackArchitecture | null;
-  onArchitecture?: (architecture: StackArchitecture, meta?: ArchitectureUpdateMeta) => void;
+  onArchitecture?: (
+    architecture: StackArchitecture,
+    meta?: ArchitectureUpdateMeta
+  ) => Promise<void> | void;
+  onArchitectureStreamStart?: () => Promise<void>;
+  onArchitectureStreamEnd?: (outcome: "completed" | "ambiguous") => Promise<void> | void;
   onStreaming?: (streaming: boolean) => void;
   onScanStateChange?: (scanning: boolean) => void;
 }
@@ -101,6 +106,8 @@ export default function ChatSidebar({
   scanTrigger = 0,
   canvasState,
   onArchitecture,
+  onArchitectureStreamStart,
+  onArchitectureStreamEnd,
   onStreaming,
   onScanStateChange,
 }: ChatSidebarProps) {
@@ -197,7 +204,10 @@ export default function ChatSidebar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scanTrigger]);
 
-  async function processSSEStream(response: Response, context?: "scan") {
+  async function processSSEStream(
+    response: Response,
+    context?: "scan"
+  ): Promise<"completed" | "ambiguous"> {
     const reader = response.body?.getReader();
     if (!reader) {
       if (context === "scan") {
@@ -206,7 +216,7 @@ export default function ChatSidebar({
           error_category: "server",
         });
       }
-      return;
+      return "ambiguous";
     }
 
     const decoder = new TextDecoder();
@@ -227,96 +237,125 @@ export default function ChatSidebar({
         for (const line of lines) {
           if (!line.startsWith("data: ")) continue;
           const jsonStr = line.slice(6);
+          let event: {
+            type: string;
+            content?: any;
+            code?: string;
+            provenance?: RepositoryScanProvenance;
+          };
           try {
-            const event = JSON.parse(jsonStr);
-            if (event.type === "text") {
-              accumulated += event.content;
-              setStreamText(accumulated);
-            } else if (event.type === "architecture") {
-              const usableArchitecture =
-                event.content &&
-                Array.isArray(event.content.nodes) &&
-                event.content.nodes.length > 0 &&
-                Array.isArray(event.content.edges);
-              if (context === "scan" && !usableArchitecture) {
-                setError("StackHatch could not produce a usable map. Your current map was kept.");
-                trackEvent("repository_scan_failed", {
-                  location: "editor",
-                  error_category: "unknown",
-                });
-                setStreaming(false);
-                return;
-              }
-              if (usableArchitecture) {
-                receivedArchitecture = true;
-                if (context === "scan") setMessages([]);
-                onArchitecture?.(
-                  event.content,
-                  context === "scan" ? { source: "scan", provenance: event.provenance } : undefined
-                );
-              }
-            } else if (event.type === "error") {
-              if (event.code === "PROJECT_UNAVAILABLE") {
-                accumulated = "";
-                setStreamText("");
-                setInitialized(false);
-                setError(PROJECT_UNAVAILABLE_MESSAGE);
-              } else {
-                setError(event.content);
-              }
-              if (context === "scan") {
-                trackEvent("repository_scan_failed", {
-                  location: "editor",
-                  error_category: scanErrorCategory(event.code),
-                });
-              }
+            event = JSON.parse(jsonStr);
+          } catch {
+            continue;
+          }
+
+          if (event.type === "text") {
+            accumulated += event.content;
+            setStreamText(accumulated);
+          } else if (event.type === "architecture") {
+            const usableArchitecture =
+              event.content &&
+              Array.isArray(event.content.nodes) &&
+              event.content.nodes.length > 0 &&
+              Array.isArray(event.content.edges);
+            if (context === "scan" && !usableArchitecture) {
+              setError("StackHatch could not produce a usable map. Your current map was kept.");
+              trackEvent("repository_scan_failed", {
+                location: "editor",
+                error_category: "unknown",
+              });
               setStreaming(false);
-              return;
-            } else if (event.type === "done") {
-              if (context === "scan" && !receivedArchitecture) {
-                setError("StackHatch could not produce a usable map. Your current map was kept.");
-                trackEvent("repository_scan_failed", {
-                  location: "editor",
-                  error_category: "unknown",
-                });
-                setStreamText("");
-                setStreaming(false);
-                return;
-              }
-              // Add the completed message to messages list
-              if (accumulated) {
-                setMessages((prev) => [
-                  ...prev,
-                  {
-                    id: `stream-${Date.now()}`,
-                    role: "assistant",
-                    content: accumulated,
-                    createdAt: Date.now(),
-                  },
-                ]);
-              }
+              return "ambiguous";
+            }
+            if (usableArchitecture) {
+              receivedArchitecture = true;
+              if (context === "scan") setMessages([]);
+              await onArchitecture?.(
+                event.content,
+                context === "scan" ? { source: "scan", provenance: event.provenance } : undefined
+              );
+            }
+          } else if (event.type === "error") {
+            if (event.code === "PROJECT_UNAVAILABLE") {
+              accumulated = "";
+              setStreamText("");
+              setInitialized(false);
+              setError(PROJECT_UNAVAILABLE_MESSAGE);
+            } else {
+              setError(event.content);
+            }
+            if (context === "scan") {
+              trackEvent("repository_scan_failed", {
+                location: "editor",
+                error_category: scanErrorCategory(event.code),
+              });
+            }
+            setStreaming(false);
+            return "ambiguous";
+          } else if (event.type === "done") {
+            if (context === "scan" && !receivedArchitecture) {
+              setError("StackHatch could not produce a usable map. Your current map was kept.");
+              trackEvent("repository_scan_failed", {
+                location: "editor",
+                error_category: "unknown",
+              });
               setStreamText("");
               setStreaming(false);
-              setInitialized(true);
-              if (context === "scan") {
-                trackEvent("repository_scan_succeeded", { location: "editor" });
-              }
-              return;
+              return "completed";
             }
-          } catch {
-            // Skip malformed JSON
+            if (accumulated) {
+              setMessages((prev) => [
+                ...prev,
+                {
+                  id: `stream-${Date.now()}`,
+                  role: "assistant",
+                  content: accumulated,
+                  createdAt: Date.now(),
+                },
+              ]);
+            }
+            setStreamText("");
+            setStreaming(false);
+            setInitialized(true);
+            if (context === "scan") {
+              trackEvent("repository_scan_succeeded", { location: "editor" });
+            }
+            return "completed";
           }
         }
       }
+      return "ambiguous";
     } finally {
       reader.releaseLock();
       setStreaming(false);
     }
   }
 
+  async function establishArchitectureBarrier() {
+    try {
+      await onArchitectureStreamStart?.();
+      return true;
+    } catch {
+      setError("Your latest map changes could not be saved. Try again.");
+      setStreaming(false);
+      return false;
+    }
+  }
+
+  async function finishArchitectureBarrier(outcome: "completed" | "ambiguous") {
+    try {
+      await onArchitectureStreamEnd?.(outcome);
+    } catch {
+      setError("StackHatch could not reconcile the latest architecture update.");
+    }
+  }
+
   async function initChat() {
     setStreaming(true);
     setError("");
+    if (!(await establishArchitectureBarrier())) return;
+
+    let outcome: "completed" | "ambiguous" = "ambiguous";
     try {
       const res = await fetch(`/api/projects/${projectId}/chat/init`, {
         method: "POST",
@@ -333,10 +372,12 @@ export default function ChatSidebar({
         setStreaming(false);
         return;
       }
-      await processSSEStream(res);
+      outcome = await processSSEStream(res);
     } catch {
       setError("Failed to start conversation");
       setStreaming(false);
+    } finally {
+      await finishArchitectureBarrier(outcome);
     }
   }
 
@@ -345,6 +386,12 @@ export default function ChatSidebar({
     setSidebarOpen(true);
     setError("");
     onScanStateChange?.(true);
+    if (!(await establishArchitectureBarrier())) {
+      onScanStateChange?.(false);
+      return;
+    }
+
+    let outcome: "completed" | "ambiguous" = "ambiguous";
     trackEvent("repository_scan_started", { location: "editor" });
     try {
       const res = await fetch(`/api/projects/${projectId}/repo-scan`, {
@@ -366,7 +413,7 @@ export default function ChatSidebar({
         setStreaming(false);
         return;
       }
-      await processSSEStream(res, "scan");
+      outcome = await processSSEStream(res, "scan");
     } catch {
       setError("Failed to scan repository");
       trackEvent("repository_scan_failed", {
@@ -375,12 +422,16 @@ export default function ChatSidebar({
       });
       setStreaming(false);
     } finally {
+      await finishArchitectureBarrier(outcome);
       onScanStateChange?.(false);
     }
   }
 
   async function sendMessageText(text: string, appendUserMessage: boolean) {
     if (!text || streaming) return;
+
+    setStreaming(true);
+    setError("");
 
     if (appendUserMessage) {
       trackEvent("architecture_question_sent", { location: "editor" });
@@ -393,14 +444,15 @@ export default function ChatSidebar({
       setMessages((prev) => [...prev, userMsg]);
     }
     setInput("");
-    setStreaming(true);
-    setError("");
 
     // Reset textarea height
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
 
+    if (!(await establishArchitectureBarrier())) return;
+
+    let outcome: "completed" | "ambiguous" = "ambiguous";
     try {
       const res = await fetch(`/api/projects/${projectId}/chat`, {
         method: "POST",
@@ -417,10 +469,12 @@ export default function ChatSidebar({
         setStreaming(false);
         return;
       }
-      await processSSEStream(res);
+      outcome = await processSSEStream(res);
     } catch {
       setError("Failed to send message");
       setStreaming(false);
+    } finally {
+      await finishArchitectureBarrier(outcome);
     }
   }
 

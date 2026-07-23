@@ -13,6 +13,8 @@ import ReactFlow, {
   type Node,
   type Edge,
   type Connection,
+  type NodeChange,
+  type EdgeChange,
   type ReactFlowInstance,
 } from "reactflow";
 import "reactflow/dist/style.css";
@@ -62,6 +64,11 @@ import {
   consumePendingProjectStart,
   getPendingProjectStart,
 } from "@/lib/project-start";
+import {
+  CanvasPersistenceUnauthorizedError,
+  createCanvasPersistenceCoordinator,
+  type CanvasPersistenceCoordinator,
+} from "@/lib/canvas-persistence";
 
 interface Project {
   id: string;
@@ -122,6 +129,19 @@ interface SettingsResponse {
 interface StoredCanvasState extends StackArchitecture {
   positions?: Record<string, { x: number; y: number }>;
   alternatives?: Record<string, AlternativeNode[]>;
+}
+
+function buildStoredCanvasState(
+  nodes: Node<StackNodeData>[],
+  edges: Edge<StackEdgeData>[],
+  alternatives: Record<string, AlternativeNode[]>
+): StoredCanvasState {
+  return {
+    nodes: fromReactFlowNodes(nodes),
+    edges: fromReactFlowEdges(edges),
+    positions: Object.fromEntries(nodes.map((node) => [node.id, node.position])),
+    alternatives: structuredClone(alternatives),
+  };
 }
 
 const nodeTypes = { stackNode: StackNodeComponent };
@@ -196,6 +216,9 @@ export default function ProjectPage() {
   const [customSubtypes, setCustomSubtypes] = useState<CustomSubtypesMap>({});
   const [scanTrigger, setScanTrigger] = useState(0);
   const [chatStreaming, setChatStreaming] = useState(false);
+  const [architectureStreamPhase, setArchitectureStreamPhase] = useState<
+    "idle" | "preparing" | "streaming" | "reconciling"
+  >("idle");
   const [chatOpen, setChatOpen] = useState(false);
   const [alternatives, setAlternatives] = useState<Record<string, AlternativeNode[]>>({});
   const [altLoading, setAltLoading] = useState(false);
@@ -230,8 +253,7 @@ export default function ProjectPage() {
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<StackNodeData>([]);
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<StackEdgeData>([]);
   const rfInstanceRef = useRef<ReactFlowInstance | null>(null);
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const repositoryScanPendingRef = useRef(false);
+  const persistenceRef = useRef<CanvasPersistenceCoordinator<StoredCanvasState> | null>(null);
   const rescanDialogRef = useRef<HTMLDivElement | null>(null);
   const rescanInvokerRef = useRef<HTMLButtonElement | null>(null);
   const saveTemplateDialogRef = useRef<HTMLDivElement | null>(null);
@@ -239,20 +261,17 @@ export default function ProjectPage() {
   const moreMenuInvokerRef = useRef<HTMLButtonElement | null>(null);
   const canvasFocusTargetRef = useRef<HTMLDivElement | null>(null);
   const nodePanelCloseTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const latestFlowRef = useRef<{
-    nodes: Node<StackNodeData>[];
-    edges: Edge<StackEdgeData>[];
-  }>({ nodes: [], edges: [] });
   const projectRef = useRef<Project | null>(null);
   const initializedRef = useRef(false);
+  const skipNextPersistencePublishRef = useRef(false);
   const alternativesRef = useRef<Record<string, AlternativeNode[]>>({});
+  const architectureStreamActiveRef = useRef(false);
+  const preStreamRef = useRef<{ snapshot: StoredCanvasState; updatedAt: number } | null>(null);
   const firstMapTrackedRef = useRef(false);
   const openedProjectRef = useRef<string | null>(null);
   const canUseConnectionTypes = true;
 
   const startRepositoryRescan = useCallback(() => {
-    repositoryScanPendingRef.current = true;
-    clearTimeout(saveTimerRef.current);
     setRescanConfirmOpen(false);
     setChatOpen(true);
     trackEvent("repository_rescan_started", { location: "editor" });
@@ -262,6 +281,22 @@ export default function ProjectPage() {
   const focusCanvasTarget = useCallback(() => {
     window.requestAnimationFrame(() => canvasFocusTargetRef.current?.focus());
   }, []);
+
+  const handleNodesChange = useCallback(
+    (changes: NodeChange[]) => {
+      if (architectureStreamActiveRef.current) return;
+      onNodesChange(changes);
+    },
+    [onNodesChange]
+  );
+
+  const handleEdgesChange = useCallback(
+    (changes: EdgeChange[]) => {
+      if (architectureStreamActiveRef.current) return;
+      onEdgesChange(changes);
+    },
+    [onEdgesChange]
+  );
 
   const handleChatOpenChange = useCallback(
     (nextOpen: boolean) => {
@@ -365,6 +400,7 @@ export default function ProjectPage() {
 
   const handleLockToggle = useCallback(
     (id: string, locked: boolean) => {
+      if (architectureStreamActiveRef.current) return;
       setRfNodes((nds) =>
         nds.map((n) => (n.id === id ? { ...n, data: { ...n.data, locked } } : n))
       );
@@ -385,6 +421,7 @@ export default function ProjectPage() {
 
   const handleNodeDelete = useCallback(
     (id: string) => {
+      if (architectureStreamActiveRef.current) return;
       setRfNodes((nds) => nds.filter((n) => n.id !== id));
       setRfEdges((eds) => eds.filter((e) => e.source !== id && e.target !== id));
       setProject((prev) => {
@@ -403,41 +440,25 @@ export default function ProjectPage() {
     [setRfNodes, setRfEdges]
   );
 
-  // --- Debounced save ---
+  // --- Revision-ordered canvas persistence ---
 
-  const saveCanvas = useCallback(
-    async (
-      nodes: Node<StackNodeData>[],
-      edges: Edge<StackEdgeData>[],
-      options?: { keepalive?: boolean }
-    ) => {
-      const stackNodes = fromReactFlowNodes(nodes);
-      const stackEdges = fromReactFlowEdges(edges);
-      const positions: Record<string, { x: number; y: number }> = {};
-      for (const node of nodes) {
-        positions[node.id] = node.position;
-      }
-      const stored: StoredCanvasState = {
-        nodes: stackNodes,
-        edges: stackEdges,
-        positions,
-        alternatives: alternativesRef.current,
-      };
+  const writeCanvasSnapshot = useCallback(
+    async (snapshot: StoredCanvasState, keepalive: boolean) => {
       const response = await fetch(`/api/projects/${projectId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        keepalive: options?.keepalive,
-        body: JSON.stringify({ canvasState: JSON.stringify(stored) }),
+        keepalive,
+        body: JSON.stringify({ canvasState: JSON.stringify(snapshot) }),
       });
       if (!response.ok) {
+        if (response.status === 401) throw new CanvasPersistenceUnauthorizedError();
         throw new Error("Failed to save canvas");
       }
-      // Keep project domain state in sync
       setProject((prev) =>
         prev
           ? {
               ...prev,
-              canvasState: { nodes: stackNodes, edges: stackEdges },
+              canvasState: { nodes: snapshot.nodes, edges: snapshot.edges },
             }
           : prev
       );
@@ -445,37 +466,22 @@ export default function ProjectPage() {
     [projectId]
   );
 
-  const debouncedSave = useCallback(
-    (nodes: Node<StackNodeData>[], edges: Edge<StackEdgeData>[]) => {
-      latestFlowRef.current = { nodes, edges };
-      clearTimeout(saveTimerRef.current);
-      if (repositoryScanPendingRef.current) return;
-      saveTimerRef.current = setTimeout(() => {
-        saveCanvas(nodes, edges).catch(() => {
-          setToast("Failed to save canvas");
-        });
-      }, 500);
-    },
-    [saveCanvas]
-  );
-
-  // Trigger debounced save when React Flow state changes
   useEffect(() => {
-    if (!initializedRef.current) return;
-    debouncedSave(rfNodes, rfEdges);
-  }, [rfNodes, rfEdges, debouncedSave]);
+    if (!initializedRef.current || !persistenceRef.current) return;
+    if (skipNextPersistencePublishRef.current) {
+      skipNextPersistencePublishRef.current = false;
+      return;
+    }
+    persistenceRef.current.publish(buildStoredCanvasState(rfNodes, rfEdges, alternatives));
+  }, [rfNodes, rfEdges, alternatives]);
 
-  // Flush a pending save on unmount so fast navigation does not drop edits.
   useEffect(() => {
     return () => {
-      if (!saveTimerRef.current || !initializedRef.current || repositoryScanPendingRef.current)
-        return;
-      clearTimeout(saveTimerRef.current);
-      void saveCanvas(latestFlowRef.current.nodes, latestFlowRef.current.edges, {
-        keepalive: true,
-      });
+      const coordinator = persistenceRef.current;
+      persistenceRef.current = null;
+      if (coordinator) void coordinator.dispose().catch(() => undefined);
     };
-  }, [saveCanvas]);
+  }, [projectId]);
 
   useEffect(() => {
     return () => clearTimeout(nodePanelCloseTimerRef.current);
@@ -646,6 +652,7 @@ export default function ProjectPage() {
 
   const addConnectionEdge = useCallback(
     (sourceId: string, targetId: string, type: ConnectionType) => {
+      if (architectureStreamActiveRef.current) return;
       const id = crypto.randomUUID();
       const label = getDefaultConnectionLabel(type);
       const rfEdge: Edge<StackEdgeData> = {
@@ -681,6 +688,7 @@ export default function ProjectPage() {
 
   const handleConnect = useCallback(
     (connection: Connection) => {
+      if (architectureStreamActiveRef.current) return;
       if (!connection.source || !connection.target) return;
       if (!canUseConnectionTypes) {
         addConnectionEdge(connection.source, connection.target, "http");
@@ -717,6 +725,7 @@ export default function ProjectPage() {
 
   const handleConnectionTypeSelect = useCallback(
     (type: ConnectionType) => {
+      if (architectureStreamActiveRef.current) return;
       if (!connectionTypePopover) return;
       if (connectionTypePopover.mode === "create") {
         addConnectionEdge(connectionTypePopover.sourceId, connectionTypePopover.targetId, type);
@@ -768,6 +777,7 @@ export default function ProjectPage() {
 
   const handleEdgeLabelChange = useCallback(
     (edgeId: string, newLabel: string) => {
+      if (architectureStreamActiveRef.current) return;
       setRfEdges((eds) =>
         eds.map((e) => (e.id === edgeId ? { ...e, data: { ...e.data!, label: newLabel } } : e))
       );
@@ -847,6 +857,7 @@ export default function ProjectPage() {
 
   const handleAddNode = useCallback(
     (category: NodeCategory, subtype: NodeSubtype) => {
+      if (architectureStreamActiveRef.current) return;
       const subtypeConfig = getSubtypeConfig(category, subtype, customSubtypes);
       const id = crypto.randomUUID();
       const newStackNode: StackNode = {
@@ -910,6 +921,7 @@ export default function ProjectPage() {
 
   const handleNodeUpdate = useCallback(
     (id: string, updates: Partial<StackNode>) => {
+      if (architectureStreamActiveRef.current) return;
       setRfNodes((nds) =>
         nds.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...updates } } : n))
       );
@@ -977,6 +989,7 @@ export default function ProjectPage() {
 
   const handleSwapAlternative = useCallback(
     (alt: AlternativeNode) => {
+      if (architectureStreamActiveRef.current) return;
       const node = selectedNode;
       if (!node) return;
 
@@ -1059,22 +1072,26 @@ export default function ProjectPage() {
 
   // --- AI architecture handler ---
 
-  const handleArchitecture = useCallback(
-    (incoming: StackArchitecture, meta?: ArchitectureUpdateMeta) => {
+  const adoptArchitecture = useCallback(
+    async (
+      incoming: StackArchitecture,
+      meta?: ArchitectureUpdateMeta,
+      forceReplacement = false
+    ) => {
       try {
         if (!incoming?.nodes || !Array.isArray(incoming.nodes)) {
           setToast("Failed to update canvas: invalid architecture data");
-          return;
+          throw new Error("Invalid architecture data");
         }
 
         const currentCanvas = projectRef.current?.canvasState;
         const isFirst = !currentCanvas || currentCanvas.nodes.length === 0;
-        const isRepositoryReplacement = meta?.source === "scan";
+        const isReplacement = forceReplacement || meta?.source === "scan";
 
         let finalArch: StackArchitecture;
         let posMap: Map<string, { x: number; y: number }>;
 
-        if (isFirst || isRepositoryReplacement) {
+        if (isFirst || isReplacement) {
           finalArch = incoming;
           const positions = applyDagreLayout(incoming.nodes, incoming.edges);
           posMap = new Map(positions.map((p) => [p.id, p.position]));
@@ -1100,8 +1117,8 @@ export default function ProjectPage() {
         const newRfNodes = buildRfNodes(finalArch.nodes, posMap);
         const newRfEdges = toReactFlowEdges(finalArch.edges);
 
-        if (isRepositoryReplacement) {
-          clearTimeout(saveTimerRef.current);
+        const replacementAlternatives = isReplacement ? {} : alternativesRef.current;
+        if (isReplacement) {
           alternativesRef.current = {};
           setAlternatives({});
           setSelectedNode(null);
@@ -1127,6 +1144,15 @@ export default function ProjectPage() {
               }
             : prev
         );
+
+        const coordinator = persistenceRef.current;
+        if (!coordinator?.getState().suspended) {
+          throw new Error("Architecture replacement started without a persistence barrier");
+        }
+        await coordinator.persistReplacement(
+          buildStoredCanvasState(newRfNodes, newRfEdges, replacementAlternatives)
+        );
+
         if (isFirst && !firstMapTrackedRef.current) {
           firstMapTrackedRef.current = true;
           const startMethod = consumePendingProjectStart();
@@ -1137,23 +1163,117 @@ export default function ProjectPage() {
         }
 
         setTimeout(() => rfInstanceRef.current?.fitView({ padding: 0.2, duration: 300 }), 100);
-      } catch {
+      } catch (error) {
         setToast("Failed to update canvas");
+        throw error;
       }
     },
     [rfNodes, buildRfNodes, setRfNodes, setRfEdges]
   );
 
-  const handleScanStateChange = useCallback((scanning: boolean) => {
-    repositoryScanPendingRef.current = scanning;
-    if (scanning) clearTimeout(saveTimerRef.current);
+  const handleArchitecture = useCallback(
+    (incoming: StackArchitecture, meta?: ArchitectureUpdateMeta) =>
+      adoptArchitecture(incoming, meta),
+    [adoptArchitecture]
+  );
+
+  const restoreCanvasSnapshot = useCallback(
+    (snapshot: StoredCanvasState) => {
+      const positions = snapshot.positions
+        ? new Map(Object.entries(snapshot.positions))
+        : new Map(
+            applyDagreLayout(snapshot.nodes, snapshot.edges).map((item) => [item.id, item.position])
+          );
+      const restoredNodes = buildRfNodes(snapshot.nodes, positions);
+      const restoredEdges = toReactFlowEdges(snapshot.edges);
+      const restoredAlternatives = snapshot.alternatives ?? {};
+
+      alternativesRef.current = restoredAlternatives;
+      setRfNodes(restoredNodes);
+      setRfEdges(restoredEdges);
+      setAlternatives(restoredAlternatives);
+      setSelectedNode(null);
+      setNodePanelOpen(false);
+      setConnectionTypePopover(null);
+      setProject((previous) =>
+        previous
+          ? {
+              ...previous,
+              canvasState: { nodes: snapshot.nodes, edges: snapshot.edges },
+            }
+          : previous
+      );
+    },
+    [buildRfNodes, setRfEdges, setRfNodes]
+  );
+
+  const releaseArchitectureBarrier = useCallback(() => {
+    persistenceRef.current?.resume();
+    architectureStreamActiveRef.current = false;
+    preStreamRef.current = null;
+    setArchitectureStreamPhase("idle");
   }, []);
+
+  const handleArchitectureStreamStart = useCallback(async () => {
+    const coordinator = persistenceRef.current;
+    const currentProject = projectRef.current;
+    if (!coordinator || !currentProject || architectureStreamActiveRef.current) {
+      throw new Error("Architecture update is unavailable");
+    }
+
+    architectureStreamActiveRef.current = true;
+    preStreamRef.current = {
+      snapshot: coordinator.getLatestSnapshot(),
+      updatedAt: currentProject.updatedAt,
+    };
+    setArchitectureStreamPhase("preparing");
+    try {
+      await coordinator.suspendAndFlush();
+      setArchitectureStreamPhase("streaming");
+    } catch (error) {
+      releaseArchitectureBarrier();
+      throw error;
+    }
+  }, [releaseArchitectureBarrier]);
+
+  const handleArchitectureStreamEnd = useCallback(
+    async (outcome: "completed" | "ambiguous") => {
+      const coordinator = persistenceRef.current;
+      const preStream = preStreamRef.current;
+      if (!coordinator || !preStream) {
+        releaseArchitectureBarrier();
+        return;
+      }
+
+      if (outcome === "completed") {
+        releaseArchitectureBarrier();
+        return;
+      }
+
+      setArchitectureStreamPhase("reconciling");
+      const response = await fetch(`/api/projects/${projectId}`);
+      if (!response.ok) throw new Error("Failed to reconcile architecture update");
+      const authoritative = (await response.json()) as Project;
+      const serverAdvanced = authoritative.updatedAt !== preStream.updatedAt;
+
+      if (serverAdvanced && authoritative.canvasState) {
+        setProject(authoritative);
+        await adoptArchitecture(authoritative.canvasState, undefined, true);
+      } else {
+        coordinator.restoreAcknowledgedSnapshot(preStream.snapshot);
+        restoreCanvasSnapshot(preStream.snapshot);
+      }
+      releaseArchitectureBarrier();
+    },
+    [adoptArchitecture, projectId, releaseArchitectureBarrier, restoreCanvasSnapshot]
+  );
 
   // --- Load project ---
 
   useEffect(() => {
     async function loadProject() {
       try {
+        initializedRef.current = false;
         // Resolve this user's subtype configuration before constructing persisted node data.
         const [settingsResponse, res] = await Promise.all([
           fetch("/api/settings")
@@ -1204,9 +1324,7 @@ export default function ProjectPage() {
         // Initialize React Flow state from loaded canvas
         if (data.canvasState?.nodes?.length) {
           const stored = data.canvasState as StoredCanvasState;
-          if (stored.alternatives) {
-            setAlternatives(stored.alternatives);
-          }
+          setAlternatives(stored.alternatives ?? {});
           let posMap: Map<string, { x: number; y: number }>;
 
           if (stored.positions && Object.keys(stored.positions).length > 0) {
@@ -1234,11 +1352,23 @@ export default function ProjectPage() {
           setRfNodes(nodes);
           setRfEdges(edges);
 
-          // Mark as initialized after a tick to skip the debounced save effect
-          requestAnimationFrame(() => {
-            initializedRef.current = true;
+          persistenceRef.current = createCanvasPersistenceCoordinator({
+            baseline: buildStoredCanvasState(nodes, edges, stored.alternatives ?? {}),
+            writer: ({ snapshot }, { keepalive }) => writeCanvasSnapshot(snapshot, keepalive),
+            onBackgroundError: () => setToast("Failed to save canvas"),
           });
+          skipNextPersistencePublishRef.current = true;
+          initializedRef.current = true;
         } else {
+          setRfNodes([]);
+          setRfEdges([]);
+          setAlternatives({});
+          persistenceRef.current = createCanvasPersistenceCoordinator({
+            baseline: { nodes: [], edges: [], positions: {}, alternatives: {} },
+            writer: ({ snapshot }, { keepalive }) => writeCanvasSnapshot(snapshot, keepalive),
+            onBackgroundError: () => setToast("Failed to save canvas"),
+          });
+          skipNextPersistencePublishRef.current = true;
           initializedRef.current = true;
         }
       } catch {
@@ -1312,6 +1442,7 @@ export default function ProjectPage() {
       className="project-editor-shell observatory-editor flex flex-col bg-[var(--background)] text-[var(--foreground)] md:flex-row"
       data-testid="project-editor-shell"
       data-height-contract="viewport"
+      data-ai-writer-phase={architectureStreamPhase}
     >
       <div
         id="editor-chat-sidebar"
@@ -1329,8 +1460,9 @@ export default function ProjectPage() {
           scanTrigger={scanTrigger}
           canvasState={liveCanvasState}
           onArchitecture={handleArchitecture}
+          onArchitectureStreamStart={handleArchitectureStreamStart}
+          onArchitectureStreamEnd={handleArchitectureStreamEnd}
           onStreaming={setChatStreaming}
-          onScanStateChange={handleScanStateChange}
         />
       </div>
 
@@ -1485,8 +1617,8 @@ export default function ProjectPage() {
             <ReactFlow
               nodes={rfNodes}
               edges={edgesWithCallbacks}
-              onNodesChange={onNodesChange}
-              onEdgesChange={onEdgesChange}
+              onNodesChange={handleNodesChange}
+              onEdgesChange={handleEdgesChange}
               onConnect={handleConnect}
               onNodeClick={handleNodeClick}
               onEdgeClick={handleEdgeClick}
