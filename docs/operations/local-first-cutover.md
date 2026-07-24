@@ -42,15 +42,19 @@ The release commander records:
 
 ## Phase 1: freeze a static candidate
 
-1. Start from a clean, reviewed revision and run `npm ci`.
-2. Run `npm test`, `npm run typecheck`, `npm run lint`, `npm run build`, and the
-   production-equivalent Playwright gate.
-3. Archive `out/` without changing its contents. Record SHA-256 digests for the archive,
-   `out/_headers`, `dist-host/Caddyfile`, and the source revision.
-4. Build the production image once from that revision. Record its immutable digest and verify it
-   contains Caddy plus static files only.
-5. Do not rebuild after recording the candidate. Any source, artifact, policy, or image change
-   creates a new candidate and restarts verification.
+1. Start from a clean, reviewed, committed revision and run `npm ci`.
+2. Run `npm test`, `npm run typecheck`, `npm run lint`, `npm run format:check`, `npm run build`,
+   `npm run test:e2e`, and `npm audit`.
+3. Run `npm run release:build` once. It refuses tracked changes, builds
+   `stackhatch-static-candidate`, and labels the image with the exact source revision.
+4. Run `npm run test:e2e:static`. This serves that exact image with its generated Caddy policy;
+   it does not rebuild the candidate.
+5. Run `npm run release:manifest`. It verifies the image revision, extracts the frozen files and
+   policy, creates a deterministic archive, and writes artifact, `_headers`, Caddyfile, tree, and
+   immutable image digests to ignored `dist-release/`.
+6. Preserve the manifest and archive in the restricted evidence location. Do not rebuild after
+   verification begins. Any source, artifact, policy, or image change creates a new candidate and
+   restarts verification.
 
 ## Phase 2: preflight the live environment
 

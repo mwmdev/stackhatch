@@ -1,187 +1,228 @@
-import { Page, Route } from "@playwright/test";
+import { expect, type Page, type Request, type Route } from "@playwright/test";
 
-/**
- * Build an SSE response body string from a series of events.
- */
-export function buildSSEBody(events: Array<{ type: string; content?: string }>): string {
-  return events.map((e) => `data: ${JSON.stringify(e)}\n\n`).join("");
+export const ANTHROPIC_ORIGIN = "https://api.anthropic.com";
+export const GITHUB_ORIGIN = "https://api.github.com";
+export const TEST_ANTHROPIC_KEY = "sk-ant-playwright-local-first";
+
+export interface ProviderRequest {
+  body: string | null;
+  headers: Record<string, string>;
+  method: string;
+  url: string;
 }
 
-/**
- * Build a simple text-then-done SSE body from a string.
- */
-export function textSSE(text: string): string {
-  return buildSSEBody([{ type: "text", content: text }, { type: "done" }]);
-}
-
-/**
- * Build a multi-chunk text SSE body (simulates streaming).
- */
-export function chunkedTextSSE(chunks: string[]): string {
-  const events: Array<{ type: string; content?: string }> = chunks.map((c) => ({
-    type: "text",
-    content: c,
-  }));
-  events.push({ type: "done" });
-  return buildSSEBody(events);
-}
-
-/**
- * Build an SSE body that includes architecture data.
- */
-export function architectureSSE(textChunks: string[], architecture: object): string {
-  const events: Array<{ type: string; content?: string | object }> = [];
-  for (const chunk of textChunks) {
-    events.push({ type: "text", content: chunk });
-  }
-  events.push({ type: "architecture", content: architecture });
-  events.push({ type: "done" });
-  return events.map((e) => `data: ${JSON.stringify(e)}\n\n`).join("");
-}
-
-/**
- * Build an SSE error body.
- */
-export function errorSSE(message: string): string {
-  return buildSSEBody([{ type: "error", content: message }]);
-}
-
-const SSE_HEADERS = {
-  "Content-Type": "text/event-stream",
-  "Cache-Control": "no-cache",
-  Connection: "keep-alive",
+const CORS_HEADERS = {
+  "access-control-allow-headers": "*",
+  "access-control-allow-methods": "GET, POST, OPTIONS",
+  "access-control-allow-origin": "*",
+  "access-control-expose-headers": "request-id",
 };
 
-/**
- * Fulfill a route with an SSE response.
- */
-export async function fulfillSSE(route: Route, body: string, status = 200) {
-  await route.fulfill({ status, headers: SSE_HEADERS, body });
+function anthropicSse(text: string, requestId: string) {
+  const events = [
+    {
+      type: "message_start",
+      message: {
+        id: `msg_${requestId}`,
+        type: "message",
+        role: "assistant",
+        model: "claude-sonnet-5",
+        content: [],
+        stop_reason: null,
+        stop_sequence: null,
+        usage: { input_tokens: 1, output_tokens: 0 },
+      },
+    },
+    {
+      type: "content_block_start",
+      index: 0,
+      content_block: { type: "text", text: "", citations: null },
+    },
+    {
+      type: "content_block_delta",
+      index: 0,
+      delta: { type: "text_delta", text },
+    },
+    { type: "content_block_stop", index: 0 },
+    {
+      type: "message_delta",
+      delta: { stop_reason: "end_turn", stop_sequence: null },
+      usage: { output_tokens: 1 },
+    },
+    { type: "message_stop" },
+  ];
+
+  return events.map((event) => `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`).join("");
 }
 
-/**
- * A canned conversation for the full interview-to-architecture flow.
- * Each entry: [user message pattern, AI response SSE body]
- */
-export const INTERVIEW_RESPONSES: Array<{
-  pattern: RegExp | null; // null = init (no user message)
-  response: string;
-}> = [
-  {
-    pattern: null, // chat init
-    response: chunkedTextSSE([
-      "Welcome! Let's design your application architecture. ",
-      "What are you building? Tell me about the type of application ",
-      "and the problem it solves.",
-    ]),
-  },
-  {
-    pattern: /real-time chat/i,
-    response: chunkedTextSSE([
-      "A real-time chat application — great choice! ",
-      "What language or framework ecosystem do you prefer? ",
-      "For example: TypeScript/Node.js, Python, Go, etc.",
-    ]),
-  },
-  {
-    pattern: /typescript|node/i,
-    response: chunkedTextSSE([
-      "TypeScript is an excellent choice for real-time apps. ",
-      "What scale are you targeting? How many concurrent users ",
-      "do you expect, and what's the team size?",
-    ]),
-  },
-  {
-    pattern: /thousand|1000|small|medium/i,
-    response: chunkedTextSSE([
-      "Got it. Based on what you've told me, here's my recommended architecture:\n\n",
-      "**Frontend:** Next.js 14 with TypeScript for the web client\n",
-      "**API Layer:** WebSocket server using Socket.io for real-time messaging\n",
-      "**Database:** PostgreSQL 16 for message persistence\n",
-      "**Cache:** Redis for session management and pub/sub\n\n",
-      "This gives you a solid foundation that can scale to thousands of users.",
-    ]),
-  },
-];
+export async function createBlankMap(page: Page) {
+  await page.goto("/project/new");
+  await page.getByRole("button", { name: /Blank map/ }).click();
+  await expect.poll(() => new URL(page.url()).hash).toMatch(/^#.+/);
+  await expect(page.getByRole("heading", { level: 1, name: "Untitled Project" })).toBeVisible();
+  await openChat(page);
+  return decodeURIComponent(new URL(page.url()).hash.slice(1));
+}
 
-/**
- * Set up route mocking for the full interview conversation flow.
- * Returns an object to track which responses were served.
- */
-export async function mockInterviewFlow(page: Page) {
-  let initCalled = false;
-  let chatCallCount = 0;
-  const chatMessages: string[] = [];
+export async function openChat(page: Page) {
+  const trigger = page.getByRole("button", { name: "Open chat" });
+  const sidebar = page.locator("#editor-chat-sidebar");
+  await expect
+    .poll(async () => (await sidebar.isVisible()) || (await trigger.isVisible()))
+    .toBe(true);
+  if (!(await sidebar.isVisible())) await trigger.click();
+  await expect(sidebar).toBeVisible();
+}
 
-  // Register chat route first (lower priority in Playwright — later routes win)
-  await page.route("**/api/projects/*/chat", async (route) => {
+export async function useAnthropicKey(
+  page: Page,
+  options: { remember?: boolean; returnTo?: string } = {}
+) {
+  const returnTo = options.returnTo ?? "/app/maps";
+  await page.goto(`/settings?setup=anthropic&returnTo=${encodeURIComponent(returnTo)}`);
+  await page.getByLabel("Anthropic API key").fill(TEST_ANTHROPIC_KEY);
+  if (options.remember) {
+    await page.getByRole("checkbox", { name: /Remember on this device/ }).check();
+  }
+  await page.getByRole("button", { name: "Use key" }).click();
+  await expect(
+    page.getByTestId(options.remember ? "key-status-remembered" : "key-status-session")
+  ).toBeVisible();
+}
+
+export async function mockAnthropic(
+  page: Page,
+  outputs: string[],
+  options: { status?: number } = {}
+) {
+  const requests: ProviderRequest[] = [];
+  let responseIndex = 0;
+
+  await page.route(`${ANTHROPIC_ORIGIN}/**`, async (route) => {
     const request = route.request();
-    if (request.method() !== "POST") {
-      await route.continue();
+    if (request.method() === "OPTIONS") {
+      await route.fulfill({ status: 204, headers: CORS_HEADERS });
       return;
     }
 
-    const body = JSON.parse(request.postData() || "{}");
-    const userMessage = body.message || "";
-    chatMessages.push(userMessage);
-    chatCallCount++;
+    const body = request.postData();
+    requests.push({
+      body,
+      headers: await request.allHeaders(),
+      method: request.method(),
+      url: request.url(),
+    });
 
-    // Find matching response
-    const matchIdx = INTERVIEW_RESPONSES.findIndex((r) => r.pattern && r.pattern.test(userMessage));
-
-    if (matchIdx >= 0) {
-      await fulfillSSE(route, INTERVIEW_RESPONSES[matchIdx].response);
-    } else {
-      // Default fallback response
-      await fulfillSSE(
-        route,
-        textSSE(
-          "Thank you for that information. Could you tell me more about your deployment preferences?"
-        )
-      );
+    const status = options.status ?? 200;
+    if (status !== 200) {
+      await route.fulfill({
+        status,
+        headers: { ...CORS_HEADERS, "content-type": "application/json", "request-id": "req_error" },
+        body: JSON.stringify({
+          type: "error",
+          error: { type: "api_error", message: "Unavailable" },
+        }),
+      });
+      return;
     }
+
+    const output = outputs[Math.min(responseIndex, outputs.length - 1)] ?? "Ready.";
+    responseIndex += 1;
+    const requestId = `req_playwright_${responseIndex}`;
+    await route.fulfill({
+      status: 200,
+      headers: {
+        ...CORS_HEADERS,
+        "cache-control": "no-cache",
+        "content-type": "text/event-stream",
+        "request-id": requestId,
+      },
+      body: anthropicSse(output, requestId),
+    });
   });
 
-  // Register init route second (higher priority in Playwright — later routes win)
-  await page.route("**/api/projects/*/chat/init", async (route) => {
-    initCalled = true;
-    const initResponse = INTERVIEW_RESPONSES[0].response;
-    await fulfillSSE(route, initResponse);
-  });
-
-  return {
-    get initCalled() {
-      return initCalled;
-    },
-    get chatCallCount() {
-      return chatCallCount;
-    },
-    get chatMessages() {
-      return [...chatMessages];
-    },
-  };
+  return requests;
 }
 
-/**
- * Helper to create a project and navigate to its page.
- */
-export async function createProjectAndNavigate(page: Page, name: string, description?: string) {
-  const settingsResponse = await page.request.patch("/api/settings", {
-    data: {
-      apiKey: "sk-ant-playwright-placeholder-key",
-      model: "claude-sonnet-5",
-    },
-  });
-  if (!settingsResponse.ok()) {
-    throw new Error(`Unable to configure BYOK for E2E: ${settingsResponse.status()}`);
+function githubResponse(url: URL) {
+  if (url.pathname === "/repos/acme/platform") {
+    return {
+      description: "A private-by-design example app",
+      language: "TypeScript",
+      topics: ["architecture"],
+      default_branch: "main",
+    };
   }
+  if (url.pathname.endsWith("/languages")) return { TypeScript: 900, CSS: 100 };
+  if (url.pathname.endsWith("/commits/main")) {
+    return { sha: "abc123def456", commit: { tree: { sha: "tree123" } } };
+  }
+  if (url.pathname.endsWith("/git/trees/tree123")) {
+    return { truncated: false, tree: [] };
+  }
+  if (url.pathname.endsWith("/readme")) {
+    return { encoding: "base64", content: Buffer.from("# Platform").toString("base64") };
+  }
+  return {};
+}
 
-  const projectResponse = await page.request.post("/api/projects", {
-    data: { name, ...(description ? { description } : {}) },
+export async function mockGitHub(page: Page) {
+  const requests: ProviderRequest[] = [];
+  await page.route(`${GITHUB_ORIGIN}/**`, async (route) => {
+    const request = route.request();
+    if (request.method() === "OPTIONS") {
+      await route.fulfill({ status: 204, headers: CORS_HEADERS });
+      return;
+    }
+    requests.push({
+      body: request.postData(),
+      headers: await request.allHeaders(),
+      method: request.method(),
+      url: request.url(),
+    });
+    await route.fulfill({
+      status: 200,
+      headers: { ...CORS_HEADERS, "content-type": "application/json" },
+      body: JSON.stringify(githubResponse(new URL(request.url()))),
+    });
   });
-  if (!projectResponse.ok()) {
-    throw new Error(`Unable to create E2E project: ${projectResponse.status()}`);
-  }
-  const project = (await projectResponse.json()) as { id: string };
-  await page.goto(`/project/${project.id}`);
+  return requests;
+}
+
+export function trackExternalRequests(page: Page) {
+  const requests: Request[] = [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.hostname === "localhost" || url.hostname === "127.0.0.1") return;
+    requests.push(request);
+  });
+  return requests;
+}
+
+export async function readIndexedDbStore<T = unknown>(
+  page: Page,
+  databaseName: string,
+  storeName: string
+): Promise<T[]> {
+  return page.evaluate(
+    async ({ databaseName, storeName }) =>
+      new Promise<T[]>((resolve, reject) => {
+        const request = indexedDB.open(databaseName);
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          const database = request.result;
+          const transaction = database.transaction(storeName, "readonly");
+          const all = transaction.objectStore(storeName).getAll();
+          all.onerror = () => reject(all.error);
+          all.onsuccess = () => resolve(all.result as T[]);
+          transaction.oncomplete = () => database.close();
+        };
+      }),
+    { databaseName, storeName }
+  );
+}
+
+export async function assertNoApplicationCookies(page: Page) {
+  const cookies = await page.context().cookies();
+  expect(cookies).toEqual([]);
 }

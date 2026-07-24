@@ -1,151 +1,62 @@
-import { test, expect } from "@playwright/test";
-import { createProjectAndNavigate, errorSSE, fulfillSSE, textSSE } from "./helpers/sse-mock";
+import { expect, test } from "@playwright/test";
+import {
+  ANTHROPIC_ORIGIN,
+  createBlankMap,
+  mockAnthropic,
+  openChat,
+  trackExternalRequests,
+  useAnthropicKey,
+} from "./helpers/sse-mock";
 
-test.describe("Error Paths", () => {
-  test("shows error when API key is not configured", async ({ page }) => {
-    // Mock chat init to return the BYOK configuration error
-    await page.route("**/api/projects/*/chat/init", async (route) => {
-      await fulfillSSE(
-        route,
-        errorSSE("Add your Anthropic API key in Settings to use StackHatch AI.")
-      );
-    });
+test("missing credentials never dispatch a provider request", async ({ page }) => {
+  const external = trackExternalRequests(page);
+  await createBlankMap(page);
+  await page.getByRole("button", { name: "Start interview" }).click();
+  await expect(page.getByRole("dialog", { name: "Anthropic data disclosure" })).toBeVisible();
+  expect(external).toEqual([]);
+  await page.getByRole("button", { name: "Continue to Anthropic" }).click();
 
-    await createProjectAndNavigate(page, "No API Key Test");
+  await expect(page.getByText("Add your Anthropic key")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Open device settings" })).toBeVisible();
+  expect(external).toEqual([]);
+});
 
-    // Missing-key errors should become guided BYOK setup instead of a raw error.
-    await expect(page.getByText("Connect your Anthropic account").first()).toBeVisible({
-      timeout: 10000,
-    });
-    await expect(page.getByRole("link", { name: "Open Settings" })).toHaveAttribute(
-      "href",
-      "/settings?setup=anthropic"
-    );
-  });
+test("an Anthropic failure keeps the local map and offers a reviewed retry", async ({ page }) => {
+  const projectId = await createBlankMap(page);
+  await useAnthropicKey(page, { remember: true, returnTo: `/project/#${projectId}` });
+  await mockAnthropic(page, ["ignored"], { status: 500 });
+  await page.goto(`/project/#${projectId}`);
+  await openChat(page);
 
-  test("shows error when Anthropic API fails during chat", async ({ page }) => {
-    // Mock init to succeed
-    await page.route("**/api/projects/*/chat/init", async (route) => {
-      await fulfillSSE(route, textSSE("What are you building?"));
-    });
+  await page.getByRole("button", { name: "Start interview" }).click();
+  await page.getByRole("button", { name: "Continue to Anthropic" }).click();
+  await expect(page.getByRole("alert")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Review and retry" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Untitled Project" })).toBeVisible();
+});
 
-    // Mock chat to return an error
-    await page.route("**/api/projects/*/chat", async (route) => {
-      if (route.request().method() === "POST") {
-        await fulfillSSE(route, errorSSE("Rate limit exceeded. Please try again later."));
-      } else {
-        await route.continue();
-      }
-    });
+test("hostile model text is inert and cannot expand the egress boundary", async ({ page }) => {
+  const external = trackExternalRequests(page);
+  const projectId = await createBlankMap(page);
+  await useAnthropicKey(page, { remember: true, returnTo: `/project/#${projectId}` });
+  await mockAnthropic(page, [
+    '<script>window.__stackhatchPwned=true</script><img src="https://evil.example/pixel"> Safe text.',
+  ]);
+  await page.goto(`/project/#${projectId}`);
+  await openChat(page);
+  await page.getByRole("button", { name: "Start interview" }).click();
+  await page.getByRole("button", { name: "Continue to Anthropic" }).click();
+  await expect(page.getByText("Safe text.")).toBeVisible();
 
-    await createProjectAndNavigate(page, "API Error Test");
-    await expect(page.getByText("What are you building?").first()).toBeVisible({ timeout: 10000 });
+  expect(await page.evaluate(() => "__stackhatchPwned" in window)).toBe(false);
+  expect(new Set(external.map((request) => new URL(request.url()).origin))).toEqual(
+    new Set([ANTHROPIC_ORIGIN])
+  );
+});
 
-    // Send a message
-    await page.fill("textarea", "A web app");
-    await page.click('button[aria-label="Send message"]');
-
-    // Error should appear
-    await expect(page.getByText("Rate limit exceeded").first()).toBeVisible({
-      timeout: 10000,
-    });
-  });
-
-  test("shows error for network failure during chat init", async ({ page }) => {
-    // Mock chat init to abort (network error)
-    await page.route("**/api/projects/*/chat/init", async (route) => {
-      await route.abort("connectionrefused");
-    });
-
-    await createProjectAndNavigate(page, "Network Error Test");
-
-    // Should show a connection error
-    await expect(page.getByText("Failed to start conversation").first()).toBeVisible({
-      timeout: 10000,
-    });
-  });
-
-  test("shows error for network failure during chat message", async ({ page }) => {
-    await page.route("**/api/projects/*/chat/init", async (route) => {
-      await fulfillSSE(route, textSSE("What are you building?"));
-    });
-
-    await page.route("**/api/projects/*/chat", async (route) => {
-      if (route.request().method() === "POST") {
-        await route.abort("connectionrefused");
-      } else {
-        await route.continue();
-      }
-    });
-
-    await createProjectAndNavigate(page, "Chat Network Error Test");
-    await expect(page.getByText("What are you building?").first()).toBeVisible({ timeout: 10000 });
-
-    await page.fill("textarea", "Something");
-    await page.click('button[aria-label="Send message"]');
-
-    // Should show send error
-    await expect(page.getByText("Failed to send message").first()).toBeVisible({ timeout: 10000 });
-  });
-
-  test("input is disabled while AI is responding", async ({ page }) => {
-    const resolver: { resolve: (() => void) | null } = { resolve: null };
-
-    await page.route("**/api/projects/*/chat/init", async (route) => {
-      await fulfillSSE(route, textSSE("What are you building?"));
-    });
-
-    await page.route("**/api/projects/*/chat", async (route) => {
-      if (route.request().method() === "POST") {
-        // Hold the response to observe disabled state
-        await new Promise<void>((r) => {
-          resolver.resolve = r;
-        });
-        await fulfillSSE(route, textSSE("Got it!"));
-      } else {
-        await route.continue();
-      }
-    });
-
-    await createProjectAndNavigate(page, "Disabled Input Test");
-    await expect(page.getByText("What are you building?").first()).toBeVisible({ timeout: 10000 });
-
-    // Send a message
-    await page.fill("textarea", "A web app");
-    await page.click('button[aria-label="Send message"]');
-
-    // Input should be disabled during streaming
-    await expect(page.locator("textarea")).toBeDisabled();
-
-    // Release the response
-    resolver.resolve?.();
-
-    // After response, input should be enabled again
-    await expect(page.locator("textarea")).toBeEnabled({ timeout: 10000 });
-  });
-
-  test("empty message cannot be sent", async ({ page }) => {
-    await page.route("**/api/projects/*/chat/init", async (route) => {
-      await fulfillSSE(route, textSSE("What are you building?"));
-    });
-
-    await createProjectAndNavigate(page, "Empty Message Test");
-    await expect(page.getByText("What are you building?").first()).toBeVisible({ timeout: 10000 });
-
-    // Send button should be disabled when input is empty
-    await expect(page.locator('button[aria-label="Send message"]')).toBeDisabled();
-
-    // Type spaces only
-    await page.fill("textarea", "   ");
-    await expect(page.locator('button[aria-label="Send message"]')).toBeDisabled();
-  });
-
-  test("project not found shows error", async ({ page }) => {
-    await page.goto("/project/nonexistent-id-12345");
-
-    await expect(page.getByText("Project not found").first()).toBeVisible({ timeout: 10000 });
-
-    // Should have a link back to the map library
-    await expect(page.getByRole("link", { name: "All Maps" })).toHaveAttribute("href", "/app/maps");
-  });
+test("an unknown local identifier has a recoverable device-local empty state", async ({ page }) => {
+  await page.goto("/project/#missing-local-map");
+  await expect(page.getByRole("heading", { name: "Map unavailable" })).toBeVisible();
+  await expect(page.getByText("Map not found on this device.")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Create a new map" })).toBeVisible();
 });

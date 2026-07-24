@@ -21,10 +21,13 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:e2e:static": "PLAYWRIGHT_STATIC=1 playwright test",
     "test:coverage": "vitest run --coverage",
     "eval:repositories": "tsx scripts/evaluate-public-repositories.ts",
     "static:policy": "node scripts/generate-static-policy.mjs",
     "verify:static": "node scripts/verify-static-output.mjs",
+    "release:build": "node scripts/build-static-candidate.mjs",
+    "release:manifest": "node scripts/create-release-candidate.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

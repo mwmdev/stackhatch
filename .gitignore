@@ -18,6 +18,7 @@ operator/
 npm-debug.log*
 tsconfig.tsbuildinfo
 dist-host/
+dist-release/
 
 # IDEs
 .idea/
