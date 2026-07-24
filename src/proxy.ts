@@ -1,7 +1,17 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 
-const PUBLIC_PATHS = new Set(["/", "/login", "/privacy", "/support", "/terms"]);
+const PUBLIC_PATHS = new Set([
+  "/",
+  "/login",
+  "/privacy",
+  "/support",
+  "/terms",
+  "/app",
+  "/app/maps",
+  "/project",
+  "/project/new",
+]);
 
 function isRetiredAdminPath(pathname: string) {
   return pathname === "/admin" || pathname.startsWith("/admin/");

@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Ellipsis, FolderPlus, LayoutTemplate, RefreshCw, Sparkles } from "lucide-react";
 import ReactFlow, {
@@ -23,7 +22,6 @@ import ChatSidebar, {
   type ArchitectureUpdateMeta,
 } from "@/components/chat/ChatSidebar";
 import NodeDetailPanel from "@/components/canvas/NodeDetailPanel";
-import AddNodeDropdown from "@/components/canvas/AddNodeDropdown";
 import ConnectionTypeSelector from "@/components/canvas/ConnectionTypeSelector";
 import StackNodeComponent, { type StackNodeData } from "@/components/canvas/StackNode";
 import StackEdgeComponent, { edgeStyles, type StackEdgeData } from "@/components/canvas/StackEdge";
@@ -36,8 +34,6 @@ import {
   type EditorDisplaySettings,
 } from "@/components/canvas/EditorDisplaySettings";
 import ThemeToggle from "@/components/ThemeToggle";
-import AccountMenu, { AccountSessionExpiredError } from "@/components/AccountMenu";
-import StackIllustration from "@/components/shells/StackIllustration";
 import StackHatchWordmark from "@/components/shells/StackHatchWordmark";
 import IconControl from "@/components/ui/IconControl";
 import {
@@ -58,36 +54,30 @@ import { DEFAULT_NOTE_COLOR, getSubtypeConfig } from "@/lib/node-config";
 import { applyDagreLayout } from "@/lib/layout";
 import { mergeArchitecture } from "@/lib/merge-architecture";
 import type { CustomSubtypesMap } from "@/lib/custom-subtypes";
-import { trackEvent } from "@/lib/analytics";
-import {
-  APP_RESUME_RECOVERY_PATH,
-  hasAppResumeMarker,
-  withoutAppResumeMarker,
-} from "@/lib/app-route";
+import { buildLocalProjectPath, parseLocalProjectId } from "@/lib/app-route";
 import {
   buildProjectStartChooserPath,
   consumePendingProjectStart,
   getPendingProjectStart,
 } from "@/lib/project-start";
 import {
-  CanvasPersistenceUnauthorizedError,
   createCanvasPersistenceCoordinator,
+  type CanvasPersistenceCommit,
   type CanvasPersistenceCoordinator,
 } from "@/lib/canvas-persistence";
+import type { VaultProjectRecord } from "@/lib/vault/schema";
+import {
+  getBrowserWorkspaceVault,
+  type WorkspaceProjectPrecondition,
+  type WorkspaceVault,
+} from "@/lib/vault/workspace";
 
-interface Project {
-  id: string;
-  name: string;
-  description: string | null;
-  repoUrl: string | null;
+type Project = VaultProjectRecord & {
   repoCommitSha?: string | null;
   repoScannedAt?: number | string | null;
   repoAnalysisStatus?: "complete" | "partial" | null;
   repoAnalysisWarning?: string | null;
-  canvasState: StackArchitecture | null;
-  createdAt: number;
-  updatedAt: number;
-}
+};
 
 function EditorStateShell({
   eyebrow,
@@ -102,7 +92,6 @@ function EditorStateShell({
 }) {
   return (
     <main className="app-resolver-shell text-[var(--foreground)]" data-testid="editor-state-shell">
-      <StackIllustration variant="resolver" />
       <header className="absolute inset-x-0 top-0 z-10 flex min-w-0 items-center justify-between gap-3 border-b border-[var(--boundary)] bg-[var(--paper)] px-2 py-1.5 sm:px-4">
         <StackHatchWordmark href="/app/maps" label="All Maps" />
         <div className="flex flex-none items-center gap-1" aria-label="Application actions">
@@ -110,7 +99,6 @@ function EditorStateShell({
             <FolderPlus />
           </IconControl>
           <ThemeToggle />
-          <AccountMenu />
         </div>
       </header>
       <section className="relative z-[1] w-full max-w-md rounded-[var(--radius-surface)] border border-[var(--boundary)] bg-[var(--paper)] p-6 shadow-[var(--shadow-low)]">
@@ -136,11 +124,6 @@ type ConnectionTypePopover =
       edgeId: string;
       position: { x: number; y: number };
     };
-
-interface SettingsResponse {
-  customSubtypes?: CustomSubtypesMap;
-  hasAnthropicKey?: boolean;
-}
 
 /** Stored canvasState extends StackArchitecture with persisted positions */
 interface StoredCanvasState extends StackArchitecture {
@@ -216,14 +199,15 @@ function getProjectIdentity(project: Project) {
   };
 }
 
-export default function ProjectPage() {
-  const params = useParams();
-  const router = useRouter();
-  const projectId = params.id as string;
+export default function ProjectPage({ vault }: { vault?: WorkspaceVault }) {
+  const [workspaceVault] = useState(() => vault ?? getBrowserWorkspaceVault());
+  const [projectId, setProjectId] = useState<string | null | undefined>(undefined);
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
-  const [recoveringResume, setRecoveringResume] = useState(false);
   const [error, setError] = useState("");
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const [saveError, setSaveError] = useState("");
+  const [saveRecoveryPending, setSaveRecoveryPending] = useState(false);
   const [selectedNode, setSelectedNode] = useState<StackNode | null>(null);
   const [nodePanelOpen, setNodePanelOpen] = useState(false);
   const [connectionTypePopover, setConnectionTypePopover] = useState<ConnectionTypePopover | null>(
@@ -241,10 +225,8 @@ export default function ProjectPage() {
   const [altLoading, setAltLoading] = useState(false);
   const [prdLoading, setPrdLoading] = useState(false);
   const [prdStatus, setPrdStatus] = useState("");
-  const [signOutPending, setSignOutPending] = useState(false);
   const [saveTemplateModalOpen, setSaveTemplateModalOpen] = useState(false);
   const [templateSaving, setTemplateSaving] = useState(false);
-  const [hasAnthropicKey, setHasAnthropicKey] = useState<boolean | null>(null);
   const [aiSetupRequired, setAiSetupRequired] = useState(false);
   const [rescanConfirmOpen, setRescanConfirmOpen] = useState(false);
   const [editorDisplaySettings, setEditorDisplaySettings] = useState<EditorDisplaySettings>(() => {
@@ -279,19 +261,19 @@ export default function ProjectPage() {
   const canvasFocusTargetRef = useRef<HTMLDivElement | null>(null);
   const nodePanelCloseTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const projectRef = useRef<Project | null>(null);
+  const acknowledgedProjectRef = useRef<Project | null>(null);
   const initializedRef = useRef(false);
   const skipNextPersistencePublishRef = useRef(false);
   const alternativesRef = useRef<Record<string, AlternativeNode[]>>({});
   const architectureStreamActiveRef = useRef(false);
-  const signOutPendingRef = useRef(false);
+  const saveBlockedRef = useRef(false);
   const authoritativeUpdatedAtRef = useRef<number | null>(null);
   const preStreamRef = useRef<{ snapshot: StoredCanvasState; updatedAt: number } | null>(null);
   const firstMapTrackedRef = useRef(false);
-  const openedProjectRef = useRef<string | null>(null);
   const canUseConnectionTypes = true;
   const morePopoverId = `editor-more-${useId()}`;
   const isCanvasMutationBlocked = useCallback(
-    () => architectureStreamActiveRef.current || signOutPendingRef.current,
+    () => architectureStreamActiveRef.current || saveBlockedRef.current,
     []
   );
 
@@ -299,7 +281,6 @@ export default function ProjectPage() {
     if (isCanvasMutationBlocked()) return;
     setRescanConfirmOpen(false);
     setChatOpen(true);
-    trackEvent("repository_rescan_started", { location: "editor" });
     setScanTrigger((trigger) => trigger + 1);
   }, [isCanvasMutationBlocked]);
 
@@ -351,6 +332,7 @@ export default function ProjectPage() {
   // Keep refs in sync for use in stable callbacks
   projectRef.current = project;
   alternativesRef.current = alternatives;
+  saveBlockedRef.current = Boolean(saveError);
 
   useEffect(() => {
     try {
@@ -370,30 +352,12 @@ export default function ProjectPage() {
     return () => clearTimeout(timer);
   }, [toast]);
 
-  const loadedProjectId = project?.id;
   useEffect(() => {
-    if (loadedProjectId !== projectId || openedProjectRef.current === projectId) return;
-
-    let cancelled = false;
-    let retryTimer: ReturnType<typeof setTimeout> | undefined;
-    async function recordProjectOpen(attempt: number) {
-      try {
-        const response = await fetch(`/api/projects/${projectId}/open`, { method: "POST" });
-        if (!response.ok) throw new Error("project-open");
-        if (!cancelled) openedProjectRef.current = projectId;
-      } catch {
-        if (!cancelled && attempt === 0) {
-          retryTimer = setTimeout(() => void recordProjectOpen(1), 200);
-        }
-      }
-    }
-
-    void recordProjectOpen(0);
-    return () => {
-      cancelled = true;
-      clearTimeout(retryTimer);
-    };
-  }, [loadedProjectId, projectId]);
+    const readProjectId = () => setProjectId(parseLocalProjectId(window.location.hash));
+    readProjectId();
+    window.addEventListener("hashchange", readProjectId);
+    return () => window.removeEventListener("hashchange", readProjectId);
+  }, []);
 
   // --- Stable callbacks for node data (context menu actions) ---
 
@@ -442,26 +406,28 @@ export default function ProjectPage() {
   // --- Revision-ordered canvas persistence ---
 
   const writeCanvasSnapshot = useCallback(
-    async (snapshot: StoredCanvasState, keepalive: boolean) => {
-      const response = await fetch(`/api/projects/${projectId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        keepalive,
-        body: JSON.stringify({ canvasState: JSON.stringify(snapshot) }),
-      });
-      if (!response.ok) {
-        if (response.status === 401) throw new CanvasPersistenceUnauthorizedError();
-        throw new Error("Failed to save canvas");
+    async (
+      snapshot: StoredCanvasState,
+      precondition: WorkspaceProjectPrecondition
+    ): Promise<CanvasPersistenceCommit> => {
+      const currentProject = acknowledgedProjectRef.current;
+      if (!currentProject || currentProject.id !== projectId) {
+        throw new Error("The local project changed before its canvas could be saved");
       }
-      const receipt =
-        typeof response.json === "function"
-          ? ((await response.json().catch(() => null)) as Partial<Project> | null)
-          : null;
-      if (typeof receipt?.updatedAt === "number") {
-        authoritativeUpdatedAtRef.current = receipt.updatedAt;
-      }
+      const saved = (await workspaceVault.saveCanvas(
+        currentProject,
+        snapshot,
+        precondition
+      )) as Project;
+      acknowledgedProjectRef.current = saved;
+      authoritativeUpdatedAtRef.current = saved.updatedAt;
+      setSaveError("");
+      return {
+        projectRevision: saved.revision,
+        vaultGeneration: precondition.expectedGeneration,
+      };
     },
-    [projectId]
+    [projectId, workspaceVault]
   );
 
   useEffect(() => {
@@ -818,11 +784,6 @@ export default function ProjectPage() {
 
   const handleExportPrd = useCallback(async () => {
     if (!project) return;
-    if (hasAnthropicKey === false) {
-      setPrdStatus("PRD export needs Anthropic setup.");
-      setAiSetupRequired(true);
-      return;
-    }
     setPrdStatus("Generating PRD...");
     setPrdLoading(true);
     try {
@@ -855,7 +816,7 @@ export default function ProjectPage() {
     } finally {
       setPrdLoading(false);
     }
-  }, [project, projectId, hasAnthropicKey]);
+  }, [project, projectId]);
 
   // --- Add node ---
 
@@ -961,11 +922,6 @@ export default function ProjectPage() {
   const handleSuggestAlternatives = useCallback(async () => {
     const node = selectedNode;
     if (!node || isCanvasMutationBlocked()) return;
-    trackEvent("alternatives_opened", { location: "editor" });
-    if (hasAnthropicKey === false) {
-      setAiSetupRequired(true);
-      return;
-    }
     setAltLoading(true);
     try {
       const res = await fetch(`/api/projects/${projectId}/alternatives`, {
@@ -994,7 +950,7 @@ export default function ProjectPage() {
     } finally {
       setAltLoading(false);
     }
-  }, [selectedNode, projectId, hasAnthropicKey, isCanvasMutationBlocked]);
+  }, [selectedNode, projectId, isCanvasMutationBlocked]);
 
   // --- Swap alternative ---
 
@@ -1054,21 +1010,11 @@ export default function ProjectPage() {
           positions,
         };
 
-        const res = await fetch("/api/templates", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: templateName,
-            description: templateDescription,
-            canvasState: JSON.stringify(canvasState),
-          }),
+        await workspaceVault.saveTemplate({
+          name: templateName,
+          description: templateDescription ?? null,
+          canvasState,
         });
-
-        if (!res.ok) {
-          const data = await res.json();
-          setToast(data.error || "Failed to save template");
-          return;
-        }
 
         setToast("Template saved successfully!");
         setSaveTemplateModalOpen(false);
@@ -1078,7 +1024,7 @@ export default function ProjectPage() {
         setTemplateSaving(false);
       }
     },
-    [rfNodes, rfEdges]
+    [rfNodes, rfEdges, workspaceVault]
   );
 
   // --- AI architecture handler ---
@@ -1166,11 +1112,7 @@ export default function ProjectPage() {
 
         if (isFirst && !firstMapTrackedRef.current) {
           firstMapTrackedRef.current = true;
-          const startMethod = consumePendingProjectStart();
-          trackEvent("first_map_viewed", {
-            location: "editor",
-            ...(startMethod ? { start_method: startMethod } : {}),
-          });
+          consumePendingProjectStart();
         }
 
         setTimeout(() => rfInstanceRef.current?.fitView({ padding: 0.2, duration: 300 }), 100);
@@ -1228,12 +1170,7 @@ export default function ProjectPage() {
   const handleArchitectureStreamStart = useCallback(async () => {
     const coordinator = persistenceRef.current;
     const currentProject = projectRef.current;
-    if (
-      !coordinator ||
-      !currentProject ||
-      architectureStreamActiveRef.current ||
-      signOutPendingRef.current
-    ) {
+    if (!coordinator || !currentProject || architectureStreamActiveRef.current) {
       throw new Error("Architecture update is unavailable");
     }
 
@@ -1263,9 +1200,9 @@ export default function ProjectPage() {
 
     setArchitectureStreamPhase("reconciling");
     try {
-      const response = await fetch(`/api/projects/${projectId}`);
-      if (!response.ok) throw new Error("Failed to reconcile architecture update");
-      const authoritative = (await response.json()) as Project;
+      if (!projectId) throw new Error("The local project identifier is missing");
+      const authoritative = (await workspaceVault.getProject(projectId)) as Project | null;
+      if (!authoritative) throw new Error("The local project no longer exists");
       const serverAdvanced = authoritative.updatedAt !== preStream.updatedAt;
       authoritativeUpdatedAtRef.current = authoritative.updatedAt;
 
@@ -1280,7 +1217,13 @@ export default function ProjectPage() {
     } catch {
       setArchitectureStreamPhase("reconciliation-failed");
     }
-  }, [adoptArchitecture, projectId, releaseArchitectureBarrier, restoreCanvasSnapshot]);
+  }, [
+    adoptArchitecture,
+    projectId,
+    releaseArchitectureBarrier,
+    restoreCanvasSnapshot,
+    workspaceVault,
+  ]);
 
   const handleArchitectureStreamEnd = useCallback(
     async (outcome: ArchitectureStreamOutcome) => {
@@ -1293,78 +1236,46 @@ export default function ProjectPage() {
     [reconcileArchitectureStream, releaseArchitectureBarrier]
   );
 
-  const handleBeforeSignOut = useCallback(async () => {
-    const coordinator = persistenceRef.current;
-    if (!coordinator || architectureStreamActiveRef.current) {
-      throw new Error("Architecture update in progress");
-    }
-
-    signOutPendingRef.current = true;
-    setSignOutPending(true);
-    try {
-      const liveSnapshot = buildStoredCanvasState(rfNodes, rfEdges, alternatives);
-      if (JSON.stringify(liveSnapshot) !== JSON.stringify(coordinator.getLatestSnapshot())) {
-        coordinator.publish(liveSnapshot);
-      }
-      await coordinator.flushLatest();
-      if (architectureStreamActiveRef.current || coordinator.getState().dirty) {
-        throw new Error("Canvas changes are not fully saved");
-      }
-    } catch (error) {
-      if (error instanceof CanvasPersistenceUnauthorizedError) {
-        const callbackUrl = encodeURIComponent(`/project/${projectId}`);
-        throw new AccountSessionExpiredError(`/api/auth/signin?callbackUrl=${callbackUrl}`);
-      }
-      throw error;
-    }
-  }, [alternatives, projectId, rfEdges, rfNodes]);
-
-  const handleSignOutFailure = useCallback((error: unknown) => {
-    if (error instanceof AccountSessionExpiredError) return;
-    signOutPendingRef.current = false;
-    setSignOutPending(false);
-  }, []);
-
   // --- Load project ---
 
   useEffect(() => {
+    if (projectId === undefined) return;
+    if (projectId === null) {
+      initializedRef.current = false;
+      persistenceRef.current = null;
+      setProject(null);
+      setError("This link does not identify a valid map on this device.");
+      setLoading(false);
+      return;
+    }
+
+    const requestedProjectId = projectId;
+    let cancelled = false;
     async function loadProject() {
+      setLoading(true);
+      setError("");
+      setSaveError("");
       try {
         initializedRef.current = false;
-        // Resolve this user's subtype configuration before constructing persisted node data.
-        const [settingsResponse, res] = await Promise.all([
-          fetch("/api/settings")
-            .then((response) =>
-              response.ok ? (response.json() as Promise<SettingsResponse>) : null
-            )
-            .catch(() => null),
-          fetch(`/api/projects/${projectId}`),
+        const [loadedCustomSubtypes, projectSnapshot] = await Promise.all([
+          workspaceVault.getCustomSubtypes(),
+          workspaceVault.getProjectSnapshot(requestedProjectId),
         ]);
-        const loadedCustomSubtypes = settingsResponse?.customSubtypes ?? {};
-        if (settingsResponse) setHasAnthropicKey(Boolean(settingsResponse.hasAnthropicKey));
+        if (cancelled) return;
         setCustomSubtypes(loadedCustomSubtypes);
-        if (!res.ok) {
-          if (res.status === 404 && hasAppResumeMarker(window.location.search)) {
-            setRecoveringResume(true);
-            router.replace(APP_RESUME_RECOVERY_PATH);
-            return;
-          }
-          setError("Project not found");
+        if (!projectSnapshot) {
+          setProject(null);
+          setError("Map not found on this device. It may have been cleared in another tab.");
           return;
         }
-        const data = await res.json();
-        if (hasAppResumeMarker(window.location.search)) {
-          const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-          window.history.replaceState(
-            window.history.state,
-            "",
-            withoutAppResumeMarker(currentPath)
-          );
-        }
-        setProject(data);
+        const { project: data, generation } = projectSnapshot;
+        const loadedProject = data as Project;
+        setProject(loadedProject);
+        projectRef.current = loadedProject;
+        acknowledgedProjectRef.current = loadedProject;
         authoritativeUpdatedAtRef.current = data.updatedAt;
         const hasLoadedCanvas = (data.canvasState?.nodes?.length ?? 0) > 0;
-        setChatOpen(!hasLoadedCanvas);
+        setChatOpen(false);
 
         const pendingStartMethod = getPendingProjectStart();
         const tracksOnLoad =
@@ -1372,11 +1283,7 @@ export default function ProjectPage() {
           (pendingStartMethod === "template" && hasLoadedCanvas);
         if (tracksOnLoad && !firstMapTrackedRef.current) {
           firstMapTrackedRef.current = true;
-          const startMethod = consumePendingProjectStart();
-          trackEvent("first_map_viewed", {
-            location: "editor",
-            ...(startMethod ? { start_method: startMethod } : {}),
-          });
+          consumePendingProjectStart();
         }
 
         let persistenceBaseline: StoredCanvasState;
@@ -1421,20 +1328,61 @@ export default function ProjectPage() {
 
         persistenceRef.current = createCanvasPersistenceCoordinator({
           baseline: persistenceBaseline,
-          writer: ({ snapshot }, { keepalive }) => writeCanvasSnapshot(snapshot, keepalive),
-          onBackgroundError: () => setToast("Failed to save canvas"),
+          baselineCommit: {
+            projectRevision: loadedProject.revision,
+            vaultGeneration: generation,
+          },
+          writer: ({ snapshot, expectedProjectRevision, expectedVaultGeneration }) => {
+            if (expectedProjectRevision === undefined || expectedVaultGeneration === undefined) {
+              throw new Error("The local persistence baseline is missing");
+            }
+            return writeCanvasSnapshot(snapshot, {
+              expectedProjectRevision,
+              expectedGeneration: expectedVaultGeneration,
+            });
+          },
+          onBackgroundError: () =>
+            setSaveError(
+              "Auto-save paused because browser storage rejected this revision. Your visible edits remain in this tab."
+            ),
         });
         skipNextPersistencePublishRef.current = true;
         initializedRef.current = true;
+        void workspaceVault.recordProjectOpen(requestedProjectId).catch(() => {
+          if (!cancelled) {
+            setToast("The map opened, but browser storage could not update your recent map.");
+          }
+        });
       } catch {
-        setError("Failed to load project");
+        if (!cancelled) {
+          setProject(null);
+          setError(
+            "This map could not be read from browser storage. Check storage permissions, then retry."
+          );
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
-    loadProject();
+    void loadProject();
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId]);
+  }, [loadAttempt, projectId, workspaceVault]);
+
+  useEffect(() => {
+    if (!projectId) return;
+    return workspaceVault.subscribeInvalidation((invalidation) => {
+      if (invalidation.projectId === projectId && invalidation.stores.includes("projects")) {
+        setSaveError(
+          invalidation.reason === "deletion"
+            ? "This map was deleted in another tab. Your visible snapshot remains here until you choose what to do."
+            : "This map changed in another tab. Auto-save is paused so neither version is silently overwritten."
+        );
+      }
+    });
+  }, [projectId, workspaceVault]);
 
   // --- Derived state ---
 
@@ -1443,14 +1391,10 @@ export default function ProjectPage() {
     [project?.canvasState]
   );
   const nodeCount = project?.canvasState?.nodes?.length ?? 0;
-  const editorNewMapHref = buildProjectStartChooserPath(`/project/${projectId}`);
-  const canvasMutationBlocked = architectureStreamPhase !== "idle" || signOutPending;
-  const signOutBlockedReason =
-    architectureStreamPhase === "idle"
-      ? null
-      : architectureStreamPhase === "reconciliation-failed"
-        ? "Architecture save status is unknown; retry reconciliation"
-        : "Architecture update in progress";
+  const editorNewMapHref = buildProjectStartChooserPath(
+    projectId ? buildLocalProjectPath(projectId) : null
+  );
+  const canvasMutationBlocked = architectureStreamPhase !== "idle" || Boolean(saveError);
   const toolSurfaceObscured = chatOpen || nodePanelOpen || connectionTypePopover !== null;
   const toolSurfaceDialogOpen = saveTemplateModalOpen || rescanConfirmOpen || aiSetupRequired;
   const liveCanvasState = useMemo<StackArchitecture | null>(() => {
@@ -1464,20 +1408,66 @@ export default function ProjectPage() {
       ? { nodes: project.canvasState.nodes, edges: project.canvasState.edges }
       : null;
   }, [project?.canvasState, rfNodes, rfEdges]);
-  if (recoveringResume) {
-    return (
-      <EditorStateShell
-        eyebrow="Resume project"
-        title="Finding your map"
-        newMapHref={editorNewMapHref}
-      >
-        <p role="status" aria-live="polite">
-          Finding another map...
-        </p>
-      </EditorStateShell>
-    );
-  }
 
+  const retryLocalSave = useCallback(async () => {
+    const coordinator = persistenceRef.current;
+    if (!coordinator) return;
+    setSaveRecoveryPending(true);
+    try {
+      await coordinator.flushLatest();
+      setSaveError("");
+    } catch {
+      setSaveError(
+        "Auto-save is still paused. You can reload the stored map, save this snapshot as a copy, or explicitly overwrite it."
+      );
+    } finally {
+      setSaveRecoveryPending(false);
+    }
+  }, []);
+
+  const reloadStoredMap = useCallback(() => {
+    persistenceRef.current = null;
+    setSaveError("");
+    setLoadAttempt((attempt) => attempt + 1);
+  }, []);
+
+  const duplicateLocalSnapshot = useCallback(async () => {
+    const current = projectRef.current;
+    const snapshot = persistenceRef.current?.getLatestSnapshot();
+    if (!current || !snapshot) return;
+    setSaveRecoveryPending(true);
+    try {
+      const duplicate = await workspaceVault.createProject({
+        name: `${current.name} – Local copy`,
+        description: current.description,
+        repoUrl: current.repoUrl,
+        canvasState: snapshot,
+      });
+      window.location.hash = encodeURIComponent(duplicate.id);
+    } catch {
+      setSaveError("This snapshot could not be saved as a copy. Check browser storage and retry.");
+    } finally {
+      setSaveRecoveryPending(false);
+    }
+  }, [workspaceVault]);
+
+  const overwriteStoredMap = useCallback(async () => {
+    const snapshot = persistenceRef.current?.getLatestSnapshot();
+    if (!projectId || !snapshot) return;
+    setSaveRecoveryPending(true);
+    try {
+      await workspaceVault.overwriteCanvas(projectId, snapshot);
+      persistenceRef.current = null;
+      setSaveError("");
+      setLoadAttempt((attempt) => attempt + 1);
+    } catch {
+      setSaveError(
+        "The explicit overwrite did not commit. The visible snapshot remains in this tab."
+      );
+    } finally {
+      setSaveRecoveryPending(false);
+    }
+  }, [projectId, workspaceVault]);
   if (loading) {
     return (
       <EditorStateShell
@@ -1492,14 +1482,37 @@ export default function ProjectPage() {
     );
   }
 
-  if (error || !project) {
+  if (error || !project || !projectId) {
     return (
       <EditorStateShell
         eyebrow="Architecture workspace"
         title="Map unavailable"
         newMapHref={editorNewMapHref}
       >
-        <p className="text-[var(--danger)]">{error || "Project not found"}</p>
+        <p className="text-[var(--danger)]">{error || "Map not found on this device."}</p>
+        <div className="mt-4 flex flex-wrap gap-3">
+          <Link
+            href="/app/maps"
+            className="inline-flex min-h-11 items-center rounded-[var(--radius-control)] border border-[var(--border)] px-4 py-2 font-semibold text-[var(--foreground)]"
+          >
+            View maps on this device
+          </Link>
+          <Link
+            href="/project/new"
+            className="inline-flex min-h-11 items-center rounded-[var(--radius-control)] bg-[var(--brand)] px-4 py-2 font-semibold text-[var(--brand-foreground)]"
+          >
+            Create a new map
+          </Link>
+          {projectId ? (
+            <button
+              type="button"
+              onClick={() => setLoadAttempt((attempt) => attempt + 1)}
+              className="min-h-11 rounded-[var(--radius-control)] px-4 py-2 font-semibold"
+            >
+              Retry browser storage
+            </button>
+          ) : null}
+        </div>
       </EditorStateShell>
     );
   }
@@ -1520,20 +1533,22 @@ export default function ProjectPage() {
           chatOpen ? "h-[45vh] md:h-auto md:w-[400px]" : "h-0 md:h-auto md:w-0"
         }`}
       >
-        <ChatSidebar
-          projectId={projectId}
-          repoUrl={project.repoUrl}
-          defaultOpen={!hasCanvas}
-          open={chatOpen}
-          onOpenChange={handleChatOpenChange}
-          showCollapsedButton={false}
-          scanTrigger={scanTrigger}
-          canvasState={liveCanvasState}
-          onArchitecture={handleArchitecture}
-          onArchitectureStreamStart={handleArchitectureStreamStart}
-          onArchitectureStreamEnd={handleArchitectureStreamEnd}
-          onStreaming={setChatStreaming}
-        />
+        {chatOpen ? (
+          <ChatSidebar
+            projectId={projectId}
+            repoUrl={project.repoUrl}
+            defaultOpen={!hasCanvas}
+            open={chatOpen}
+            onOpenChange={handleChatOpenChange}
+            showCollapsedButton={false}
+            scanTrigger={scanTrigger}
+            canvasState={liveCanvasState}
+            onArchitecture={handleArchitecture}
+            onArchitectureStreamStart={handleArchitectureStreamStart}
+            onArchitectureStreamEnd={handleArchitectureStreamEnd}
+            onStreaming={setChatStreaming}
+          />
+        ) : null}
       </div>
 
       {/* Canvas Area */}
@@ -1544,7 +1559,6 @@ export default function ProjectPage() {
           data-testid="editor-project-bar"
           data-layout="single-row"
         >
-          <StackIllustration variant="compact" className="editor-stack-illustration" />
           <IconControl
             href="/app/maps"
             label="All maps"
@@ -1697,11 +1711,6 @@ export default function ProjectPage() {
             <div className="hidden sm:block" data-editor-action-group="wide-theme">
               <ThemeToggle />
             </div>
-            <AccountMenu
-              beforeSignOut={handleBeforeSignOut}
-              signOutBlockedReason={signOutBlockedReason}
-              onSignOutFailure={handleSignOutFailure}
-            />
           </div>
         </div>
 
@@ -1711,6 +1720,51 @@ export default function ProjectPage() {
 
         {/* Canvas area */}
         <div className="observatory-editor-workbench relative min-h-0 flex-1 overflow-hidden bg-[var(--canvas)]">
+          {saveError && (
+            <div
+              role="alert"
+              className="absolute left-1/2 top-4 z-40 w-[calc(100%-2rem)] max-w-3xl -translate-x-1/2 rounded-[var(--radius-surface)] border border-[var(--warning-border)] bg-[var(--surface-raised)] p-4 shadow-xl"
+            >
+              <p className="text-sm font-semibold text-[var(--foreground)]">
+                Local auto-save paused
+              </p>
+              <p className="mt-1 text-xs leading-5 text-[var(--muted-foreground)]">{saveError}</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void retryLocalSave()}
+                  disabled={saveRecoveryPending}
+                  className="min-h-11 rounded-[var(--radius-control)] border border-[var(--border)] px-3 py-2 text-xs font-semibold disabled:opacity-50"
+                >
+                  Retry save
+                </button>
+                <button
+                  type="button"
+                  onClick={reloadStoredMap}
+                  disabled={saveRecoveryPending}
+                  className="min-h-11 rounded-[var(--radius-control)] border border-[var(--border)] px-3 py-2 text-xs font-semibold disabled:opacity-50"
+                >
+                  Reload stored map
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void duplicateLocalSnapshot()}
+                  disabled={saveRecoveryPending}
+                  className="min-h-11 rounded-[var(--radius-control)] border border-[var(--border)] px-3 py-2 text-xs font-semibold disabled:opacity-50"
+                >
+                  Save snapshot as a copy
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void overwriteStoredMap()}
+                  disabled={saveRecoveryPending}
+                  className="min-h-11 rounded-[var(--radius-control)] bg-[var(--danger)] px-3 py-2 text-xs font-semibold text-[var(--danger-foreground)] disabled:opacity-50"
+                >
+                  Overwrite stored map
+                </button>
+              </div>
+            </div>
+          )}
           {architectureStreamPhase === "reconciliation-failed" && (
             <div
               role="alert"

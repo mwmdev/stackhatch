@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { CURATED_STARTER_TEMPLATES } from "@/lib/starter-templates";
+import { getBrowserWorkspaceVault, type WorkspaceVault } from "@/lib/vault/workspace";
 
 interface Template {
   id: string;
@@ -20,6 +21,7 @@ interface TemplatePickerProps {
   selectionError?: string;
   onRetrySelection?: () => void;
   emptyStateHref?: string;
+  vault?: WorkspaceVault;
 }
 
 interface TemplateCanvas {
@@ -104,7 +106,9 @@ export default function TemplatePicker({
   selectionError,
   onRetrySelection,
   emptyStateHref,
+  vault,
 }: TemplatePickerProps) {
+  const [workspaceVault] = useState(() => vault ?? getBrowserWorkspaceVault());
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -170,17 +174,19 @@ export default function TemplatePicker({
       setLoading(true);
       setError("");
       try {
-        const res = await fetch("/api/templates");
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          if (!cancelled) setError(data.error || "Failed to load templates");
-          return;
+        const data = await workspaceVault.listTemplates();
+        if (!cancelled) {
+          setTemplates(
+            data.map((template) => ({
+              ...template,
+              canvasState: JSON.stringify(template.canvasState),
+            }))
+          );
         }
-
-        const data = await res.json();
-        if (!cancelled) setTemplates(Array.isArray(data) ? data : []);
       } catch {
-        if (!cancelled) setError("Failed to load templates");
+        if (!cancelled) {
+          setError("Your templates could not be read from browser storage");
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -190,7 +196,17 @@ export default function TemplatePicker({
     return () => {
       cancelled = true;
     };
-  }, [loadAttempt]);
+  }, [loadAttempt, workspaceVault]);
+
+  useEffect(
+    () =>
+      workspaceVault.subscribeInvalidation((invalidation) => {
+        if (invalidation.stores.includes("templates")) {
+          setLoadAttempt((attempt) => attempt + 1);
+        }
+      }),
+    [workspaceVault]
+  );
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[var(--overlay)] p-3 sm:p-6">

@@ -23,18 +23,18 @@ describe("project start contract", () => {
     expect(buildProjectStartPath("blank")).toBe("/project/new?mode=blank");
     expect(buildProjectStartPath("requirements")).toBe("/project/new?mode=requirements");
     expect(buildProjectStartPath("repository", { repository: "acme/platform.api" })).toBe(
-      "/project/new?mode=repository&repo=acme%2Fplatform.api"
+      "/project/new?mode=repository#repo=acme%2Fplatform.api"
     );
     expect(buildProjectStartPath("template")).toBe("/project/new?mode=template");
     expect(buildProjectStartLoginUrl("repository", "acme/api")).toBe(
-      "/login?callbackUrl=%2Fproject%2Fnew%3Fmode%3Drepository%26repo%3Dacme%252Fapi"
+      "/login?callbackUrl=%2Fproject%2Fnew%3Fmode%3Drepository%23repo%3Dacme%252Fapi"
     );
     expect(
       buildProjectStartPath("repository", {
         repository: "acme/api",
-        returnTo: "/project/map-1",
+        returnTo: "/project/#map-1",
       })
-    ).toBe("/project/new?mode=repository&repo=acme%2Fapi&returnTo=%2Fproject%2Fmap-1");
+    ).toBe("/project/new?mode=repository#repo=acme%2Fapi&returnTo=%2Fproject%2F%23map-1");
   });
 
   it("validates public repository slugs before putting them in a URL", () => {
@@ -49,48 +49,48 @@ describe("project start contract", () => {
     expect(projectStartMethodFromPath("/app?start=blank")).toBe("blank");
     expect(projectStartMethodFromPath("/project/new?mode=blank")).toBe("blank");
     expect(projectStartMethodFromPath("/project/new?mode=requirements")).toBe("requirements");
-    expect(projectStartMethodFromPath("/project/new?mode=repository&repo=acme%2Fapi")).toBe(
+    expect(projectStartMethodFromPath("/project/new?mode=repository#repo=acme%2Fapi")).toBe(
       "repository"
     );
     expect(projectStartMethodFromPath("/app?repo=acme%2Fapi")).toBe("repository");
     expect(projectStartMethodFromPath("/settings?mode=template")).toBeNull();
-    expect(repositoryFromProjectStartPath("/project/new?mode=repository&repo=acme%2Fapi")).toBe(
+    expect(repositoryFromProjectStartPath("/project/new?mode=repository#repo=acme%2Fapi")).toBe(
       "acme/api"
     );
     expect(repositoryFromProjectStartPath("/app?repo=acme%2Fapi")).toBe("acme/api");
     expect(
-      repositoryFromProjectStartPath("/project/new?mode=repository&repo=https%3A%2F%2Fevil.example")
+      repositoryFromProjectStartPath("/project/new?mode=repository#repo=https%3A%2F%2Fevil.example")
     ).toBeNull();
   });
 
   it("accepts only exact project routes as creation return destinations", () => {
-    expect(safeProjectReturnPath("/project/4d147562-91ff-4c63-aad0-1f8389e65042")).toBe(
-      "/project/4d147562-91ff-4c63-aad0-1f8389e65042"
+    expect(safeProjectReturnPath("/project/#4d147562-91ff-4c63-aad0-1f8389e65042")).toBe(
+      "/project/#4d147562-91ff-4c63-aad0-1f8389e65042"
     );
-    expect(safeProjectReturnPath("/project/map-1")).toBe("/project/map-1");
-    expect(safeProjectReturnPath("/project/map-1?delete=1")).toBeNull();
-    expect(safeProjectReturnPath("/project/map-1/notes")).toBeNull();
-    expect(safeProjectReturnPath("//evil.example/project/map-1")).toBeNull();
-    expect(safeProjectReturnPath("https://stackhatch.io/project/map-1")).toBeNull();
+    expect(safeProjectReturnPath("/project/#map-1")).toBe("/project/#map-1");
+    expect(safeProjectReturnPath("/project/?delete=1#map-1")).toBeNull();
+    expect(safeProjectReturnPath("/project/map-1")).toBeNull();
+    expect(safeProjectReturnPath("//evil.example/project/#map-1")).toBeNull();
+    expect(safeProjectReturnPath("https://stackhatch.io/project/#map-1")).toBeNull();
   });
 
   it("canonicalizes legacy and nested creation paths without unsafe context", () => {
     expect(canonicalProjectStartPath("/app#start")).toBe("/project/new");
     expect(canonicalProjectStartPath("/app?start=blank")).toBe("/project/new?mode=blank");
     expect(canonicalProjectStartPath("/app?repo=acme%2Fapi#start")).toBe(
-      "/project/new?mode=repository&repo=acme%2Fapi"
+      "/project/new?mode=repository#repo=acme%2Fapi"
     );
     expect(canonicalProjectStartPath("/app?repo=acme%2Fapi")).toBe(
-      "/project/new?mode=repository&repo=acme%2Fapi"
+      "/project/new?mode=repository#repo=acme%2Fapi"
     );
     expect(
       canonicalProjectStartPath(
-        "/project/new?mode=repository&repo=acme%2Fapi&returnTo=%2Fproject%2Fmap-1"
+        "/project/new?mode=repository#repo=acme%2Fapi&returnTo=%2Fproject%2F%23map-1"
       )
-    ).toBe("/project/new?mode=repository&repo=acme%2Fapi&returnTo=%2Fproject%2Fmap-1");
+    ).toBe("/project/new?mode=repository#repo=acme%2Fapi&returnTo=%2Fproject%2F%23map-1");
     expect(
       canonicalProjectStartPath(
-        "/project/new?mode=repository&repo=https%3A%2F%2Fevil.example&returnTo=https%3A%2F%2Fevil.example"
+        "/project/new?mode=repository#repo=https%3A%2F%2Fevil.example&returnTo=https%3A%2F%2Fevil.example"
       )
     ).toBe("/project/new?mode=repository");
   });
@@ -98,7 +98,7 @@ describe("project start contract", () => {
   it("preserves an inherited legacy fragment through the login boundary", () => {
     expect(callbackUrlWithLegacyFragment("/app", "#start")).toBe("/project/new");
     expect(callbackUrlWithLegacyFragment("/app?repo=acme%2Fapi", "#start")).toBe(
-      "/project/new?mode=repository&repo=acme%2Fapi"
+      "/project/new?mode=repository#repo=acme%2Fapi"
     );
     expect(callbackUrlWithLegacyFragment("/project/map-1", "#start")).toBe("/project/map-1");
     expect(callbackUrlWithLegacyFragment("/app", "#other")).toBe("/app");

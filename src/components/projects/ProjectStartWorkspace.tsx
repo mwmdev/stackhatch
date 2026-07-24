@@ -1,7 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertCircle,
@@ -9,28 +8,27 @@ import {
   ArrowRight,
   FileText,
   GitBranch,
-  KeyRound,
   LayoutTemplate,
   Plus,
   X,
 } from "lucide-react";
-import AccountMenu from "@/components/AccountMenu";
 import TemplatePicker from "@/components/templates/TemplatePicker";
 import ThemeToggle from "@/components/ThemeToggle";
-import StackIllustration from "@/components/shells/StackIllustration";
 import StackHatchWordmark from "@/components/shells/StackHatchWordmark";
-import IconControl from "@/components/ui/IconControl";
-import { consumeAuthenticationStarted, trackEvent } from "@/lib/analytics";
+import { buildLocalProjectPath } from "@/lib/app-route";
 import { parseGitHubRepoReference } from "@/lib/github-analyzer";
 import {
   buildProjectStartChooserPath,
   buildProjectStartPath,
   consumeBlankAutoCreateIntent,
-  getPendingProjectStart,
   markProjectStart,
   PROJECT_START_METHODS,
+  repositoryFromProjectStartPath,
+  returnPathFromProjectStartPath,
   type ProjectStartMethod,
 } from "@/lib/project-start";
+import type { VaultCanvasState } from "@/lib/vault/schema";
+import { getBrowserWorkspaceVault, type WorkspaceVault } from "@/lib/vault/workspace";
 
 interface Template {
   id: string;
@@ -42,8 +40,7 @@ interface Template {
 
 interface ProjectStartWorkspaceProps {
   initialMode: ProjectStartMethod | null;
-  initialRepository: string;
-  returnTo: string | null;
+  vault?: WorkspaceVault;
 }
 
 interface ProjectPayload {
@@ -52,8 +49,6 @@ interface ProjectPayload {
   repoUrl?: string;
   canvasState?: string;
 }
-
-type SettingsStatus = "idle" | "loading" | "ready" | "missing-key" | "error";
 
 const ACCEPTED_REQUIREMENT_FILES = [".md", ".txt"];
 
@@ -80,7 +75,7 @@ const SOURCE_DETAILS: Record<
   },
   requirements: {
     title: "Requirements file",
-    description: "Turn a Markdown or text brief into a first map.",
+    description: "Stage a Markdown or text brief in a new local map.",
     modeTitle: "Upload requirements",
     modeDescription: "Use a Markdown or text brief to create a separate architecture map.",
     detail: ".md or .txt",
@@ -89,7 +84,7 @@ const SOURCE_DETAILS: Record<
   },
   repository: {
     title: "Public repository",
-    description: "Scan a public GitHub repository and map its moving pieces.",
+    description: "Stage a public GitHub repository for analysis you start later.",
     modeTitle: "Map a public repository",
     modeDescription: "Create a separate map from a public GitHub repository.",
     detail: "owner/repo",
@@ -127,18 +122,14 @@ export function projectNameFromRequirements(requirements: string) {
   );
 }
 
-export default function ProjectStartWorkspace({
-  initialMode,
-  initialRepository,
-  returnTo,
-}: ProjectStartWorkspaceProps) {
+export default function ProjectStartWorkspace({ initialMode, vault }: ProjectStartWorkspaceProps) {
   const router = useRouter();
+  const [workspaceVault] = useState(() => vault ?? getBrowserWorkspaceVault());
   const [mode, setMode] = useState<ProjectStartMethod | null>(initialMode);
-  const [repoUrl, setRepoUrl] = useState(initialRepository);
+  const [repoUrl, setRepoUrl] = useState("");
+  const [returnPath, setReturnPath] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [settingsStatus, setSettingsStatus] = useState<SettingsStatus>("idle");
-  const [settingsRetry, setSettingsRetry] = useState(0);
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [blankAttempted, setBlankAttempted] = useState(false);
   const modeHeadingRef = useRef<HTMLHeadingElement>(null);
@@ -148,102 +139,39 @@ export default function ProjectStartWorkspace({
   const requirementsReadGeneration = useRef(0);
   const activeRequirementsReader = useRef<FileReader | null>(null);
 
-  function cancelRequirementsRead() {
+  const cancelRequirementsRead = useCallback(() => {
     requirementsReadGeneration.current += 1;
     if (activeRequirementsReader.current?.readyState === FileReader.LOADING) {
       activeRequirementsReader.current.abort();
     }
     activeRequirementsReader.current = null;
-  }
+  }, []);
 
   useEffect(() => {
     setMode(initialMode);
-    setRepoUrl(initialRepository);
+    const browserPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    setRepoUrl(repositoryFromProjectStartPath(browserPath) ?? "");
+    setReturnPath(returnPathFromProjectStartPath(browserPath));
     setError("");
     setSelectedTemplate(null);
     setBlankAttempted(false);
     blankAutoCreateAttempted.current = false;
     recordedSelection.current = null;
-  }, [initialMode, initialRepository, returnTo]);
+  }, [initialMode]);
 
-  useEffect(
-    () => () => {
-      requirementsReadGeneration.current += 1;
-      if (activeRequirementsReader.current?.readyState === FileReader.LOADING) {
-        activeRequirementsReader.current.abort();
-      }
-      activeRequirementsReader.current = null;
-    },
-    []
-  );
+  useEffect(() => () => cancelRequirementsRead(), [cancelRequirementsRead]);
 
   useEffect(() => {
     if (!mode) return;
     modeHeadingRef.current?.focus();
   }, [mode]);
 
-  useEffect(() => {
-    if (!consumeAuthenticationStarted()) return;
-    const startMethod = getPendingProjectStart();
-    trackEvent("github_auth_completed", {
-      location: "editor",
-      ...(startMethod ? { start_method: startMethod } : {}),
-    });
-  }, []);
-
-  useEffect(() => {
-    if (!mode) {
-      setSettingsStatus("idle");
-      return;
-    }
-    if (mode === "blank" || mode === "template") {
-      setSettingsStatus("ready");
-      return;
-    }
-
-    let cancelled = false;
-    setSettingsStatus("loading");
-    setError("");
-    fetch("/api/settings")
-      .then(async (response) => {
-        if (!response.ok) throw new Error("settings");
-        return response.json();
-      })
-      .then((settings) => {
-        if (!cancelled) {
-          setSettingsStatus(settings.hasAnthropicKey ? "ready" : "missing-key");
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setSettingsStatus("error");
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [mode, settingsRetry]);
-
-  const normalizedRepository = useMemo(
-    () => (mode === "repository" ? parseGitHubRepoReference(repoUrl) : null),
-    [mode, repoUrl]
-  );
-  const chooserPath = buildProjectStartChooserPath(returnTo);
-  const currentStartPath = mode
-    ? buildProjectStartPath(mode, {
-        repository: normalizedRepository?.slug,
-        returnTo,
-      })
-    : chooserPath;
-  const setupHref = `/settings?setup=anthropic&returnTo=${encodeURIComponent(currentStartPath)}`;
+  const chooserPath = buildProjectStartChooserPath(returnPath);
 
   const recordStartSelection = useCallback((method: ProjectStartMethod) => {
     if (recordedSelection.current === method) return;
     recordedSelection.current = method;
     markProjectStart(method);
-    trackEvent("project_start_selected", {
-      location: "editor",
-      start_method: method,
-    });
   }, []);
 
   const createProject = useCallback(
@@ -253,31 +181,33 @@ export default function ProjectStartWorkspace({
       setSubmitting(true);
       setError("");
       try {
-        const response = await fetch("/api/projects", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          if (data.code === "AI_NOT_CONFIGURED") {
-            router.push(setupHref);
-            return false;
+        let canvasState: VaultCanvasState | null = null;
+        if (payload.canvasState) {
+          const parsed = JSON.parse(payload.canvasState) as VaultCanvasState;
+          if (!Array.isArray(parsed.nodes) || !Array.isArray(parsed.edges)) {
+            throw new Error("invalid-template");
           }
-          setError(data.error || "The map could not be created. Try again.");
-          return false;
+          canvasState = parsed;
         }
-        router.push(`/project/${data.id}`);
+        const project = await workspaceVault.createProject({
+          name: payload.name,
+          description: payload.description ?? null,
+          repoUrl: payload.repoUrl ?? null,
+          canvasState,
+        });
+        router.push(buildLocalProjectPath(project.id));
         return true;
       } catch {
-        setError("The map could not be created. Check your connection and try again.");
+        setError(
+          "The map could not be saved to browser storage. Check storage permissions, then retry."
+        );
         return false;
       } finally {
         submissionInFlight.current = false;
         setSubmitting(false);
       }
     },
-    [router, setupHref]
+    [router, workspaceVault]
   );
 
   const createBlankProject = useCallback(
@@ -304,7 +234,7 @@ export default function ProjectStartWorkspace({
     setError("");
     setSelectedTemplate(null);
     setMode(method);
-    const path = buildProjectStartPath(method, { returnTo });
+    const path = buildProjectStartPath(method, { returnTo: returnPath });
     router.push(path);
 
     if (method === "blank") {
@@ -371,14 +301,9 @@ export default function ProjectStartWorkspace({
     const repository = parseGitHubRepoReference(repoUrl);
     if (!repository) {
       setError("Enter a public GitHub repository as owner/repo or a full GitHub URL.");
-      trackEvent("repository_intent_submitted", {
-        location: "editor",
-        error_category: "invalid_url",
-      });
       return;
     }
     recordStartSelection("repository");
-    trackEvent("repository_intent_submitted", { location: "editor" });
     void createProject({ name: repository.repo, repoUrl: repository.normalizedUrl });
   }
 
@@ -411,7 +336,6 @@ export default function ProjectStartWorkspace({
           />
           <nav aria-label="Map workspace" className="map-workspace-actions flex items-center gap-1">
             <ThemeToggle />
-            <AccountMenu />
           </nav>
         </div>
       </header>
@@ -432,13 +356,6 @@ export default function ProjectStartWorkspace({
           }}
           aria-hidden="true"
         />
-        <div
-          className="pointer-events-none absolute inset-x-0 bottom-4 z-20 h-24 overflow-hidden"
-          aria-hidden="true"
-        >
-          <StackIllustration variant="compact" className="!top-0" />
-        </div>
-
         <section
           aria-labelledby="project-start-title"
           className="relative z-10 w-full max-w-[76rem] overflow-hidden rounded-[var(--radius-surface)] border border-[var(--border)] bg-[var(--card)] shadow-[var(--shadow-low)]"
@@ -524,18 +441,23 @@ export default function ProjectStartWorkspace({
                         <span className="hidden sm:inline">Choose another source</span>
                       </button>
                     )}
-                    {returnTo && (
-                      <IconControl
-                        href={returnTo}
-                        label="Cancel map creation"
-                        tooltip="Cancel map creation"
-                        tooltipPlacement="left"
-                        onClick={cancelRequirementsRead}
-                        disabled={submitting}
-                        variant="outline"
+                    {returnPath && (
+                      <a
+                        href={returnPath}
+                        aria-label="Cancel map creation"
+                        aria-disabled={submitting || undefined}
+                        tabIndex={submitting ? -1 : undefined}
+                        onClick={(event) => {
+                          if (submitting) {
+                            event.preventDefault();
+                            return;
+                          }
+                          cancelRequirementsRead();
+                        }}
+                        className="inline-flex h-11 w-11 items-center justify-center rounded-[var(--radius-control)] border border-[var(--border)] hover:bg-[var(--muted)] aria-disabled:pointer-events-none aria-disabled:opacity-50"
                       >
-                        <X />
-                      </IconControl>
+                        <X className="h-4 w-4" aria-hidden="true" />
+                      </a>
                     )}
                   </div>
                 </div>
@@ -589,51 +511,7 @@ export default function ProjectStartWorkspace({
 
               {mode && mode !== "template" && (
                 <div className="px-4 py-5 sm:px-7 sm:py-7">
-                  {settingsStatus === "loading" && (
-                    <p
-                      className="font-utility text-xs uppercase tracking-[0.12em] text-[var(--muted-foreground)]"
-                      role="status"
-                    >
-                      Checking AI setup...
-                    </p>
-                  )}
-
-                  {settingsStatus === "error" && (
-                    <div
-                      className="max-w-2xl rounded-[var(--radius-surface)] border border-[var(--danger-border)] bg-[var(--danger-surface)] p-5"
-                      role="alert"
-                    >
-                      <p className="text-sm text-[var(--danger)]">
-                        StackHatch could not check your Anthropic setup.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => setSettingsRetry((attempt) => attempt + 1)}
-                        className="mt-3 min-h-11 rounded-[var(--radius-control)] border border-[var(--danger-border)] px-4 py-2 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
-                      >
-                        Retry setup check
-                      </button>
-                    </div>
-                  )}
-
-                  {settingsStatus === "missing-key" && (
-                    <section className="max-w-2xl rounded-[var(--radius-surface)] border border-[var(--warning-border)] bg-[var(--warning-surface)] p-5">
-                      <KeyRound className="h-5 w-5 text-[var(--color-data)]" aria-hidden="true" />
-                      <h2 className="mt-3 font-semibold">Connect Anthropic first</h2>
-                      <p className="mt-1 max-w-xl text-sm leading-6 text-[var(--muted-foreground)]">
-                        This source uses your Anthropic API key. After setup, you will return to
-                        this source with the valid context preserved.
-                      </p>
-                      <Link
-                        href={setupHref}
-                        className="mt-4 inline-flex min-h-11 items-center rounded-[var(--radius-control)] bg-[var(--brand)] px-4 py-2 text-sm font-bold text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2"
-                      >
-                        Add Anthropic key
-                      </Link>
-                    </section>
-                  )}
-
-                  {settingsStatus === "ready" && mode === "blank" && (
+                  {mode === "blank" && (
                     <section className="max-w-2xl rounded-[var(--radius-surface)] border border-[var(--border)] bg-[var(--background)] p-5 sm:p-6">
                       <h2 className="font-semibold">Empty architecture canvas</h2>
                       <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
@@ -651,7 +529,7 @@ export default function ProjectStartWorkspace({
                     </section>
                   )}
 
-                  {settingsStatus === "ready" && mode === "requirements" && (
+                  {mode === "requirements" && (
                     <section className="max-w-2xl rounded-[var(--radius-surface)] border border-[var(--border)] bg-[var(--background)] p-5 sm:p-6">
                       <h2 className="font-semibold">Choose your requirements file</h2>
                       <p className="mt-1 text-sm leading-6 text-[var(--muted-foreground)]">
@@ -672,7 +550,7 @@ export default function ProjectStartWorkspace({
                     </section>
                   )}
 
-                  {settingsStatus === "ready" && mode === "repository" && (
+                  {mode === "repository" && (
                     <form
                       onSubmit={handleRepositorySubmit}
                       className="max-w-2xl rounded-[var(--radius-surface)] border border-[var(--border)] bg-[var(--background)] p-5 sm:p-6"
@@ -692,7 +570,8 @@ export default function ProjectStartWorkspace({
                         className="mt-2 min-h-11 w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--ring)] disabled:opacity-50"
                       />
                       <p className="mt-2 text-xs leading-5 text-[var(--muted-foreground)]">
-                        Public repositories only. Analysis runs with your Anthropic API key.
+                        This creates a local staged map. No repository or AI request runs until you
+                        explicitly start it in the editor.
                       </p>
                       <button
                         type="submit"
@@ -730,7 +609,7 @@ export default function ProjectStartWorkspace({
         <TemplatePicker
           onSelectTemplate={(template) => void createFromTemplate(template)}
           onCancel={() => {
-            if (returnTo) router.push(returnTo);
+            if (returnPath) router.push(returnPath);
             else chooseAnotherSource();
           }}
           busyTemplateId={submitting ? selectedTemplate?.id : null}
@@ -739,6 +618,7 @@ export default function ProjectStartWorkspace({
             selectedTemplate ? () => void createFromTemplate(selectedTemplate) : undefined
           }
           emptyStateHref={chooserPath}
+          vault={workspaceVault}
         />
       )}
     </div>

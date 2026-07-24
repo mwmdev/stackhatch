@@ -1,44 +1,48 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { markProjectStart } from "@/lib/project-start";
+import type { WorkspaceVault } from "@/lib/vault/workspace";
 import ProjectStartWorkspace from "./ProjectStartWorkspace";
 
-const mockPush = vi.fn();
-const mockReplace = vi.fn();
+const push = vi.fn();
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: mockPush, replace: mockReplace }),
+  useRouter: () => ({ push }),
+}));
+vi.mock("next-themes", () => ({
+  useTheme: () => ({ theme: "dark", setTheme: vi.fn() }),
 }));
 
-vi.mock("@/components/AccountMenu", () => ({
-  default: () => (
-    <div>
-      <button type="button" aria-label="Account">
-        U
-      </button>
-      <div hidden>
-        <a href="/settings">Settings</a>
-      </div>
-    </div>
-  ),
-}));
-
-const template = {
-  id: "template-1",
-  name: "API boundary map",
-  description: "A saved service boundary.",
-  canvasState: JSON.stringify({ nodes: [], edges: [] }),
-  createdAt: 1_700_000_000_000,
-};
-
-function response(body: unknown, ok = true) {
-  return { ok, json: () => Promise.resolve(body) } as Response;
+function project(id: string) {
+  return {
+    id,
+    name: "Map",
+    description: null,
+    repoUrl: null,
+    canvasState: null,
+    revision: 1,
+    createdAt: 1,
+    updatedAt: 1,
+  };
 }
 
-function renderWorkspace(props: Partial<React.ComponentProps<typeof ProjectStartWorkspace>> = {}) {
-  return render(
-    <ProjectStartWorkspace initialMode={null} initialRepository="" returnTo={null} {...props} />
-  );
+function makeVault(overrides: Partial<WorkspaceVault> = {}) {
+  return {
+    createProject: vi.fn().mockResolvedValue(project("local-map")),
+    listTemplates: vi.fn().mockResolvedValue([]),
+    subscribeInvalidation: vi.fn(() => () => undefined),
+    ...overrides,
+  } as unknown as WorkspaceVault;
+}
+
+function renderWorkspace(
+  props: Partial<React.ComponentProps<typeof ProjectStartWorkspace>> = {},
+  vault = makeVault()
+) {
+  return {
+    vault,
+    ...render(<ProjectStartWorkspace initialMode={null} vault={vault} {...props} />),
+  };
 }
 
 describe("ProjectStartWorkspace", () => {
@@ -46,409 +50,153 @@ describe("ProjectStartWorkspace", () => {
     vi.clearAllMocks();
     window.history.replaceState({}, "", "/project/new");
     window.sessionStorage.clear();
-    delete window.umami;
   });
 
-  it("offers exactly four concise, keyboard-reachable creation methods", () => {
-    global.fetch = vi.fn();
-
+  it("offers the four local creation methods without account or decorative UI", () => {
     renderWorkspace();
-
-    expect(screen.getByRole("navigation", { name: "Map workspace" })).toHaveClass(
-      "map-workspace-actions"
-    );
     expect(screen.getByRole("heading", { name: "Start a new map" })).toBeInTheDocument();
     expect(
       screen.getAllByRole("button", { name: /map|requirements|repository|template/i })
     ).toHaveLength(4);
-    expect(screen.queryByText(/use this source/i)).not.toBeInTheDocument();
-    expect(screen.getAllByRole("link", { name: "All Maps" })).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: "Account" })).not.toBeInTheDocument();
+    expect(document.querySelector("[data-stack-illustration]")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "All Maps" })).toHaveAttribute("href", "/app/maps");
-    expect(screen.getByRole("button", { name: "Account" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /theme/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Settings", hidden: true })).toHaveAttribute(
-      "href",
-      "/settings"
-    );
-    expect(screen.queryByRole("tooltip", { name: "All Maps" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("tooltip", { name: "Settings" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Cancel map creation" })).not.toBeInTheDocument();
-
-    const illustrations = document.querySelectorAll('[data-stack-illustration="true"]');
-    expect(illustrations).toHaveLength(1);
-    expect(illustrations[0]).toHaveAttribute("aria-hidden", "true");
-    expect(illustrations[0]).toHaveStyle({ pointerEvents: "none" });
   });
 
-  it("allows canceling from the chooser when creation started in an existing map", () => {
-    global.fetch = vi.fn();
-
-    renderWorkspace({ returnTo: "/project/map-1" });
-
-    expect(screen.getByRole("link", { name: "Cancel map creation" })).toHaveAttribute(
-      "href",
-      "/project/map-1"
-    );
-    expect(
-      screen.getByRole("link", { name: "Cancel map creation" }).querySelector(".lucide-x")
-    ).toBeInTheDocument();
-  });
-
-  it("cancels a pending requirements read when returning to the originating map", async () => {
-    global.fetch = vi.fn((input: RequestInfo | URL) => {
-      if (String(input) === "/api/settings") {
-        return Promise.resolve(response({ hasAnthropicKey: true }));
-      }
-      return Promise.resolve(response({}, false));
-    }) as unknown as typeof global.fetch;
-    let deferredReader: FileReader | null = null;
-    const readAsText = vi.spyOn(FileReader.prototype, "readAsText").mockImplementation(function (
-      this: FileReader
-    ) {
-      deferredReader = this;
+  it("creates a blank map in the vault and opens the static fragment route", async () => {
+    const localVault = makeVault({
+      createProject: vi.fn().mockResolvedValue(project("blank-map")),
     });
+    const fetchSpy = vi.spyOn(global, "fetch");
+    renderWorkspace({}, localVault);
 
-    renderWorkspace({ initialMode: "requirements", returnTo: "/project/map-1" });
-    fireEvent.change(await screen.findByLabelText("Choose .md or .txt file"), {
-      target: {
-        files: [new File(["# Stale map"], "requirements.md", { type: "text/markdown" })],
-      },
-    });
-    const cancel = screen.getByRole("link", { name: "Cancel map creation" });
-    cancel.addEventListener("click", (event) => event.preventDefault());
-    fireEvent.click(cancel);
-
-    expect(deferredReader).not.toBeNull();
-    const reader = deferredReader as unknown as FileReader;
-    Object.defineProperty(reader, "result", { configurable: true, value: "# Stale map" });
-    reader.onload?.(new ProgressEvent("load") as ProgressEvent<FileReader>);
-    expect(global.fetch).not.toHaveBeenCalledWith(
-      "/api/projects",
-      expect.objectContaining({ method: "POST" })
-    );
-    readAsText.mockRestore();
-  });
-
-  it("suppresses pointer and keyboard activation of cancel while creating", async () => {
-    let resolveCreate: ((value: Response) => void) | undefined;
-    global.fetch = vi.fn(
-      () =>
-        new Promise<Response>((resolve) => {
-          resolveCreate = resolve;
-        })
-    ) as unknown as typeof global.fetch;
-
-    renderWorkspace({ initialMode: "blank", returnTo: "/project/map-1" });
-    fireEvent.click(screen.getByRole("button", { name: "Create blank map" }));
-
-    const cancel = screen.getByRole("link", { name: "Cancel map creation" });
-    await waitFor(() => expect(cancel).toHaveAttribute("aria-disabled", "true"));
-    expect(cancel).toHaveAttribute("tabindex", "-1");
-    expect(fireEvent.click(cancel)).toBe(false);
-    expect(fireEvent.keyDown(cancel, { key: "Enter" })).toBe(false);
-    expect(fireEvent.keyDown(cancel, { key: " " })).toBe(false);
-    resolveCreate?.(response({ id: "blank-map" }));
-  });
-
-  it("keeps the source chooser available from every non-blank subflow", async () => {
-    global.fetch = vi.fn((input: RequestInfo | URL) => {
-      if (String(input) === "/api/settings") {
-        return Promise.resolve(response({ hasAnthropicKey: true }));
-      }
-      if (String(input) === "/api/templates") return Promise.resolve(response([]));
-      return Promise.resolve(response({}, false));
-    }) as unknown as typeof global.fetch;
-
-    const { rerender } = renderWorkspace({ initialMode: "requirements" });
-    expect(screen.getByRole("button", { name: "Choose another source" })).toBeEnabled();
-
-    rerender(
-      <ProjectStartWorkspace initialMode="repository" initialRepository="" returnTo={null} />
-    );
-    expect(screen.getByRole("button", { name: "Choose another source" })).toBeEnabled();
-
-    rerender(<ProjectStartWorkspace initialMode="template" initialRepository="" returnTo={null} />);
-    expect(screen.getByRole("button", { name: "Choose another source" })).toBeEnabled();
-  });
-
-  it("creates one blank map directly from the chooser gesture", async () => {
-    global.fetch = vi.fn(() =>
-      Promise.resolve(response({ id: "blank-map" }))
-    ) as unknown as typeof global.fetch;
-
-    renderWorkspace();
     fireEvent.click(screen.getByRole("button", { name: /Blank map/ }));
 
-    await waitFor(() => expect(mockPush).toHaveBeenCalledWith("/project/blank-map"));
-    const projectPosts = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.filter(
-      ([input, options]) => String(input) === "/api/projects" && options?.method === "POST"
-    );
-    expect(projectPosts).toHaveLength(1);
-    expect(JSON.parse((projectPosts[0][1] as RequestInit).body as string)).toEqual({
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/project/#blank-map"));
+    expect(localVault.createProject).toHaveBeenCalledWith({
       name: "Untitled Project",
+      description: null,
+      repoUrl: null,
+      canvasState: null,
     });
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it("does not auto-create from a directly loaded blank URL", async () => {
-    global.fetch = vi.fn(() =>
-      Promise.resolve(response({ id: "explicit-blank" }))
-    ) as unknown as typeof global.fetch;
-
-    renderWorkspace({ initialMode: "blank" });
+  it("does not implicitly create from a directly loaded blank URL", async () => {
+    const localVault = makeVault();
+    renderWorkspace({ initialMode: "blank" }, localVault);
 
     expect(screen.getByRole("button", { name: "Create blank map" })).toBeEnabled();
-    expect(global.fetch).not.toHaveBeenCalled();
+    expect(localVault.createProject).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Create blank map" }));
-
-    await waitFor(() => expect(mockPush).toHaveBeenCalledWith("/project/explicit-blank"));
-    expect(global.fetch).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(localVault.createProject).toHaveBeenCalledOnce());
   });
 
-  it("consumes a one-shot blank intent exactly once", async () => {
+  it("consumes a one-shot chooser gesture exactly once", async () => {
     markProjectStart("blank");
-    global.fetch = vi.fn(() =>
-      Promise.resolve(response({ id: "intent-blank" }))
-    ) as unknown as typeof global.fetch;
+    const localVault = makeVault();
+    renderWorkspace({ initialMode: "blank" }, localVault);
 
-    renderWorkspace({ initialMode: "blank" });
-
-    await waitFor(() => expect(mockPush).toHaveBeenCalledWith("/project/intent-blank"));
-    expect(global.fetch).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(localVault.createProject).toHaveBeenCalledOnce());
     expect(window.sessionStorage.getItem("stackhatch:blank-auto-create")).toBeNull();
   });
 
-  it("validates requirements and uses the first Markdown heading as the project name", async () => {
-    window.history.replaceState({}, "", "/project/new?mode=requirements");
-    global.fetch = vi.fn((input: RequestInfo | URL, options?: RequestInit) => {
-      if (String(input) === "/api/settings") {
-        return Promise.resolve(response({ hasAnthropicKey: true }));
-      }
-      if (String(input) === "/api/projects" && options?.method === "POST") {
-        return Promise.resolve(response({ id: "requirements-map" }));
-      }
-      return Promise.resolve(response({}, false));
-    }) as unknown as typeof global.fetch;
-
-    renderWorkspace({ initialMode: "requirements" });
-    const input = await screen.findByLabelText("Choose .md or .txt file");
-    fireEvent.change(input, {
-      target: { files: [new File(["no"], "requirements.pdf", { type: "application/pdf" })] },
+  it("stages requirements locally without a provider request", async () => {
+    const localVault = makeVault({
+      createProject: vi.fn().mockResolvedValue(project("requirements-map")),
     });
-    expect(screen.getByRole("alert")).toHaveTextContent(/Markdown/);
+    const fetchSpy = vi.spyOn(global, "fetch");
+    renderWorkspace({ initialMode: "requirements" }, localVault);
 
-    fireEvent.change(input, {
+    fireEvent.change(screen.getByLabelText("Choose .md or .txt file"), {
       target: {
         files: [
-          new File(
-            ["\n## Platform architecture\n\nUsers enter through the web app."],
-            "requirements.md",
-            { type: "text/markdown" }
-          ),
+          new File(["## Platform architecture\n\nKeep data local."], "requirements.md", {
+            type: "text/markdown",
+          }),
         ],
       },
     });
 
-    await waitFor(() => expect(mockPush).toHaveBeenCalledWith("/project/requirements-map"));
-    const postCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.find(
-      ([input, options]) => String(input) === "/api/projects" && options?.method === "POST"
+    await waitFor(() =>
+      expect(localVault.createProject).toHaveBeenCalledWith({
+        name: "Platform architecture",
+        description: "## Platform architecture\n\nKeep data local.",
+        repoUrl: null,
+        canvasState: null,
+      })
     );
-    expect(JSON.parse((postCall?.[1] as RequestInit).body as string)).toEqual({
-      name: "Platform architecture",
-      description: "## Platform architecture\n\nUsers enter through the web app.",
-    });
+    expect(push).toHaveBeenCalledWith("/project/#requirements-map");
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it("rejects an empty requirements file without creating a project", async () => {
-    global.fetch = vi.fn((input: RequestInfo | URL) => {
-      if (String(input) === "/api/settings") {
-        return Promise.resolve(response({ hasAnthropicKey: true }));
-      }
-      return Promise.resolve(response({}, false));
-    }) as unknown as typeof global.fetch;
-
-    renderWorkspace({ initialMode: "requirements" });
-    fireEvent.change(await screen.findByLabelText("Choose .md or .txt file"), {
-      target: { files: [new File(["   \n"], "requirements.md", { type: "text/markdown" })] },
-    });
-
-    expect(await screen.findByRole("alert")).toHaveTextContent(/requirements file is empty/i);
-    expect(global.fetch).not.toHaveBeenCalledWith(
-      "/api/projects",
-      expect.objectContaining({ method: "POST" })
+  it("hydrates repository and return context from the fragment, then stages locally", async () => {
+    window.history.replaceState(
+      {},
+      "",
+      "/project/new?mode=repository#repo=acme%2Fapi&returnTo=%2Fproject%2F%23origin-map"
     );
-  });
-
-  it("reports an unreadable requirements file without creating a project", async () => {
-    global.fetch = vi.fn((input: RequestInfo | URL) => {
-      if (String(input) === "/api/settings") {
-        return Promise.resolve(response({ hasAnthropicKey: true }));
-      }
-      return Promise.resolve(response({}, false));
-    }) as unknown as typeof global.fetch;
-    const readAsText = vi.spyOn(FileReader.prototype, "readAsText").mockImplementation(function (
-      this: FileReader
-    ) {
-      this.onerror?.(new ProgressEvent("error") as ProgressEvent<FileReader>);
+    const localVault = makeVault({
+      createProject: vi.fn().mockResolvedValue(project("repository-map")),
     });
+    renderWorkspace({ initialMode: "repository" }, localVault);
 
-    renderWorkspace({ initialMode: "requirements" });
-    fireEvent.change(await screen.findByLabelText("Choose .md or .txt file"), {
-      target: {
-        files: [new File(["# Map"], "requirements.md", { type: "text/markdown" })],
-      },
-    });
-
-    expect(await screen.findByRole("alert")).toHaveTextContent(/could not be read/i);
-    expect(global.fetch).not.toHaveBeenCalledWith(
-      "/api/projects",
-      expect.objectContaining({ method: "POST" })
-    );
-    readAsText.mockRestore();
-  });
-
-  it("ignores a requirements read after choosing another source", async () => {
-    global.fetch = vi.fn((input: RequestInfo | URL) => {
-      if (String(input) === "/api/settings") {
-        return Promise.resolve(response({ hasAnthropicKey: true }));
-      }
-      return Promise.resolve(response({}, false));
-    }) as unknown as typeof global.fetch;
-    let deferredReader: FileReader | null = null;
-    const readAsText = vi.spyOn(FileReader.prototype, "readAsText").mockImplementation(function (
-      this: FileReader
-    ) {
-      deferredReader = this;
-    });
-
-    renderWorkspace({ initialMode: "requirements" });
-    fireEvent.change(await screen.findByLabelText("Choose .md or .txt file"), {
-      target: {
-        files: [new File(["# Stale map"], "requirements.md", { type: "text/markdown" })],
-      },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Choose another source" }));
-
-    expect(deferredReader).not.toBeNull();
-    const reader = deferredReader as unknown as FileReader;
-    Object.defineProperty(reader, "result", { configurable: true, value: "# Stale map" });
-    reader.onload?.(new ProgressEvent("load") as ProgressEvent<FileReader>);
-    expect(global.fetch).not.toHaveBeenCalledWith(
-      "/api/projects",
-      expect.objectContaining({ method: "POST" })
-    );
-    readAsText.mockRestore();
-  });
-
-  it("preserves repository and project return context through Anthropic setup", async () => {
-    global.fetch = vi.fn(() =>
-      Promise.resolve(response({ hasAnthropicKey: false }))
-    ) as unknown as typeof global.fetch;
-
-    renderWorkspace({
-      initialMode: "repository",
-      initialRepository: "acme/api",
-      returnTo: "/project/map-1",
-    });
-
-    const setupLink = await screen.findByRole("link", { name: "Add Anthropic key" });
-    expect(setupLink).toHaveAttribute(
-      "href",
-      "/settings?setup=anthropic&returnTo=%2Fproject%2Fnew%3Fmode%3Drepository%26repo%3Dacme%252Fapi%26returnTo%3D%252Fproject%252Fmap-1"
-    );
-    expect(screen.getByRole("link", { name: "Cancel map creation" })).toHaveAttribute(
-      "href",
-      "/project/map-1"
-    );
-  });
-
-  it("normalizes and creates a public repository map", async () => {
-    global.fetch = vi.fn((input: RequestInfo | URL, options?: RequestInit) => {
-      if (String(input) === "/api/settings") {
-        return Promise.resolve(response({ hasAnthropicKey: true }));
-      }
-      if (String(input) === "/api/projects" && options?.method === "POST") {
-        return Promise.resolve(response({ id: "repository-map" }));
-      }
-      return Promise.resolve(response({}, false));
-    }) as unknown as typeof global.fetch;
-
-    renderWorkspace({ initialMode: "repository", initialRepository: "acme/api" });
     const repository = await screen.findByLabelText("Public GitHub repository");
     expect(repository).toHaveValue("acme/api");
-    fireEvent.change(repository, { target: { value: "https://github.com/stackhatch/app" } });
+    expect(screen.getByRole("link", { name: "Cancel map creation" })).toHaveAttribute(
+      "href",
+      "/project/#origin-map"
+    );
     fireEvent.click(screen.getByRole("button", { name: "Map repository" }));
 
-    await waitFor(() => expect(mockPush).toHaveBeenCalledWith("/project/repository-map"));
-    const postCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.find(
-      ([input, options]) => String(input) === "/api/projects" && options?.method === "POST"
+    await waitFor(() =>
+      expect(localVault.createProject).toHaveBeenCalledWith({
+        name: "api",
+        description: null,
+        repoUrl: "https://github.com/acme/api",
+        canvasState: null,
+      })
     );
-    expect(JSON.parse((postCall?.[1] as RequestInit).body as string)).toEqual({
-      name: "app",
-      repoUrl: "https://github.com/stackhatch/app",
+    expect(push).toHaveBeenCalledWith("/project/#repository-map");
+  });
+
+  it("copies a personal vault template into a separate local map", async () => {
+    const localVault = makeVault({
+      listTemplates: vi.fn().mockResolvedValue([
+        {
+          id: "template-1",
+          name: "Boundary",
+          description: null,
+          canvasState: { nodes: [], edges: [] },
+          revision: 1,
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      ]),
     });
+    renderWorkspace({ initialMode: "template" }, localVault);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Boundary/ }));
+    await waitFor(() =>
+      expect(localVault.createProject).toHaveBeenCalledWith({
+        name: "Boundary – Copy",
+        description: null,
+        repoUrl: null,
+        canvasState: { nodes: [], edges: [] },
+      })
+    );
   });
 
-  it("copies a personal template without checking Anthropic settings", async () => {
-    global.fetch = vi.fn((input: RequestInfo | URL, options?: RequestInit) => {
-      if (String(input) === "/api/templates") return Promise.resolve(response([template]));
-      if (String(input) === "/api/projects" && options?.method === "POST") {
-        return Promise.resolve(response({ id: "template-map" }));
-      }
-      return Promise.resolve(response({}, false));
-    }) as unknown as typeof global.fetch;
+  it("keeps browser-storage creation failures retryable", async () => {
+    const createProject = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("quota"))
+      .mockResolvedValueOnce(project("retried-map"));
+    renderWorkspace({ initialMode: "blank" }, makeVault({ createProject }));
 
-    renderWorkspace({ initialMode: "template" });
-    fireEvent.click(await screen.findByRole("button", { name: /API boundary map/ }));
-
-    await waitFor(() => expect(mockPush).toHaveBeenCalledWith("/project/template-map"));
-    expect(global.fetch).not.toHaveBeenCalledWith("/api/settings");
-  });
-
-  it("keeps creation errors recoverable without duplicating successful submissions", async () => {
-    let attempts = 0;
-    global.fetch = vi.fn(() => {
-      attempts += 1;
-      return Promise.resolve(
-        attempts === 1
-          ? response({ error: "Project quota reached" }, false)
-          : response({ id: "retried-blank" })
-      );
-    }) as unknown as typeof global.fetch;
-
-    renderWorkspace({ initialMode: "blank" });
     fireEvent.click(screen.getByRole("button", { name: "Create blank map" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Project quota reached");
+    expect(await screen.findByRole("alert")).toHaveTextContent("browser storage");
     fireEvent.click(screen.getByRole("button", { name: "Retry blank map" }));
-
-    await waitFor(() => expect(mockPush).toHaveBeenCalledWith("/project/retried-blank"));
-    expect(attempts).toBe(2);
-  });
-
-  it("records source selection and auth completion at the editor location", async () => {
-    const track = vi.fn();
-    window.umami = { track };
-    window.sessionStorage.setItem("stackhatch:auth-pending", "1");
-    window.sessionStorage.setItem("stackhatch:project-start-method", "template");
-    global.fetch = vi.fn(() => Promise.resolve(response([]))) as unknown as typeof global.fetch;
-
-    renderWorkspace();
-    fireEvent.click(screen.getByRole("button", { name: /Template/ }));
-
-    await waitFor(() => expect(track).toHaveBeenCalledTimes(2));
-    const payloads = track.mock.calls.map(([builder]) =>
-      (builder as (payload: Record<string, unknown>) => unknown)({ website: "site-id" })
-    );
-    expect(payloads).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          name: "github_auth_completed",
-          data: { location: "editor", start_method: "template" },
-        }),
-        expect.objectContaining({
-          name: "project_start_selected",
-          data: { location: "editor", start_method: "template" },
-        }),
-      ])
-    );
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/project/#retried-map"));
   });
 });

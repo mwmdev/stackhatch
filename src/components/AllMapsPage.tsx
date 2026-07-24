@@ -1,21 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { RefreshCw } from "lucide-react";
-import AppPageActions from "@/components/shells/AppPageActions";
-import AppPageShell from "@/components/shells/AppPageShell";
+import { useRouter } from "next/navigation";
+import { FolderPlus, RefreshCw } from "lucide-react";
+import ThemeToggle from "@/components/ThemeToggle";
+import StackHatchWordmark from "@/components/shells/StackHatchWordmark";
+import { buildLocalProjectPath } from "@/lib/app-route";
+import type { VaultProjectRecord } from "@/lib/vault/schema";
+import { getBrowserWorkspaceVault, type WorkspaceVault } from "@/lib/vault/workspace";
 
-interface ProjectSummary {
-  id: string;
-  name: string;
-  description: string | null;
-  createdAt: number;
-  updatedAt: number;
-}
-
-function formatDate(timestamp: number): string {
+function formatDate(timestamp: number) {
   return new Date(timestamp).toLocaleDateString(undefined, {
     month: "short",
     day: "numeric",
@@ -23,118 +18,126 @@ function formatDate(timestamp: number): string {
   });
 }
 
-export default function AllMapsPage() {
+export default function AllMapsPage({ vault }: { vault?: WorkspaceVault }) {
   const router = useRouter();
-  const [projects, setProjects] = useState<ProjectSummary[]>([]);
+  const [workspaceVault] = useState(() => vault ?? getBrowserWorkspaceVault());
+  const [projects, setProjects] = useState<VaultProjectRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [projectsError, setProjectsError] = useState("");
-  const [deleteTarget, setDeleteTarget] = useState<ProjectSummary | null>(null);
+  const [deleteError, setDeleteError] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<VaultProjectRecord | null>(null);
   const [deleting, setDeleting] = useState(false);
   const latestLoadRequest = useRef(0);
 
   const loadProjects = useCallback(async () => {
-    const requestId = latestLoadRequest.current + 1;
-    latestLoadRequest.current = requestId;
+    const requestId = ++latestLoadRequest.current;
     setLoading(true);
     setProjectsError("");
     try {
-      const response = await fetch("/api/projects");
-      if (requestId !== latestLoadRequest.current) return;
-      if (!response.ok) {
-        setProjects([]);
-        setProjectsError("Maps could not be loaded. Try again.");
-        return;
-      }
-      const nextProjects = await response.json();
+      const nextProjects = await workspaceVault.listProjects();
       if (requestId === latestLoadRequest.current) setProjects(nextProjects);
     } catch {
-      if (requestId !== latestLoadRequest.current) return;
-      setProjects([]);
-      setProjectsError("Maps could not be loaded. Check your connection and try again.");
+      if (requestId === latestLoadRequest.current) {
+        setProjects([]);
+        setProjectsError(
+          "Your maps on this device could not be read. Check browser storage permissions, then retry."
+        );
+      }
     } finally {
       if (requestId === latestLoadRequest.current) setLoading(false);
     }
-  }, []);
+  }, [workspaceVault]);
 
   useEffect(() => {
     void loadProjects();
-  }, [loadProjects]);
+    return workspaceVault.subscribeInvalidation((invalidation) => {
+      if (invalidation.stores.includes("projects")) void loadProjects();
+    });
+  }, [loadProjects, workspaceVault]);
 
-  const handleDelete = useCallback(async () => {
+  async function handleDelete() {
     if (!deleteTarget) return;
     setDeleting(true);
+    setDeleteError("");
     try {
-      const response = await fetch(`/api/projects/${deleteTarget.id}`, { method: "DELETE" });
-      if (response.ok) {
-        setProjects((current) => current.filter((project) => project.id !== deleteTarget.id));
-      }
+      await workspaceVault.deleteProject(deleteTarget);
+      setProjects((current) => current.filter((project) => project.id !== deleteTarget.id));
+      setDeleteTarget(null);
+    } catch {
+      setDeleteError(
+        "This map could not be deleted from browser storage. Reload the list and try again."
+      );
     } finally {
       setDeleting(false);
-      setDeleteTarget(null);
     }
-  }, [deleteTarget]);
+  }
 
   return (
-    <AppPageShell
-      title="All Maps"
-      description="Browse, open, and manage your architecture maps."
-      eyebrow="Map observatory"
-      actions={<AppPageActions />}
-      footer={
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <span className="font-display font-bold text-[var(--foreground)]">StackHatch</span>
-          <nav aria-label="Footer navigation" className="flex flex-wrap gap-1">
+    <div className="min-h-screen bg-[var(--canvas)] text-[var(--foreground)]">
+      <header className="border-b border-[var(--border)] bg-[var(--card)]">
+        <div className="mx-auto flex min-h-16 w-full max-w-[var(--shell-width-wide)] items-center justify-between gap-3 px-[var(--page-gutter)]">
+          <StackHatchWordmark href="/app/maps" label="All Maps" />
+          <div className="page-shell__actions">
             <Link
-              href="/support"
-              className="inline-flex min-h-11 items-center rounded-md px-3 hover:text-[var(--foreground)]"
+              href="/project/new"
+              className="inline-flex min-h-11 items-center gap-2 rounded-[var(--radius-control)] bg-[var(--brand)] px-4 py-2 text-sm font-bold text-[var(--brand-foreground)]"
             >
-              Support
+              <FolderPlus className="h-4 w-4" aria-hidden="true" />
+              New Map
             </Link>
-            <Link
-              href="/privacy"
-              className="inline-flex min-h-11 items-center rounded-md px-3 hover:text-[var(--foreground)]"
-            >
-              Privacy
-            </Link>
-            <Link
-              href="/terms"
-              className="inline-flex min-h-11 items-center rounded-md px-3 hover:text-[var(--foreground)]"
-            >
-              Terms
-            </Link>
-          </nav>
+            <ThemeToggle />
+          </div>
         </div>
-      }
-    >
-      <div className="min-w-0">
-        <section className="overflow-hidden rounded-sm border border-[var(--border)] bg-[var(--card)]">
-          {projectsError && (
+      </header>
+
+      <main className="mx-auto w-full max-w-[var(--shell-width-wide)] px-[var(--page-gutter)] py-8">
+        <header className="mb-6 border-l-2 border-[var(--color-client)] pl-4">
+          <p className="font-utility text-[0.6875rem] font-bold uppercase tracking-[0.16em] text-[var(--color-client)]">
+            Browser vault
+          </p>
+          <h1 className="font-display mt-1 text-3xl font-extrabold">All Maps</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted-foreground)]">
+            Your maps on this device stay in this browser profile. Clearing browser data can remove
+            them.
+          </p>
+        </header>
+
+        <section className="overflow-hidden rounded-[var(--radius-surface)] border border-[var(--border)] bg-[var(--card)]">
+          {projectsError ? (
             <div className="flex justify-end border-b border-[var(--border)] p-4">
               <button
                 type="button"
-                onClick={loadProjects}
-                className="inline-flex min-h-11 items-center gap-2 rounded-md border border-[var(--border)] px-3 py-2 text-sm font-semibold hover:bg-[var(--muted)]"
+                onClick={() => void loadProjects()}
+                className="inline-flex min-h-11 items-center gap-2 rounded-[var(--radius-control)] border border-[var(--border)] px-3 py-2 text-sm font-semibold"
               >
                 <RefreshCw className="h-4 w-4" aria-hidden="true" />
-                Retry
+                Retry browser storage
               </button>
             </div>
-          )}
+          ) : null}
 
           {loading ? (
             <div className="p-8 text-center text-[var(--muted-foreground)]" role="status">
-              Loading maps...
+              Loading your maps on this device...
             </div>
           ) : projectsError ? (
-            <div className="p-8 text-center text-sm text-[var(--muted-foreground)]" role="alert">
+            <div className="p-8 text-center text-sm text-[var(--danger)]" role="alert">
               {projectsError}
             </div>
           ) : projects.length === 0 ? (
-            <div className="p-8 text-center text-sm text-[var(--muted-foreground)]">
-              No maps yet. Choose New Map to create your first one.
+            <div className="p-8 text-center">
+              <p className="text-sm text-[var(--muted-foreground)]">
+                No maps are stored on this device yet.
+              </p>
+              <Link
+                href="/project/new"
+                className="mt-4 inline-flex min-h-11 items-center rounded-[var(--radius-control)] border border-[var(--border)] px-4 py-2 text-sm font-bold"
+              >
+                Create your first map
+              </Link>
             </div>
           ) : (
-            <div role="table" aria-label="Your maps" className="min-w-0">
+            <div role="table" aria-label="Your maps on this device">
               <div
                 role="row"
                 className="font-utility hidden grid-cols-[minmax(11rem,1.1fr)_minmax(14rem,1.35fr)_9rem_5.5rem] border-b border-[var(--border)] bg-[var(--surface-subtle)] px-5 py-3 text-[0.6875rem] font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)] md:grid"
@@ -150,46 +153,41 @@ export default function AllMapsPage() {
                 <div
                   key={project.id}
                   role="row"
-                  className="group grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-4 border-b border-[var(--border)] bg-[var(--surface-raised)] px-4 py-4 transition-colors last:border-b-0 hover:bg-[var(--muted)] md:grid-cols-[minmax(11rem,1.1fr)_minmax(14rem,1.35fr)_9rem_5.5rem] md:items-center md:px-5"
+                  className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-4 border-b border-[var(--border)] bg-[var(--surface-raised)] px-4 py-4 last:border-b-0 hover:bg-[var(--muted)] md:grid-cols-[minmax(11rem,1.1fr)_minmax(14rem,1.35fr)_9rem_5.5rem] md:items-center md:px-5"
                 >
                   <div role="cell" className="col-span-2 min-w-0 md:col-span-1">
                     <button
                       type="button"
-                      onClick={() => router.push(`/project/${project.id}`)}
-                      className="group/open flex min-h-11 max-w-full items-center gap-3 rounded-sm text-left font-semibold text-[var(--card-foreground)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-raised)]"
+                      onClick={() => router.push(buildLocalProjectPath(project.id))}
+                      className="flex min-h-11 max-w-full items-center gap-3 rounded-sm text-left font-semibold"
                       data-testid={`project-card-${project.id}`}
                       aria-label={`Open ${project.name}`}
                     >
                       <span
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-sm border border-[var(--color-client)] bg-[var(--background)] font-utility text-xs font-bold text-[var(--color-client)] transition-colors group-hover/open:bg-[var(--muted)]"
+                        className="font-utility flex h-9 w-9 shrink-0 items-center justify-center rounded-sm border border-[var(--color-client)] bg-[var(--background)] text-xs font-bold text-[var(--color-client)]"
                         aria-hidden="true"
                       >
                         MAP
                       </span>
-                      <span className="min-w-0 truncate">{project.name}</span>
+                      <span className="truncate">{project.name}</span>
                     </button>
                   </div>
                   <div role="cell" className="col-span-2 min-w-0 md:col-span-1 md:pr-5">
-                    <span className="font-utility mb-1 block text-[0.625rem] font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)] md:hidden">
-                      Description
-                    </span>
-                    <p className="line-clamp-2 text-sm leading-5 text-[var(--muted-foreground)]">
+                    <p className="line-clamp-2 text-sm text-[var(--muted-foreground)]">
                       {project.description || "No description"}
                     </p>
                   </div>
-                  <div role="cell" className="min-w-0">
-                    <span className="font-utility mb-1 block text-[0.625rem] font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)] md:hidden">
-                      Updated
-                    </span>
-                    <p className="font-utility text-xs text-[var(--muted-foreground)]">
-                      {formatDate(project.updatedAt)}
-                    </p>
+                  <div role="cell" className="font-utility text-xs text-[var(--muted-foreground)]">
+                    {formatDate(project.updatedAt)}
                   </div>
-                  <div role="cell" className="flex justify-end self-end md:self-center">
+                  <div role="cell" className="flex justify-end">
                     <button
                       type="button"
-                      onClick={() => setDeleteTarget(project)}
-                      className="inline-flex min-h-11 items-center rounded-sm px-3 text-xs font-semibold text-[var(--muted-foreground)] hover:bg-[var(--danger-surface)] hover:text-[var(--danger)] focus-visible:text-[var(--danger)]"
+                      onClick={() => {
+                        setDeleteError("");
+                        setDeleteTarget(project);
+                      }}
+                      className="min-h-11 rounded-sm px-3 text-xs font-semibold text-[var(--muted-foreground)] hover:text-[var(--danger)]"
                       aria-label={`Delete ${project.name}`}
                     >
                       Delete
@@ -200,51 +198,52 @@ export default function AllMapsPage() {
             </div>
           )}
         </section>
-      </div>
+      </main>
 
-      {deleteTarget && (
+      {deleteTarget ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay)]"
           onClick={() => !deleting && setDeleteTarget(null)}
-          data-testid="delete-modal"
         >
           <div
             role="dialog"
             aria-modal="true"
             aria-labelledby="delete-map-title"
-            className="mx-4 w-full max-w-sm rounded-sm border border-[var(--border)] bg-[var(--card)] p-6 shadow-xl"
+            className="mx-4 w-full max-w-sm rounded-[var(--radius-surface)] border border-[var(--border)] bg-[var(--card)] p-6 shadow-xl"
             onClick={(event) => event.stopPropagation()}
           >
-            <h2
-              id="delete-map-title"
-              className="text-lg font-semibold text-[var(--card-foreground)]"
-            >
+            <h2 id="delete-map-title" className="text-lg font-semibold">
               Delete map
             </h2>
             <p className="mt-2 text-sm text-[var(--muted-foreground)]">
-              Delete <strong>{deleteTarget.name}</strong>? This action cannot be undone.
+              Delete <strong>{deleteTarget.name}</strong> from this device? This cannot be undone.
             </p>
+            {deleteError ? (
+              <p className="mt-3 text-sm text-[var(--danger)]" role="alert">
+                {deleteError}
+              </p>
+            ) : null}
             <div className="mt-4 flex justify-end gap-3">
               <button
                 type="button"
                 onClick={() => setDeleteTarget(null)}
                 disabled={deleting}
-                className="min-h-11 rounded-md px-3 py-2 text-sm text-[var(--muted-foreground)] hover:bg-[var(--muted)]"
+                className="min-h-11 rounded-md px-3 py-2 text-sm"
               >
                 Cancel
               </button>
               <button
                 type="button"
-                onClick={handleDelete}
+                onClick={() => void handleDelete()}
                 disabled={deleting}
-                className="min-h-11 rounded-md bg-[var(--danger)] px-3 py-2 text-sm text-[var(--danger-foreground)] hover:bg-[var(--danger-hover)] disabled:opacity-50"
+                className="min-h-11 rounded-md bg-[var(--danger)] px-3 py-2 text-sm text-[var(--danger-foreground)]"
               >
-                {deleting ? "Deleting..." : "Delete"}
+                {deleting ? "Deleting..." : deleteError ? "Retry delete" : "Delete"}
               </button>
             </div>
           </div>
         </div>
-      )}
-    </AppPageShell>
+      ) : null}
+    </div>
   );
 }

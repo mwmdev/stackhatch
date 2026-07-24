@@ -4,10 +4,11 @@ import { createId } from "@/lib/id";
 import {
   createVaultRepository,
   type VaultProjectBundleWrite,
+  type VaultProviderRunWrite,
   type VaultRepository,
 } from "./repository";
 import { deleteVaultDatabase, openStackHatchVault } from "./indexed-db";
-import { DEVICE_RECORD_ID, type VaultProjectRecord, type VaultProviderRunRecord } from "./schema";
+import { DEVICE_RECORD_ID } from "./schema";
 import {
   VaultCommitError,
   VaultConflictError,
@@ -103,6 +104,10 @@ describe("browser vault repository", () => {
       provenance: { projectId: "project-1", commitSha: "abc123", revision: 1 },
     });
     expect(bundle?.project).not.toHaveProperty("userId");
+    await expect(repository.getProjectSnapshot("project-1")).resolves.toMatchObject({
+      generation,
+      project: { id: "project-1", revision: 1 },
+    });
   });
 
   it("rolls back every store when a late child write fails", async () => {
@@ -280,7 +285,7 @@ describe("browser vault repository", () => {
       { project: project("project-1") },
       { expectedGeneration: generation, expectedProjectRevision: null }
     );
-    const run: Omit<VaultProviderRunRecord, "revision"> = {
+    const run: VaultProviderRunWrite = {
       id: "run-1",
       projectId: "project-1",
       kind: "chat",

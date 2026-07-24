@@ -1,5 +1,6 @@
 import type { DBSchema } from "idb";
-import type { AlternativeNode, NodeCategory, StackArchitecture } from "@/types/stack";
+import type { AlternativeNode, StackArchitecture } from "@/types/stack";
+import type { CustomSubtypeEntry, CustomSubtypesMap } from "@/lib/custom-subtypes";
 
 export const VAULT_DATABASE_NAME = "stackhatch-vault";
 export const VAULT_SCHEMA_VERSION = 2;
@@ -63,13 +64,8 @@ export interface VaultTemplateRecord {
   updatedAt: number;
 }
 
-export interface VaultCustomSubtype {
-  slug: string;
-  displayName: string;
-  icon: string;
-}
-
-export type VaultCustomSubtypes = Partial<Record<NodeCategory, VaultCustomSubtype[]>>;
+export type VaultCustomSubtype = CustomSubtypeEntry;
+export type VaultCustomSubtypes = CustomSubtypesMap;
 
 export interface VaultDevicePreferencesRecord {
   id: typeof DEVICE_RECORD_ID;

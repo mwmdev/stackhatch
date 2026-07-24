@@ -41,7 +41,7 @@ type VaultWriteTransaction = IDBPTransaction<
 type RecordWrite<T extends { revision: number }> = Omit<T, "revision">;
 
 export interface VaultProjectBundleWrite {
-  project: Omit<VaultProjectRecord, "revision">;
+  project: RecordWrite<VaultProjectRecord>;
   messages?: Array<RecordWrite<VaultMessageRecord>>;
   evidence?: Array<RecordWrite<VaultRepositoryEvidenceRecord>>;
   provenance?: RecordWrite<VaultRepositoryProvenanceRecord> | null;
@@ -74,14 +74,20 @@ export type VaultDevicePreferencesWrite = Pick<
   "model" | "theme" | "customSubtypes" | "editorDisplay"
 >;
 
-export type VaultTemplateWrite = Omit<VaultTemplateRecord, "revision">;
+export type VaultTemplateWrite = RecordWrite<VaultTemplateRecord>;
 
-export type VaultProviderRunWrite = Omit<VaultProviderRunRecord, "revision">;
+export type VaultProviderRunWrite = RecordWrite<VaultProviderRunRecord>;
+
+export interface VaultProjectSnapshot {
+  project: VaultProjectRecord;
+  generation: string;
+}
 
 export interface VaultRepository {
   getGeneration(): Promise<string>;
   advanceVaultGeneration(expectedGeneration: string): Promise<string>;
   getProject(projectId: string): Promise<VaultProjectRecord | null>;
+  getProjectSnapshot(projectId: string): Promise<VaultProjectSnapshot | null>;
   getProjectBundle(projectId: string): Promise<VaultProjectBundle | null>;
   listProjects(): Promise<VaultProjectRecord[]>;
   saveProjectBundle(
@@ -192,9 +198,11 @@ async function deleteProjectIndexRecords(
   storeName: "messages" | "repositoryEvidence" | "providerRuns",
   projectId: string
 ) {
-  const store = transaction.objectStore(storeName);
-  const keys = await store.index("by-project").getAllKeys(projectId);
-  await Promise.all(keys.map((key) => store.delete(key)));
+  let cursor = await transaction.objectStore(storeName).index("by-project").openCursor(projectId);
+  while (cursor) {
+    await cursor.delete();
+    cursor = await cursor.continue();
+  }
 }
 
 class IndexedDbVaultRepository implements VaultRepository {
@@ -274,6 +282,22 @@ class IndexedDbVaultRepository implements VaultRepository {
     }, "The project could not be read");
   }
 
+  async getProjectSnapshot(projectId: string) {
+    return runRead(async () => {
+      const database = await this.database();
+      const transaction = database.transaction(["meta", "projects"], "readonly");
+      const [metadata, project] = await Promise.all([
+        transaction.objectStore("meta").get(VAULT_META_ID),
+        transaction.objectStore("projects").get(projectId),
+      ]);
+      await transaction.done;
+      if (!metadata) {
+        throw new VaultUnavailableError("The vault metadata record is missing");
+      }
+      return project ? { project, generation: metadata.generation } : null;
+    }, "The project snapshot could not be read");
+  }
+
   async getProjectBundle(projectId: string) {
     return runRead(async () => {
       const database = await this.database();
@@ -324,16 +348,14 @@ class IndexedDbVaultRepository implements VaultRepository {
   async saveProjectBundle(bundle: VaultProjectBundleWrite, precondition: VaultProjectPrecondition) {
     assertProjectRelations(bundle);
     const database = await this.database();
+    const stores: VaultStoreName[] = ["meta", "projects"];
+    if (bundle.messages?.length || bundle.replaceMessages) stores.push("messages");
+    if (bundle.evidence?.length || bundle.replaceEvidence) stores.push("repositoryEvidence");
+    if (bundle.provenance !== undefined) stores.push("repositoryProvenance");
+    if (bundle.providerRuns?.length || bundle.replaceProviderRuns) stores.push("providerRuns");
     const project = await runWrite(
       database,
-      [
-        "meta",
-        "projects",
-        "messages",
-        "repositoryEvidence",
-        "repositoryProvenance",
-        "providerRuns",
-      ],
+      stores,
       async (transaction) => {
         await assertGeneration(transaction, precondition.expectedGeneration);
         const projectStore = transaction.objectStore("projects");
@@ -354,22 +376,26 @@ class IndexedDbVaultRepository implements VaultRepository {
         if (bundle.replaceMessages) {
           await deleteProjectIndexRecords(transaction, "messages", bundle.project.id);
         }
-        for (const message of bundle.messages ?? []) {
-          await transaction.objectStore("messages").add({
-            ...message,
-            revision: 1,
-          });
-        }
+        await Promise.all(
+          (bundle.messages ?? []).map((message) =>
+            transaction.objectStore("messages").add({
+              ...message,
+              revision: 1,
+            })
+          )
+        );
 
         if (bundle.replaceEvidence) {
           await deleteProjectIndexRecords(transaction, "repositoryEvidence", bundle.project.id);
         }
-        for (const evidence of bundle.evidence ?? []) {
-          await transaction.objectStore("repositoryEvidence").add({
-            ...evidence,
-            revision: 1,
-          });
-        }
+        await Promise.all(
+          (bundle.evidence ?? []).map((evidence) =>
+            transaction.objectStore("repositoryEvidence").add({
+              ...evidence,
+              revision: 1,
+            })
+          )
+        );
 
         if (bundle.provenance === null) {
           await transaction.objectStore("repositoryProvenance").delete(bundle.project.id);
@@ -385,12 +411,14 @@ class IndexedDbVaultRepository implements VaultRepository {
         if (bundle.replaceProviderRuns) {
           await deleteProjectIndexRecords(transaction, "providerRuns", bundle.project.id);
         }
-        for (const providerRun of bundle.providerRuns ?? []) {
-          await transaction.objectStore("providerRuns").add({
-            ...providerRun,
-            revision: 1,
-          });
-        }
+        await Promise.all(
+          (bundle.providerRuns ?? []).map((providerRun) =>
+            transaction.objectStore("providerRuns").add({
+              ...providerRun,
+              revision: 1,
+            })
+          )
+        );
 
         return storedProject;
       },

@@ -25,13 +25,6 @@ export interface CanvasPersistenceState {
   disposed: boolean;
 }
 
-export class CanvasPersistenceUnauthorizedError extends Error {
-  constructor() {
-    super("Canvas persistence requires an authenticated session");
-    this.name = "CanvasPersistenceUnauthorizedError";
-  }
-}
-
 export interface CanvasPersistenceCoordinator<TSnapshot> {
   publish(snapshot: TSnapshot): number | null;
   flushLatest(): Promise<void>;

@@ -2,7 +2,6 @@ export type VaultErrorCode =
   | "quota"
   | "security"
   | "unavailable"
-  | "blocked"
   | "conflict"
   | "stale-generation"
   | "commit"
@@ -24,13 +23,6 @@ export class VaultUnavailableError extends VaultError {
   constructor(message = "Browser storage is unavailable", options?: ErrorOptions) {
     super("unavailable", message, true, options);
     this.name = "VaultUnavailableError";
-  }
-}
-
-export class VaultBlockedError extends VaultError {
-  constructor(message = "A different tab is blocking the storage upgrade") {
-    super("blocked", message, true);
-    this.name = "VaultBlockedError";
   }
 }
 

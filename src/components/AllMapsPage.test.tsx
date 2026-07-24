@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { VaultInvalidation } from "@/lib/vault/coordination";
+import type { WorkspaceVault } from "@/lib/vault/workspace";
 import AllMapsPage from "./AllMapsPage";
 
 const push = vi.fn();
@@ -7,14 +9,8 @@ const push = vi.fn();
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push }),
 }));
-
 vi.mock("next-themes", () => ({
-  useTheme: () => ({ theme: "light", setTheme: vi.fn() }),
-}));
-
-vi.mock("next-auth/react", () => ({
-  useSession: () => ({ data: null, status: "authenticated" }),
-  signOut: vi.fn(),
+  useTheme: () => ({ theme: "dark", setTheme: vi.fn() }),
 }));
 
 const projects = [
@@ -22,6 +18,9 @@ const projects = [
     id: "newest",
     name: "Newest map",
     description: "Latest architecture",
+    repoUrl: null,
+    canvasState: null,
+    revision: 2,
     createdAt: 1,
     updatedAt: 30,
   },
@@ -29,164 +28,100 @@ const projects = [
     id: "older",
     name: "Older map",
     description: null,
+    repoUrl: null,
+    canvasState: null,
+    revision: 1,
     createdAt: 2,
     updatedAt: 20,
   },
 ];
 
-function mockFetch({
-  projectResponses = [projects],
-}: {
-  projectResponses?: Array<typeof projects | null | Error>;
-} = {}) {
-  let projectAttempt = 0;
-  global.fetch = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
-    const url = String(input);
-    if (url === "/api/projects" && !init?.method) {
-      const response = projectResponses[Math.min(projectAttempt, projectResponses.length - 1)];
-      projectAttempt += 1;
-      if (response instanceof Error) return Promise.reject(response);
-      if (response === null) {
-        return Promise.resolve({ ok: false, json: () => Promise.resolve({}) } as Response);
-      }
-      return Promise.resolve({ ok: true, json: () => Promise.resolve(response) } as Response);
-    }
-    if (url.startsWith("/api/projects/") && init?.method === "DELETE") {
-      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) } as Response);
-    }
-    return Promise.resolve({ ok: false, json: () => Promise.resolve({}) } as Response);
-  }) as unknown as typeof global.fetch;
+function makeVault(overrides: Partial<WorkspaceVault> = {}) {
+  return {
+    listProjects: vi.fn().mockResolvedValue(projects),
+    deleteProject: vi.fn().mockResolvedValue(undefined),
+    subscribeInvalidation: vi.fn(() => () => undefined),
+    ...overrides,
+  } as unknown as WorkspaceVault;
 }
 
 describe("AllMapsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    push.mockClear();
   });
 
-  it("renders the owned map response in API order with one New Map action", async () => {
-    mockFetch();
-    render(<AllMapsPage />);
+  it("renders your maps on this device with no account controls or network reads", async () => {
+    const fetchSpy = vi.spyOn(global, "fetch");
+    render(<AllMapsPage vault={makeVault()} />);
 
-    expect(screen.getByText("Loading maps...")).toBeInTheDocument();
-    await screen.findByRole("heading", { name: "All Maps" });
-
-    const cards = screen.getAllByTestId(/project-card-/);
-    expect(cards.map((card) => card.getAttribute("aria-label"))).toEqual([
-      "Open Newest map",
-      "Open Older map",
-    ]);
-    expect(screen.getByRole("table", { name: "Your maps" })).toBeInTheDocument();
-    expect(screen.getAllByRole("row")).toHaveLength(3);
-    expect(screen.getAllByRole("columnheader").map((header) => header.textContent)).toEqual([
-      "Name",
-      "Description",
-      "Updated",
-      "Actions",
-    ]);
-    expect(screen.getByTestId("project-card-newest")).toHaveAccessibleName("Open Newest map");
-    expect(screen.getAllByRole("link", { name: "New Map" })).toHaveLength(1);
-    expect(screen.getByRole("link", { name: "New Map" })).toHaveAttribute("href", "/project/new");
-    expect(screen.getByRole("link", { name: "All Maps" })).toHaveAttribute("href", "/app/maps");
-    expect(screen.queryByText("Start fresh")).not.toBeInTheDocument();
-    expect(screen.queryByText("Upload requirements")).not.toBeInTheDocument();
-    expect(screen.queryByText("Map a repo")).not.toBeInTheDocument();
-    expect(screen.queryByText("Use a template")).not.toBeInTheDocument();
-    expect(screen.queryByRole("searchbox")).not.toBeInTheDocument();
-    expect(screen.queryByText("Starred")).not.toBeInTheDocument();
-    expect(screen.getAllByRole("main")).toHaveLength(1);
-    expect(screen.getAllByRole("heading", { level: 1, name: "All Maps" })).toHaveLength(1);
-    expect(screen.getByRole("main").closest(".app-page-shell")).toHaveAttribute(
-      "data-density",
-      "comfortable"
-    );
+    expect(screen.getByText(/Loading your maps on this device/)).toBeInTheDocument();
+    expect(await screen.findByText("Newest map")).toBeInTheDocument();
+    expect(screen.getByRole("table", { name: "Your maps on this device" })).toBeInTheDocument();
+    expect(screen.getByText(/Your maps on this device stay in this browser profile/)).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Account" })).not.toBeInTheDocument();
+    expect(document.querySelector("[data-stack-illustration]")).not.toBeInTheDocument();
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it("opens a selected map", async () => {
-    mockFetch();
-    render(<AllMapsPage />);
-
+  it("opens a selected map through the static fragment route", async () => {
+    render(<AllMapsPage vault={makeVault()} />);
     fireEvent.click(await screen.findByTestId("project-card-older"));
-    expect(push).toHaveBeenCalledWith("/project/older");
+    expect(push).toHaveBeenCalledWith("/project/#older");
   });
 
-  it("shows a recoverable load failure and retries", async () => {
-    mockFetch({ projectResponses: [null, projects] });
-    render(<AllMapsPage />);
+  it("shows a recoverable storage failure and retries", async () => {
+    const listProjects = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("blocked"))
+      .mockResolvedValueOnce(projects);
+    render(<AllMapsPage vault={makeVault({ listProjects })} />);
 
-    expect(await screen.findByText(/Maps could not be loaded/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
-
+    expect(await screen.findByRole("alert")).toHaveTextContent("browser storage permissions");
+    fireEvent.click(screen.getByRole("button", { name: "Retry browser storage" }));
     expect(await screen.findByText("Newest map")).toBeInTheDocument();
   });
 
-  it("keeps the newest result when retry responses finish out of order", async () => {
-    let resolveOlder: ((value: Response) => void) | undefined;
-    let attempt = 0;
-    global.fetch = vi.fn(() => {
-      attempt += 1;
-      if (attempt === 1) {
-        return new Promise<Response>((resolve) => {
-          resolveOlder = resolve;
-        });
-      }
-      return Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve([projects[0]]),
-      } as Response);
-    }) as unknown as typeof global.fetch;
-    render(<AllMapsPage />);
-
-    expect(await screen.findByText("Newest map")).toBeInTheDocument();
-
-    resolveOlder?.({
-      ok: true,
-      json: () => Promise.resolve([projects[1]]),
-    } as Response);
-    await waitFor(() => expect(screen.queryByText("Older map")).not.toBeInTheDocument());
-  });
-
-  it("shows a recoverable network failure", async () => {
-    mockFetch({ projectResponses: [new Error("offline")] });
-    render(<AllMapsPage />);
-
-    expect(await screen.findByText(/Check your connection/)).toBeInTheDocument();
-  });
-
-  it("confirms deletion before removing a map", async () => {
-    mockFetch();
-    render(<AllMapsPage />);
+  it("deletes with a vault revision and keeps failures retryable", async () => {
+    const deleteProject = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("conflict"))
+      .mockResolvedValueOnce(undefined);
+    render(<AllMapsPage vault={makeVault({ deleteProject })} />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Delete Newest map" }));
-    expect(screen.getByRole("dialog", { name: "Delete map" })).toBeInTheDocument();
-    expect(screen.getByText(/cannot be undone/)).toBeInTheDocument();
-
     fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("could not be deleted");
+    fireEvent.click(screen.getByRole("button", { name: "Retry delete" }));
+    await waitFor(() => expect(screen.queryByText("Newest map")).not.toBeInTheDocument());
+    expect(deleteProject).toHaveBeenCalledWith(projects[0]);
+  });
+
+  it("reloads the library after a cross-tab project invalidation", async () => {
+    let listener: ((invalidation: VaultInvalidation) => void) | undefined;
+    const listProjects = vi
+      .fn()
+      .mockResolvedValueOnce(projects)
+      .mockResolvedValueOnce([projects[1]]);
+    const localVault = makeVault({
+      listProjects,
+      subscribeInvalidation: vi.fn((next) => {
+        listener = next;
+        return () => undefined;
+      }),
+    });
+    render(<AllMapsPage vault={localVault} />);
+    await screen.findByText("Newest map");
+
+    listener?.({
+      sourceId: "other-tab",
+      generation: "generation-1",
+      projectId: "newest",
+      projectRevision: null,
+      stores: ["projects"],
+      reason: "deletion",
+    });
 
     await waitFor(() => expect(screen.queryByText("Newest map")).not.toBeInTheDocument());
-    expect(global.fetch).toHaveBeenCalledWith("/api/projects/newest", { method: "DELETE" });
-  });
-
-  it("keeps Settings reachable through Account alongside Theme", async () => {
-    mockFetch();
-    render(<AllMapsPage />);
-
-    await screen.findByText("Newest map");
-    expect(screen.getByRole("button", { name: "Account" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Settings", hidden: true })).toHaveAttribute(
-      "href",
-      "/settings"
-    );
-    expect(screen.queryByRole("link", { name: "Admin" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /theme/i })).toBeInTheDocument();
-    expect(screen.queryByRole("tooltip", { name: "Settings" })).not.toBeInTheDocument();
-  });
-
-  it("directs an empty library to the single New Map action", async () => {
-    mockFetch({ projectResponses: [[]] });
-    render(<AllMapsPage />);
-
-    expect(await screen.findByText(/No maps yet\./)).toBeInTheDocument();
-    expect(screen.getAllByRole("link", { name: "New Map" })).toHaveLength(1);
+    expect(listProjects).toHaveBeenCalledTimes(2);
   });
 });

@@ -1,28 +1,24 @@
 import { canonicalProjectStartPath } from "@/lib/project-start";
 
-const APP_RESUME_MARKER = "resume";
+const LOCAL_PROJECT_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
 
-export const APP_RESUME_RECOVERY_PATH = "/app?resumeRecovery=1";
+export function buildLocalProjectPath(projectId: string) {
+  if (!LOCAL_PROJECT_ID_PATTERN.test(projectId)) {
+    throw new Error("Project ID contains unsupported characters");
+  }
+  return `/project/#${encodeURIComponent(projectId)}`;
+}
 
-export function buildAppResumeProjectPath(
-  projectId: string,
-  { recoverable = true }: { recoverable?: boolean } = {}
-) {
-  const projectPath = `/project/${encodeURIComponent(projectId)}`;
-  return recoverable ? `${projectPath}?${APP_RESUME_MARKER}=1` : projectPath;
+export function parseLocalProjectId(fragment: string) {
+  if (!fragment.startsWith("#") || fragment.length === 1) return null;
+  try {
+    const projectId = decodeURIComponent(fragment.slice(1));
+    return LOCAL_PROJECT_ID_PATTERN.test(projectId) ? projectId : null;
+  } catch {
+    return null;
+  }
 }
 
 export function appDestinationForBrowserUrl(browserUrl: string, serverDestination: string) {
   return canonicalProjectStartPath(browserUrl) ?? serverDestination;
-}
-
-export function hasAppResumeMarker(search: string) {
-  return new URLSearchParams(search).get(APP_RESUME_MARKER) === "1";
-}
-
-export function withoutAppResumeMarker(path: string) {
-  const parsed = new URL(path, "https://stackhatch.io");
-  parsed.searchParams.delete(APP_RESUME_MARKER);
-  const search = parsed.searchParams.toString();
-  return `${parsed.pathname}${search ? `?${search}` : ""}${parsed.hash}`;
 }

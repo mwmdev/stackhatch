@@ -13,15 +13,22 @@ function makeRequest(pathname: string) {
 }
 
 describe("proxy", () => {
-  it.each(["/", "/login", "/support", "/privacy", "/terms"])(
-    "allows public path %s",
-    async (pathname) => {
-      const response = await proxy(makeRequest(pathname));
+  it.each([
+    "/",
+    "/login",
+    "/support",
+    "/privacy",
+    "/terms",
+    "/app",
+    "/app/maps",
+    "/project",
+    "/project/new",
+  ])("allows public path %s", async (pathname) => {
+    const response = await proxy(makeRequest(pathname));
 
-      expect(response.headers.get("x-middleware-next")).toBe("1");
-      expect(getToken).not.toHaveBeenCalled();
-    }
-  );
+    expect(response.headers.get("x-middleware-next")).toBe("1");
+    expect(getToken).not.toHaveBeenCalled();
+  });
 
   it("returns a true 404 for the retired demo", async () => {
     const response = await proxy(makeRequest("/demo"));
@@ -42,23 +49,25 @@ describe("proxy", () => {
     }
   );
 
-  it("redirects protected paths to login when unauthenticated", async () => {
+  it("keeps legacy account settings protected until their U3 replacement", async () => {
     getToken.mockResolvedValueOnce(null);
 
-    const response = await proxy(makeRequest("/app"));
+    const response = await proxy(makeRequest("/settings"));
 
     expect(response.status).toBe(307);
     expect(response.headers.get("location")).toContain("/login");
-    expect(new URL(response.headers.get("location")!).searchParams.get("callbackUrl")).toBe("/app");
+    expect(new URL(response.headers.get("location")!).searchParams.get("callbackUrl")).toBe(
+      "/settings"
+    );
   });
 
   it("preserves a protected path and query without copying the origin", async () => {
     getToken.mockResolvedValueOnce(null);
 
-    const response = await proxy(makeRequest("/app?repo=acme%2Fapi"));
+    const response = await proxy(makeRequest("/settings?setup=anthropic"));
 
     expect(new URL(response.headers.get("location")!).searchParams.get("callbackUrl")).toBe(
-      "/app?repo=acme%2Fapi"
+      "/settings?setup=anthropic"
     );
   });
 });
