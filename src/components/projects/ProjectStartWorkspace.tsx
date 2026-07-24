@@ -24,6 +24,7 @@ import {
   consumeBlankAutoCreateIntent,
   markProjectStart,
   PROJECT_START_METHODS,
+  projectStartMethodFromPath,
   repositoryFromProjectStartPath,
   returnPathFromProjectStartPath,
   type ProjectStartMethod,
@@ -150,8 +151,8 @@ export default function ProjectStartWorkspace({ initialMode, vault }: ProjectSta
   }, []);
 
   useEffect(() => {
-    setMode(initialMode);
     const browserPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    setMode(projectStartMethodFromPath(browserPath) ?? initialMode);
     setRepoUrl(repositoryFromProjectStartPath(browserPath) ?? "");
     setReturnPath(returnPathFromProjectStartPath(browserPath));
     setError("");

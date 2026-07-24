@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import NewProjectPage from "./page";
 
@@ -11,29 +11,9 @@ vi.mock("@/components/projects/ProjectStartWorkspace", () => ({
 }));
 
 describe("NewProjectPage", () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  it.each(["blank", "requirements", "repository", "template"])(
-    "passes the non-sensitive %s mode to the client workspace",
-    async (mode) => {
-      render(await NewProjectPage({ searchParams: Promise.resolve({ mode }) }));
-      expect(screen.getByTestId("project-start-workspace")).toHaveAttribute("data-mode", mode);
-    }
-  );
-
-  it("does not pass repository or return identifiers through server-visible query input", async () => {
-    render(
-      await NewProjectPage({
-        searchParams: Promise.resolve({
-          mode: "repository",
-          repo: "acme/private-context",
-          returnTo: "/project/#local-map",
-        } as { mode: string }),
-      })
-    );
-
-    expect(mockWorkspace).toHaveBeenCalledWith({
-      initialMode: "repository",
-    });
+  it("renders one static shell and leaves all URL context to the browser workspace", () => {
+    render(<NewProjectPage />);
+    expect(screen.getByTestId("project-start-workspace")).toHaveAttribute("data-mode", "chooser");
+    expect(mockWorkspace).toHaveBeenCalledWith({ initialMode: null });
   });
 });

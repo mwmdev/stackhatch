@@ -48,13 +48,9 @@ export function buildProjectStartPath(
   return `/project/new?${params.toString()}${hash ? `#${hash}` : ""}`;
 }
 
-export function buildProjectStartLoginUrl(method: ProjectStartMethod, repository?: string) {
-  return `/login?callbackUrl=${encodeURIComponent(buildProjectStartPath(method, { repository }))}`;
-}
-
 /**
  * Return an internal application path while rejecting external and scheme-relative redirects.
- * Same-origin absolute URLs are accepted for compatibility with existing authentication links.
+ * Same-origin absolute URLs are accepted for compatibility with existing entry links.
  */
 export function safeInternalPath(
   value: string | null | undefined,
@@ -63,8 +59,7 @@ export function safeInternalPath(
 ) {
   if (!value) return fallback;
 
-  const configuredOrigin =
-    siteOrigin || process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXTAUTH_URL;
+  const configuredOrigin = siteOrigin || process.env.NEXT_PUBLIC_SITE_URL;
   const baseOrigin = configuredOrigin || "https://stackhatch.io";
 
   try {
@@ -158,22 +153,6 @@ export function canonicalProjectStartPath(path: string) {
     });
   } catch {
     return null;
-  }
-}
-
-export function callbackUrlWithLegacyFragment(callbackUrl: string, fragment: string) {
-  if (fragment !== "#start") return callbackUrl;
-
-  try {
-    const parsed = new URL(callbackUrl, "https://stackhatch.io");
-    if (parsed.origin !== "https://stackhatch.io" || parsed.pathname !== "/app") {
-      return callbackUrl;
-    }
-    return (
-      canonicalProjectStartPath(`${parsed.pathname}${parsed.search}${fragment}`) ?? callbackUrl
-    );
-  } catch {
-    return callbackUrl;
   }
 }
 

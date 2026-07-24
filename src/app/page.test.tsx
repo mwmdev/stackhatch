@@ -12,11 +12,6 @@ vi.mock("next-themes", () => ({
   useTheme: () => ({ theme: "light", setTheme: vi.fn() }),
 }));
 
-vi.mock("@/lib/github-stars", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/github-stars")>();
-  return { ...actual, getGitHubStarCount: vi.fn().mockResolvedValue(128) };
-});
-
 async function renderLandingPage() {
   render(await LandingPage());
 }
@@ -60,15 +55,10 @@ describe("LandingPage", () => {
     ).toBeInTheDocument();
   });
 
-  it("uses one inert architectural stack as decoration", async () => {
+  it("uses no decorative architecture illustration", async () => {
     await renderLandingPage();
 
-    const illustrations = document.querySelectorAll('[data-stack-illustration="true"]');
-    expect(illustrations).toHaveLength(1);
-    expect(illustrations[0]).toHaveAttribute("aria-hidden", "true");
-    expect(illustrations[0]).toHaveAttribute("focusable", "false");
-    expect(illustrations[0]).toHaveStyle({ pointerEvents: "none" });
-    expect(illustrations[0].closest('[data-stack-illustration-clip="true"]')).toBeInTheDocument();
+    expect(document.querySelector("[data-stack-illustration]")).not.toBeInTheDocument();
   });
 
   it("separates concrete trust, product capabilities, and the working loop", async () => {
@@ -122,9 +112,10 @@ describe("LandingPage", () => {
   it("keeps GitHub adoption visible without pricing claims", async () => {
     await renderLandingPage();
 
-    expect(
-      screen.getByRole("link", { name: /Star StackHatch on GitHub — 128 stars/i })
-    ).toHaveAttribute("href", "https://github.com/mwmdev/stackhatch");
+    expect(screen.getByRole("link", { name: "Star StackHatch on GitHub" })).toHaveAttribute(
+      "href",
+      "https://github.com/mwmdev/stackhatch"
+    );
     expect(screen.queryByRole("link", { name: /pricing|plans/i })).not.toBeInTheDocument();
   });
 
@@ -133,9 +124,7 @@ describe("LandingPage", () => {
 
     expect(screen.getByRole("link", { name: "Features" })).toHaveAttribute("href", "#features");
     expect(screen.queryByRole("link", { name: "Product" })).not.toBeInTheDocument();
-    for (const signIn of screen.getAllByRole("link", { name: "Sign in" })) {
-      expect(signIn).toHaveAttribute("href", "/login?callbackUrl=/app");
-    }
+    expect(screen.queryByRole("link", { name: "Sign in" })).not.toBeInTheDocument();
     for (const support of screen.getAllByRole("link", { name: "Support" })) {
       expect(support).toHaveAttribute("href", "/support");
     }

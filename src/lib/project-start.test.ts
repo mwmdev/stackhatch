@@ -1,8 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
-  buildProjectStartLoginUrl,
   buildProjectStartPath,
-  callbackUrlWithLegacyFragment,
   canonicalProjectStartPath,
   consumePendingBlankProjectStart,
   consumeProjectStartMethod,
@@ -26,9 +24,6 @@ describe("project start contract", () => {
       "/project/new?mode=repository#repo=acme%2Fplatform.api"
     );
     expect(buildProjectStartPath("template")).toBe("/project/new?mode=template");
-    expect(buildProjectStartLoginUrl("repository", "acme/api")).toBe(
-      "/login?callbackUrl=%2Fproject%2Fnew%3Fmode%3Drepository%23repo%3Dacme%252Fapi"
-    );
     expect(
       buildProjectStartPath("repository", {
         repository: "acme/api",
@@ -93,15 +88,6 @@ describe("project start contract", () => {
         "/project/new?mode=repository#repo=https%3A%2F%2Fevil.example&returnTo=https%3A%2F%2Fevil.example"
       )
     ).toBe("/project/new?mode=repository");
-  });
-
-  it("preserves an inherited legacy fragment through the login boundary", () => {
-    expect(callbackUrlWithLegacyFragment("/app", "#start")).toBe("/project/new");
-    expect(callbackUrlWithLegacyFragment("/app?repo=acme%2Fapi", "#start")).toBe(
-      "/project/new?mode=repository#repo=acme%2Fapi"
-    );
-    expect(callbackUrlWithLegacyFragment("/project/map-1", "#start")).toBe("/project/map-1");
-    expect(callbackUrlWithLegacyFragment("/app", "#other")).toBe("/app");
   });
 
   it("allows internal and same-origin paths while rejecting unsafe redirects", () => {

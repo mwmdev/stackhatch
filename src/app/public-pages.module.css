@@ -1,113 +1,7 @@
-.loginShell :global(.page-shell__main) {
-  display: grid;
-  width: min(100%, 68rem);
-  max-width: none;
-  align-items: center;
-  grid-template-columns: minmax(0, 1fr) minmax(20rem, 0.78fr);
-  gap: clamp(2.5rem, 7vw, 7rem);
-  padding-block: clamp(3.5rem, 10vh, 7.5rem);
-  text-align: left;
-}
-
-.loginShell :global(.page-shell__heading) {
-  max-width: 36rem;
-  margin: 0;
-}
-
-.loginShell :global(.page-shell__title) {
-  font-size: clamp(2.75rem, 6vw, 5.25rem);
-  line-height: 0.96;
-}
-
-.loginShell :global(.page-shell__content) {
-  min-width: 0;
-  margin-top: 0;
-}
-
-.loginPanel {
-  position: relative;
-  padding: clamp(1.5rem, 4vw, 2.25rem);
-  border: 1px solid var(--boundary);
-  border-radius: var(--radius-surface);
-  background: color-mix(in srgb, var(--paper) 96%, transparent);
-  box-shadow: var(--shadow-low);
-}
-
-.instrumentLabel {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  margin: 0 0 1.5rem;
-  color: var(--muted-foreground);
-  font-family: var(--font-utility), ui-monospace, monospace;
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.instrumentLabel::before {
-  width: 0.55rem;
-  height: 0.55rem;
-  border: 1px solid var(--blueprint);
-  background: var(--paper);
-  content: "";
-}
-
-.loginContext {
-  margin: 0;
-  color: var(--foreground);
-  font-family: var(--font-display), sans-serif;
-  font-size: 1.25rem;
-  font-weight: 750;
-  letter-spacing: -0.025em;
-}
-
-.loginDescription {
-  margin: 0.65rem 0 1.5rem;
-  color: var(--muted-foreground);
-  font-size: 0.9rem;
-  line-height: 1.65;
-}
-
-.githubButton {
-  display: flex;
-  width: 100%;
-  min-height: 3rem;
-  align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
-  padding: 0.75rem 1rem;
-  border: 1px solid var(--blueprint);
-  border-radius: var(--radius-control);
-  color: var(--brand-foreground);
-  background: var(--brand);
-  font-size: 0.875rem;
-  font-weight: 750;
-  transition:
-    border-color 160ms ease,
-    background-color 160ms ease;
-}
-
-.githubButton:hover {
-  border-color: var(--brand-hover);
-  background: var(--brand-hover);
-}
-
-.githubButton:focus-visible,
 .sectionNav a:focus-visible,
 .actionLink:focus-visible {
   outline: 3px solid color-mix(in srgb, var(--ring) 45%, transparent);
   outline-offset: 2px;
-}
-
-.loginDisclaimer {
-  margin: 1.5rem 0 0;
-  padding-top: 1rem;
-  border-top: 1px solid var(--boundary);
-  color: var(--muted-foreground);
-  font-size: 0.75rem;
-  line-height: 1.6;
 }
 
 .supportShell :global(.page-shell__main),
@@ -316,16 +210,6 @@
 }
 
 @media (max-width: 760px) {
-  .loginShell :global(.page-shell__main) {
-    grid-template-columns: 1fr;
-    gap: 2.5rem;
-    padding-block: 3rem 4rem;
-  }
-
-  .loginShell :global(.page-shell__title) {
-    font-size: clamp(2.5rem, 13vw, 4rem);
-  }
-
   .publicLayout {
     grid-template-columns: 1fr;
     gap: 2rem;
@@ -366,10 +250,6 @@
 }
 
 @media (max-width: 430px) {
-  .loginPanel {
-    padding: 1.25rem;
-  }
-
   .trustActions,
   .sourceActions {
     width: 100%;

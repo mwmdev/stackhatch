@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { ArrowRight, BookOpen, GitBranch, LifeBuoy, Mail, ShieldCheck, Star } from "lucide-react";
-import TrackedSourceLink from "@/components/public/TrackedSourceLink";
 import PublicPageShell from "@/components/shells/PublicPageShell";
 import styles from "../public-pages.module.css";
 
@@ -101,27 +100,24 @@ export default function SupportPage() {
           <section className={styles.sourcePanel}>
             <p>StackHatch is open source and developed in public.</p>
             <div className={styles.sourceActions}>
-              <TrackedSourceLink
+              <a
                 href="https://github.com/mwmdev/stackhatch"
                 target="_blank"
                 rel="noreferrer"
                 className={styles.actionLink}
-                location="navigation"
               >
                 <GitBranch className="h-4 w-4" />
                 View source
-              </TrackedSourceLink>
-              <TrackedSourceLink
+              </a>
+              <a
                 href="https://github.com/mwmdev/stackhatch"
                 target="_blank"
                 rel="noreferrer"
                 className={styles.actionLink}
-                location="navigation"
-                intent="star"
               >
                 <Star className="h-4 w-4" />
                 Star on GitHub
-              </TrackedSourceLink>
+              </a>
             </div>
           </section>
         </div>

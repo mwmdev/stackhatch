@@ -100,7 +100,6 @@
 }
 
 .navLinks > a,
-.signInLink,
 .navStartLink {
   display: inline-flex;
   min-height: 44px;
@@ -117,8 +116,7 @@
     border-color 160ms ease;
 }
 
-.navLinks > a:hover,
-.signInLink:hover {
+.navLinks > a:hover {
   color: var(--foreground);
   background: var(--muted);
 }
@@ -159,16 +157,6 @@
   align-items: center;
   grid-template-columns: minmax(0, 1fr) minmax(540px, 1.08fr);
   gap: clamp(40px, 4vw, 56px);
-}
-
-.heroIllustration {
-  top: auto;
-  right: clamp(-120px, -6vw, -72px);
-  bottom: clamp(34px, 5vw, 68px);
-  z-index: 0;
-  width: clamp(30rem, 52vw, 48rem);
-  height: clamp(9rem, 15vw, 13rem);
-  opacity: 0.48;
 }
 
 .eyebrow {
@@ -214,8 +202,7 @@
 }
 
 .primaryAction,
-.secondaryAction,
-.finalSignInLink {
+.secondaryAction {
   display: inline-flex;
   min-height: 50px;
   align-items: center;
@@ -555,16 +542,6 @@
   gap: 10px;
 }
 
-.finalSignInLink {
-  border-color: var(--landing-contrast-boundary);
-  color: var(--landing-on-contrast);
-}
-
-.finalSignInLink:hover {
-  border-color: var(--landing-on-contrast-muted);
-  color: var(--landing-on-contrast);
-}
-
 .footer {
   display: flex;
   min-height: 166px;
@@ -694,14 +671,6 @@
     margin: 0 !important;
   }
 
-  .heroIllustration {
-    right: -10rem;
-    bottom: 18px;
-    width: 28rem;
-    height: 8rem;
-    opacity: 0.32;
-  }
-
   .trustInner {
     grid-template-columns: 1fr;
   }
@@ -786,10 +755,6 @@
 }
 
 @media (max-width: 560px) {
-  .signInLink {
-    display: none;
-  }
-
   .navStartLink {
     padding-inline: 12px;
   }

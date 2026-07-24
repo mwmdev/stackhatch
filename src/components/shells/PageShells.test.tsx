@@ -12,7 +12,7 @@ describe("PublicPageShell", () => {
         eyebrow="Privacy"
         title="Privacy policy"
         description="How project data is handled."
-        actions={<a href="/login">Sign in</a>}
+        actions={<a href="/app">Open app</a>}
         footer={<p>Last updated today.</p>}
         width="reading"
       >
@@ -23,16 +23,13 @@ describe("PublicPageShell", () => {
     expect(screen.getAllByRole("main")).toHaveLength(1);
     expect(screen.getByRole("heading", { level: 1, name: "Privacy policy" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "StackHatch home" })).toHaveAttribute("href", "/");
-    expect(screen.getByRole("link", { name: "Sign in" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open app" })).toBeInTheDocument();
     expect(screen.getByText("How project data is handled.")).toBeInTheDocument();
     expect(screen.getByText("Policy content")).toBeInTheDocument();
     expect(screen.getByText("Last updated today.")).toBeInTheDocument();
     expect(screen.getByRole("main")).toHaveAttribute("data-width", "reading");
 
-    const illustrations = container.querySelectorAll('[data-stack-illustration="true"]');
-    expect(illustrations).toHaveLength(1);
-    expect(illustrations[0]).toHaveAttribute("aria-hidden", "true");
-    expect(illustrations[0]).toHaveAttribute("focusable", "false");
+    expect(container.querySelector("[data-stack-illustration]")).not.toBeInTheDocument();
   });
 
   it("provides the shared public footer when no custom footer is supplied", () => {
@@ -60,7 +57,7 @@ describe("AppPageShell", () => {
         description="Manage your workspace."
         navigation={<a href="/app">Maps</a>}
         actions={<button type="button">Save</button>}
-        footer={<p>Account footer</p>}
+        footer={<p>Device footer</p>}
         density="dense"
       >
         <section>Settings form</section>
@@ -76,15 +73,12 @@ describe("AppPageShell", () => {
     expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
     expect(screen.getByText("Manage your workspace.")).toBeInTheDocument();
     expect(screen.getByText("Settings form")).toBeInTheDocument();
-    expect(screen.getByText("Account footer")).toBeInTheDocument();
+    expect(screen.getByText("Device footer")).toBeInTheDocument();
     expect(screen.getByRole("main").closest(".app-page-shell")).toHaveAttribute(
       "data-density",
       "dense"
     );
 
-    const illustrations = container.querySelectorAll('[data-stack-illustration="true"]');
-    expect(illustrations).toHaveLength(1);
-    expect(illustrations[0]).toHaveAttribute("aria-hidden", "true");
-    expect(illustrations[0]).toHaveAttribute("focusable", "false");
+    expect(container.querySelector("[data-stack-illustration]")).not.toBeInTheDocument();
   });
 });

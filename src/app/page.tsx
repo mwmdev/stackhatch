@@ -11,11 +11,8 @@ import {
   Star,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
-import TrackedSourceLink from "@/components/public/TrackedSourceLink";
-import StackIllustration from "@/components/shells/StackIllustration";
 import StackHatchWordmark from "@/components/shells/StackHatchWordmark";
 import IconControl from "@/components/ui/IconControl";
-import { formatGitHubStarCount, getGitHubStarCount } from "@/lib/github-stars";
 import styles from "./landing.module.css";
 
 export const metadata = {
@@ -63,10 +60,7 @@ const WORKFLOW = [
   },
 ] as const;
 
-export default async function LandingPage() {
-  const githubStars = await getGitHubStarCount();
-  const starCount = githubStars === null ? null : formatGitHubStarCount(githubStars);
-
+export default function LandingPage() {
   return (
     <div className={styles.landingPage}>
       <header className={styles.header}>
@@ -77,28 +71,19 @@ export default async function LandingPage() {
             <div className={styles.navLinks}>
               <a href="#features">Features</a>
               <a href="#workflow">How it works</a>
-              <TrackedSourceLink
+              <a
                 href="https://github.com/mwmdev/stackhatch"
                 target="_blank"
                 rel="noreferrer"
                 className={styles.githubStarLink}
-                location="navigation"
-                intent="star"
-                aria-label={
-                  starCount === null
-                    ? "Star StackHatch on GitHub"
-                    : `Star StackHatch on GitHub — ${starCount} stars`
-                }
+                aria-label="Star StackHatch on GitHub"
               >
                 <Star aria-hidden="true" />
-                {starCount ?? "GitHub"}
-              </TrackedSourceLink>
+                GitHub
+              </a>
             </div>
 
             <div className={styles.navActions}>
-              <Link href="/login?callbackUrl=/app" className={styles.signInLink}>
-                Sign in
-              </Link>
               <IconControl href="/support" label="Support" tooltipPlacement="bottom">
                 <CircleHelp />
               </IconControl>
@@ -113,7 +98,6 @@ export default async function LandingPage() {
 
       <main>
         <section className={styles.hero} aria-labelledby="hero-heading" data-landing-region="hero">
-          <StackIllustration variant="compact" className={styles.heroIllustration} />
           <div className={styles.heroInner}>
             <div className={styles.heroCopy} data-testid="hero-copy">
               <p className={styles.eyebrow}>Architecture workspace</p>
@@ -189,20 +173,14 @@ export default async function LandingPage() {
                 <h2>Open source on GitHub.</h2>
                 <p>
                   Inspect the code or contribute.{" "}
-                  <TrackedSourceLink
+                  <a
                     href="https://github.com/mwmdev/stackhatch"
                     target="_blank"
                     rel="noreferrer"
-                    location="navigation"
-                    intent="star"
-                    aria-label={
-                      starCount === null
-                        ? "View StackHatch on GitHub"
-                        : `View StackHatch on GitHub — ${starCount} stars`
-                    }
+                    aria-label="View StackHatch on GitHub"
                   >
-                    {starCount === null ? "View on GitHub" : `${starCount} stars`}
-                  </TrackedSourceLink>
+                    View on GitHub
+                  </a>
                 </p>
               </div>
             </article>
@@ -280,9 +258,6 @@ export default async function LandingPage() {
                 Start a map
                 <ArrowRight aria-hidden="true" />
               </Link>
-              <Link href="/login?callbackUrl=/app" className={styles.finalSignInLink}>
-                Sign in
-              </Link>
             </div>
           </div>
         </section>
@@ -294,14 +269,9 @@ export default async function LandingPage() {
           <p>Architecture you can see, question, and revisit.</p>
         </div>
         <nav aria-label="Footer navigation">
-          <TrackedSourceLink
-            href="https://github.com/mwmdev/stackhatch"
-            target="_blank"
-            rel="noreferrer"
-            location="navigation"
-          >
+          <a href="https://github.com/mwmdev/stackhatch" target="_blank" rel="noreferrer">
             Source
-          </TrackedSourceLink>
+          </a>
           <Link href="/support">Support</Link>
           <Link href="/privacy">Privacy</Link>
           <Link href="/terms">Terms</Link>

@@ -1,8 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FolderPlus } from "lucide-react";
-import AccountMenu from "@/components/AccountMenu";
+import { FolderPlus, Settings } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 
 export type AppPageActionsProps = {
@@ -19,9 +18,16 @@ export default function AppPageActions({ settingsActive = false }: AppPageAction
         <FolderPlus className="h-4 w-4" aria-hidden="true" />
         New Map
       </Link>
-      <div className="flex items-center gap-1" role="group" aria-label="Account controls">
+      <div className="flex items-center gap-1" role="group" aria-label="Device controls">
         <ThemeToggle />
-        <AccountMenu settingsActive={settingsActive} />
+        <Link
+          href="/settings"
+          aria-label="Device settings"
+          aria-current={settingsActive ? "page" : undefined}
+          className="inline-flex h-11 w-11 items-center justify-center rounded-[var(--radius-control)] text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
+        >
+          <Settings className="h-5 w-5" aria-hidden="true" />
+        </Link>
       </div>
     </>
   );

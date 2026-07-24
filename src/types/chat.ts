@@ -1,4 +1,4 @@
-/** A chat message as stored in the database */
+/** A chat message stored in the device vault. */
 export interface ChatMessage {
   id: string;
   projectId: string;
@@ -6,10 +6,3 @@ export interface ChatMessage {
   content: string;
   createdAt: number;
 }
-
-/** SSE event types sent from the chat API */
-export type ChatSSEEvent =
-  | { type: "text"; content: string }
-  | { type: "architecture"; content: object }
-  | { type: "error"; content: string }
-  | { type: "done" };

@@ -1,8 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import ThemeToggle from "../ThemeToggle";
-import TrackedSourceLink from "../public/TrackedSourceLink";
-import StackIllustration from "./StackIllustration";
 import StackHatchWordmark from "./StackHatchWordmark";
 
 export type PublicPageShellProps = {
@@ -23,14 +21,9 @@ function PublicPageFooter() {
     <div className="public-page-shell__footer-inner">
       <span className="font-display font-bold text-[var(--foreground)]">StackHatch</span>
       <nav aria-label="Footer navigation" className="public-page-shell__footer-links">
-        <TrackedSourceLink
-          href="https://github.com/mwmdev/stackhatch"
-          target="_blank"
-          rel="noreferrer"
-          location="navigation"
-        >
+        <a href="https://github.com/mwmdev/stackhatch" target="_blank" rel="noreferrer">
           Source
-        </TrackedSourceLink>
+        </a>
         <Link href="/support">Support</Link>
         <Link href="/privacy">Privacy</Link>
         <Link href="/terms">Terms</Link>
@@ -53,7 +46,6 @@ export default function PublicPageShell({
 }: PublicPageShellProps) {
   return (
     <div className={["page-shell public-page-shell", className].filter(Boolean).join(" ")}>
-      <StackIllustration variant="shell" />
       <header className="page-shell__site-header">
         <div className="page-shell__bar">
           <StackHatchWordmark href={homeHref} label={homeLabel} />
