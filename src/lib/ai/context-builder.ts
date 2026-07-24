@@ -1,6 +1,7 @@
-import type Anthropic from "@anthropic-ai/sdk";
 import type { ChatMessage } from "@/types/chat";
 import type { StackArchitecture, StackEdge, StackNode } from "@/types/stack";
+
+export type ProviderMessage = Pick<ChatMessage, "role" | "content">;
 
 function stripStackTags(text: string): string {
   return text
@@ -69,9 +70,9 @@ export function buildMessages(
   chatHistory: ChatMessage[],
   currentArchitecture: StackArchitecture | null,
   options: { nodeLockingEnabled?: boolean } = {}
-): Anthropic.MessageParam[] {
-  const msgs: Anthropic.MessageParam[] = [];
-  const sanitizedHistory: Anthropic.MessageParam[] = chatHistory
+): ProviderMessage[] {
+  const msgs: ProviderMessage[] = [];
+  const sanitizedHistory: ProviderMessage[] = chatHistory
     .map((msg) => ({
       role: msg.role,
       content: msg.role === "assistant" ? stripStackTags(msg.content) : msg.content,

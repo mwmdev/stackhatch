@@ -9,16 +9,29 @@ export const REPO_ANALYSIS_LIMITS = {
   requestTimeoutMs: 10_000,
 } as const;
 
+export const GITHUB_API_ORIGIN = "https://api.github.com";
+export const GITHUB_REST_VERSION = "2022-11-28";
+
 export type RepoAnalysisErrorCode =
   | "invalid_url"
   | "not_found_or_private"
   | "github_rate_limited"
-  | "github_unavailable";
+  | "github_unavailable"
+  | "aborted";
+
+export interface GitHubRateLimit {
+  kind: "primary" | "secondary";
+  retryAt: number | null;
+  remaining: number | null;
+  resetAt: number | null;
+}
 
 export class RepoAnalysisError extends Error {
   constructor(
     public readonly code: RepoAnalysisErrorCode,
-    message: string
+    message: string,
+    public readonly retryAt: number | null = null,
+    public readonly rateLimit: GitHubRateLimit | null = null
   ) {
     super(message);
     this.name = "RepoAnalysisError";
@@ -35,6 +48,23 @@ export interface GitHubRepoReference {
 export interface RepoEvidenceFile {
   path: string;
   content: string;
+  etag: string | null;
+  fromCache: boolean;
+  truncated: boolean;
+}
+
+export interface RepoEvidenceCacheEntry {
+  content: string;
+  etag: string;
+  truncated: boolean;
+}
+
+export interface RepoAnalysisOptions {
+  fetch?: typeof globalThis.fetch;
+  signal?: AbortSignal;
+  evidenceCache?: Readonly<Record<string, RepoEvidenceCacheEntry>>;
+  now?: () => number;
+  requestTimeoutMs?: number;
 }
 
 export interface RepoAnalysis {
@@ -80,6 +110,13 @@ interface GitHubContentResponse {
   content?: string;
   encoding?: string;
   size?: number;
+}
+
+interface GitHubRequestContext {
+  fetch: typeof globalThis.fetch;
+  signal?: AbortSignal;
+  now: () => number;
+  requestTimeoutMs: number;
 }
 
 const IGNORED_PATH_SEGMENTS = new Set([
@@ -203,7 +240,13 @@ export function parseGitHubRepoReference(input: string): GitHubRepoReference | n
       return null;
     }
 
-    if (!/^(?:www\.)?github\.com$/i.test(url.hostname) || url.username || url.password) {
+    if (
+      url.protocol !== "https:" ||
+      !/^(?:www\.)?github\.com$/i.test(url.hostname) ||
+      url.port ||
+      url.username ||
+      url.password
+    ) {
       return null;
     }
 
@@ -230,14 +273,59 @@ export function parseGitHubUrl(input: string): { owner: string; repo: string } |
   return parsed ? { owner: parsed.owner, repo: parsed.repo } : null;
 }
 
-function responseError(response: Response): RepoAnalysisError {
+function numericHeader(headers: Headers, name: string): number | null {
+  const value = headers.get(name);
+  if (value === null || !/^\d+$/.test(value.trim())) return null;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) ? parsed : null;
+}
+
+const MAX_DATE_TIMESTAMP = 8_640_000_000_000_000;
+
+function validTimestamp(value: number): number | null {
+  return Number.isFinite(value) && value >= 0 && value <= MAX_DATE_TIMESTAMP ? value : null;
+}
+
+function retryAtFromHeaders(headers: Headers, now: number): number | null {
+  const retryAfter = headers.get("retry-after")?.trim();
+  if (retryAfter) {
+    if (/^\d+$/.test(retryAfter)) {
+      const seconds = Number(retryAfter);
+      if (Number.isSafeInteger(seconds)) {
+        const timestamp = validTimestamp(now + seconds * 1_000);
+        if (timestamp !== null) return timestamp;
+      }
+    }
+    const retryDate = Date.parse(retryAfter);
+    const timestamp = validTimestamp(retryDate);
+    if (timestamp !== null) return timestamp;
+  }
+
+  const reset = numericHeader(headers, "x-ratelimit-reset");
+  return reset === null ? null : validTimestamp(reset * 1_000);
+}
+
+function responseError(response: Response, now: number): RepoAnalysisError {
   if (response.status === 404) {
     return new RepoAnalysisError("not_found_or_private", "Repository not found or is private.");
   }
   if (response.status === 403 || response.status === 429) {
+    const remaining = numericHeader(response.headers, "x-ratelimit-remaining");
+    const reset = numericHeader(response.headers, "x-ratelimit-reset");
+    const retryAt = retryAtFromHeaders(response.headers, now);
+    const rateLimit: GitHubRateLimit = {
+      kind: response.status === 403 && remaining === 0 ? "primary" : "secondary",
+      retryAt,
+      remaining,
+      resetAt: reset === null ? null : validTimestamp(reset * 1_000),
+    };
     return new RepoAnalysisError(
       "github_rate_limited",
-      "GitHub's API limit was reached. Wait a few minutes and try again."
+      retryAt === null
+        ? "GitHub's API limit was reached. Try again later or choose another creation method."
+        : `GitHub's API limit was reached. Try again after ${new Date(retryAt).toISOString()} or choose another creation method.`,
+      retryAt,
+      rateLimit
     );
   }
   return new RepoAnalysisError(
@@ -246,31 +334,101 @@ function responseError(response: Response): RepoAnalysisError {
   );
 }
 
-async function ghFetch(path: string): Promise<Response> {
-  const token = process.env.GITHUB_TOKEN?.trim();
+function githubUrl(path: string): URL {
+  if (!path.startsWith("/")) {
+    throw new RepoAnalysisError(
+      "github_unavailable",
+      "GitHub request construction failed. Try the scan again."
+    );
+  }
+  const url = new URL(path, GITHUB_API_ORIGIN);
+  if (url.origin !== GITHUB_API_ORIGIN) {
+    throw new RepoAnalysisError(
+      "github_unavailable",
+      "GitHub request construction failed. Try the scan again."
+    );
+  }
+  return url;
+}
+
+async function ghFetch(
+  path: string,
+  context: GitHubRequestContext,
+  extraHeaders: HeadersInit = {}
+): Promise<Response> {
+  if (context.signal?.aborted) {
+    throw new RepoAnalysisError("aborted", "The GitHub scan was cancelled.");
+  }
+
+  const url = githubUrl(path);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), context.requestTimeoutMs);
+  const forwardAbort = () => controller.abort();
+  context.signal?.addEventListener("abort", forwardAbort, { once: true });
+
   try {
-    return await fetch(`https://api.github.com${path}`, {
+    const response = await context.fetch(url.toString(), {
+      method: "GET",
       headers: {
         Accept: "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
-        "User-Agent": "StackHatch",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        "X-GitHub-Api-Version": GITHUB_REST_VERSION,
+        ...Object.fromEntries(new Headers(extraHeaders)),
       },
-      signal: AbortSignal.timeout(REPO_ANALYSIS_LIMITS.requestTimeoutMs),
+      credentials: "omit",
+      redirect: "manual",
+      referrerPolicy: "no-referrer",
+      signal: controller.signal,
     });
-  } catch {
+
+    const responseOrigin = response.url ? new URL(response.url).origin : GITHUB_API_ORIGIN;
+    if (
+      response.redirected ||
+      (response.status >= 300 && response.status < 400 && response.status !== 304) ||
+      responseOrigin !== GITHUB_API_ORIGIN
+    ) {
+      throw new RepoAnalysisError(
+        "github_unavailable",
+        "GitHub returned an unsupported redirect. Try the scan again."
+      );
+    }
+    return response;
+  } catch (error) {
+    if (error instanceof RepoAnalysisError) throw error;
+    if (context.signal?.aborted) {
+      throw new RepoAnalysisError("aborted", "The GitHub scan was cancelled.");
+    }
     throw new RepoAnalysisError(
       "github_unavailable",
       "GitHub could not be reached. Try the scan again in a moment."
     );
+  } finally {
+    clearTimeout(timeout);
+    context.signal?.removeEventListener("abort", forwardAbort);
   }
 }
 
-async function getRequiredJson<T>(path: string): Promise<T> {
-  const response = await ghFetch(path);
-  if (!response.ok) throw responseError(response);
+async function withStageAbort<T>(
+  context: GitHubRequestContext,
+  run: (stageContext: GitHubRequestContext) => Promise<T>
+): Promise<T> {
+  const controller = new AbortController();
+  const forwardAbort = () => controller.abort();
+  context.signal?.addEventListener("abort", forwardAbort, { once: true });
+  if (context.signal?.aborted) controller.abort();
+
   try {
-    return (await response.json()) as T;
+    return await run({ ...context, signal: controller.signal });
+  } catch (error) {
+    controller.abort();
+    throw error;
+  } finally {
+    context.signal?.removeEventListener("abort", forwardAbort);
+  }
+}
+
+async function readJson(response: Response): Promise<unknown> {
+  try {
+    return await response.json();
   } catch {
     throw new RepoAnalysisError(
       "github_unavailable",
@@ -279,19 +437,34 @@ async function getRequiredJson<T>(path: string): Promise<T> {
   }
 }
 
-async function getOptionalJson<T>(path: string): Promise<T | null> {
-  const response = await ghFetch(path);
-  if (response.status === 404) return null;
-  if (!response.ok) throw responseError(response);
-  try {
-    return (await response.json()) as T;
-  } catch {
-    return null;
-  }
+async function getRequiredJson(path: string, context: GitHubRequestContext): Promise<unknown> {
+  const response = await ghFetch(path, context);
+  if (!response.ok) throw responseError(response, context.now());
+  return readJson(response);
 }
 
 function decodeBase64(content: string): string {
-  return Buffer.from(content.replace(/\n/g, ""), "base64").toString("utf8");
+  try {
+    const binary = atob(content.replace(/\s/g, ""));
+    const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    throw new RepoAnalysisError(
+      "github_unavailable",
+      "GitHub returned unreadable repository content."
+    );
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function requiredString(value: unknown, message: string): string {
+  if (typeof value !== "string" || value.length === 0 || value.length > 512) {
+    throw new RepoAnalysisError("github_unavailable", message);
+  }
+  return value;
 }
 
 function isUsefulTreePath(path: string, type: GitHubTreeEntry["type"]): boolean {
@@ -305,6 +478,41 @@ function isUsefulTreePath(path: string, type: GitHubTreeEntry["type"]): boolean 
     if (extension && BINARY_EXTENSIONS.has(extension)) return false;
   }
   return type === "blob" || type === "tree";
+}
+
+function parseTreeEntries(values: unknown[]): {
+  entries: GitHubTreeEntry[];
+  malformed: boolean;
+} {
+  const entries: GitHubTreeEntry[] = [];
+  let malformed = false;
+
+  for (const value of values) {
+    if (!isRecord(value)) {
+      malformed = true;
+      continue;
+    }
+    const { path, type, sha, size } = value;
+    const validType = type === "blob" || type === "tree" || type === "commit";
+    const validPath =
+      typeof path === "string" && path.length > 0 && path.length <= 4_096 && !path.includes("\0");
+    const validSha = typeof sha === "string" && sha.length > 0 && sha.length <= 128;
+    const validSize =
+      type !== "blob" || (typeof size === "number" && Number.isSafeInteger(size) && size >= 0);
+
+    if (!validType || !validPath || !validSha || !validSize) {
+      malformed = true;
+      continue;
+    }
+    entries.push({
+      path,
+      type,
+      sha,
+      ...(typeof size === "number" ? { size } : {}),
+    });
+  }
+
+  return { entries, malformed };
 }
 
 function boundTree(entries: GitHubTreeEntry[]): { paths: string[]; truncated: boolean } {
@@ -364,18 +572,118 @@ function getEvidenceCandidates(entries: GitHubTreeEntry[]): {
 
 async function readGitHubContent(
   path: string,
-  maxCharacters: number
-): Promise<{ content: string | null; truncated: boolean }> {
-  const data = await getOptionalJson<GitHubContentResponse>(path);
-  if (!data?.content || data.encoding !== "base64") return { content: null, truncated: false };
-  const decoded = decodeBase64(data.content);
+  maxCharacters: number,
+  context: GitHubRequestContext,
+  cached?: RepoEvidenceCacheEntry
+): Promise<{
+  content: string | null;
+  truncated: boolean;
+  malformed: boolean;
+  etag: string | null;
+  fromCache: boolean;
+}> {
+  const response = await ghFetch(
+    path,
+    context,
+    cached ? { "If-None-Match": cached.etag } : undefined
+  );
+  if (response.status === 404) {
+    return {
+      content: null,
+      truncated: false,
+      malformed: false,
+      etag: null,
+      fromCache: false,
+    };
+  }
+  if (response.status === 304) {
+    if (!cached) {
+      throw new RepoAnalysisError(
+        "github_unavailable",
+        "GitHub returned an invalid cache response."
+      );
+    }
+    return {
+      content: cached.content.slice(0, maxCharacters),
+      truncated: cached.truncated || cached.content.length > maxCharacters,
+      malformed: false,
+      etag: response.headers.get("etag") ?? cached.etag,
+      fromCache: true,
+    };
+  }
+  if (!response.ok) throw responseError(response, context.now());
+
+  let value: unknown;
+  try {
+    value = await response.json();
+  } catch {
+    return {
+      content: null,
+      truncated: false,
+      malformed: true,
+      etag: response.headers.get("etag"),
+      fromCache: false,
+    };
+  }
+  if (!isRecord(value) || typeof value.content !== "string" || value.encoding !== "base64") {
+    return {
+      content: null,
+      truncated: false,
+      malformed: true,
+      etag: response.headers.get("etag"),
+      fromCache: false,
+    };
+  }
+
+  let decoded: string;
+  try {
+    decoded = decodeBase64(value.content);
+  } catch {
+    return {
+      content: null,
+      truncated: false,
+      malformed: true,
+      etag: response.headers.get("etag"),
+      fromCache: false,
+    };
+  }
   return {
     content: decoded.slice(0, maxCharacters),
     truncated: decoded.length > maxCharacters,
+    malformed: false,
+    etag: response.headers.get("etag"),
+    fromCache: false,
   };
 }
 
-export async function analyzeRepo(repoReference: string): Promise<RepoAnalysis> {
+async function allSettledWithConcurrency<T, R>(
+  values: readonly T[],
+  concurrency: number,
+  task: (value: T) => Promise<R>
+): Promise<PromiseSettledResult<R>[]> {
+  const results: PromiseSettledResult<R>[] = new Array(values.length);
+  let nextIndex = 0;
+
+  async function worker(): Promise<void> {
+    while (nextIndex < values.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      try {
+        results[index] = { status: "fulfilled", value: await task(values[index]) };
+      } catch (reason) {
+        results[index] = { status: "rejected", reason };
+      }
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(concurrency, values.length) }, () => worker()));
+  return results;
+}
+
+export async function analyzeRepo(
+  repoReference: string,
+  options: RepoAnalysisOptions = {}
+): Promise<RepoAnalysis> {
   const parsed = parseGitHubRepoReference(repoReference);
   if (!parsed) {
     throw new RepoAnalysisError(
@@ -384,72 +692,138 @@ export async function analyzeRepo(repoReference: string): Promise<RepoAnalysis> 
     );
   }
 
+  const context: GitHubRequestContext = {
+    fetch: options.fetch ?? globalThis.fetch,
+    signal: options.signal,
+    now: options.now ?? Date.now,
+    requestTimeoutMs: options.requestTimeoutMs ?? REPO_ANALYSIS_LIMITS.requestTimeoutMs,
+  };
   const repoPath = `/repos/${encodeURIComponent(parsed.owner)}/${encodeURIComponent(parsed.repo)}`;
-  const repoData = await getRequiredJson<GitHubRepoResponse>(repoPath);
+  const repoValue = await getRequiredJson(repoPath, context);
+  if (!isRecord(repoValue)) {
+    throw new RepoAnalysisError(
+      "github_unavailable",
+      "GitHub returned malformed repository metadata."
+    );
+  }
+  const repoData = repoValue as GitHubRepoResponse;
 
   if (repoData.private === true || (repoData.visibility && repoData.visibility !== "public")) {
     throw new RepoAnalysisError("not_found_or_private", "Repository not found or is private.");
   }
 
-  const defaultBranch = repoData.default_branch;
-  if (!defaultBranch) {
-    throw new RepoAnalysisError(
-      "github_unavailable",
-      "GitHub did not return a default branch for this repository."
-    );
+  const defaultBranch = requiredString(
+    repoData.default_branch,
+    "GitHub did not return a default branch for this repository."
+  );
+
+  const [languagesValue, commitValue] = await withStageAbort(context, (stageContext) =>
+    Promise.all([
+      getRequiredJson(`${repoPath}/languages`, stageContext),
+      getRequiredJson(`${repoPath}/commits/${encodeURIComponent(defaultBranch)}`, stageContext),
+    ])
+  );
+  if (!isRecord(languagesValue)) {
+    throw new RepoAnalysisError("github_unavailable", "GitHub returned malformed languages.");
+  }
+  const languages = Object.fromEntries(
+    Object.entries(languagesValue).filter(
+      (entry): entry is [string, number] =>
+        typeof entry[1] === "number" && Number.isFinite(entry[1]) && entry[1] >= 0
+    )
+  );
+  if (Object.keys(languages).length !== Object.keys(languagesValue).length) {
+    throw new RepoAnalysisError("github_unavailable", "GitHub returned malformed languages.");
   }
 
-  const [languages, commit] = await Promise.all([
-    getRequiredJson<Record<string, number>>(`${repoPath}/languages`),
-    getRequiredJson<{ sha?: string; commit?: { tree?: { sha?: string } } }>(
-      `${repoPath}/commits/${encodeURIComponent(defaultBranch)}`
-    ),
-  ]);
-  const treeSha = commit.commit?.tree?.sha;
-  if (!commit.sha || !treeSha) {
+  if (!isRecord(commitValue) || !isRecord(commitValue.commit)) {
+    throw new RepoAnalysisError(
+      "github_unavailable",
+      "GitHub did not return a complete revision for this repository."
+    );
+  }
+  const commitTree = commitValue.commit.tree;
+  const treeSha =
+    isRecord(commitTree) && typeof commitTree.sha === "string" ? commitTree.sha : undefined;
+  const commitSha = typeof commitValue.sha === "string" ? commitValue.sha : undefined;
+  if (!commitSha || !treeSha) {
     throw new RepoAnalysisError(
       "github_unavailable",
       "GitHub did not return a complete revision for this repository."
     );
   }
 
-  const [treeData, readmeData] = await Promise.all([
-    getRequiredJson<GitHubTreeResponse>(`${repoPath}/git/trees/${treeSha}?recursive=1`),
-    readGitHubContent(
-      `${repoPath}/readme?ref=${encodeURIComponent(defaultBranch)}`,
-      REPO_ANALYSIS_LIMITS.maxReadmeCharacters
-    ),
-  ]);
+  const [treeValue, readmeData] = await withStageAbort(context, (stageContext) =>
+    Promise.all([
+      getRequiredJson(
+        `${repoPath}/git/trees/${encodeURIComponent(treeSha)}?recursive=1`,
+        stageContext
+      ),
+      readGitHubContent(
+        `${repoPath}/readme?ref=${encodeURIComponent(defaultBranch)}`,
+        REPO_ANALYSIS_LIMITS.maxReadmeCharacters,
+        stageContext
+      ),
+    ])
+  );
 
-  const treeEntries = treeData.tree ?? [];
+  if (!isRecord(treeValue) || !Array.isArray(treeValue.tree)) {
+    throw new RepoAnalysisError(
+      "github_unavailable",
+      "GitHub returned a malformed repository tree."
+    );
+  }
+  const treeData = treeValue as unknown as GitHubTreeResponse;
+  const parsedTree = parseTreeEntries(treeValue.tree);
+  const treeEntries = parsedTree.entries;
   const boundedTree = boundTree(treeEntries);
   const warnings = new Set<string>();
+  if (parsedTree.malformed) warnings.add("GitHub returned malformed repository tree entries.");
   if (treeData.truncated) warnings.add("GitHub returned a truncated repository tree.");
   if (boundedTree.truncated) warnings.add("The repository tree exceeded analysis limits.");
   if (readmeData.truncated) warnings.add("The README was shortened to fit analysis limits.");
+  if (readmeData.malformed) warnings.add("The README could not be read.");
 
   const evidenceCandidates = getEvidenceCandidates(treeEntries);
   if (evidenceCandidates.truncated) {
     warnings.add("Some detected configuration files exceeded analysis limits.");
   }
-  const evidenceResults = await Promise.allSettled(
-    evidenceCandidates.entries.map(async (entry) => {
+  const evidenceResults = await allSettledWithConcurrency(
+    evidenceCandidates.entries,
+    3,
+    async (entry) => {
+      const cached = options.evidenceCache?.[entry.path!];
       const result = await readGitHubContent(
-        `${repoPath}/git/blobs/${entry.sha}`,
-        REPO_ANALYSIS_LIMITS.maxEvidenceCharacters
+        `${repoPath}/git/blobs/${encodeURIComponent(entry.sha!)}`,
+        REPO_ANALYSIS_LIMITS.maxEvidenceCharacters,
+        context,
+        cached
       );
       return { path: entry.path!, ...result };
-    })
+    }
   );
 
   const evidenceFiles: RepoEvidenceFile[] = [];
   for (const result of evidenceResults) {
     if (result.status === "rejected") {
+      if (result.reason instanceof RepoAnalysisError && result.reason.code === "aborted") {
+        throw result.reason;
+      }
+      warnings.add("Some detected configuration files could not be read.");
+      continue;
+    }
+    if (result.value.malformed) {
       warnings.add("Some detected configuration files could not be read.");
       continue;
     }
     if (!result.value.content) continue;
-    evidenceFiles.push({ path: result.value.path, content: result.value.content });
+    evidenceFiles.push({
+      path: result.value.path,
+      content: result.value.content,
+      etag: result.value.etag,
+      fromCache: result.value.fromCache,
+      truncated: result.value.truncated,
+    });
     if (result.value.truncated) {
       warnings.add("Some configuration files were shortened to fit analysis limits.");
     }
@@ -460,12 +834,14 @@ export async function analyzeRepo(repoReference: string): Promise<RepoAnalysis> 
     owner: parsed.owner,
     repo: parsed.repo,
     normalizedUrl: parsed.normalizedUrl,
-    description: repoData.description ?? null,
-    primaryLanguage: repoData.language ?? null,
+    description: typeof repoData.description === "string" ? repoData.description : null,
+    primaryLanguage: typeof repoData.language === "string" ? repoData.language : null,
     languages,
-    topics: repoData.topics ?? [],
+    topics: Array.isArray(repoData.topics)
+      ? repoData.topics.filter((topic): topic is string => typeof topic === "string").slice(0, 100)
+      : [],
     defaultBranch,
-    commitSha: commit.sha,
+    commitSha,
     treePaths: boundedTree.paths,
     readme: readmeData.content,
     evidenceFiles,
