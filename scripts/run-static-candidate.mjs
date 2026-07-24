@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 
 const port = Number(process.argv[2] ?? 3099);
 if (!Number.isInteger(port) || port < 1 || port > 65_535) {
@@ -26,17 +26,25 @@ const child = spawn(
   { stdio: "inherit" }
 );
 
-function stop(signal) {
-  if (stopping) return;
-  stopping = true;
-  const cleanup = spawn("docker", ["stop", "--time", "5", container], { stdio: "inherit" });
-  cleanup.once("exit", () => {
-    if (!child.killed) child.kill(signal);
-  });
+function removeContainer() {
+  try {
+    execFileSync("docker", ["rm", "-f", container], { stdio: "ignore" });
+  } catch {
+    // The foreground container may have already exited and removed itself.
+  }
 }
 
-process.once("SIGINT", () => stop("SIGINT"));
-process.once("SIGTERM", () => stop("SIGTERM"));
+function stop() {
+  if (stopping) return;
+  stopping = true;
+  removeContainer();
+  process.exit(0);
+}
+
+process.once("SIGHUP", stop);
+process.once("SIGINT", stop);
+process.once("SIGTERM", stop);
+process.once("exit", removeContainer);
 
 child.once("exit", (code, signal) => {
   if (signal) process.kill(process.pid, signal);

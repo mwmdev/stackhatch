@@ -43,7 +43,7 @@ export const LEGACY_COOKIE_EXPIRATIONS = [
     `${name}=; Path=/; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; Secure; SameSite=Lax`
 );
 
-export const LEGACY_COOKIE_ROUTES = [
+export const DOCUMENT_ROUTES = [
   "/",
   "/app",
   "/app/maps",
@@ -54,6 +54,12 @@ export const LEGACY_COOKIE_ROUTES = [
   "/privacy",
   "/terms",
 ];
+
+export const TRAILING_DOCUMENT_ROUTES = DOCUMENT_ROUTES.filter((route) => route !== "/").map(
+  (route) => `${route}/`
+);
+
+export const LEGACY_COOKIE_ROUTES = [...DOCUMENT_ROUTES, ...TRAILING_DOCUMENT_ROUTES];
 
 export async function walkFiles(directory) {
   const entries = await readdir(directory, { withFileTypes: true });

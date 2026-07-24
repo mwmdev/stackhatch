@@ -1,10 +1,12 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import {
   CADDY_TEMPLATE_PATH,
+  DOCUMENT_ROUTES,
   GENERATED_HOST_DIR,
   LEGACY_COOKIE_EXPIRATIONS,
   OUT_DIR,
   PERMISSIONS_POLICY,
+  TRAILING_DOCUMENT_ROUTES,
   collectInlineScriptHashes,
   createContentSecurityPolicy,
   createHeadersFile,
@@ -19,7 +21,9 @@ const contentSecurityPolicy = createContentSecurityPolicy(hashes);
 const template = await readFile(CADDY_TEMPLATE_PATH, "utf8");
 const caddyfile = template
   .replaceAll("{{CONTENT_SECURITY_POLICY}}", contentSecurityPolicy)
+  .replaceAll("{{DOCUMENT_ROUTES}}", DOCUMENT_ROUTES.join(" "))
   .replaceAll("{{PERMISSIONS_POLICY}}", PERMISSIONS_POLICY)
+  .replaceAll("{{TRAILING_DOCUMENT_ROUTES}}", TRAILING_DOCUMENT_ROUTES.join(" "))
   .replace(
     "{{LEGACY_COOKIE_EXPIRATIONS}}",
     LEGACY_COOKIE_EXPIRATIONS.map((cookie) => `\t\t+Set-Cookie "${cookie}"`).join("\n")

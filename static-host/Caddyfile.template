@@ -23,7 +23,7 @@
 	@mutable not path /_next/static/*
 	header @mutable Cache-Control "no-cache"
 
-	@documents path / /app /app/maps /project /project/new /settings /support /privacy /terms
+	@documents path {{DOCUMENT_ROUTES}}
 	header @documents {
 {{LEGACY_COOKIE_EXPIRATIONS}}
 	}
@@ -31,7 +31,9 @@
 	@immutable path /_next/static/*
 	header @immutable Cache-Control "public, max-age=31536000, immutable"
 
+	@trailingDocument path {{TRAILING_DOCUMENT_ROUTES}}
 	route {
+		uri @trailingDocument strip_suffix /
 		try_files {path} {path}.html {path}/index.html
 		file_server
 	}

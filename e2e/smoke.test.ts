@@ -43,13 +43,21 @@ test("the static candidate serves hardened direct routes and a real 404", async 
   for (const route of [
     "/",
     "/app",
+    "/app/",
     "/app/maps",
+    "/app/maps/",
     "/project",
+    "/project/",
     "/project/new",
+    "/project/new/",
     "/settings",
+    "/settings/",
     "/support",
+    "/support/",
     "/privacy",
+    "/privacy/",
     "/terms",
+    "/terms/",
   ]) {
     const response = await page.request.get(route);
     expect(response.status(), route).toBe(200);

@@ -32,7 +32,7 @@ export default defineConfig({
   ],
   webServer: {
     command: staticCandidate
-      ? `node scripts/run-static-candidate.mjs ${port}`
+      ? `exec node scripts/run-static-candidate.mjs ${port}`
       : `npm run dev -- --port ${port}`,
     env: {
       ...process.env,
