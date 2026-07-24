@@ -56,6 +56,19 @@ describe("parseGitHubRepoReference", () => {
 });
 
 describe("analyzeRepo", () => {
+  it("binds the native browser fetch receiver", async () => {
+    const nativeStyleFetch = vi.fn(function (this: typeof globalThis) {
+      if (this !== globalThis) throw new TypeError("Illegal invocation");
+      return Promise.resolve(jsonResponse({}, 404));
+    });
+    vi.stubGlobal("fetch", nativeStyleFetch);
+
+    await expect(analyzeRepo("acme/app")).rejects.toMatchObject({
+      code: "not_found_or_private",
+    });
+    expect(nativeStyleFetch).toHaveBeenCalledOnce();
+  });
+
   it("uses the exact anonymous GitHub request surface", async () => {
     const fetchMock = vi.fn(async () => jsonResponse({}, 404));
 

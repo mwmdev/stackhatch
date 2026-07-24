@@ -693,7 +693,7 @@ export async function analyzeRepo(
   }
 
   const context: GitHubRequestContext = {
-    fetch: options.fetch ?? globalThis.fetch,
+    fetch: options.fetch ?? globalThis.fetch.bind(globalThis),
     signal: options.signal,
     now: options.now ?? Date.now,
     requestTimeoutMs: options.requestTimeoutMs ?? REPO_ANALYSIS_LIMITS.requestTimeoutMs,
