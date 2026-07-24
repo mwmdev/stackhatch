@@ -144,6 +144,39 @@ describe("canvas persistence coordinator", () => {
     expect(coordinator.getState().dirty).toBe(false);
   });
 
+  it("keeps durable commit preconditions unchanged until a retry is acknowledged", async () => {
+    const writer = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("transaction aborted"))
+      .mockResolvedValueOnce({ projectRevision: 8, vaultGeneration: "vault-next" });
+    const coordinator = createCanvasPersistenceCoordinator({
+      baseline,
+      baselineCommit: { projectRevision: 7, vaultGeneration: "vault-current" },
+      writer,
+    });
+    coordinator.publish(populatedSnapshot());
+
+    await expect(coordinator.flushLatest()).rejects.toThrow("transaction aborted");
+    expect(coordinator.getState()).toMatchObject({
+      dirty: true,
+      projectRevision: 7,
+      vaultGeneration: "vault-current",
+    });
+
+    await coordinator.flushLatest();
+
+    expect(writer.mock.calls[0][0]).toMatchObject({
+      expectedProjectRevision: 7,
+      expectedVaultGeneration: "vault-current",
+    });
+    expect(writer.mock.calls[1][0]).toEqual(writer.mock.calls[0][0]);
+    expect(coordinator.getState()).toMatchObject({
+      dirty: false,
+      projectRevision: 8,
+      vaultGeneration: "vault-next",
+    });
+  });
+
   it("shares ordered work across concurrent flush callers", async () => {
     const write = deferred<void>();
     const writer = vi.fn(() => write.promise);

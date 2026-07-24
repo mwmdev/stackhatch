@@ -1,15 +1,24 @@
 export interface CanvasPersistenceWrite<TSnapshot> {
   revision: number;
   snapshot: TSnapshot;
+  expectedProjectRevision?: number;
+  expectedVaultGeneration?: string;
 }
 
 export interface CanvasPersistenceWriteOptions {
   keepalive: boolean;
 }
 
+export interface CanvasPersistenceCommit {
+  projectRevision: number;
+  vaultGeneration: string;
+}
+
 export interface CanvasPersistenceState {
   latestRevision: number;
   savedRevision: number;
+  projectRevision: number | null;
+  vaultGeneration: string | null;
   dirty: boolean;
   saving: boolean;
   suspended: boolean;
@@ -28,7 +37,7 @@ export interface CanvasPersistenceCoordinator<TSnapshot> {
   flushLatest(): Promise<void>;
   suspendAndFlush(): Promise<void>;
   persistReplacement(snapshot: TSnapshot): Promise<void>;
-  restoreAcknowledgedSnapshot(snapshot: TSnapshot): void;
+  restoreAcknowledgedSnapshot(snapshot: TSnapshot, commit?: CanvasPersistenceCommit): void;
   resume(): void;
   dispose(): Promise<void>;
   getLatestSnapshot(): TSnapshot;
@@ -37,10 +46,11 @@ export interface CanvasPersistenceCoordinator<TSnapshot> {
 
 interface CanvasPersistenceOptions<TSnapshot> {
   baseline: TSnapshot;
+  baselineCommit?: CanvasPersistenceCommit;
   writer: (
     write: CanvasPersistenceWrite<TSnapshot>,
     options: CanvasPersistenceWriteOptions
-  ) => Promise<void>;
+  ) => Promise<CanvasPersistenceCommit | void>;
   debounceMs?: number;
   clone?: (snapshot: TSnapshot) => TSnapshot;
   onBackgroundError?: (error: unknown) => void;
@@ -55,9 +65,13 @@ class RevisionCoordinator<TSnapshot> implements CanvasPersistenceCoordinator<TSn
   private suspended = false;
   private disposed = false;
   private keepaliveRequested = false;
+  private projectRevision: number | null;
+  private vaultGeneration: string | null;
 
   constructor(private readonly options: CanvasPersistenceOptions<TSnapshot>) {
     this.latestSnapshot = this.clone(options.baseline);
+    this.projectRevision = options.baselineCommit?.projectRevision ?? null;
+    this.vaultGeneration = options.baselineCommit?.vaultGeneration ?? null;
   }
 
   publish(snapshot: TSnapshot): number | null {
@@ -98,12 +112,13 @@ class RevisionCoordinator<TSnapshot> implements CanvasPersistenceCoordinator<TSn
     await this.flushLatest();
   }
 
-  restoreAcknowledgedSnapshot(snapshot: TSnapshot) {
+  restoreAcknowledgedSnapshot(snapshot: TSnapshot, commit?: CanvasPersistenceCommit) {
     if (!this.suspended) {
       throw new Error("Canvas persistence must be suspended before restoring its snapshot");
     }
     this.acceptSnapshot(snapshot, false);
     this.savedRevision = this.latestRevision;
+    if (commit) this.acceptCommit(commit);
   }
 
   resume() {
@@ -125,6 +140,8 @@ class RevisionCoordinator<TSnapshot> implements CanvasPersistenceCoordinator<TSn
     return {
       latestRevision: this.latestRevision,
       savedRevision: this.savedRevision,
+      projectRevision: this.projectRevision,
+      vaultGeneration: this.vaultGeneration,
       dirty: this.savedRevision !== this.latestRevision,
       saving: this.flushPromise !== null,
       suspended: this.suspended,
@@ -156,9 +173,25 @@ class RevisionCoordinator<TSnapshot> implements CanvasPersistenceCoordinator<TSn
     while (this.savedRevision !== this.latestRevision) {
       const revision = this.latestRevision;
       const snapshot = this.clone(this.latestSnapshot);
-      await this.options.writer({ revision, snapshot }, { keepalive: this.keepaliveRequested });
+      const commit =
+        this.projectRevision !== null && this.vaultGeneration !== null
+          ? {
+              expectedProjectRevision: this.projectRevision,
+              expectedVaultGeneration: this.vaultGeneration,
+            }
+          : {};
+      const acknowledgement = await this.options.writer(
+        { revision, snapshot, ...commit },
+        { keepalive: this.keepaliveRequested }
+      );
+      if (acknowledgement) this.acceptCommit(acknowledgement);
       this.savedRevision = Math.max(this.savedRevision, revision);
     }
+  }
+
+  private acceptCommit(commit: CanvasPersistenceCommit) {
+    this.projectRevision = commit.projectRevision;
+    this.vaultGeneration = commit.vaultGeneration;
   }
 
   private clone(snapshot: TSnapshot) {
