@@ -6,8 +6,10 @@ if (!Number.isInteger(port) || port < 1 || port > 65_535) {
 }
 
 const image = process.env.STACKHATCH_CANDIDATE_IMAGE ?? "stackhatch-static-candidate";
-const container = `stackhatch-playwright-${process.pid}`;
+const container = `stackhatch-playwright-${port}`;
 let stopping = false;
+
+removeContainer();
 
 const child = spawn(
   "docker",

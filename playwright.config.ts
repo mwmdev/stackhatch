@@ -12,6 +12,7 @@ export default defineConfig({
   testDir: "./e2e",
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
+  globalTeardown: staticCandidate ? "./e2e/static-candidate-teardown.ts" : undefined,
   retries: process.env.CI ? 2 : 0,
   workers: 1,
   reporter: "html",
