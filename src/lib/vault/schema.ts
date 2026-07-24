@@ -114,7 +114,13 @@ export type VaultProviderRunKind =
   | "alternatives"
   | "prd";
 
-export type VaultProviderRunStatus = "draft" | "running" | "failed" | "cancelled" | "stale";
+export type VaultProviderRunStatus =
+  | "draft"
+  | "running"
+  | "completed"
+  | "failed"
+  | "cancelled"
+  | "stale";
 
 /**
  * Durable non-secret provider state. Stream chunks and credentials deliberately

@@ -5,7 +5,7 @@ import type {
   VaultProjectRecord,
   VaultTemplateRecord,
 } from "./schema";
-import { createVaultRepository, type VaultRepository } from "./repository";
+import { getBrowserVaultRepository, type VaultRepository } from "./repository";
 import type { VaultInvalidation } from "./coordination";
 
 export interface WorkspaceProjectSnapshot {
@@ -30,6 +30,9 @@ export interface WorkspaceVault {
   listProjects(): Promise<VaultProjectRecord[]>;
   getProject(projectId: string): Promise<VaultProjectRecord | null>;
   getProjectSnapshot(projectId: string): Promise<WorkspaceProjectSnapshot | null>;
+  getRepositoryProvenance(
+    projectId: string
+  ): Promise<import("./schema").VaultRepositoryProvenanceRecord | null>;
   createProject(draft: WorkspaceProjectDraft): Promise<VaultProjectRecord>;
   recordProjectOpen(projectId: string): Promise<boolean>;
   saveCanvas(
@@ -77,6 +80,9 @@ export function createWorkspaceVault(
     },
     getProjectSnapshot(projectId) {
       return repository.getProjectSnapshot(projectId);
+    },
+    async getRepositoryProvenance(projectId) {
+      return repository.getRepositoryProvenance(projectId);
     },
     async createProject(draft) {
       const expectedGeneration = await generation();
@@ -181,6 +187,6 @@ export function createWorkspaceVault(
 let browserWorkspaceVault: WorkspaceVault | null = null;
 
 export function getBrowserWorkspaceVault() {
-  browserWorkspaceVault ??= createWorkspaceVault(createVaultRepository());
+  browserWorkspaceVault ??= createWorkspaceVault(getBrowserVaultRepository());
   return browserWorkspaceVault;
 }

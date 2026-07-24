@@ -72,6 +72,22 @@ export interface VaultRecordPrecondition {
   expectedRevision: number | null;
 }
 
+export interface VaultProviderResultWrite {
+  project: RecordWrite<VaultProjectRecord>;
+  run: RecordWrite<VaultProviderRunRecord>;
+  messages?: Array<RecordWrite<VaultMessageRecord>>;
+  replaceMessages?: boolean;
+}
+
+export interface VaultProviderResultPrecondition extends VaultProjectPrecondition {
+  expectedRunRevision: number;
+}
+
+export interface VaultProviderResultCommit {
+  project: VaultProjectRecord;
+  run: VaultProviderRunRecord;
+}
+
 export type VaultDevicePreferencesWrite = Pick<
   VaultDevicePreferencesRecord,
   "model" | "theme" | "customSubtypes" | "editorDisplay"
@@ -116,6 +132,8 @@ export interface VaultRepository {
   advanceVaultGeneration(expectedGeneration: string): Promise<string>;
   getProject(projectId: string): Promise<VaultProjectRecord | null>;
   getProjectSnapshot(projectId: string): Promise<VaultProjectSnapshot | null>;
+  listProjectMessages(projectId: string): Promise<VaultMessageRecord[]>;
+  getRepositoryProvenance(projectId: string): Promise<VaultRepositoryProvenanceRecord | null>;
   getDevicePreferencesSnapshot(): Promise<VaultDevicePreferencesSnapshot>;
   getProjectBundle(projectId: string): Promise<VaultProjectBundle | null>;
   getProjectBackupBundle(projectId: string): Promise<VaultBackupProjectBundle | null>;
@@ -131,6 +149,10 @@ export interface VaultRepository {
     bundle: VaultProjectBundleWrite,
     precondition: VaultProjectPrecondition
   ): Promise<VaultProjectRecord>;
+  commitProviderResult(
+    result: VaultProviderResultWrite,
+    precondition: VaultProviderResultPrecondition
+  ): Promise<VaultProviderResultCommit>;
   deleteProject(projectId: string, precondition: VaultProjectPrecondition): Promise<void>;
   recordProjectOpen(projectId: string, expectedGeneration: string): Promise<boolean>;
   resolveLastOpenedProject(expectedGeneration: string): Promise<VaultProjectRecord | null>;
@@ -420,6 +442,23 @@ class IndexedDbVaultRepository implements VaultRepository {
       }
       return project ? { project, generation: metadata.generation } : null;
     }, "The project snapshot could not be read");
+  }
+
+  async listProjectMessages(projectId: string) {
+    return runRead(async () => {
+      const database = await this.database();
+      const messages = await database.getAllFromIndex("messages", "by-project", projectId);
+      return messages.sort(
+        (left, right) => left.createdAt - right.createdAt || left.id.localeCompare(right.id)
+      );
+    }, "Project messages could not be read");
+  }
+
+  async getRepositoryProvenance(projectId: string) {
+    return runRead(async () => {
+      const database = await this.database();
+      return (await database.get("repositoryProvenance", projectId)) ?? null;
+    }, "Repository provenance could not be read");
   }
 
   async getDevicePreferencesSnapshot() {
@@ -831,6 +870,74 @@ class IndexedDbVaultRepository implements VaultRepository {
     return project;
   }
 
+  async commitProviderResult(
+    result: VaultProviderResultWrite,
+    precondition: VaultProviderResultPrecondition
+  ) {
+    const database = await this.database();
+    const stores: VaultStoreName[] = ["meta", "projects", "providerRuns"];
+    if (result.messages?.length || result.replaceMessages) stores.push("messages");
+    const committed = await runWrite(
+      database,
+      stores,
+      async (transaction) => {
+        await assertGeneration(transaction, precondition.expectedGeneration);
+        const projectStore = transaction.objectStore("projects");
+        const existingProject = await projectStore.get(result.project.id);
+        assertRevision(existingProject, precondition.expectedProjectRevision);
+        if (!existingProject) {
+          throw new VaultValidationError("A provider result must reference a local project");
+        }
+        const project: VaultProjectRecord = {
+          ...result.project,
+          createdAt: existingProject.createdAt,
+          revision: existingProject.revision + 1,
+        };
+        await projectStore.put(project);
+
+        if (result.replaceMessages) {
+          await deleteProjectIndexRecords(transaction, "messages", result.project.id);
+        }
+        await Promise.all(
+          (result.messages ?? []).map((message) =>
+            transaction.objectStore("messages").add({
+              ...message,
+              revision: 1,
+            })
+          )
+        );
+
+        const runStore = transaction.objectStore("providerRuns");
+        const existingRun = await runStore.get(result.run.id);
+        assertRevision(existingRun, precondition.expectedRunRevision);
+        if (!existingRun || existingRun.projectId !== result.project.id) {
+          throw new VaultValidationError("A provider result must reference its active draft");
+        }
+        const run: VaultProviderRunRecord = {
+          ...result.run,
+          createdAt: existingRun.createdAt,
+          revision: existingRun.revision + 1,
+        };
+        await runStore.put(run);
+        return { project, run };
+      },
+      "The provider result did not commit"
+    );
+
+    this.publish({
+      generation: precondition.expectedGeneration,
+      projectId: committed.project.id,
+      projectRevision: committed.project.revision,
+      stores: [
+        "projects",
+        "providerRuns",
+        ...(result.messages?.length || result.replaceMessages ? (["messages"] as const) : []),
+      ],
+      reason: "mutation",
+    });
+    return committed;
+  }
+
   async deleteProject(projectId: string, precondition: VaultProjectPrecondition) {
     const database = await this.database();
     await runWrite(
@@ -1119,4 +1226,11 @@ export function createVaultRepository(options: VaultRepositoryOptions = {}): Vau
     now: options.now ?? Date.now,
     generationFactory: options.generationFactory ?? createId,
   });
+}
+
+let browserVaultRepository: VaultRepository | null = null;
+
+export function getBrowserVaultRepository() {
+  browserVaultRepository ??= createVaultRepository();
+  return browserVaultRepository;
 }

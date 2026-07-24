@@ -16,6 +16,7 @@ operator/
 
 # debug
 npm-debug.log*
+tsconfig.tsbuildinfo
 
 # IDEs
 .idea/

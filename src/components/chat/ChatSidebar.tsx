@@ -1,26 +1,34 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import ReactMarkdown from "react-markdown";
-import { Loader2, MessageSquareText, SendHorizontal, X } from "lucide-react";
+import {
+  DatabaseZap,
+  Github,
+  KeyRound,
+  Loader2,
+  MessageSquareText,
+  SendHorizontal,
+  ShieldCheck,
+  Square,
+  X,
+} from "lucide-react";
 import IconControl from "@/components/ui/IconControl";
+import {
+  getBrowserProviderRunCoordinator,
+  providerErrorDetails,
+  repositoryPrompt,
+  type ProviderRunCoordinator,
+  type ProviderRunRequest,
+  type RepositoryEvidenceOutcome,
+} from "@/lib/ai/provider-run";
+import type { CanvasPersistenceCommit } from "@/lib/canvas-persistence";
+import { stripStackTags } from "@/lib/ai/context-builder";
+import { createId } from "@/lib/id";
+import type { ProviderKeyStatus } from "@/lib/provider-key";
+import type { ChatMessage } from "@/types/chat";
 import type { StackArchitecture } from "@/types/stack";
-import { trackEvent, type AnalyticsErrorCategory } from "@/lib/analytics";
-
-function stripStackTags(text: string): string {
-  return text
-    .replace(/<stack>\s*[\s\S]*?\s*<\/stack>/g, "")
-    .replace(/<stack>[\s\S]*$/g, "")
-    .trim();
-}
-
-interface Message {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  createdAt: number;
-}
 
 export interface RepositoryScanProvenance {
   repoUrl: string;
@@ -31,7 +39,9 @@ export interface RepositoryScanProvenance {
 }
 
 export interface ArchitectureUpdateMeta {
-  source: "scan";
+  source: "scan" | "assistant";
+  persisted: true;
+  commit: CanvasPersistenceCommit;
   provenance?: RepositoryScanProvenance;
 }
 
@@ -45,22 +55,29 @@ interface ChatSidebarProps {
   onOpenChange?: (open: boolean) => void;
   showCollapsedButton?: boolean;
   scanTrigger?: number;
-  canvasState?: StackArchitecture | null;
+  coordinator?: ProviderRunCoordinator;
   onArchitecture?: (
     architecture: StackArchitecture,
-    meta?: ArchitectureUpdateMeta
+    meta: ArchitectureUpdateMeta
   ) => Promise<void> | void;
+  onProviderCommit?: (commit: CanvasPersistenceCommit) => Promise<void> | void;
   onArchitectureStreamStart?: () => Promise<void>;
+  onProviderCommitStart?: () => Promise<void>;
   onArchitectureStreamEnd?: (outcome: ArchitectureStreamOutcome) => Promise<void> | void;
   onStreaming?: (streaming: boolean) => void;
 }
 
-function isMissingApiKeyError(message: string) {
-  return /AI_NOT_CONFIGURED|anthropic api key|api key not configured/i.test(message);
+interface Disclosure {
+  provider: "GitHub" | "Anthropic";
+  title: string;
+  detail: string;
+  action: () => Promise<void>;
 }
 
-const PROJECT_UNAVAILABLE_MESSAGE =
-  "This project is no longer available. Return to your maps or sign in again.";
+interface RetryDraft {
+  runId: string;
+  request: ProviderRunRequest;
+}
 
 function normalizeRepoUrl(repoUrl?: string | null) {
   const value = repoUrl?.trim();
@@ -68,33 +85,22 @@ function normalizeRepoUrl(repoUrl?: string | null) {
   return value;
 }
 
-function scanErrorCategory(code?: string): AnalyticsErrorCategory {
-  switch (code) {
-    case "invalid_url":
-      return "invalid_url";
-    case "not_found_or_private":
-      return "not_found_or_private";
-    case "github_rate_limited":
-      return "github_rate_limit";
-    case "github_unavailable":
-      return "provider_unavailable";
-    case "analysis_limit":
-      return "analysis_limit";
-    case "AI_NOT_CONFIGURED":
-      return "missing_key";
-    case "AI_AUTH_FAILED":
-      return "provider_auth";
-    case "AI_RATE_LIMITED":
-      return "provider_rate_limit";
-    case "AI_MODEL_UNAVAILABLE":
-      return "provider_unavailable";
-    case "AI_REQUEST_FAILED":
-      return "provider_unavailable";
-    case "PROJECT_UNAVAILABLE":
-      return "server";
-    default:
-      return "unknown";
+function visibleMessage(message: ChatMessage) {
+  return !(
+    message.role === "user" &&
+    (message.content.startsWith("Begin the architecture interview") ||
+      message.content.startsWith("Analyze this GitHub repository") ||
+      message.content.startsWith("Generate an architecture overview for this repository"))
+  );
+}
+
+function providerErrorMessage(error: unknown) {
+  const value = providerErrorDetails(error);
+  if (value.code === "authentication") return "AI_NOT_CONFIGURED";
+  if (value.code === "stale") {
+    return "Your map changed while Anthropic was responding. The newer map was kept; retry when ready.";
   }
+  return value.message;
 }
 
 export default function ChatSidebar({
@@ -105,22 +111,34 @@ export default function ChatSidebar({
   onOpenChange,
   showCollapsedButton = true,
   scanTrigger = 0,
-  canvasState,
+  coordinator: providedCoordinator,
   onArchitecture,
+  onProviderCommit,
   onArchitectureStreamStart,
+  onProviderCommitStart,
   onArchitectureStreamEnd,
   onStreaming,
 }: ChatSidebarProps) {
+  const [coordinator] = useState(() => providedCoordinator ?? getBrowserProviderRunCoordinator());
   const [uncontrolledOpen, setUncontrolledOpen] = useState(defaultOpen);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
+  const [ready, setReady] = useState(false);
   const [streaming, setStreaming] = useState(false);
   const [streamText, setStreamText] = useState("");
   const [error, setError] = useState("");
-  const [initialized, setInitialized] = useState(false);
+  const [keyStatus, setKeyStatus] = useState<ProviderKeyStatus | null>(null);
+  const [disclosure, setDisclosure] = useState<Disclosure | null>(null);
+  const [githubDisclosed, setGithubDisclosed] = useState(false);
+  const [anthropicDisclosed, setAnthropicDisclosed] = useState(false);
+  const [evidence, setEvidence] = useState<RepositoryEvidenceOutcome | null>(null);
+  const [retryDraft, setRetryDraft] = useState<RetryDraft | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const initCalledRef = useRef(false);
+  const abortRef = useRef<AbortController | null>(null);
+  const streamFrameRef = useRef<number | null>(null);
+  const pendingStreamTextRef = useRef("");
+  const previousScanTrigger = useRef(scanTrigger);
   const open = controlledOpen ?? uncontrolledOpen;
   const previousOpenRef = useRef(open);
   const focusCloseControl = open && !previousOpenRef.current;
@@ -128,13 +146,20 @@ export default function ChatSidebar({
 
   const setSidebarOpen = useCallback(
     (nextOpen: boolean) => {
-      if (controlledOpen === undefined) {
-        setUncontrolledOpen(nextOpen);
-      }
+      if (controlledOpen === undefined) setUncontrolledOpen(nextOpen);
       onOpenChange?.(nextOpen);
     },
     [controlledOpen, onOpenChange]
   );
+
+  const refreshLocalState = useCallback(async () => {
+    const [storedMessages, status] = await Promise.all([
+      coordinator.listMessages(projectId),
+      coordinator.getKeyStatus(),
+    ]);
+    setMessages(storedMessages.filter(visibleMessage));
+    setKeyStatus(status);
+  }, [coordinator, projectId]);
 
   useEffect(() => {
     previousOpenRef.current = open;
@@ -142,362 +167,266 @@ export default function ChatSidebar({
 
   useEffect(() => {
     onStreaming?.(streaming);
-  }, [streaming, onStreaming]);
-
-  const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, []);
+  }, [onStreaming, streaming]);
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, streamText, scrollToBottom]);
+    const target = messagesEndRef.current;
+    if (typeof target?.scrollIntoView === "function") {
+      target.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages, streamText]);
 
-  // Load existing messages
   useEffect(() => {
     let cancelled = false;
-
-    async function loadMessages() {
-      try {
-        const res = await fetch(`/api/projects/${projectId}/messages`);
-        if (res.ok) {
-          const data = await res.json();
-          if (cancelled) return;
-          // Filter out the init instruction message from display
-          const displayMessages = data.filter(
-            (m: Message) =>
-              !(
-                m.role === "user" &&
-                (m.content.startsWith("Begin the architecture interview") ||
-                  m.content.startsWith("Analyze this GitHub repository"))
-              )
-          );
-          setMessages(displayMessages);
-          setInitialized(data.length > 0);
-
-          // If no messages, trigger chat init or repo scan
-          if (data.length === 0 && !initCalledRef.current) {
-            initCalledRef.current = true;
-            if (normalizedRepoUrl) {
-              scanRepo();
-            } else {
-              initChat();
-            }
-          }
-        }
-      } catch {
-        if (cancelled) return;
-        setError("Failed to load messages");
-      }
-    }
-    loadMessages();
+    setReady(false);
+    refreshLocalState()
+      .catch(() => {
+        if (!cancelled) setError("Local messages could not be read from this device.");
+      })
+      .finally(() => {
+        if (!cancelled) setReady(true);
+      });
     return () => {
       cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId]);
-
-  // Re-scan when toolbar button triggers it
-  useEffect(() => {
-    if (scanTrigger > 0 && normalizedRepoUrl) {
-      scanRepo();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scanTrigger]);
-
-  async function processSSEStream(
-    response: Response,
-    context?: "scan"
-  ): Promise<ArchitectureStreamOutcome> {
-    const reader = response.body?.getReader();
-    if (!reader) {
-      if (context === "scan") {
-        trackEvent("repository_scan_failed", {
-          location: "editor",
-          error_category: "server",
-        });
+      abortRef.current?.abort();
+      if (streamFrameRef.current !== null) {
+        cancelAnimationFrame(streamFrameRef.current);
+        streamFrameRef.current = null;
       }
-      return "ambiguous";
-    }
+    };
+  }, [refreshLocalState]);
 
-    const decoder = new TextDecoder();
-    let accumulated = "";
-    let buffer = "";
-    let receivedArchitecture = false;
+  const publishStreamText = useCallback((text: string) => {
+    pendingStreamTextRef.current = text;
+    if (streamFrameRef.current !== null) return;
+    streamFrameRef.current = requestAnimationFrame(() => {
+      streamFrameRef.current = null;
+      setStreamText(pendingStreamTextRef.current);
+    });
+  }, []);
 
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+  const requestDisclosure = useCallback(
+    (next: Disclosure) => {
+      const alreadyDisclosed = next.provider === "GitHub" ? githubDisclosed : anthropicDisclosed;
+      if (alreadyDisclosed) {
+        void next.action();
+        return;
+      }
+      setDisclosure(next);
+    },
+    [anthropicDisclosed, githubDisclosed]
+  );
 
-        buffer += decoder.decode(value, { stream: true });
+  const finishBarrier = useCallback(
+    async (outcome: ArchitectureStreamOutcome) => {
+      try {
+        await onArchitectureStreamEnd?.(outcome);
+      } catch {
+        setError("The local canvas could not reconcile the provider result.");
+      }
+    },
+    [onArchitectureStreamEnd]
+  );
 
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
+  const runAnthropic = useCallback(
+    async (request: ProviderRunRequest) => {
+      const runId = request.retryRunId ?? request.runId ?? createId();
+      const nextRequest = { ...request, runId };
+      setStreaming(true);
+      setStreamText("");
+      setError("");
+      setRetryDraft(null);
+      const controller = new AbortController();
+      abortRef.current = controller;
+      let outcome: ArchitectureStreamOutcome = "ambiguous";
+      let providerCommitted = false;
 
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          const jsonStr = line.slice(6);
-          let event: {
-            type: string;
-            content?: any;
-            code?: string;
-            provenance?: RepositoryScanProvenance;
-          };
-          try {
-            event = JSON.parse(jsonStr);
-          } catch {
-            continue;
-          }
-
-          if (event.type === "text") {
-            accumulated += event.content;
-            setStreamText(accumulated);
-          } else if (event.type === "architecture") {
-            const usableArchitecture =
-              event.content &&
-              Array.isArray(event.content.nodes) &&
-              event.content.nodes.length > 0 &&
-              Array.isArray(event.content.edges);
-            if (context === "scan" && !usableArchitecture) {
-              setError("StackHatch could not produce a usable map. Your current map was kept.");
-              trackEvent("repository_scan_failed", {
-                location: "editor",
-                error_category: "unknown",
-              });
-              setStreaming(false);
-              return "ambiguous";
-            }
-            if (usableArchitecture) {
-              receivedArchitecture = true;
-              if (context === "scan") setMessages([]);
-              await onArchitecture?.(
-                event.content,
-                context === "scan" ? { source: "scan", provenance: event.provenance } : undefined
-              );
-            }
-          } else if (event.type === "error") {
-            if (event.code === "PROJECT_UNAVAILABLE") {
-              accumulated = "";
-              setStreamText("");
-              setInitialized(false);
-              setError(PROJECT_UNAVAILABLE_MESSAGE);
-            } else {
-              setError(event.content);
-            }
-            if (context === "scan") {
-              trackEvent("repository_scan_failed", {
-                location: "editor",
-                error_category: scanErrorCategory(event.code),
-              });
-            }
-            setStreaming(false);
-            return "ambiguous";
-          } else if (event.type === "done") {
-            if (context === "scan" && !receivedArchitecture) {
-              setError("StackHatch could not produce a usable map. Your current map was kept.");
-              trackEvent("repository_scan_failed", {
-                location: "editor",
-                error_category: "unknown",
-              });
-              setStreamText("");
-              setStreaming(false);
-              return "completed";
-            }
-            if (accumulated) {
-              setMessages((prev) => [
-                ...prev,
-                {
-                  id: `stream-${Date.now()}`,
-                  role: "assistant",
-                  content: accumulated,
-                  createdAt: Date.now(),
-                },
-              ]);
-            }
-            setStreamText("");
-            setStreaming(false);
-            setInitialized(true);
-            if (context === "scan") {
-              trackEvent("repository_scan_succeeded", { location: "editor" });
-            }
-            return "completed";
+      try {
+        await onArchitectureStreamStart?.();
+        const result = await coordinator.run({
+          ...nextRequest,
+          signal: controller.signal,
+          onText: publishStreamText,
+          beforeCommit: onProviderCommitStart,
+        });
+        providerCommitted = true;
+        if (result.architecture) {
+          await onArchitecture?.(result.architecture, {
+            source: request.kind === "repository-generation" ? "scan" : "assistant",
+            persisted: true,
+            commit: {
+              projectRevision: result.project.revision,
+              vaultGeneration: result.generation,
+            },
+            ...(request.kind === "repository-generation" && evidence
+              ? {
+                  provenance: {
+                    repoUrl: evidence.analysis.normalizedUrl,
+                    commitSha: evidence.analysis.commitSha,
+                    scannedAt: evidence.project.updatedAt,
+                    analysisStatus: evidence.analysis.status,
+                    analysisWarning:
+                      evidence.analysis.warnings.length > 0
+                        ? evidence.analysis.warnings.join(" ")
+                        : null,
+                  },
+                }
+              : {}),
+          });
+        } else {
+          await onProviderCommit?.({
+            projectRevision: result.project.revision,
+            vaultGeneration: result.generation,
+          });
+        }
+        await refreshLocalState();
+        setStreamText("");
+        setEvidence(null);
+        outcome = "completed";
+      } catch (runError) {
+        if (providerCommitted) {
+          setError(
+            "The provider result was saved on this device, but the editor could not reconcile it. Reopen the map to load the saved result."
+          );
+        } else {
+          const message = providerErrorMessage(runError);
+          setError(message);
+          if (message !== "AI_NOT_CONFIGURED") {
+            setRetryDraft({ runId, request: nextRequest });
           }
         }
+      } finally {
+        abortRef.current = null;
+        setStreaming(false);
+        await finishBarrier(outcome);
       }
-      return "ambiguous";
-    } finally {
-      reader.releaseLock();
-      setStreaming(false);
-    }
-  }
+    },
+    [
+      coordinator,
+      evidence,
+      finishBarrier,
+      onArchitecture,
+      onArchitectureStreamStart,
+      onProviderCommitStart,
+      onProviderCommit,
+      publishStreamText,
+      refreshLocalState,
+    ]
+  );
 
-  async function establishArchitectureBarrier() {
+  const stageAnthropic = useCallback(
+    (request: ProviderRunRequest, title: string, detail: string) => {
+      requestDisclosure({
+        provider: "Anthropic",
+        title,
+        detail,
+        action: () => runAnthropic(request),
+      });
+    },
+    [requestDisclosure, runAnthropic]
+  );
+
+  const scanRepository = useCallback(async () => {
+    if (!normalizedRepoUrl || streaming) return;
+    setSidebarOpen(true);
+    setStreaming(true);
+    setError("");
+    setEvidence(null);
+    const controller = new AbortController();
+    abortRef.current = controller;
     try {
       await onArchitectureStreamStart?.();
-      return true;
-    } catch {
-      setError("Your latest map changes could not be saved. Try again.");
-      setStreaming(false);
-      return false;
-    }
-  }
-
-  async function finishArchitectureBarrier(outcome: ArchitectureStreamOutcome) {
-    try {
-      await onArchitectureStreamEnd?.(outcome);
-    } catch {
-      setError("StackHatch could not reconcile the latest architecture update.");
-    }
-  }
-
-  async function initChat() {
-    setStreaming(true);
-    setError("");
-    if (!(await establishArchitectureBarrier())) return;
-
-    let outcome: ArchitectureStreamOutcome = "ambiguous";
-    try {
-      const res = await fetch(`/api/projects/${projectId}/chat/init`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(canvasState ? { canvasState } : {}),
+      const result = await coordinator.scanRepository(projectId, normalizedRepoUrl, {
+        signal: controller.signal,
+        beforeCommit: onProviderCommitStart,
       });
-      if (!res.ok && !res.headers.get("content-type")?.includes("text/event-stream")) {
-        const data = await res.json().catch(() => ({ error: "Failed to start conversation" }));
-        setError(
-          data.code === "AI_NOT_CONFIGURED"
-            ? "AI_NOT_CONFIGURED"
-            : data.error || "Failed to start conversation"
-        );
-        setStreaming(false);
-        return;
-      }
-      outcome = await processSSEStream(res);
-    } catch {
-      setError("Failed to start conversation");
-      setStreaming(false);
+      await onProviderCommit?.({
+        projectRevision: result.project.revision,
+        vaultGeneration: result.generation,
+      });
+      setEvidence(result);
+    } catch (scanError) {
+      setError(providerErrorMessage(scanError));
     } finally {
-      await finishArchitectureBarrier(outcome);
-    }
-  }
-
-  async function scanRepo() {
-    setStreaming(true);
-    setSidebarOpen(true);
-    setError("");
-    if (!(await establishArchitectureBarrier())) return;
-
-    let outcome: ArchitectureStreamOutcome = "ambiguous";
-    trackEvent("repository_scan_started", { location: "editor" });
-    try {
-      const res = await fetch(`/api/projects/${projectId}/repo-scan`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ repoUrl: normalizedRepoUrl }),
-      });
-      if (!res.ok && !res.headers.get("content-type")?.includes("text/event-stream")) {
-        const data = await res.json().catch(() => ({ error: "Failed to scan repository" }));
-        setError(
-          data.code === "AI_NOT_CONFIGURED"
-            ? "AI_NOT_CONFIGURED"
-            : data.error || "Failed to scan repository"
-        );
-        trackEvent("repository_scan_failed", {
-          location: "editor",
-          error_category: scanErrorCategory(data.code),
-        });
-        setStreaming(false);
-        return;
-      }
-      outcome = await processSSEStream(res, "scan");
-    } catch {
-      setError("Failed to scan repository");
-      trackEvent("repository_scan_failed", {
-        location: "editor",
-        error_category: "network",
-      });
+      abortRef.current = null;
       setStreaming(false);
-    } finally {
-      await finishArchitectureBarrier(outcome);
+      await finishBarrier("completed");
     }
+  }, [
+    coordinator,
+    finishBarrier,
+    normalizedRepoUrl,
+    onArchitectureStreamStart,
+    onProviderCommit,
+    onProviderCommitStart,
+    projectId,
+    setSidebarOpen,
+    streaming,
+  ]);
+
+  const stageRepositoryScan = useCallback(() => {
+    if (!normalizedRepoUrl) return;
+    requestDisclosure({
+      provider: "GitHub",
+      title: "Read public repository evidence?",
+      detail:
+        "StackHatch will send the repository owner/name to GitHub and read bounded public metadata, the README, tree paths, and selected configuration files. No Anthropic key is sent.",
+      action: scanRepository,
+    });
+  }, [normalizedRepoUrl, requestDisclosure, scanRepository]);
+
+  useEffect(() => {
+    if (scanTrigger <= previousScanTrigger.current) return;
+    previousScanTrigger.current = scanTrigger;
+    stageRepositoryScan();
+  }, [scanTrigger, stageRepositoryScan]);
+
+  function confirmDisclosure() {
+    const pending = disclosure;
+    if (!pending) return;
+    if (pending.provider === "GitHub") setGithubDisclosed(true);
+    else setAnthropicDisclosed(true);
+    setDisclosure(null);
+    void pending.action();
   }
 
-  async function sendMessageText(text: string, appendUserMessage: boolean) {
-    if (!text || streaming) return;
-
-    setStreaming(true);
-    setError("");
-
-    if (appendUserMessage) {
-      trackEvent("architecture_question_sent", { location: "editor" });
-      const userMsg: Message = {
-        id: `user-${Date.now()}`,
-        role: "user",
-        content: text,
-        createdAt: Date.now(),
-      };
-      setMessages((prev) => [...prev, userMsg]);
-    }
-    setInput("");
-
-    // Reset textarea height
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
-    }
-
-    if (!(await establishArchitectureBarrier())) return;
-
-    let outcome: ArchitectureStreamOutcome = "ambiguous";
-    try {
-      const res = await fetch(`/api/projects/${projectId}/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(canvasState ? { message: text, canvasState } : { message: text }),
-      });
-      if (!res.ok && !res.headers.get("content-type")?.includes("text/event-stream")) {
-        const data = await res.json().catch(() => ({ error: "Failed to send message" }));
-        setError(
-          data.code === "AI_NOT_CONFIGURED"
-            ? "AI_NOT_CONFIGURED"
-            : data.error || "Failed to send message"
-        );
-        setStreaming(false);
-        return;
-      }
-      outcome = await processSSEStream(res);
-    } catch {
-      setError("Failed to send message");
-      setStreaming(false);
-    } finally {
-      await finishArchitectureBarrier(outcome);
-    }
-  }
-
-  async function sendMessage() {
+  function sendMessage() {
     const text = input.trim();
-    await sendMessageText(text, true);
+    if (!text || streaming) return;
+    setInput("");
+    if (textareaRef.current) textareaRef.current.style.height = "auto";
+    stageAnthropic(
+      { projectId, kind: "chat", prompt: text },
+      "Send this message and map context to Anthropic?",
+      "Anthropic will receive your message, this map's latest committed nodes and connections, custom subtype vocabulary, and this map's chat history."
+    );
   }
 
-  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
+  function startInterview() {
+    stageAnthropic(
+      { projectId, kind: "initialization" },
+      "Start an architecture interview with Anthropic?",
+      "Anthropic will receive this map's description and latest committed canvas. StackHatch keeps the response on this device."
+    );
   }
 
-  function handleInputChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
-    setInput(e.target.value);
-    // Auto-grow textarea
-    const el = e.target;
-    el.style.height = "auto";
-    el.style.height = Math.min(el.scrollHeight, 120) + "px";
+  function generateRepositoryMap() {
+    if (!evidence) return;
+    stageAnthropic(
+      {
+        projectId,
+        kind: "repository-generation",
+        prompt: repositoryPrompt(evidence.analysis),
+      },
+      "Send reviewed repository evidence to Anthropic?",
+      "Anthropic will receive the bounded GitHub evidence shown here. A valid completed map replaces the current generated repository view only if its local revision is still current."
+    );
   }
 
-  const showApiKeyPrompt = Boolean(error && isMissingApiKeyError(error));
+  const showApiKeyPrompt = error === "AI_NOT_CONFIGURED";
 
   if (!open) {
     if (!showCollapsedButton) return null;
-
     return (
       <button
         onClick={() => setSidebarOpen(true)}
@@ -511,17 +440,16 @@ export default function ChatSidebar({
 
   return (
     <div className="relative flex h-[45vh] w-full flex-shrink-0 flex-col border-b border-[var(--boundary)] bg-[var(--paper)] md:h-full md:w-[400px] md:border-b-0 md:border-r">
-      <div
-        aria-hidden="true"
-        data-testid="chat-scroll-overlay"
-        className="pointer-events-none absolute inset-x-0 top-0 z-10 h-[3.75rem] border-b border-[var(--boundary)] bg-[var(--paper)]/95 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-[var(--paper)]/88"
-      >
+      <div className="absolute inset-x-0 top-0 z-10 border-b border-[var(--boundary)] bg-[var(--paper)]/95 px-4 py-2 backdrop-blur">
         <p className="font-utility text-[0.625rem] font-semibold uppercase tracking-[0.12em] text-[var(--blueprint)]">
-          Architecture chat
+          Architecture assistant
         </p>
-        <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">Ask, compare, revise</p>
+        <p className="mt-0.5 flex items-center gap-1 text-xs text-[var(--muted-foreground)]">
+          <ShieldCheck className="h-3.5 w-3.5" />
+          Local until you approve a provider request
+        </p>
       </div>
-      {controlledOpen !== undefined && onOpenChange && (
+      {controlledOpen !== undefined && onOpenChange ? (
         <div className="absolute right-2 top-2 z-20">
           <IconControl
             label="Close chat"
@@ -532,133 +460,231 @@ export default function ChatSidebar({
             <X />
           </IconControl>
         </div>
-      )}
+      ) : null}
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 pb-4 pt-[4.25rem]">
-        <div className="space-y-3">
-          {messages.map((msg) => (
+      <div className="flex-1 overflow-y-auto px-4 pb-4 pt-[4.5rem]">
+        <div className="space-y-4">
+          {messages.length === 0 && !streaming ? (
+            <div className="border border-[var(--boundary)] bg-[var(--background)] p-4">
+              <p className="text-sm font-semibold text-[var(--foreground)]">
+                Your map does not contact a provider on open.
+              </p>
+              <p className="mt-1 text-xs leading-5 text-[var(--muted-foreground)]">
+                Start an interview, or review public GitHub evidence first. You approve what leaves
+                this browser.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={startInterview}
+                  className="min-h-10 rounded-md bg-[var(--brand)] px-3 py-2 text-sm font-bold text-[var(--brand-foreground)]"
+                >
+                  Start interview
+                </button>
+                {normalizedRepoUrl ? (
+                  <button
+                    type="button"
+                    onClick={stageRepositoryScan}
+                    className="min-h-10 rounded-md border border-[var(--boundary)] px-3 py-2 text-sm font-semibold"
+                  >
+                    Review GitHub evidence
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+
+          {messages.map((message) => (
             <div
-              key={msg.id}
-              data-testid={`chat-message-${msg.role}`}
+              key={message.id}
+              data-testid={`chat-message-${message.role}`}
               className="border-b border-[var(--border)] pb-4 last:border-b-0"
             >
-              <div className="mb-1.5 flex items-center gap-2">
-                <span
-                  className={`text-[0.6875rem] font-semibold uppercase tracking-[0.08em] ${
-                    msg.role === "user"
-                      ? "text-[var(--color-client)]"
-                      : "text-[var(--muted-foreground)]"
-                  }`}
-                >
-                  {msg.role === "user" ? "You" : "StackHatch"}
-                </span>
-              </div>
-              <div
-                className={`max-w-[72ch] text-[0.9375rem] leading-7 text-[var(--foreground)] ${
-                  msg.role === "user" ? "whitespace-pre-wrap" : ""
-                }`}
-              >
-                {msg.role === "assistant" ? (
-                  <div className="prose prose-sm max-w-none dark:prose-invert [&_li]:my-1 [&_ol]:my-3 [&_p]:m-0 [&_p+p]:mt-3 [&_ul]:my-3">
-                    <ReactMarkdown>{stripStackTags(msg.content)}</ReactMarkdown>
-                  </div>
-                ) : (
-                  <span>{msg.content}</span>
-                )}
-              </div>
+              <p className="mb-1.5 text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
+                {message.role === "user" ? "You" : "StackHatch"}
+              </p>
+              {message.role === "assistant" ? (
+                <div className="prose prose-sm max-w-none dark:prose-invert">
+                  <ReactMarkdown>{stripStackTags(message.content)}</ReactMarkdown>
+                </div>
+              ) : (
+                <p className="whitespace-pre-wrap text-sm leading-6">{message.content}</p>
+              )}
             </div>
           ))}
 
-          {/* Streaming response */}
-          {streaming && streamText && (
-            <div
-              data-testid="chat-message-assistant-streaming"
-              className="border-b border-[var(--border)] pb-4 last:border-b-0"
-            >
-              <div className="mb-1.5 flex items-center gap-2">
-                <span className="text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
-                  StackHatch
-                </span>
-              </div>
-              <div className="prose prose-sm max-w-[72ch] text-[0.9375rem] leading-7 dark:prose-invert [&_li]:my-1 [&_ol]:my-3 [&_p]:m-0 [&_p+p]:mt-3 [&_ul]:my-3">
-                <ReactMarkdown>{stripStackTags(streamText)}</ReactMarkdown>
-              </div>
-            </div>
-          )}
-
-          {/* Typing indicator */}
-          {streaming && !streamText && (
-            <div className="border-b border-[var(--border)] pb-4 last:border-b-0">
-              <div className="mb-2 flex items-center gap-2">
-                <span className="text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
-                  StackHatch
-                </span>
-              </div>
-              <div className="flex min-h-7 items-center">
-                <div className="flex space-x-1" data-testid="typing-indicator">
-                  <span className="inline-block h-2 w-2 rounded-full bg-[var(--muted-foreground)] motion-safe:animate-bounce [animation-delay:0ms]" />
-                  <span className="inline-block h-2 w-2 rounded-full bg-[var(--muted-foreground)] motion-safe:animate-bounce [animation-delay:150ms]" />
-                  <span className="inline-block h-2 w-2 rounded-full bg-[var(--muted-foreground)] motion-safe:animate-bounce [animation-delay:300ms]" />
+          {streaming ? (
+            <div className="border-b border-[var(--border)] pb-4">
+              <p className="mb-2 text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
+                {streamText ? "StackHatch" : "Provider request"}
+              </p>
+              {streamText ? (
+                <div
+                  data-testid="chat-message-assistant-streaming"
+                  className="prose prose-sm max-w-none dark:prose-invert"
+                >
+                  <ReactMarkdown>{stripStackTags(streamText)}</ReactMarkdown>
                 </div>
+              ) : (
+                <div className="flex items-center gap-2 text-sm text-[var(--muted-foreground)]">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Waiting for the provider…
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => abortRef.current?.abort()}
+                className="mt-3 inline-flex min-h-9 items-center gap-2 rounded-md border border-[var(--boundary)] px-3 py-1.5 text-xs font-semibold"
+              >
+                <Square className="h-3.5 w-3.5" />
+                Cancel request
+              </button>
+            </div>
+          ) : null}
+
+          {disclosure ? (
+            <div
+              role="dialog"
+              aria-label={`${disclosure.provider} data disclosure`}
+              className="border border-[var(--blueprint)] bg-[var(--background)] p-4"
+            >
+              <p className="flex items-center gap-2 text-sm font-semibold">
+                {disclosure.provider === "GitHub" ? (
+                  <Github className="h-4 w-4" />
+                ) : (
+                  <DatabaseZap className="h-4 w-4" />
+                )}
+                {disclosure.title}
+              </p>
+              <p className="mt-2 text-xs leading-5 text-[var(--muted-foreground)]">
+                {disclosure.detail}
+              </p>
+              <div className="mt-3 flex gap-2">
+                <button
+                  type="button"
+                  onClick={confirmDisclosure}
+                  className="min-h-10 rounded-md bg-[var(--brand)] px-3 py-2 text-sm font-bold text-[var(--brand-foreground)]"
+                >
+                  Continue to {disclosure.provider}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDisclosure(null)}
+                  className="min-h-10 rounded-md border border-[var(--boundary)] px-3 py-2 text-sm font-semibold"
+                >
+                  Keep it local
+                </button>
               </div>
             </div>
-          )}
+          ) : null}
 
-          {showApiKeyPrompt && (
-            <div className="rounded-lg border border-[var(--warning-border)] bg-[var(--warning-surface)] p-3 text-sm shadow-sm shadow-[var(--shadow-color)]">
-              <p className="font-medium text-[var(--foreground)]">
-                Connect your Anthropic account to use AI features.
+          {evidence ? (
+            <div className="border border-[var(--boundary)] bg-[var(--background)] p-4">
+              <p className="flex items-center gap-2 text-sm font-semibold">
+                <Github className="h-4 w-4" />
+                GitHub evidence is ready
+              </p>
+              <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
+                <dt className="text-[var(--muted-foreground)]">Revision</dt>
+                <dd className="font-mono">{evidence.analysis.commitSha.slice(0, 12)}</dd>
+                <dt className="text-[var(--muted-foreground)]">Tree paths</dt>
+                <dd>{evidence.analysis.treePaths.length}</dd>
+                <dt className="text-[var(--muted-foreground)]">Evidence files</dt>
+                <dd>{evidence.analysis.evidenceFiles.length}</dd>
+              </dl>
+              {evidence.analysis.warnings.length ? (
+                <p className="mt-2 text-xs leading-5 text-[var(--warning)]">
+                  {evidence.analysis.warnings.join(" ")}
+                </p>
+              ) : null}
+              <button
+                type="button"
+                onClick={generateRepositoryMap}
+                className="mt-3 min-h-10 rounded-md bg-[var(--brand)] px-3 py-2 text-sm font-bold text-[var(--brand-foreground)]"
+              >
+                Generate map with Anthropic
+              </button>
+            </div>
+          ) : null}
+
+          {showApiKeyPrompt ? (
+            <div className="border border-[var(--warning-border)] bg-[var(--warning-surface)] p-4 text-sm">
+              <p className="flex items-center gap-2 font-semibold">
+                <KeyRound className="h-4 w-4" />
+                Add your Anthropic key
               </p>
               <p className="mt-1 text-xs leading-5 text-[var(--muted-foreground)]">
-                Your API key is encrypted and stored with your account.
+                Session-only is the default. Remembering it is an explicit device-level choice.
               </p>
               <Link
                 href="/settings?setup=anthropic"
-                className="mt-3 inline-flex min-h-10 items-center rounded-md bg-[var(--brand)] px-3 py-2 text-sm font-bold text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)]"
+                className="mt-3 inline-flex min-h-10 items-center rounded-md bg-[var(--brand)] px-3 py-2 text-sm font-bold text-[var(--brand-foreground)]"
               >
-                Open Settings
+                Open device settings
               </Link>
             </div>
-          )}
+          ) : null}
 
-          {error && !showApiKeyPrompt && (
-            <div className="rounded-lg border border-[var(--danger-border)] bg-[var(--danger-surface)] px-3 py-2 text-sm text-[var(--danger)]">
+          {error && !showApiKeyPrompt ? (
+            <div role="alert" className="border border-[var(--danger-border)] px-3 py-2 text-sm">
               {error}
+              {retryDraft ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    stageAnthropic(
+                      { ...retryDraft.request, retryRunId: retryDraft.runId },
+                      "Retry this Anthropic request?",
+                      "StackHatch will resend the same local draft against the latest committed revision. It will not duplicate the chat message."
+                    )
+                  }
+                  className="mt-2 block min-h-9 rounded-md border border-[var(--boundary)] px-3 py-1.5 text-xs font-semibold"
+                >
+                  Review and retry
+                </button>
+              ) : null}
             </div>
-          )}
+          ) : null}
         </div>
-
         <div ref={messagesEndRef} />
       </div>
 
       <div className="border-t border-[var(--boundary)] bg-[var(--paper)] p-3">
-        <div className="flex items-end gap-2 rounded-[var(--radius-control)] border border-[var(--boundary)] bg-[var(--background)] p-2 transition-colors focus-within:border-[var(--blueprint)] focus-within:ring-2 focus-within:ring-[var(--blueprint)]/20">
+        <p className="mb-2 text-[0.6875rem] leading-4 text-[var(--muted-foreground)]">
+          {keyStatus?.state === "remembered"
+            ? "Anthropic key remembered on this device · context is sent only when you act"
+            : keyStatus?.state === "session"
+              ? "Anthropic key available for this session · context is sent only when you act"
+              : "No Anthropic key active · local editing remains available"}
+        </p>
+        <div className="flex items-end gap-2 rounded-[var(--radius-control)] border border-[var(--boundary)] bg-[var(--background)] p-2 focus-within:border-[var(--blueprint)]">
           <textarea
             ref={textareaRef}
             value={input}
-            onChange={handleInputChange}
-            onKeyDown={handleKeyDown}
-            placeholder={initialized ? "Message..." : "Waiting for AI..."}
-            disabled={streaming || !initialized}
+            onChange={(event) => {
+              setInput(event.target.value);
+              event.target.style.height = "auto";
+              event.target.style.height = `${Math.min(event.target.scrollHeight, 120)}px`;
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                sendMessage();
+              }
+            }}
+            placeholder={ready ? "Ask about this architecture…" : "Loading local messages…"}
+            disabled={!ready || streaming}
             rows={1}
-            className="max-h-[120px] min-h-10 flex-1 resize-none bg-transparent px-2 py-2 text-sm leading-5 text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+            className="max-h-[120px] min-h-10 flex-1 resize-none bg-transparent px-2 py-2 text-sm leading-5 focus:outline-none disabled:opacity-50"
           />
           <button
             type="button"
             onClick={sendMessage}
-            disabled={streaming || !input.trim()}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-[var(--brand)] text-[var(--brand-foreground)] transition-colors hover:bg-[var(--brand-hover)] disabled:cursor-not-allowed disabled:opacity-40"
+            disabled={!ready || streaming || !input.trim()}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-[var(--brand)] text-[var(--brand-foreground)] disabled:opacity-40"
             aria-label="Send message"
           >
-            {streaming ? (
-              <Loader2
-                className="h-[18px] w-[18px] animate-spin"
-                data-testid="send-button-spinner"
-              />
-            ) : (
-              <SendHorizontal className="h-[18px] w-[18px]" />
-            )}
+            <SendHorizontal className="h-[18px] w-[18px]" />
           </button>
         </div>
       </div>

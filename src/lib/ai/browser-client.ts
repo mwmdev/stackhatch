@@ -48,6 +48,7 @@ export interface BrowserAnthropicRequest {
   signal?: AbortSignal;
   requireArchitecture?: boolean;
   allowNoteNodes?: boolean;
+  onText?: (text: string, delta: string) => void;
 }
 
 export interface BrowserAnthropicResult extends ParsedAIResponse {
@@ -186,6 +187,7 @@ export function createBrowserAnthropicClient(
             typeof delta.text === "string"
           ) {
             text += delta.text;
+            request.onText?.(text, delta.text);
           }
         }
         requestId = stream.request_id ?? requestId;

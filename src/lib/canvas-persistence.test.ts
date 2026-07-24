@@ -262,6 +262,34 @@ describe("canvas persistence coordinator", () => {
     expect(coordinator.getState()).toMatchObject({ suspended: true, dirty: false });
   });
 
+  it("accepts a revision-safe external provider commit after pending edits settle", async () => {
+    const writer = vi.fn().mockResolvedValue({
+      projectRevision: 2,
+      vaultGeneration: "generation-1",
+    });
+    const coordinator = createCanvasPersistenceCoordinator({
+      baseline,
+      baselineCommit: { projectRevision: 1, vaultGeneration: "generation-1" },
+      writer,
+    });
+    coordinator.publish(populatedSnapshot("before-provider"));
+    await coordinator.flushLatest();
+
+    coordinator.acknowledgeExternalCommit(populatedSnapshot("provider-result"), {
+      projectRevision: 3,
+      vaultGeneration: "generation-1",
+    });
+
+    expect(coordinator.getLatestSnapshot()).toEqual(populatedSnapshot("provider-result"));
+    expect(coordinator.getState()).toMatchObject({
+      projectRevision: 3,
+      vaultGeneration: "generation-1",
+      dirty: false,
+      suspended: false,
+    });
+    expect(writer).toHaveBeenCalledOnce();
+  });
+
   it("creates an isolated acknowledged baseline for a new project instance", () => {
     const writer = vi.fn().mockResolvedValue(undefined);
     const first = createCanvasPersistenceCoordinator({ baseline, writer });

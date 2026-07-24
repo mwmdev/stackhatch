@@ -99,6 +99,7 @@ function makeVault(overrides: Partial<WorkspaceVault> = {}) {
       project,
       generation: "generation-1",
     }),
+    getRepositoryProvenance: vi.fn().mockResolvedValue(null),
     getCustomSubtypes: vi.fn().mockResolvedValue({}),
     recordProjectOpen: vi.fn().mockResolvedValue(true),
     saveCanvas: vi.fn().mockImplementation(async (current, canvasState) => ({

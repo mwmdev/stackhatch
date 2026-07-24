@@ -157,6 +157,7 @@ describe("createBrowserAnthropicClient", () => {
 
   it("accumulates streamed text and returns validated architecture with request ID", async () => {
     const output = 'Done\n<stack>{"nodes":[],"edges":[]}</stack>';
+    const onText = vi.fn();
     const client = createBrowserAnthropicClient({
       clientFactory: () =>
         sdkClient(textStream(["Done\n<stack>", '{"nodes":[],"edges":[]}', "</stack>"])),
@@ -168,6 +169,7 @@ describe("createBrowserAnthropicClient", () => {
         model: "claude-sonnet-5",
         messages: [{ role: "user", content: "map it" }],
         requireArchitecture: true,
+        onText,
       })
     ).resolves.toMatchObject({
       text: output,
@@ -175,6 +177,8 @@ describe("createBrowserAnthropicClient", () => {
       architecture: { nodes: [], edges: [] },
       requestId: "req_stream_123",
     });
+    expect(onText).toHaveBeenNthCalledWith(1, "Done\n<stack>", "Done\n<stack>");
+    expect(onText).toHaveBeenLastCalledWith(output, "</stack>");
   });
 
   it("aborts the SDK stream and returns no partial result", async () => {

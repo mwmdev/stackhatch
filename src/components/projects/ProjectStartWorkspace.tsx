@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   AlertCircle,
@@ -129,6 +130,7 @@ export default function ProjectStartWorkspace({ initialMode, vault }: ProjectSta
   const [repoUrl, setRepoUrl] = useState("");
   const [returnPath, setReturnPath] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [navigationRecoveryPath, setNavigationRecoveryPath] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [blankAttempted, setBlankAttempted] = useState(false);
@@ -153,6 +155,7 @@ export default function ProjectStartWorkspace({ initialMode, vault }: ProjectSta
     setRepoUrl(repositoryFromProjectStartPath(browserPath) ?? "");
     setReturnPath(returnPathFromProjectStartPath(browserPath));
     setError("");
+    setNavigationRecoveryPath(null);
     setSelectedTemplate(null);
     setBlankAttempted(false);
     blankAutoCreateAttempted.current = false;
@@ -180,6 +183,7 @@ export default function ProjectStartWorkspace({ initialMode, vault }: ProjectSta
       submissionInFlight.current = true;
       setSubmitting(true);
       setError("");
+      let createdPath: string | null = null;
       try {
         let canvasState: VaultCanvasState | null = null;
         if (payload.canvasState) {
@@ -195,16 +199,22 @@ export default function ProjectStartWorkspace({ initialMode, vault }: ProjectSta
           repoUrl: payload.repoUrl ?? null,
           canvasState,
         });
-        router.push(buildLocalProjectPath(project.id));
+        createdPath = buildLocalProjectPath(project.id);
+        setNavigationRecoveryPath(createdPath);
+        router.push(createdPath);
         return true;
       } catch {
         setError(
-          "The map could not be saved to browser storage. Check storage permissions, then retry."
+          createdPath
+            ? "The map was saved on this device, but navigation did not complete."
+            : "The map could not be saved to browser storage. Check storage permissions, then retry."
         );
         return false;
       } finally {
-        submissionInFlight.current = false;
-        setSubmitting(false);
+        if (!createdPath) {
+          submissionInFlight.current = false;
+          setSubmitting(false);
+        }
       }
     },
     [router, workspaceVault]
@@ -589,7 +599,20 @@ export default function ProjectStartWorkspace({ initialMode, vault }: ProjectSta
                       role="alert"
                     >
                       <AlertCircle className="mt-0.5 h-4 w-4 flex-none" aria-hidden="true" />
-                      <span>{error}</span>
+                      <span>
+                        {error}
+                        {navigationRecoveryPath ? (
+                          <>
+                            {" "}
+                            <Link
+                              href={navigationRecoveryPath}
+                              className="font-semibold underline underline-offset-2"
+                            >
+                              Open the saved map
+                            </Link>
+                          </>
+                        ) : null}
+                      </span>
                     </div>
                   )}
 

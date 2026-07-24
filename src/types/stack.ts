@@ -1,19 +1,18 @@
 // Node categories and their subtypes
-export type NodeCategory =
-  | "client"
-  | "api"
-  | "services"
-  | "data"
-  | "infrastructure"
-  | "external"
-  | "note";
+export const NODE_CATEGORIES = [
+  "client",
+  "api",
+  "services",
+  "data",
+  "infrastructure",
+  "external",
+  "note",
+] as const;
+
+export type NodeCategory = (typeof NODE_CATEGORIES)[number];
 
 export type ClientSubtype = "web-app" | "mobile-app" | "desktop-app" | "cli";
-export type ApiSubtype =
-  | "rest-api"
-  | "graphql"
-  | "grpc"
-  | "websocket-server";
+export type ApiSubtype = "rest-api" | "graphql" | "grpc" | "websocket-server";
 export type ServicesSubtype =
   | "auth"
   | "payments"
@@ -21,22 +20,9 @@ export type ServicesSubtype =
   | "search"
   | "file-processing"
   | "custom";
-export type DataSubtype =
-  | "sql-db"
-  | "nosql-db"
-  | "cache"
-  | "message-queue"
-  | "object-storage";
-export type InfraSubtype =
-  | "cdn"
-  | "load-balancer"
-  | "api-gateway"
-  | "dns"
-  | "reverse-proxy";
-export type ExternalSubtype =
-  | "third-party-api"
-  | "oauth-provider"
-  | "email-sms-service";
+export type DataSubtype = "sql-db" | "nosql-db" | "cache" | "message-queue" | "object-storage";
+export type InfraSubtype = "cdn" | "load-balancer" | "api-gateway" | "dns" | "reverse-proxy";
+export type ExternalSubtype = "third-party-api" | "oauth-provider" | "email-sms-service";
 export type NoteSubtype = "note";
 
 export type BuiltInNodeSubtype =
@@ -51,13 +37,7 @@ export type BuiltInNodeSubtype =
 export type NodeSubtype = BuiltInNodeSubtype | (string & {});
 
 // Connection types between nodes
-export type ConnectionType =
-  | "http"
-  | "websocket"
-  | "grpc"
-  | "tcp"
-  | "pub-sub"
-  | "file-io";
+export type ConnectionType = "http" | "websocket" | "grpc" | "tcp" | "pub-sub" | "file-io";
 
 export type NoteColor = "yellow" | "mint" | "peach" | "sky" | "lilac";
 

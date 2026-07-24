@@ -31,6 +31,7 @@ export interface CanvasPersistenceCoordinator<TSnapshot> {
   suspendAndFlush(): Promise<void>;
   persistReplacement(snapshot: TSnapshot): Promise<void>;
   restoreAcknowledgedSnapshot(snapshot: TSnapshot, commit?: CanvasPersistenceCommit): void;
+  acknowledgeExternalCommit(snapshot: TSnapshot, commit: CanvasPersistenceCommit): void;
   resume(): void;
   dispose(): Promise<void>;
   getLatestSnapshot(): TSnapshot;
@@ -112,6 +113,16 @@ class RevisionCoordinator<TSnapshot> implements CanvasPersistenceCoordinator<TSn
     this.acceptSnapshot(snapshot, false);
     this.savedRevision = this.latestRevision;
     if (commit) this.acceptCommit(commit);
+  }
+
+  acknowledgeExternalCommit(snapshot: TSnapshot, commit: CanvasPersistenceCommit) {
+    if (this.suspended || this.flushPromise || this.savedRevision !== this.latestRevision) {
+      throw new Error("Canvas persistence must be settled before accepting an external commit");
+    }
+    this.cancelDebounce();
+    this.acceptSnapshot(snapshot, false);
+    this.savedRevision = this.latestRevision;
+    this.acceptCommit(commit);
   }
 
   resume() {

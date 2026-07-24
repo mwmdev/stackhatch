@@ -71,6 +71,11 @@ import {
   type WorkspaceProjectPrecondition,
   type WorkspaceVault,
 } from "@/lib/vault/workspace";
+import {
+  getBrowserProviderRunCoordinator,
+  providerErrorDetails,
+  type ProviderRunCoordinator,
+} from "@/lib/ai/provider-run";
 
 type Project = VaultProjectRecord & {
   repoCommitSha?: string | null;
@@ -199,8 +204,17 @@ function getProjectIdentity(project: Project) {
   };
 }
 
-export default function ProjectPage({ vault }: { vault?: WorkspaceVault }) {
+export default function ProjectPage({
+  vault,
+  providerCoordinator: providedProviderCoordinator,
+}: {
+  vault?: WorkspaceVault;
+  providerCoordinator?: ProviderRunCoordinator;
+}) {
   const [workspaceVault] = useState(() => vault ?? getBrowserWorkspaceVault());
+  const [providerCoordinator] = useState(
+    () => providedProviderCoordinator ?? getBrowserProviderRunCoordinator()
+  );
   const [projectId, setProjectId] = useState<string | null | undefined>(undefined);
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
@@ -229,6 +243,11 @@ export default function ProjectPage({ vault }: { vault?: WorkspaceVault }) {
   const [templateSaving, setTemplateSaving] = useState(false);
   const [aiSetupRequired, setAiSetupRequired] = useState(false);
   const [rescanConfirmOpen, setRescanConfirmOpen] = useState(false);
+  const [providerDisclosure, setProviderDisclosure] = useState<{
+    title: string;
+    detail: string;
+    action: () => Promise<void>;
+  } | null>(null);
   const [editorDisplaySettings, setEditorDisplaySettings] = useState<EditorDisplaySettings>(() => {
     if (typeof window === "undefined") return DEFAULT_EDITOR_DISPLAY_SETTINGS;
     try {
@@ -268,7 +287,6 @@ export default function ProjectPage({ vault }: { vault?: WorkspaceVault }) {
   const architectureStreamActiveRef = useRef(false);
   const saveBlockedRef = useRef(false);
   const authoritativeUpdatedAtRef = useRef<number | null>(null);
-  const preStreamRef = useRef<{ snapshot: StoredCanvasState; updatedAt: number } | null>(null);
   const firstMapTrackedRef = useRef(false);
   const canUseConnectionTypes = true;
   const morePopoverId = `editor-more-${useId()}`;
@@ -780,43 +798,119 @@ export default function ProjectPage({ vault }: { vault?: WorkspaceVault }) {
     [rfEdges, handleEdgeLabelChange, canUseConnectionTypes]
   );
 
+  const flushProviderCanvas = useCallback(async () => {
+    const coordinator = persistenceRef.current;
+    if (!coordinator || !projectRef.current) {
+      throw new Error("Architecture update is unavailable");
+    }
+    setArchitectureStreamPhase("preparing");
+    try {
+      await coordinator.flushLatest();
+    } finally {
+      setArchitectureStreamPhase("idle");
+    }
+  }, []);
+
+  const prepareProviderCommit = useCallback(async () => {
+    const coordinator = persistenceRef.current;
+    if (!coordinator || !projectRef.current || architectureStreamActiveRef.current) {
+      throw new Error("The local provider result cannot be committed");
+    }
+    architectureStreamActiveRef.current = true;
+    setArchitectureStreamPhase("reconciling");
+    try {
+      await coordinator.suspendAndFlush();
+    } catch (error) {
+      architectureStreamActiveRef.current = false;
+      setArchitectureStreamPhase("idle");
+      throw error;
+    }
+  }, []);
+
+  const acknowledgeProviderCommit = useCallback(
+    async (commit: CanvasPersistenceCommit, storedCanvas?: StoredCanvasState) => {
+      const coordinator = persistenceRef.current;
+      const currentProject = projectRef.current;
+      if (!coordinator || !currentProject) {
+        throw new Error("The local provider result cannot be acknowledged");
+      }
+      const snapshot = storedCanvas ?? coordinator.getLatestSnapshot();
+      if (coordinator.getState().suspended) {
+        coordinator.restoreAcknowledgedSnapshot(snapshot, commit);
+        coordinator.resume();
+      } else {
+        coordinator.acknowledgeExternalCommit(snapshot, commit);
+      }
+      architectureStreamActiveRef.current = false;
+      setArchitectureStreamPhase("idle");
+      const nextProject = {
+        ...currentProject,
+        canvasState: snapshot,
+        revision: commit.projectRevision,
+        updatedAt: Date.now(),
+      };
+      acknowledgedProjectRef.current = nextProject;
+      projectRef.current = nextProject;
+      authoritativeUpdatedAtRef.current = nextProject.updatedAt;
+      setProject(nextProject);
+    },
+    []
+  );
+
   // --- Export PRD ---
 
-  const handleExportPrd = useCallback(async () => {
-    if (!project) return;
+  const runExportPrd = useCallback(async () => {
+    const currentProject = projectRef.current;
+    if (!currentProject) return;
     setPrdStatus("Generating PRD...");
     setPrdLoading(true);
     try {
-      const res = await fetch(`/api/projects/${projectId}/export-prd`, {
-        method: "POST",
+      await flushProviderCanvas();
+      const result = await providerCoordinator.run({
+        projectId: currentProject.id,
+        kind: "prd",
+        beforeCommit: prepareProviderCommit,
       });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        if (data.code === "AI_NOT_CONFIGURED") {
-          setPrdStatus("PRD export needs Anthropic setup.");
-          setAiSetupRequired(true);
-          return;
-        }
-        setPrdStatus("PRD export failed.");
-        setToast(data.error || "Failed to generate PRD");
-        return;
-      }
-      const { prd, projectName } = await res.json();
+      await acknowledgeProviderCommit({
+        projectRevision: result.project.revision,
+        vaultGeneration: result.generation,
+      });
+      const prd = result.prd ?? "";
       const blob = new Blob([prd], { type: "text/markdown" });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
-      link.download = `${projectName}-prd.md`;
+      link.download = `${currentProject.name}-prd.md`;
       link.href = url;
       link.click();
       URL.revokeObjectURL(url);
       setPrdStatus("PRD exported.");
-    } catch {
+    } catch (providerError) {
+      const details = providerErrorDetails(providerError);
+      if (details.code === "authentication") {
+        setPrdStatus("PRD export needs an Anthropic key.");
+        setAiSetupRequired(true);
+        return;
+      }
       setPrdStatus("PRD export failed.");
-      setToast("Failed to generate PRD");
+      setToast(details.message);
     } finally {
+      if (persistenceRef.current?.getState().suspended) {
+        persistenceRef.current.resume();
+      }
+      architectureStreamActiveRef.current = false;
+      setArchitectureStreamPhase("idle");
       setPrdLoading(false);
     }
-  }, [project, projectId]);
+  }, [acknowledgeProviderCommit, flushProviderCanvas, prepareProviderCommit, providerCoordinator]);
+
+  const handleExportPrd = useCallback(() => {
+    setProviderDisclosure({
+      title: "Send this map to Anthropic for a PRD?",
+      detail:
+        "Anthropic will receive the latest committed nodes, connections, technology choices, and project name. The generated Markdown is downloaded locally and is not added to chat history.",
+      action: runExportPrd,
+    });
+  }, [runExportPrd]);
 
   // --- Add node ---
 
@@ -919,38 +1013,65 @@ export default function ProjectPage({ vault }: { vault?: WorkspaceVault }) {
 
   // --- Suggest alternatives ---
 
-  const handleSuggestAlternatives = useCallback(async () => {
+  const runSuggestAlternatives = useCallback(async () => {
     const node = selectedNode;
-    if (!node || isCanvasMutationBlocked()) return;
+    if (!node || !projectId || isCanvasMutationBlocked()) return;
     setAltLoading(true);
     try {
-      const res = await fetch(`/api/projects/${projectId}/alternatives`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          node: {
-            name: node.name,
-            technology: node.technology,
-            category: node.category,
-            subtype: node.subtype,
-            description: node.description,
-          },
-        }),
+      await flushProviderCanvas();
+      const result = await providerCoordinator.run({
+        projectId,
+        kind: "alternatives",
+        targetNode: node,
+        beforeCommit: prepareProviderCommit,
       });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        if (data.code === "AI_NOT_CONFIGURED") setAiSetupRequired(true);
-        else setToast(data.error || "Failed to suggest alternatives");
-        return;
-      }
-      const data = await res.json();
-      if (data.alternatives && !isCanvasMutationBlocked()) {
-        setAlternatives((prev) => ({ ...prev, [node.id]: data.alternatives }));
+      const storedCanvas = result.project.canvasState as StoredCanvasState | null;
+      if (!storedCanvas) throw new Error("The provider result did not include the local map");
+      skipNextPersistencePublishRef.current = true;
+      const storedAlternatives = storedCanvas.alternatives ?? {};
+      alternativesRef.current = storedAlternatives;
+      setAlternatives(storedAlternatives);
+      await acknowledgeProviderCommit(
+        {
+          projectRevision: result.project.revision,
+          vaultGeneration: result.generation,
+        },
+        storedCanvas
+      );
+    } catch (providerError) {
+      const details = providerErrorDetails(providerError);
+      if (details.code === "authentication") {
+        setAiSetupRequired(true);
+      } else {
+        setToast(details.message);
       }
     } finally {
+      if (persistenceRef.current?.getState().suspended) {
+        persistenceRef.current.resume();
+      }
+      architectureStreamActiveRef.current = false;
+      setArchitectureStreamPhase("idle");
       setAltLoading(false);
     }
-  }, [selectedNode, projectId, isCanvasMutationBlocked]);
+  }, [
+    acknowledgeProviderCommit,
+    flushProviderCanvas,
+    isCanvasMutationBlocked,
+    projectId,
+    prepareProviderCommit,
+    providerCoordinator,
+    selectedNode,
+  ]);
+
+  const handleSuggestAlternatives = useCallback(() => {
+    if (!selectedNode || isCanvasMutationBlocked()) return;
+    setProviderDisclosure({
+      title: `Send ${selectedNode.name} and this map to Anthropic?`,
+      detail:
+        "Anthropic will receive the selected component plus the latest committed canvas to suggest 3–5 alternatives. Valid suggestions are stored with this map on this device.",
+      action: runSuggestAlternatives,
+    });
+  }, [isCanvasMutationBlocked, runSuggestAlternatives, selectedNode]);
 
   // --- Swap alternative ---
 
@@ -1037,7 +1158,10 @@ export default function ProjectPage({ vault }: { vault?: WorkspaceVault }) {
     ) => {
       try {
         const coordinator = persistenceRef.current;
-        if (!coordinator?.getState().suspended) {
+        if (!coordinator) {
+          throw new Error("Canvas persistence is unavailable");
+        }
+        if (!meta?.persisted && !coordinator.getState().suspended) {
           throw new Error("Architecture replacement started without a persistence barrier");
         }
         if (!incoming?.nodes || !Array.isArray(incoming.nodes)) {
@@ -1047,7 +1171,7 @@ export default function ProjectPage({ vault }: { vault?: WorkspaceVault }) {
 
         const currentCanvas = projectRef.current?.canvasState;
         const isFirst = !currentCanvas || currentCanvas.nodes.length === 0;
-        const isReplacement = forceReplacement || meta?.source === "scan";
+        const isReplacement = forceReplacement || meta?.source === "scan" || meta?.persisted;
 
         let finalArch: StackArchitecture;
         let posMap: Map<string, { x: number; y: number }>;
@@ -1078,37 +1202,90 @@ export default function ProjectPage({ vault }: { vault?: WorkspaceVault }) {
         const newRfNodes = buildRfNodes(finalArch.nodes, posMap);
         const newRfEdges = toReactFlowEdges(finalArch.edges);
 
-        const replacementAlternatives = isReplacement ? {} : alternativesRef.current;
+        const persistedAlternatives =
+          meta?.persisted && "alternatives" in incoming
+            ? ((incoming as StoredCanvasState).alternatives ?? {})
+            : null;
+        const replacementAlternatives =
+          persistedAlternatives ?? (isReplacement ? {} : alternativesRef.current);
         if (isReplacement) {
-          alternativesRef.current = {};
-          setAlternatives({});
+          alternativesRef.current = replacementAlternatives;
+          setAlternatives(replacementAlternatives);
           setSelectedNode(null);
           setNodePanelOpen(false);
           setConnectionTypePopover(null);
         }
+        if (meta?.persisted) skipNextPersistencePublishRef.current = true;
         setRfNodes(newRfNodes);
         setRfEdges(newRfEdges);
-        setProject((prev) =>
-          prev
-            ? {
-                ...prev,
-                canvasState: finalArch,
-                ...(meta?.provenance
-                  ? {
-                      repoUrl: meta.provenance.repoUrl,
-                      repoCommitSha: meta.provenance.commitSha,
-                      repoScannedAt: meta.provenance.scannedAt,
-                      repoAnalysisStatus: meta.provenance.analysisStatus,
-                      repoAnalysisWarning: meta.provenance.analysisWarning,
-                    }
-                  : {}),
-              }
-            : prev
+        const storedCanvas = buildStoredCanvasState(
+          newRfNodes,
+          newRfEdges,
+          replacementAlternatives
         );
-
-        await coordinator.persistReplacement(
-          buildStoredCanvasState(newRfNodes, newRfEdges, replacementAlternatives)
-        );
+        if (meta?.persisted) {
+          const currentProject = projectRef.current;
+          if (!currentProject) throw new Error("The local project is unavailable");
+          const persistedCanvas = incoming as StoredCanvasState;
+          const committedCanvas: StoredCanvasState = {
+            nodes: persistedCanvas.nodes,
+            edges: persistedCanvas.edges,
+            positions: persistedCanvas.positions ?? {},
+            alternatives: persistedCanvas.alternatives ?? replacementAlternatives,
+          };
+          const nextProject = {
+            ...currentProject,
+            canvasState: storedCanvas,
+            revision: meta.commit.projectRevision,
+            updatedAt: Date.now(),
+            ...(meta.provenance
+              ? {
+                  repoUrl: meta.provenance.repoUrl,
+                  repoCommitSha: meta.provenance.commitSha,
+                  repoScannedAt: meta.provenance.scannedAt,
+                  repoAnalysisStatus: meta.provenance.analysisStatus,
+                  repoAnalysisWarning: meta.provenance.analysisWarning,
+                }
+              : {}),
+          };
+          projectRef.current = nextProject;
+          acknowledgedProjectRef.current = {
+            ...nextProject,
+            canvasState: committedCanvas,
+          };
+          authoritativeUpdatedAtRef.current = nextProject.updatedAt;
+          setProject(nextProject);
+          if (coordinator.getState().suspended) {
+            coordinator.restoreAcknowledgedSnapshot(committedCanvas, meta.commit);
+            coordinator.resume();
+          } else {
+            coordinator.acknowledgeExternalCommit(committedCanvas, meta.commit);
+          }
+          if (JSON.stringify(committedCanvas) !== JSON.stringify(storedCanvas)) {
+            coordinator.publish(storedCanvas);
+          }
+          architectureStreamActiveRef.current = false;
+          setArchitectureStreamPhase("idle");
+        } else {
+          setProject((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  canvasState: finalArch,
+                  ...(meta?.provenance
+                    ? {
+                        repoUrl: meta.provenance.repoUrl,
+                        repoCommitSha: meta.provenance.commitSha,
+                        repoScannedAt: meta.provenance.scannedAt,
+                        repoAnalysisStatus: meta.provenance.analysisStatus,
+                        repoAnalysisWarning: meta.provenance.analysisWarning,
+                      }
+                    : {}),
+                }
+              : prev
+          );
+          await coordinator.persistReplacement(storedCanvas);
+        }
 
         if (isFirst && !firstMapTrackedRef.current) {
           firstMapTrackedRef.current = true;
@@ -1130,111 +1307,15 @@ export default function ProjectPage({ vault }: { vault?: WorkspaceVault }) {
     [adoptArchitecture]
   );
 
-  const restoreCanvasSnapshot = useCallback(
-    (snapshot: StoredCanvasState) => {
-      const positions = snapshot.positions
-        ? new Map(Object.entries(snapshot.positions))
-        : new Map(
-            applyDagreLayout(snapshot.nodes, snapshot.edges).map((item) => [item.id, item.position])
-          );
-      const restoredNodes = buildRfNodes(snapshot.nodes, positions);
-      const restoredEdges = toReactFlowEdges(snapshot.edges);
-      const restoredAlternatives = snapshot.alternatives ?? {};
+  const handleArchitectureStreamStart = flushProviderCanvas;
 
-      alternativesRef.current = restoredAlternatives;
-      setRfNodes(restoredNodes);
-      setRfEdges(restoredEdges);
-      setAlternatives(restoredAlternatives);
-      setSelectedNode(null);
-      setNodePanelOpen(false);
-      setConnectionTypePopover(null);
-      setProject((previous) =>
-        previous
-          ? {
-              ...previous,
-              canvasState: { nodes: snapshot.nodes, edges: snapshot.edges },
-            }
-          : previous
-      );
-    },
-    [buildRfNodes, setRfEdges, setRfNodes]
-  );
-
-  const releaseArchitectureBarrier = useCallback(() => {
-    persistenceRef.current?.resume();
+  const handleArchitectureStreamEnd = useCallback(async (_outcome: ArchitectureStreamOutcome) => {
+    if (persistenceRef.current?.getState().suspended) {
+      persistenceRef.current.resume();
+    }
     architectureStreamActiveRef.current = false;
-    preStreamRef.current = null;
     setArchitectureStreamPhase("idle");
   }, []);
-
-  const handleArchitectureStreamStart = useCallback(async () => {
-    const coordinator = persistenceRef.current;
-    const currentProject = projectRef.current;
-    if (!coordinator || !currentProject || architectureStreamActiveRef.current) {
-      throw new Error("Architecture update is unavailable");
-    }
-
-    architectureStreamActiveRef.current = true;
-    const snapshot = coordinator.getLatestSnapshot();
-    setArchitectureStreamPhase("preparing");
-    try {
-      await coordinator.suspendAndFlush();
-      preStreamRef.current = {
-        snapshot,
-        updatedAt: authoritativeUpdatedAtRef.current ?? currentProject.updatedAt,
-      };
-      setArchitectureStreamPhase("streaming");
-    } catch (error) {
-      releaseArchitectureBarrier();
-      throw error;
-    }
-  }, [releaseArchitectureBarrier]);
-
-  const reconcileArchitectureStream = useCallback(async () => {
-    const coordinator = persistenceRef.current;
-    const preStream = preStreamRef.current;
-    if (!coordinator || !preStream) {
-      releaseArchitectureBarrier();
-      return;
-    }
-
-    setArchitectureStreamPhase("reconciling");
-    try {
-      if (!projectId) throw new Error("The local project identifier is missing");
-      const authoritative = (await workspaceVault.getProject(projectId)) as Project | null;
-      if (!authoritative) throw new Error("The local project no longer exists");
-      const serverAdvanced = authoritative.updatedAt !== preStream.updatedAt;
-      authoritativeUpdatedAtRef.current = authoritative.updatedAt;
-
-      if (serverAdvanced && authoritative.canvasState) {
-        setProject(authoritative);
-        await adoptArchitecture(authoritative.canvasState, undefined, true);
-      } else {
-        coordinator.restoreAcknowledgedSnapshot(preStream.snapshot);
-        restoreCanvasSnapshot(preStream.snapshot);
-      }
-      releaseArchitectureBarrier();
-    } catch {
-      setArchitectureStreamPhase("reconciliation-failed");
-    }
-  }, [
-    adoptArchitecture,
-    projectId,
-    releaseArchitectureBarrier,
-    restoreCanvasSnapshot,
-    workspaceVault,
-  ]);
-
-  const handleArchitectureStreamEnd = useCallback(
-    async (outcome: ArchitectureStreamOutcome) => {
-      if (outcome === "completed") {
-        releaseArchitectureBarrier();
-        return;
-      }
-      await reconcileArchitectureStream();
-    },
-    [reconcileArchitectureStream, releaseArchitectureBarrier]
-  );
 
   // --- Load project ---
 
@@ -1257,9 +1338,10 @@ export default function ProjectPage({ vault }: { vault?: WorkspaceVault }) {
       setSaveError("");
       try {
         initializedRef.current = false;
-        const [loadedCustomSubtypes, projectSnapshot] = await Promise.all([
+        const [loadedCustomSubtypes, projectSnapshot, provenance] = await Promise.all([
           workspaceVault.getCustomSubtypes(),
           workspaceVault.getProjectSnapshot(requestedProjectId),
+          workspaceVault.getRepositoryProvenance(requestedProjectId),
         ]);
         if (cancelled) return;
         setCustomSubtypes(loadedCustomSubtypes);
@@ -1269,7 +1351,18 @@ export default function ProjectPage({ vault }: { vault?: WorkspaceVault }) {
           return;
         }
         const { project: data, generation } = projectSnapshot;
-        const loadedProject = data as Project;
+        const loadedProject: Project = {
+          ...data,
+          ...(provenance
+            ? {
+                repoUrl: provenance.repositoryUrl,
+                repoCommitSha: provenance.commitSha,
+                repoScannedAt: provenance.scannedAt,
+                repoAnalysisStatus: provenance.analysisStatus,
+                repoAnalysisWarning: provenance.warning,
+              }
+            : {}),
+        };
         setProject(loadedProject);
         projectRef.current = loadedProject;
         acknowledgedProjectRef.current = loadedProject;
@@ -1397,18 +1490,6 @@ export default function ProjectPage({ vault }: { vault?: WorkspaceVault }) {
   const canvasMutationBlocked = architectureStreamPhase !== "idle" || Boolean(saveError);
   const toolSurfaceObscured = chatOpen || nodePanelOpen || connectionTypePopover !== null;
   const toolSurfaceDialogOpen = saveTemplateModalOpen || rescanConfirmOpen || aiSetupRequired;
-  const liveCanvasState = useMemo<StackArchitecture | null>(() => {
-    if (rfNodes.length > 0 || rfEdges.length > 0) {
-      return {
-        nodes: fromReactFlowNodes(rfNodes),
-        edges: fromReactFlowEdges(rfEdges),
-      };
-    }
-    return project?.canvasState
-      ? { nodes: project.canvasState.nodes, edges: project.canvasState.edges }
-      : null;
-  }, [project?.canvasState, rfNodes, rfEdges]);
-
   const retryLocalSave = useCallback(async () => {
     const coordinator = persistenceRef.current;
     if (!coordinator) return;
@@ -1542,9 +1623,11 @@ export default function ProjectPage({ vault }: { vault?: WorkspaceVault }) {
             onOpenChange={handleChatOpenChange}
             showCollapsedButton={false}
             scanTrigger={scanTrigger}
-            canvasState={liveCanvasState}
+            coordinator={providerCoordinator}
             onArchitecture={handleArchitecture}
+            onProviderCommit={acknowledgeProviderCommit}
             onArchitectureStreamStart={handleArchitectureStreamStart}
+            onProviderCommitStart={prepareProviderCommit}
             onArchitectureStreamEnd={handleArchitectureStreamEnd}
             onStreaming={setChatStreaming}
           />
@@ -1763,28 +1846,6 @@ export default function ProjectPage({ vault }: { vault?: WorkspaceVault }) {
                   Overwrite stored map
                 </button>
               </div>
-            </div>
-          )}
-          {architectureStreamPhase === "reconciliation-failed" && (
-            <div
-              role="alert"
-              className="absolute left-1/2 top-4 z-40 flex w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 flex-col gap-3 rounded-[var(--radius-surface)] border border-[var(--danger)] bg-[var(--surface-raised)] p-4 shadow-xl sm:flex-row sm:items-center sm:justify-between"
-            >
-              <div>
-                <p className="text-sm font-semibold text-[var(--foreground)]">
-                  Save status unknown
-                </p>
-                <p className="mt-1 text-xs leading-5 text-[var(--muted-foreground)]">
-                  Editing and sign out are paused until StackHatch confirms the AI update.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => void reconcileArchitectureStream()}
-                className="min-h-11 shrink-0 rounded-[var(--radius-control)] bg-[var(--brand)] px-4 py-2 text-sm font-semibold text-[var(--brand-foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
-              >
-                Retry reconciliation
-              </button>
             </div>
           )}
           <EditorDisplaySettingsProvider value={editorDisplaySettings}>
@@ -2059,6 +2120,55 @@ export default function ProjectPage({ vault }: { vault?: WorkspaceVault }) {
               document.body
             )}
 
+          {providerDisclosure && (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay)]"
+              onClick={() => setProviderDisclosure(null)}
+            >
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="provider-disclosure-title"
+                className="mx-4 w-full max-w-md rounded-[var(--radius-surface)] border border-[var(--boundary)] bg-[var(--card)] p-6 shadow-xl"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <p className="font-utility text-[0.6875rem] font-semibold uppercase tracking-[0.14em] text-[var(--blueprint)]">
+                  Direct provider request
+                </p>
+                <h3 id="provider-disclosure-title" className="mt-2 text-lg font-semibold">
+                  {providerDisclosure.title}
+                </h3>
+                <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
+                  {providerDisclosure.detail}
+                </p>
+                <p className="mt-3 text-xs leading-5 text-[var(--muted-foreground)]">
+                  The response is committed only if this map&apos;s browser revision is still
+                  current. Editing can continue while Anthropic responds.
+                </p>
+                <div className="mt-5 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setProviderDisclosure(null)}
+                    className="min-h-11 rounded-md border border-[var(--border)] px-4 py-2 text-sm"
+                  >
+                    Keep it local
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const action = providerDisclosure.action;
+                      setProviderDisclosure(null);
+                      void action();
+                    }}
+                    className="min-h-11 rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-semibold text-[var(--brand-foreground)]"
+                  >
+                    Continue to Anthropic
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {aiSetupRequired && (
             <div
               className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay)]"
@@ -2075,8 +2185,9 @@ export default function ProjectPage({ vault }: { vault?: WorkspaceVault }) {
                   Connect Anthropic to continue
                 </h3>
                 <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
-                  Add your own Anthropic API key in Settings. It is encrypted at rest and AI usage
-                  is billed directly by Anthropic.
+                  Add your own Anthropic API key in device settings. Session-only is the default;
+                  remembering it in this browser is optional. Requests go directly to Anthropic,
+                  which bills your account.
                 </p>
                 <div className="mt-4 flex justify-end gap-2">
                   <button
@@ -2090,7 +2201,7 @@ export default function ProjectPage({ vault }: { vault?: WorkspaceVault }) {
                     href="/settings?setup=anthropic"
                     className="inline-flex min-h-11 items-center rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-semibold text-[var(--brand-foreground)]"
                   >
-                    Open Settings
+                    Open device settings
                   </Link>
                 </div>
               </div>

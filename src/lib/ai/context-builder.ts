@@ -3,7 +3,7 @@ import type { StackArchitecture, StackEdge, StackNode } from "@/types/stack";
 
 export type ProviderMessage = Pick<ChatMessage, "role" | "content">;
 
-function stripStackTags(text: string): string {
+export function stripStackTags(text: string): string {
   return text
     .replace(/<stack>\s*[\s\S]*?\s*<\/stack>/g, "")
     .replace(/<stack>[\s\S]*$/g, "")

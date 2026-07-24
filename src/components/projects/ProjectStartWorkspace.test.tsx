@@ -82,6 +82,33 @@ describe("ProjectStartWorkspace", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it("keeps the successful creation latch closed until navigation unmounts the chooser", async () => {
+    const createProject = vi.fn().mockResolvedValue(project("blank-map"));
+    renderWorkspace({}, makeVault({ createProject }));
+
+    fireEvent.click(screen.getByRole("button", { name: /Blank map/ }));
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/project/#blank-map"));
+
+    expect(screen.getByRole("button", { name: "Creating map..." })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Creating map..." }));
+    expect(createProject).toHaveBeenCalledOnce();
+  });
+
+  it("offers the already-saved map when client navigation throws", async () => {
+    push.mockImplementationOnce(() => {
+      throw new Error("navigation failed");
+    });
+    const createProject = vi.fn().mockResolvedValue(project("saved-map"));
+    renderWorkspace({ initialMode: "blank" }, makeVault({ createProject }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Create blank map" }));
+
+    const recovery = await screen.findByRole("link", { name: "Open the saved map" });
+    expect(recovery).toHaveAttribute("href", "/project#saved-map");
+    expect(screen.getByRole("button", { name: "Creating map..." })).toBeDisabled();
+    expect(createProject).toHaveBeenCalledOnce();
+  });
+
   it("does not implicitly create from a directly loaded blank URL", async () => {
     const localVault = makeVault();
     renderWorkspace({ initialMode: "blank" }, localVault);
