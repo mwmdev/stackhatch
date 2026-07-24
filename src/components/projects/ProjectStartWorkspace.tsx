@@ -17,7 +17,6 @@ import {
 import AccountMenu from "@/components/AccountMenu";
 import TemplatePicker from "@/components/templates/TemplatePicker";
 import ThemeToggle from "@/components/ThemeToggle";
-import StackIllustration from "@/components/shells/StackIllustration";
 import StackHatchWordmark from "@/components/shells/StackHatchWordmark";
 import IconControl from "@/components/ui/IconControl";
 import { consumeAuthenticationStarted, trackEvent } from "@/lib/analytics";
@@ -432,13 +431,6 @@ export default function ProjectStartWorkspace({
           }}
           aria-hidden="true"
         />
-        <div
-          className="pointer-events-none absolute inset-x-0 bottom-4 z-20 h-24 overflow-hidden"
-          aria-hidden="true"
-        >
-          <StackIllustration variant="compact" className="!top-0" />
-        </div>
-
         <section
           aria-labelledby="project-start-title"
           className="relative z-10 w-full max-w-[76rem] overflow-hidden rounded-[var(--radius-surface)] border border-[var(--border)] bg-[var(--card)] shadow-[var(--shadow-low)]"

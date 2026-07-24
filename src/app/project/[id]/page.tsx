@@ -37,7 +37,6 @@ import {
 } from "@/components/canvas/EditorDisplaySettings";
 import ThemeToggle from "@/components/ThemeToggle";
 import AccountMenu, { AccountSessionExpiredError } from "@/components/AccountMenu";
-import StackIllustration from "@/components/shells/StackIllustration";
 import StackHatchWordmark from "@/components/shells/StackHatchWordmark";
 import IconControl from "@/components/ui/IconControl";
 import {
@@ -102,7 +101,6 @@ function EditorStateShell({
 }) {
   return (
     <main className="app-resolver-shell text-[var(--foreground)]" data-testid="editor-state-shell">
-      <StackIllustration variant="resolver" />
       <header className="absolute inset-x-0 top-0 z-10 flex min-w-0 items-center justify-between gap-3 border-b border-[var(--boundary)] bg-[var(--paper)] px-2 py-1.5 sm:px-4">
         <StackHatchWordmark href="/app/maps" label="All Maps" />
         <div className="flex flex-none items-center gap-1" aria-label="Application actions">
@@ -1544,7 +1542,6 @@ export default function ProjectPage() {
           data-testid="editor-project-bar"
           data-layout="single-row"
         >
-          <StackIllustration variant="compact" className="editor-stack-illustration" />
           <IconControl
             href="/app/maps"
             label="All maps"

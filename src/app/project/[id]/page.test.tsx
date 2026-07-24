@@ -604,11 +604,10 @@ describe("ProjectPage", () => {
   describe("loading state", () => {
     it("shows loading indicator on mount", () => {
       mockFetchProject(emptyProject);
-      const { container } = render(<ProjectPage />);
+      render(<ProjectPage />);
       expect(screen.getByText("Loading...")).toBeInTheDocument();
       expect(screen.getAllByRole("main")).toHaveLength(1);
       expect(screen.getByRole("heading", { level: 1, name: "Loading map" })).toBeInTheDocument();
-      expect(container.querySelectorAll('[data-stack-illustration="true"]')).toHaveLength(1);
       expect(screen.getByRole("link", { name: "All Maps" })).toHaveAttribute("href", "/app/maps");
       expect(screen.getByRole("link", { name: "New Map" })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Theme: change appearance" })).toBeInTheDocument();
@@ -662,7 +661,7 @@ describe("ProjectPage", () => {
   describe("error state", () => {
     it("shows error when project not found", async () => {
       mockFetchNotFound();
-      const { container } = render(<ProjectPage />);
+      render(<ProjectPage />);
       await waitFor(() => {
         expect(screen.getByText("Project not found")).toBeInTheDocument();
       });
@@ -670,7 +669,6 @@ describe("ProjectPage", () => {
       expect(
         screen.getByRole("heading", { level: 1, name: "Map unavailable" })
       ).toBeInTheDocument();
-      expect(container.querySelectorAll('[data-stack-illustration="true"]')).toHaveLength(1);
       expect(screen.getByRole("link", { name: "All Maps" })).toHaveAttribute("href", "/app/maps");
       expect(screen.getByRole("link", { name: "New Map" })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Theme: change appearance" })).toBeInTheDocument();
@@ -695,7 +693,7 @@ describe("ProjectPage", () => {
       window.history.replaceState({}, "", "/project/test-project-id?resume=1");
       mockFetchNotFound();
 
-      const { container } = render(<ProjectPage />);
+      render(<ProjectPage />);
 
       await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/app?resumeRecovery=1"));
       expect(screen.getByRole("status")).toHaveTextContent("Finding another map");
@@ -703,7 +701,6 @@ describe("ProjectPage", () => {
       expect(
         screen.getByRole("heading", { level: 1, name: "Finding your map" })
       ).toBeInTheDocument();
-      expect(container.querySelectorAll('[data-stack-illustration="true"]')).toHaveLength(1);
       expect(screen.queryByText("Project not found")).not.toBeInTheDocument();
       expect(screen.getByRole("link", { name: "All Maps" })).toHaveAttribute("href", "/app/maps");
       expect(screen.getByRole("link", { name: "New Map" })).toBeInTheDocument();
@@ -1417,19 +1414,13 @@ describe("ProjectPage", () => {
       expect(screen.queryByRole("button", { name: "Export map" })).toBeNull();
     });
 
-    it("keeps one inert stack illustration outside the React Flow canvas", async () => {
+    it("keeps the editor shell free of decorative illustrations", async () => {
       mockFetchProject(projectWithNodes);
       render(<ProjectPage />);
 
-      const canvas = await screen.findByTestId("react-flow-canvas");
+      await screen.findByTestId("react-flow-canvas");
       const shell = screen.getByTestId("project-editor-shell");
-      const illustrations = shell.querySelectorAll('[data-stack-illustration="true"]');
-
-      expect(illustrations).toHaveLength(1);
-      expect(illustrations[0]).toHaveAttribute("aria-hidden", "true");
-      expect(illustrations[0]).toHaveAttribute("focusable", "false");
-      expect(illustrations[0]).toHaveStyle({ pointerEvents: "none" });
-      expect(canvas).not.toContainElement(illustrations[0] as HTMLElement);
+      expect(shell.querySelector('[data-stack-illustration="true"]')).not.toBeInTheDocument();
     });
 
     it("opens editor display settings and persists toggle changes", async () => {
