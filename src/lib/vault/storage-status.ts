@@ -47,6 +47,17 @@ export class VaultConflictError extends VaultError {
   }
 }
 
+export class VaultSnapshotConflictError extends VaultError {
+  constructor() {
+    super(
+      "conflict",
+      "The local vault changed while the backup was being reviewed. Review the backup again before restoring it.",
+      true
+    );
+    this.name = "VaultSnapshotConflictError";
+  }
+}
+
 export class VaultGenerationConflictError extends VaultError {
   constructor(
     public readonly expectedGeneration: string,

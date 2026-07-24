@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FolderPlus, RefreshCw } from "lucide-react";
+import { Download, FolderPlus, RefreshCw } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import StackHatchWordmark from "@/components/shells/StackHatchWordmark";
 import { buildLocalProjectPath } from "@/lib/app-route";
@@ -100,6 +100,13 @@ export default function AllMapsPage({ vault }: { vault?: WorkspaceVault }) {
             Your maps on this device stay in this browser profile. Clearing browser data can remove
             them.
           </p>
+          <Link
+            href="/settings#backups"
+            className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-4 py-2 text-sm font-semibold hover:bg-[var(--muted)]"
+          >
+            <Download className="h-4 w-4" aria-hidden="true" />
+            Back up or restore
+          </Link>
         </header>
 
         <section className="overflow-hidden rounded-[var(--radius-surface)] border border-[var(--border)] bg-[var(--card)]">

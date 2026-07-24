@@ -1,336 +1,209 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import SettingsPage from "./page";
+import type { ProviderKeyManager, ProviderKeyStatus } from "@/lib/provider-key";
+import type { VaultDevicePreferencesSnapshot, VaultRepository } from "@/lib/vault/repository";
+import type { VaultStorageStatus } from "@/lib/vault/storage-status";
+import { DeviceSettingsPage, type DeviceSettingsServices } from "./page";
 
-const { mockTrackEvent } = vi.hoisted(() => ({ mockTrackEvent: vi.fn() }));
 const mockSetTheme = vi.fn();
 let mockTheme = "light";
 
 vi.mock("next-themes", () => ({
-  ThemeProvider: ({ children }: { children: React.ReactNode }) => children,
   useTheme: () => ({ theme: mockTheme, setTheme: mockSetTheme }),
 }));
 
-vi.mock("next-auth/react", () => ({ signOut: vi.fn() }));
+const emptySnapshot: VaultDevicePreferencesSnapshot = {
+  generation: "generation-1",
+  preferences: null,
+};
 
-vi.mock("@/lib/analytics", () => ({ trackEvent: mockTrackEvent }));
+const storageStatus: VaultStorageStatus = {
+  state: "available",
+  usage: 1_024,
+  quota: 10_240,
+  usageRatio: 0.1,
+  persisted: false,
+  error: null,
+};
 
-function mockFetchSettings(settings: Record<string, unknown>) {
-  const settingsResponse = {
-    accountDeletion: { enabled: true },
-    ...settings,
+function makeServices(
+  options: {
+    snapshot?: VaultDevicePreferencesSnapshot;
+    readError?: Error;
+    initialKey?: ProviderKeyStatus;
+  } = {}
+) {
+  let keyStatus = options.initialKey ?? {
+    state: "absent" as const,
+    generation: "credential-generation-1",
   };
-  global.fetch = vi.fn((input: RequestInfo | URL, options?: RequestInit) => {
-    const url = typeof input === "string" ? input : input.toString();
-    if (url === "/api/me") {
-      return Promise.resolve({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            name: "Settings User",
-          }),
-      });
-    }
-    if (url === "/api/settings" && (!options || options.method !== "PATCH")) {
-      return Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve(settingsResponse),
-      });
-    }
-    if (url === "/api/settings" && options?.method === "PATCH") {
-      const update = JSON.parse(options.body as string) as Record<string, unknown>;
-      return Promise.resolve({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            ...settingsResponse,
-            ...update,
-            ...(update.apiKey ? { hasAnthropicKey: true } : {}),
-          }),
-      });
-    }
-    return Promise.resolve({ ok: false, json: () => Promise.resolve({}) });
-  }) as unknown as typeof global.fetch;
+  const repository = {
+    getDevicePreferencesSnapshot: options.readError
+      ? vi.fn().mockRejectedValue(options.readError)
+      : vi.fn().mockResolvedValue(options.snapshot ?? emptySnapshot),
+    putDevicePreferences: vi.fn(async (values) => ({
+      id: "device",
+      ...values,
+      revision: 1,
+      createdAt: 1,
+      updatedAt: 1,
+    })),
+    close: vi.fn(),
+  } as unknown as VaultRepository;
+  const keyManager = {
+    initialize: vi.fn(async () => keyStatus),
+    getStatus: vi.fn(async () => keyStatus),
+    useSessionKey: vi.fn(async () => {
+      keyStatus = { state: "session", generation: keyStatus.generation };
+      return keyStatus;
+    }),
+    rememberKey: vi.fn(async () => {
+      keyStatus = { state: "remembered", generation: keyStatus.generation };
+      return keyStatus;
+    }),
+    forgetKey: vi.fn(async () => {
+      keyStatus = { state: "absent", generation: "credential-generation-2" };
+      return keyStatus;
+    }),
+    getKeyForDispatch: vi.fn(),
+    close: vi.fn(),
+  } as ProviderKeyManager;
+  const services: DeviceSettingsServices = {
+    createRepository: vi.fn(() => repository),
+    getKeyManager: vi.fn(() => keyManager),
+    inspectStorage: vi.fn().mockResolvedValue(storageStatus),
+    requestPersistentStorage: vi.fn().mockResolvedValue({ ...storageStatus, persisted: true }),
+    afterRestore: vi.fn(),
+    afterClear: vi.fn(),
+  };
+  return { services, repository, keyManager };
 }
 
-describe("SettingsPage", () => {
+describe("DeviceSettingsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockTheme = "light";
-    mockTrackEvent.mockClear();
     window.history.replaceState({}, "", "/settings");
   });
 
-  it("renders per-user BYOK, model, and theme settings", async () => {
-    mockFetchSettings({ hasAnthropicKey: false });
-    render(<SettingsPage />);
+  it("renders device-owned settings without account, analytics, or server reads", async () => {
+    const fetchSpy = vi.spyOn(global, "fetch");
+    const { services } = makeServices();
+    render(<DeviceSettingsPage services={services} />);
 
-    await waitFor(() => {
-      expect(screen.getByText("Anthropic API Key")).toBeInTheDocument();
+    expect(screen.getByText("Opening settings from this device...")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Anthropic key" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Device data" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Device data" })).toHaveAttribute(
+      "href",
+      "#device-data"
+    );
+    expect(screen.getByRole("button", { name: "Back up all data" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Clear all local data" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /account/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Account" })).not.toBeInTheDocument();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("keeps a session key out of React state and visibly distinguishes its lifecycle", async () => {
+    const { services, keyManager } = makeServices();
+    render(<DeviceSettingsPage services={services} />);
+    await screen.findByTestId("key-status-absent");
+
+    const input = screen.getByLabelText("Anthropic API key");
+    fireEvent.change(input, { target: { value: "sk-ant-session" } });
+    fireEvent.click(screen.getByRole("button", { name: "Use key" }));
+
+    expect(await screen.findByTestId("key-status-session")).toHaveTextContent("This session only");
+    expect(input).toHaveValue("");
+    expect(keyManager.useSessionKey).toHaveBeenCalledWith("sk-ant-session");
+    expect(keyManager.rememberKey).not.toHaveBeenCalled();
+  });
+
+  it("remembers only after explicit opt-in and forgets active plus durable state", async () => {
+    const { services, keyManager } = makeServices();
+    render(<DeviceSettingsPage services={services} />);
+    await screen.findByTestId("key-status-absent");
+
+    fireEvent.change(screen.getByLabelText("Anthropic API key"), {
+      target: { value: "sk-ant-remember" },
     });
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(screen.getByRole("button", { name: "Use key" }));
 
-    expect(screen.getByRole("heading", { name: "Appearance" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Default model" })).toBeInTheDocument();
-    const sectionNavigation = screen.getByRole("navigation", { name: "Settings sections" });
-    expect(sectionNavigation).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "API key" })).toHaveAttribute("href", "#anthropic-key");
-    expect(screen.getByRole("link", { name: "Default model" })).toHaveAttribute(
-      "href",
-      "#default-model"
+    expect(await screen.findByTestId("key-status-remembered")).toHaveTextContent(
+      "Remembered on device"
     );
-    expect(screen.getByRole("link", { name: "Appearance" })).toHaveAttribute("href", "#appearance");
-    expect(screen.getByRole("link", { name: "Node subtypes" })).toHaveAttribute(
-      "href",
-      "#node-subtypes"
-    );
-    expect(screen.getByRole("link", { name: "Delete account" })).toHaveAttribute(
-      "href",
-      "#delete-account"
-    );
-    expect(screen.getByRole("heading", { name: "Node subtypes" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Delete account" })).toBeInTheDocument();
-    expect(screen.queryByText("AI Prompts")).not.toBeInTheDocument();
-    expect(screen.getAllByRole("main")).toHaveLength(1);
-    expect(screen.getAllByRole("heading", { level: 1, name: "Settings" })).toHaveLength(1);
-    expect(screen.getByRole("link", { name: "New Map" })).toHaveAttribute("href", "/project/new");
-    expect(screen.getByRole("link", { name: "All Maps" })).toHaveAttribute("href", "/app/maps");
-    expect(screen.queryByRole("link", { name: "Admin" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Account" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Settings", hidden: true })).toHaveAttribute(
-      "aria-current",
-      "page"
-    );
-    expect(screen.queryByRole("tooltip", { name: "Settings" })).not.toBeInTheDocument();
-    expect(screen.getByRole("group", { name: "Account controls" })).toBeInTheDocument();
-    expect(screen.getByTestId("settings-content")).toHaveClass("min-w-0");
-    expect(screen.getByTestId("settings-content")).not.toHaveClass("max-w-3xl");
+    expect(screen.getByText(/same-origin scripts, browser extensions/i)).toBeInTheDocument();
+    expect(keyManager.rememberKey).toHaveBeenCalledWith("sk-ant-remember");
+
+    fireEvent.click(screen.getByRole("button", { name: "Forget key" }));
+    expect(await screen.findByTestId("key-status-absent")).toBeInTheDocument();
+    expect(keyManager.forgetKey).toHaveBeenCalledTimes(1);
   });
 
-  it("shows loading state initially", () => {
-    mockFetchSettings({});
-    render(<SettingsPage />);
-    expect(screen.getByText("Loading settings...")).toBeInTheDocument();
-  });
-
-  it("keeps all mutation controls unmounted after a failed load and retries authoritatively", async () => {
-    let settingsLoads = 0;
-    global.fetch = vi.fn((input: RequestInfo | URL) => {
-      if (String(input) === "/api/me") {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({ name: "User" }) });
-      }
-      settingsLoads += 1;
-      if (settingsLoads === 1) {
-        return Promise.resolve({ ok: false, json: () => Promise.resolve({}) });
-      }
-      return Promise.resolve({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            hasAnthropicKey: false,
-            customSubtypes: {},
-            accountDeletion: { enabled: true },
-          }),
-      });
-    }) as unknown as typeof global.fetch;
-
-    render(<SettingsPage />);
-
-    expect(await screen.findByRole("alert")).toHaveTextContent("Settings could not be loaded");
-    expect(screen.queryByRole("heading", { name: "Node subtypes" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Add .* subtype/ })).not.toBeInTheDocument();
-    expect(
-      (global.fetch as ReturnType<typeof vi.fn>).mock.calls.some(
-        (call: unknown[]) => (call[1] as RequestInit | undefined)?.method === "PATCH"
-      )
-    ).toBe(false);
-
-    fireEvent.click(screen.getByRole("button", { name: "Retry loading settings" }));
-
-    expect(await screen.findByRole("heading", { name: "Node subtypes" })).toBeInTheDocument();
-    expect(settingsLoads).toBe(2);
-  });
-
-  it("disables and explains account deletion when development authentication is active", async () => {
-    mockFetchSettings({
-      accountDeletion: {
-        enabled: false,
-        reason: "Account deletion is unavailable while development authentication is enabled.",
-      },
-    });
-    render(<SettingsPage />);
-
-    expect(await screen.findByRole("button", { name: "Delete account" })).toBeDisabled();
-    expect(screen.getByText(/unavailable while development authentication/i)).toBeInTheDocument();
-  });
-
-  it("shows a named contextual control back to the safe setup return path", async () => {
-    window.history.replaceState(
-      {},
-      "",
-      "/settings?setup=anthropic&returnTo=%2Fproject%2Fnew%3Fmode%3Drequirements"
-    );
-    mockFetchSettings({ hasAnthropicKey: false });
-    render(<SettingsPage />);
-
-    await screen.findByText("Anthropic API Key");
-    expect(screen.getByRole("link", { name: "Back to map setup" })).toHaveAttribute(
-      "href",
-      "/project/new?mode=requirements"
-    );
-    expect(screen.getByRole("tooltip", { name: "Back to map setup" })).toBeInTheDocument();
-  });
-
-  it("shows BYOK key status", async () => {
-    mockFetchSettings({ hasAnthropicKey: true, hasUserAnthropicKey: true });
-    render(<SettingsPage />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("key-status-set")).toBeInTheDocument();
-    });
-    expect(screen.getByLabelText("API Key")).toBeInTheDocument();
-  });
-
-  it("persists the selected Claude model", async () => {
-    mockFetchSettings({ model: "claude-sonnet-5" });
-    render(<SettingsPage />);
-
+  it("stores model preferences in the browser vault", async () => {
+    const { services, repository } = makeServices();
+    render(<DeviceSettingsPage services={services} />);
     const model = await screen.findByLabelText("Model");
+
     fireEvent.change(model, { target: { value: "claude-opus-4-8" } });
 
-    await waitFor(() => {
-      const call = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.find(
-        (item: unknown[]) =>
-          (item[1] as RequestInit)?.method === "PATCH" &&
-          JSON.parse((item[1] as RequestInit).body as string).model
-      );
-      expect(call).toBeTruthy();
-    });
+    await waitFor(() =>
+      expect(repository.putDevicePreferences).toHaveBeenCalledWith(
+        expect.objectContaining({ model: "claude-opus-4-8" }),
+        { expectedGeneration: "generation-1", expectedRevision: null }
+      )
+    );
   });
 
-  it("renders theme buttons and highlights current theme", async () => {
-    mockTheme = "dark";
-    mockFetchSettings({});
-    render(<SettingsPage />);
-
-    await screen.findByRole("heading", { name: "Appearance" });
-    expect(screen.getByLabelText("Theme dark")).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByLabelText("Theme light")).toHaveAttribute("aria-pressed", "false");
-  });
-
-  it("persists theme change to API", async () => {
-    mockFetchSettings({});
-    render(<SettingsPage />);
-
-    await screen.findByRole("heading", { name: "Appearance" });
-    fireEvent.click(screen.getByLabelText("Theme system"));
-
-    await waitFor(() => {
-      const calls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls;
-      const themeCall = calls.find(
-        (call: unknown[]) =>
-          (call[1] as RequestInit)?.method === "PATCH" &&
-          JSON.parse((call[1] as RequestInit).body as string).theme === "system"
-      );
-      expect(themeCall).toBeTruthy();
-    });
-  });
-
-  it("preserves repository context through BYOK setup", async () => {
+  it("preserves the exact safe setup return path", async () => {
+    const returnTo = "/project/new?mode=repository#repo=acme%2Fapi&returnTo=%2Fproject%2F%23map-1";
     window.history.replaceState(
       {},
       "",
-      "/settings?setup=anthropic&returnTo=%2Fproject%2Fnew%3Fmode%3Drepository%26repo%3Dacme%252Fapi%26returnTo%3D%252Fproject%252Fmap-1"
+      `/settings?setup=anthropic&returnTo=${encodeURIComponent(returnTo)}`
     );
-    mockFetchSettings({ hasAnthropicKey: true });
-    render(<SettingsPage />);
+    const { services } = makeServices({
+      initialKey: { state: "session", generation: "credential-generation-1" },
+    });
+    render(<DeviceSettingsPage services={services} />);
 
-    const continueLink = await screen.findByRole("link", { name: "Continue to acme/api" });
-    expect(continueLink).toHaveAttribute(
+    expect(await screen.findByRole("link", { name: "Continue to acme/api" })).toHaveAttribute(
       "href",
-      "/project/new?mode=repository&repo=acme%2Fapi&returnTo=%2Fproject%2Fmap-1"
+      "/project/new?mode=repository#repo=acme%2Fapi&returnTo=%2Fproject%2F%23map-1"
     );
-    expect(screen.getByText("Connect Anthropic to map this repository.")).toBeInTheDocument();
-  });
-
-  it("reveals the continue action after a key is saved", async () => {
-    window.history.replaceState(
-      {},
-      "",
-      "/settings?setup=anthropic&returnTo=%2Fproject%2Fnew%3Fmode%3Drepository%26repo%3Dacme%252Fapi"
-    );
-    mockFetchSettings({ hasAnthropicKey: false });
-    render(<SettingsPage />);
-
-    await screen.findByTestId("key-status-missing");
-    fireEvent.change(screen.getByLabelText("API Key"), { target: { value: "sk-ant-test" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save key" }));
-
-    expect(await screen.findByRole("link", { name: "Continue to acme/api" })).toBeInTheDocument();
-    expect(mockTrackEvent).toHaveBeenNthCalledWith(1, "anthropic_setup_started", {
-      location: "settings",
-    });
-    expect(mockTrackEvent).toHaveBeenNthCalledWith(2, "anthropic_setup_completed", {
-      location: "settings",
-    });
-  });
-
-  it("returns requirements setup to its exact internal mode", async () => {
-    window.history.replaceState(
-      {},
-      "",
-      "/settings?setup=anthropic&returnTo=%2Fproject%2Fnew%3Fmode%3Drequirements"
-    );
-    mockFetchSettings({ hasAnthropicKey: true });
-    render(<SettingsPage />);
-
-    expect(
-      await screen.findByText("Connect Anthropic to map your requirements.")
-    ).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Continue to your project" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Back to map setup" })).toHaveAttribute(
       "href",
-      "/project/new?mode=requirements"
+      "/project/new?mode=repository#repo=acme%2Fapi&returnTo=%2Fproject%2F%23map-1"
     );
   });
 
-  it("rejects external setup return paths", async () => {
+  it("rejects an external setup return path", async () => {
     window.history.replaceState(
       {},
       "",
       "/settings?setup=anthropic&returnTo=https%3A%2F%2Fevil.example%2Fsteal"
     );
-    mockFetchSettings({ hasAnthropicKey: true });
-    render(<SettingsPage />);
+    const { services } = makeServices({
+      initialKey: { state: "session", generation: "credential-generation-1" },
+    });
+    render(<DeviceSettingsPage services={services} />);
 
     expect(await screen.findByRole("link", { name: "Continue to your project" })).toHaveAttribute(
       "href",
       "/app"
     );
-    expect(screen.getByRole("link", { name: "Back to map setup" })).toHaveAttribute("href", "/app");
   });
 
-  it("strips an unsafe nested project return while preserving the creation source", async () => {
-    window.history.replaceState(
-      {},
-      "",
-      "/settings?setup=anthropic&returnTo=%2Fproject%2Fnew%3Fmode%3Drepository%26repo%3Dacme%252Fapi%26returnTo%3Dhttps%253A%252F%252Fevil.example%252Fsteal"
-    );
-    mockFetchSettings({ hasAnthropicKey: true });
-    render(<SettingsPage />);
+  it("does not mount mutation controls while the browser vault is unavailable", async () => {
+    const first = makeServices({ readError: new Error("IndexedDB blocked") });
+    render(<DeviceSettingsPage services={first.services} />);
 
-    expect(await screen.findByRole("link", { name: "Continue to acme/api" })).toHaveAttribute(
-      "href",
-      "/project/new?mode=repository&repo=acme%2Fapi"
-    );
-  });
-
-  it("canonicalizes the legacy repository setup parameter", async () => {
-    window.history.replaceState({}, "", "/settings?setup=anthropic&repo=acme%2Fapi");
-    mockFetchSettings({ hasAnthropicKey: true });
-    render(<SettingsPage />);
-
-    expect(await screen.findByRole("link", { name: "Continue to acme/api" })).toHaveAttribute(
-      "href",
-      "/project/new?mode=repository&repo=acme%2Fapi"
-    );
+    expect(
+      await screen.findByRole("heading", { name: "Browser settings are unavailable" })
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Back up all data" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Retry browser storage" })).toBeInTheDocument();
   });
 });

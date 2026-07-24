@@ -58,6 +58,10 @@ describe("AllMapsPage", () => {
     expect(await screen.findByText("Newest map")).toBeInTheDocument();
     expect(screen.getByRole("table", { name: "Your maps on this device" })).toBeInTheDocument();
     expect(screen.getByText(/Your maps on this device stay in this browser profile/)).toBeVisible();
+    expect(screen.getByRole("link", { name: "Back up or restore" })).toHaveAttribute(
+      "href",
+      "/settings#backups"
+    );
     expect(screen.queryByRole("button", { name: "Account" })).not.toBeInTheDocument();
     expect(document.querySelector("[data-stack-illustration]")).not.toBeInTheDocument();
     expect(fetchSpy).not.toHaveBeenCalled();

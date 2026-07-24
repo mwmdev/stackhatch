@@ -142,6 +142,51 @@ describe("ExportDropdown", () => {
     expect(screen.getByText("Export SVG")).toBeInTheDocument();
     expect(screen.getByText("Export JSON")).toBeInTheDocument();
     expect(screen.getByText("Export YAML")).toBeInTheDocument();
+    expect(screen.getByText("Diagram files")).toBeInTheDocument();
+    expect(screen.queryByText("Back up this map")).not.toBeInTheDocument();
+  });
+
+  it("keeps a portable project backup distinct from diagram exports", async () => {
+    const createProjectBackup = vi
+      .fn()
+      .mockResolvedValue('{"format":"stackhatch-backup","formatVersion":1}');
+    render(
+      <ExportDropdown
+        rfInstanceRef={makeRef()}
+        projectId="project-1"
+        projectName="My App"
+        createProjectBackup={createProjectBackup}
+        onError={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByLabelText("Export map"));
+    expect(screen.getByText("Portable backup")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Back up this map"));
+
+    await vi.waitFor(() => expect(createProjectBackup).toHaveBeenCalledTimes(1));
+    expect(clickedAnchor?.download).toBe("My App.stackhatch.json");
+    expect(capturedBlob?.type).toBe("application/json");
+    expect(await readBlob(capturedBlob!)).toContain('"stackhatch-backup"');
+    expect(screen.getByLabelText("Export map")).toHaveFocus();
+  });
+
+  it("still offers project backup before a blank map has a diagram", () => {
+    render(
+      <ExportDropdown
+        rfInstanceRef={makeRef()}
+        projectId="project-1"
+        projectName="Blank map"
+        createProjectBackup={vi.fn()}
+        diagramAvailable={false}
+        onError={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByLabelText("Export map"));
+    expect(screen.getByText("Back up this map")).toBeInTheDocument();
+    expect(screen.queryByText("Diagram files")).not.toBeInTheDocument();
+    expect(screen.queryByText("Export PNG")).not.toBeInTheDocument();
   });
 
   it("downloads a clean JSON diagram payload", async () => {

@@ -15,6 +15,7 @@ import type { NodeCategory } from "@/types/stack";
 
 interface CustomSubtypesSettingsProps {
   initialCatalog: CustomSubtypesMap;
+  saveCatalog: (catalog: CustomSubtypesMap) => Promise<CustomSubtypesMap>;
 }
 
 function cloneCatalog(catalog: CustomSubtypesMap): CustomSubtypesMap {
@@ -49,10 +50,13 @@ function entryErrors(
   return errors;
 }
 
-export default function CustomSubtypesSettings({ initialCatalog }: CustomSubtypesSettingsProps) {
+export default function CustomSubtypesSettings({
+  initialCatalog,
+  saveCatalog,
+}: CustomSubtypesSettingsProps) {
   const [confirmed, setConfirmed] = useState(() => cloneCatalog(initialCatalog));
   const [draft, setDraft] = useState(() => cloneCatalog(initialCatalog));
-  const [saveState, setSaveState] = useState<"idle" | "saving" | "indeterminate">("idle");
+  const [saveState, setSaveState] = useState<"idle" | "saving">("idle");
   const [feedback, setFeedback] = useState<{
     type: "success" | "error";
     message: string;
@@ -126,62 +130,22 @@ export default function CustomSubtypesSettings({ initialCatalog }: CustomSubtype
     setSaveState("saving");
     setFeedback(null);
 
-    async function reconcileAmbiguousSave() {
-      try {
-        const response = await fetch("/api/settings", { cache: "no-store" });
-        if (!response.ok) throw new Error("Settings refresh failed");
-        const data = (await response.json()) as { customSubtypes?: unknown };
-        const saved = validateCustomSubtypes(data.customSubtypes);
-        setConfirmed(cloneCatalog(saved));
-        setDraft(cloneCatalog(saved));
-        setFeedback({
-          type: "error",
-          message: "The save response was interrupted. Your saved subtype settings were reloaded.",
-        });
-        setSaveState("idle");
-      } catch {
-        setFeedback({
-          type: "error",
-          message:
-            "Could not confirm whether subtype changes were saved. Reload settings before editing again.",
-        });
-        setSaveState("indeterminate");
-      }
-    }
-
     try {
-      const response = await fetch("/api/settings", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ customSubtypes: validated }),
-      });
-      const data = (await response.json().catch(() => ({}))) as {
-        customSubtypes?: CustomSubtypesMap;
-        error?: string;
-      };
-      if (!response.ok) {
-        setDraft(cloneCatalog(confirmed));
-        setFeedback({
-          type: "error",
-          message: data.error || "Subtype changes could not be saved",
-        });
-        setSaveState("idle");
-        return;
-      }
-
-      let saved: CustomSubtypesMap;
-      try {
-        saved = validateCustomSubtypes(data.customSubtypes);
-      } catch {
-        await reconcileAmbiguousSave();
-        return;
-      }
+      const saved = validateCustomSubtypes(await saveCatalog(validated));
       setConfirmed(cloneCatalog(saved));
       setDraft(cloneCatalog(saved));
-      setFeedback({ type: "success", message: "Subtype changes saved" });
+      setFeedback({ type: "success", message: "Subtype changes saved on this device" });
       setSaveState("idle");
-    } catch {
-      await reconcileAmbiguousSave();
+    } catch (error) {
+      setDraft(cloneCatalog(confirmed));
+      setFeedback({
+        type: "error",
+        message:
+          error instanceof Error && error.message
+            ? error.message
+            : "Subtype changes could not be saved on this device",
+      });
+      setSaveState("idle");
     }
   }
 
@@ -195,7 +159,7 @@ export default function CustomSubtypesSettings({ initialCatalog }: CustomSubtype
       </p>
       <h2 className="text-xl font-semibold text-[var(--card-foreground)]">Node subtypes</h2>
       <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted-foreground)]">
-        Add personal labels for the components you map. Changes apply to your account after you save
+        Add personal labels for the components you map. Changes stay in this browser after you save
         them; existing nodes keep retired values until you replace them.
       </p>
 
@@ -294,11 +258,7 @@ export default function CustomSubtypesSettings({ initialCatalog }: CustomSubtype
           disabled={!dirty || !validation.valid || pending}
           className="min-h-11 rounded-sm bg-[var(--brand)] px-4 py-2 text-sm font-bold text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)] disabled:opacity-50"
         >
-          {saveState === "saving"
-            ? "Saving subtype changes..."
-            : saveState === "indeterminate"
-              ? "Reload settings to continue"
-              : "Save subtype changes"}
+          {saveState === "saving" ? "Saving subtype changes..." : "Save subtype changes"}
         </button>
         {dirty && !pending && (
           <span className="text-xs text-[var(--muted-foreground)]">Unsaved changes</span>

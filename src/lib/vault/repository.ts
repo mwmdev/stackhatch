@@ -17,7 +17,7 @@ import type {
   VaultStoreName,
   VaultTemplateRecord,
 } from "./schema";
-import { DEVICE_RECORD_ID, VAULT_META_ID } from "./schema";
+import { DEVICE_RECORD_ID, VAULT_META_ID, VAULT_STORE_NAMES } from "./schema";
 import type {
   VaultInvalidation,
   VaultInvalidationChannel,
@@ -27,6 +27,7 @@ import { createVaultInvalidationChannel } from "./coordination";
 import {
   VaultConflictError,
   VaultGenerationConflictError,
+  VaultSnapshotConflictError,
   VaultUnavailableError,
   VaultValidationError,
   normalizeVaultError,
@@ -59,6 +60,8 @@ export interface VaultProjectBundle {
   providerRuns: VaultProviderRunRecord[];
 }
 
+export type VaultBackupProjectBundle = Omit<VaultProjectBundle, "providerRuns">;
+
 export interface VaultProjectPrecondition {
   expectedGeneration: string;
   expectedProjectRevision: number | null;
@@ -83,12 +86,46 @@ export interface VaultProjectSnapshot {
   generation: string;
 }
 
+export interface VaultDevicePreferencesSnapshot {
+  generation: string;
+  preferences: VaultDevicePreferencesRecord | null;
+}
+
+export interface VaultRepositorySnapshot {
+  generation: string;
+  projects: VaultProjectBundle[];
+  templates: VaultTemplateRecord[];
+  preferences: VaultDevicePreferencesRecord | null;
+  resume: VaultResumeRecord | null;
+}
+
+export interface VaultBackupSnapshot {
+  generation: string;
+  projects: VaultBackupProjectBundle[];
+  templates: VaultTemplateRecord[];
+  preferences: VaultDevicePreferencesRecord | null;
+  resume: VaultResumeRecord | null;
+}
+
+export interface VaultReplaceOptions {
+  beforeCommit?: () => void | Promise<void>;
+}
+
 export interface VaultRepository {
   getGeneration(): Promise<string>;
   advanceVaultGeneration(expectedGeneration: string): Promise<string>;
   getProject(projectId: string): Promise<VaultProjectRecord | null>;
   getProjectSnapshot(projectId: string): Promise<VaultProjectSnapshot | null>;
+  getDevicePreferencesSnapshot(): Promise<VaultDevicePreferencesSnapshot>;
   getProjectBundle(projectId: string): Promise<VaultProjectBundle | null>;
+  getProjectBackupBundle(projectId: string): Promise<VaultBackupProjectBundle | null>;
+  readBackupSnapshot(): Promise<VaultBackupSnapshot>;
+  readVaultSnapshot(): Promise<VaultRepositorySnapshot>;
+  replaceVaultSnapshot(
+    snapshot: Omit<VaultRepositorySnapshot, "generation">,
+    expectedSnapshot: VaultRepositorySnapshot,
+    options?: VaultReplaceOptions
+  ): Promise<string>;
   listProjects(): Promise<VaultProjectRecord[]>;
   saveProjectBundle(
     bundle: VaultProjectBundleWrite,
@@ -146,6 +183,93 @@ function assertProjectRelations(bundle: VaultProjectBundleWrite) {
   if (childIds.some((childProjectId) => childProjectId !== projectId)) {
     throw new VaultValidationError("Every project bundle record must reference the bundle project");
   }
+}
+
+function revisionFingerprintFromRecords({
+  projects,
+  messages,
+  evidence,
+  provenance,
+  providerRuns,
+  templates,
+  preferences,
+  resume,
+}: {
+  projects: VaultProjectRecord[];
+  messages: VaultMessageRecord[];
+  evidence: VaultRepositoryEvidenceRecord[];
+  provenance: VaultRepositoryProvenanceRecord[];
+  providerRuns: VaultProviderRunRecord[];
+  templates: VaultTemplateRecord[];
+  preferences: VaultDevicePreferencesRecord | null;
+  resume: VaultResumeRecord | null;
+}) {
+  const revisions = (records: Array<{ id: string; revision: number }>) =>
+    records
+      .map(({ id, revision }) => `${id}:${revision}`)
+      .sort((left, right) => left.localeCompare(right));
+
+  return JSON.stringify({
+    projects: revisions(projects),
+    messages: revisions(messages),
+    evidence: revisions(evidence),
+    provenance: revisions(
+      provenance.map((record) => ({ id: record.projectId, revision: record.revision }))
+    ),
+    providerRuns: revisions(providerRuns),
+    templates: revisions(templates),
+    preferences: preferences?.revision ?? null,
+    resume: resume?.revision ?? null,
+  });
+}
+
+function revisionFingerprint(snapshot: VaultRepositorySnapshot) {
+  return revisionFingerprintFromRecords({
+    projects: snapshot.projects.map(({ project }) => project),
+    messages: snapshot.projects.flatMap(({ messages }) => messages),
+    evidence: snapshot.projects.flatMap(({ evidence }) => evidence),
+    provenance: snapshot.projects.flatMap(({ provenance }) => (provenance ? [provenance] : [])),
+    providerRuns: snapshot.projects.flatMap(({ providerRuns }) => providerRuns),
+    templates: snapshot.templates,
+    preferences: snapshot.preferences,
+    resume: snapshot.resume,
+  });
+}
+
+function assembleProjectBundles(
+  projects: VaultProjectRecord[],
+  messages: VaultMessageRecord[],
+  evidence: VaultRepositoryEvidenceRecord[],
+  provenance: VaultRepositoryProvenanceRecord[],
+  providerRuns: VaultProviderRunRecord[]
+) {
+  const groupByProject = <T extends { projectId: string }>(records: T[]) => {
+    const grouped = new Map<string, T[]>();
+    for (const record of records) {
+      const group = grouped.get(record.projectId);
+      if (group) group.push(record);
+      else grouped.set(record.projectId, [record]);
+    }
+    return grouped;
+  };
+  const messagesByProject = groupByProject(messages);
+  const evidenceByProject = groupByProject(evidence);
+  const providerRunsByProject = groupByProject(providerRuns);
+  const provenanceByProject = new Map(provenance.map((record) => [record.projectId, record]));
+
+  return projects.map((project) => ({
+    project,
+    messages: (messagesByProject.get(project.id) ?? []).sort(
+      (left, right) => left.createdAt - right.createdAt || left.id.localeCompare(right.id)
+    ),
+    evidence: (evidenceByProject.get(project.id) ?? []).sort((left, right) =>
+      left.path.localeCompare(right.path)
+    ),
+    provenance: provenanceByProject.get(project.id) ?? null,
+    providerRuns: (providerRunsByProject.get(project.id) ?? []).sort(
+      (left, right) => left.updatedAt - right.updatedAt || left.id.localeCompare(right.id)
+    ),
+  }));
 }
 
 async function assertGeneration(transaction: VaultWriteTransaction, expectedGeneration: string) {
@@ -298,6 +422,25 @@ class IndexedDbVaultRepository implements VaultRepository {
     }, "The project snapshot could not be read");
   }
 
+  async getDevicePreferencesSnapshot() {
+    return runRead(async () => {
+      const database = await this.database();
+      const transaction = database.transaction(["meta", "preferences"], "readonly");
+      const [metadata, preferences] = await Promise.all([
+        transaction.objectStore("meta").get(VAULT_META_ID),
+        transaction.objectStore("preferences").get(DEVICE_RECORD_ID),
+      ]);
+      await transaction.done;
+      if (!metadata) {
+        throw new VaultUnavailableError("The vault metadata record is missing");
+      }
+      return {
+        generation: metadata.generation,
+        preferences: preferences ?? null,
+      };
+    }, "Device preferences could not be read");
+  }
+
   async getProjectBundle(projectId: string) {
     return runRead(async () => {
       const database = await this.database();
@@ -330,6 +473,249 @@ class IndexedDbVaultRepository implements VaultRepository {
         providerRuns,
       };
     }, "The project bundle could not be read");
+  }
+
+  async getProjectBackupBundle(projectId: string) {
+    return runRead(async () => {
+      const database = await this.database();
+      const transaction = database.transaction(
+        ["projects", "messages", "repositoryEvidence", "repositoryProvenance"],
+        "readonly"
+      );
+      const [project, messages, evidence, provenance] = await Promise.all([
+        transaction.objectStore("projects").get(projectId),
+        transaction.objectStore("messages").index("by-project").getAll(projectId),
+        transaction.objectStore("repositoryEvidence").index("by-project").getAll(projectId),
+        transaction.objectStore("repositoryProvenance").get(projectId),
+      ]);
+      await transaction.done;
+      if (!project) return null;
+      messages.sort(
+        (left, right) => left.createdAt - right.createdAt || left.id.localeCompare(right.id)
+      );
+      evidence.sort((left, right) => left.path.localeCompare(right.path));
+      return {
+        project,
+        messages,
+        evidence,
+        provenance: provenance ?? null,
+      };
+    }, "The project backup bundle could not be read");
+  }
+
+  async readBackupSnapshot() {
+    return runRead(async () => {
+      const database = await this.database();
+      const transaction = database.transaction(
+        [
+          "meta",
+          "projects",
+          "messages",
+          "repositoryEvidence",
+          "repositoryProvenance",
+          "templates",
+          "preferences",
+          "resume",
+        ],
+        "readonly"
+      );
+      const [metadata, projects, messages, evidence, provenance, templates, preferences, resume] =
+        await Promise.all([
+          transaction.objectStore("meta").get(VAULT_META_ID),
+          transaction.objectStore("projects").getAll(),
+          transaction.objectStore("messages").getAll(),
+          transaction.objectStore("repositoryEvidence").getAll(),
+          transaction.objectStore("repositoryProvenance").getAll(),
+          transaction.objectStore("templates").getAll(),
+          transaction.objectStore("preferences").get(DEVICE_RECORD_ID),
+          transaction.objectStore("resume").get(DEVICE_RECORD_ID),
+        ]);
+      await transaction.done;
+      if (!metadata) {
+        throw new VaultUnavailableError("The vault metadata record is missing");
+      }
+      const bundles = assembleProjectBundles(projects, messages, evidence, provenance, []).map(
+        ({ providerRuns: _providerRuns, ...bundle }) => bundle
+      );
+      bundles.sort(
+        (left, right) =>
+          right.project.updatedAt - left.project.updatedAt ||
+          right.project.createdAt - left.project.createdAt ||
+          right.project.id.localeCompare(left.project.id)
+      );
+      templates.sort(
+        (left, right) => right.createdAt - left.createdAt || right.id.localeCompare(left.id)
+      );
+      return {
+        generation: metadata.generation,
+        projects: bundles,
+        templates,
+        preferences: preferences ?? null,
+        resume: resume ?? null,
+      };
+    }, "The backup snapshot could not be read");
+  }
+
+  async readVaultSnapshot() {
+    return runRead(async () => {
+      const database = await this.database();
+      const transaction = database.transaction(VAULT_STORE_NAMES, "readonly");
+      const [
+        metadata,
+        projects,
+        messages,
+        evidence,
+        provenance,
+        providerRuns,
+        templates,
+        preferences,
+        resume,
+      ] = await Promise.all([
+        transaction.objectStore("meta").get(VAULT_META_ID),
+        transaction.objectStore("projects").getAll(),
+        transaction.objectStore("messages").getAll(),
+        transaction.objectStore("repositoryEvidence").getAll(),
+        transaction.objectStore("repositoryProvenance").getAll(),
+        transaction.objectStore("providerRuns").getAll(),
+        transaction.objectStore("templates").getAll(),
+        transaction.objectStore("preferences").get(DEVICE_RECORD_ID),
+        transaction.objectStore("resume").get(DEVICE_RECORD_ID),
+      ]);
+      await transaction.done;
+      if (!metadata) {
+        throw new VaultUnavailableError("The vault metadata record is missing");
+      }
+
+      const bundles = assembleProjectBundles(
+        projects,
+        messages,
+        evidence,
+        provenance,
+        providerRuns
+      );
+      bundles.sort(
+        (left, right) =>
+          right.project.updatedAt - left.project.updatedAt ||
+          right.project.createdAt - left.project.createdAt ||
+          right.project.id.localeCompare(left.project.id)
+      );
+      templates.sort(
+        (left, right) => right.createdAt - left.createdAt || right.id.localeCompare(left.id)
+      );
+      return {
+        generation: metadata.generation,
+        projects: bundles,
+        templates,
+        preferences: preferences ?? null,
+        resume: resume ?? null,
+      };
+    }, "The vault snapshot could not be read");
+  }
+
+  async replaceVaultSnapshot(
+    snapshot: Omit<VaultRepositorySnapshot, "generation">,
+    expectedSnapshot: VaultRepositorySnapshot,
+    options: VaultReplaceOptions = {}
+  ) {
+    for (const bundle of snapshot.projects) {
+      assertProjectRelations({
+        project: bundle.project,
+        messages: bundle.messages,
+        evidence: bundle.evidence,
+        provenance: bundle.provenance,
+        providerRuns: bundle.providerRuns,
+      });
+    }
+    const database = await this.database();
+    const generation = this.options.generationFactory();
+    const expectedFingerprint = revisionFingerprint(expectedSnapshot);
+    await runWrite(
+      database,
+      [...VAULT_STORE_NAMES],
+      async (transaction) => {
+        const metadata = await assertGeneration(transaction, expectedSnapshot.generation);
+        const [
+          projects,
+          messages,
+          evidence,
+          provenance,
+          providerRuns,
+          templates,
+          preferences,
+          resume,
+        ] = await Promise.all([
+          transaction.objectStore("projects").getAll(),
+          transaction.objectStore("messages").getAll(),
+          transaction.objectStore("repositoryEvidence").getAll(),
+          transaction.objectStore("repositoryProvenance").getAll(),
+          transaction.objectStore("providerRuns").getAll(),
+          transaction.objectStore("templates").getAll(),
+          transaction.objectStore("preferences").get(DEVICE_RECORD_ID),
+          transaction.objectStore("resume").get(DEVICE_RECORD_ID),
+        ]);
+        const actualFingerprint = revisionFingerprintFromRecords({
+          projects,
+          messages,
+          evidence,
+          provenance,
+          providerRuns,
+          templates,
+          preferences: preferences ?? null,
+          resume: resume ?? null,
+        });
+        if (actualFingerprint !== expectedFingerprint) {
+          throw new VaultSnapshotConflictError();
+        }
+        const stores = VAULT_STORE_NAMES.filter((storeName) => storeName !== "meta");
+        await Promise.all(stores.map((storeName) => transaction.objectStore(storeName).clear()));
+
+        const writes: Promise<unknown>[] = [];
+        for (const bundle of snapshot.projects) {
+          writes.push(transaction.objectStore("projects").add(bundle.project));
+          writes.push(
+            ...bundle.messages.map((message) => transaction.objectStore("messages").add(message))
+          );
+          writes.push(
+            ...bundle.evidence.map((record) =>
+              transaction.objectStore("repositoryEvidence").add(record)
+            )
+          );
+          if (bundle.provenance) {
+            writes.push(transaction.objectStore("repositoryProvenance").add(bundle.provenance));
+          }
+          writes.push(
+            ...bundle.providerRuns.map((run) => transaction.objectStore("providerRuns").add(run))
+          );
+        }
+        writes.push(
+          ...snapshot.templates.map((template) =>
+            transaction.objectStore("templates").add(template)
+          )
+        );
+        if (snapshot.preferences) {
+          writes.push(transaction.objectStore("preferences").add(snapshot.preferences));
+        }
+        if (snapshot.resume) {
+          writes.push(transaction.objectStore("resume").add(snapshot.resume));
+        }
+        await Promise.all(writes);
+        await transaction.objectStore("meta").put({
+          ...metadata,
+          generation,
+          updatedAt: this.options.now(),
+        });
+        await options.beforeCommit?.();
+      },
+      "The vault import did not commit"
+    );
+    this.publish({
+      generation,
+      projectId: null,
+      projectRevision: null,
+      stores: [...VAULT_STORE_NAMES],
+      reason: "generation",
+    });
+    return generation;
   }
 
   async listProjects() {

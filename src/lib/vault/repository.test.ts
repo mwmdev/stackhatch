@@ -13,6 +13,7 @@ import {
   VaultCommitError,
   VaultConflictError,
   VaultGenerationConflictError,
+  VaultSnapshotConflictError,
 } from "./storage-status";
 
 const databaseNames = new Set<string>();
@@ -270,6 +271,33 @@ describe("browser vault repository", () => {
         { expectedGeneration: generation, expectedProjectRevision: 1 }
       )
     ).rejects.toBeInstanceOf(VaultGenerationConflictError);
+  });
+
+  it("rejects a full-vault replacement when any record changed after its snapshot", async () => {
+    const repository = await createRepository("snapshot-conflict");
+    const generation = await repository.getGeneration();
+    await repository.saveProjectBundle(
+      { project: project("project-1") },
+      { expectedGeneration: generation, expectedProjectRevision: null }
+    );
+    const expected = await repository.readVaultSnapshot();
+    await repository.saveProjectBundle(
+      { project: project("project-2") },
+      { expectedGeneration: generation, expectedProjectRevision: null }
+    );
+
+    await expect(
+      repository.replaceVaultSnapshot(
+        {
+          projects: expected.projects,
+          templates: expected.templates,
+          preferences: expected.preferences,
+          resume: expected.resume,
+        },
+        expected
+      )
+    ).rejects.toBeInstanceOf(VaultSnapshotConflictError);
+    expect(await repository.listProjects()).toHaveLength(2);
   });
 
   it("persists non-secret provider drafts across repository instances", async () => {

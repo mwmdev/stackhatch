@@ -1620,14 +1620,14 @@ export default function ProjectPage({ vault }: { vault?: WorkspaceVault }) {
                 </IconControl>
               </div>
             )}
-            {nodeCount > 0 && (
-              <ExportDropdown
-                rfInstanceRef={rfInstanceRef}
-                projectName={project.name}
-                alternatives={alternatives}
-                onError={setToast}
-              />
-            )}
+            <ExportDropdown
+              rfInstanceRef={rfInstanceRef}
+              projectId={project.id}
+              projectName={project.name}
+              alternatives={alternatives}
+              diagramAvailable={nodeCount > 0}
+              onError={setToast}
+            />
             <div className="flex-none" data-editor-action-group="more">
               <IconControl
                 controlRef={moreMenuInvokerRef}

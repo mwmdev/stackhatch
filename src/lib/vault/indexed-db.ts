@@ -153,9 +153,12 @@ export function createVaultDatabaseFactory(options: OpenVaultOptions = {}): Vaul
   return () => openStackHatchVault(options);
 }
 
-export async function deleteVaultDatabase(name = VAULT_DATABASE_NAME) {
+export async function deleteVaultDatabase(
+  name = VAULT_DATABASE_NAME,
+  options: { blocked?: () => void } = {}
+) {
   try {
-    await deleteDB(name);
+    await deleteDB(name, { blocked: options.blocked });
   } catch (error) {
     throw normalizeVaultError(error, "The browser vault could not be deleted");
   }

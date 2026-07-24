@@ -1,78 +1,75 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { ThemeProvider } from "next-themes";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import SettingsPage from "./page";
+import type { ProviderKeyManager } from "@/lib/provider-key";
+import type { VaultRepository } from "@/lib/vault/repository";
+import { DeviceSettingsPage, type DeviceSettingsServices } from "./page";
 
-vi.mock("@/lib/analytics", () => ({ trackEvent: vi.fn() }));
+const mockSetTheme = vi.fn((theme: string) => {
+  mockTheme = theme;
+});
+let mockTheme = "system";
 
-describe("SettingsPage theme integration", () => {
+vi.mock("next-themes", () => ({
+  useTheme: () => ({ theme: mockTheme, setTheme: mockSetTheme }),
+}));
+
+describe("DeviceSettingsPage theme integration", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    localStorage.clear();
-    document.documentElement.className = "";
+    mockTheme = "system";
     window.history.replaceState({}, "", "/settings");
-    Object.defineProperty(window, "matchMedia", {
-      configurable: true,
-      value: vi.fn().mockImplementation((query: string) => ({
-        matches: false,
-        media: query,
-        onchange: null,
-        addListener: vi.fn(),
-        removeListener: vi.fn(),
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-        dispatchEvent: vi.fn(),
-      })),
-    });
   });
 
-  it("lets the header control advance the theme without reloading account settings", async () => {
-    let settingsLoads = 0;
-    global.fetch = vi.fn((input: RequestInfo | URL, options?: RequestInit) => {
-      const url = typeof input === "string" ? input : input.toString();
-      if (url === "/api/me") {
-        return Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve({ name: "Settings User" }),
-        });
-      }
-      if (url === "/api/settings" && !options?.method) {
-        settingsLoads += 1;
-        return Promise.resolve({
-          ok: true,
-          json: () =>
-            Promise.resolve({
-              hasAnthropicKey: false,
-              theme: "system",
-              accountDeletion: { enabled: true },
-            }),
-        });
-      }
-      return Promise.resolve({ ok: false, json: () => Promise.resolve({}) });
-    }) as unknown as typeof fetch;
-
-    render(
-      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-        <SettingsPage />
-      </ThemeProvider>
-    );
-
+  it("writes the selected theme to the device preferences without a network request", async () => {
+    const fetchSpy = vi.spyOn(global, "fetch");
+    const repository = {
+      getDevicePreferencesSnapshot: vi.fn().mockResolvedValue({
+        generation: "generation-1",
+        preferences: null,
+      }),
+      putDevicePreferences: vi.fn(async (values) => ({
+        id: "device",
+        ...values,
+        revision: 1,
+        createdAt: 1,
+        updatedAt: 1,
+      })),
+      close: vi.fn(),
+    } as unknown as VaultRepository;
+    const keyManager = {
+      initialize: vi.fn().mockResolvedValue({
+        state: "absent",
+        generation: "credentials-1",
+      }),
+    } as unknown as ProviderKeyManager;
+    const services: DeviceSettingsServices = {
+      createRepository: () => repository,
+      getKeyManager: () => keyManager,
+      inspectStorage: vi.fn().mockResolvedValue({
+        state: "available",
+        usage: 0,
+        quota: 1,
+        usageRatio: 0,
+        persisted: true,
+        error: null,
+      }),
+      requestPersistentStorage: vi.fn(),
+      afterRestore: vi.fn(),
+      afterClear: vi.fn(),
+    };
+    const view = render(<DeviceSettingsPage services={services} />);
     await screen.findByRole("heading", { name: "Appearance" });
-    expect(screen.getByLabelText("Theme system")).toHaveAttribute("aria-pressed", "true");
+    view.rerender(<DeviceSettingsPage services={services} />);
 
-    const headerToggle = screen.getByRole("button", { name: "Theme: change appearance" });
-    fireEvent.click(headerToggle);
+    fireEvent.click(screen.getByLabelText("Theme dark"));
 
-    await waitFor(() => {
-      expect(screen.getByLabelText("Theme light")).toHaveAttribute("aria-pressed", "true");
-    });
-
-    fireEvent.click(headerToggle);
-
-    await waitFor(() => {
-      expect(document.documentElement).toHaveClass("dark");
-      expect(screen.getByLabelText("Theme dark")).toHaveAttribute("aria-pressed", "true");
-    });
-    expect(settingsLoads).toBe(1);
+    await waitFor(() =>
+      expect(repository.putDevicePreferences).toHaveBeenCalledWith(
+        expect.objectContaining({ theme: "dark" }),
+        { expectedGeneration: "generation-1", expectedRevision: null }
+      )
+    );
+    expect(mockSetTheme).toHaveBeenCalledWith("dark");
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });
