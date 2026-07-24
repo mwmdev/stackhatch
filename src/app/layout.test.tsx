@@ -19,4 +19,9 @@ describe("RootLayout metadata", () => {
       ],
     });
   });
+
+  it("describes the local-first and direct-provider boundary", () => {
+    expect(metadata.description).toContain("Maps stay in your browser");
+    expect(metadata.description).toContain("directly to providers");
+  });
 });

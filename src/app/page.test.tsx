@@ -65,9 +65,10 @@ describe("LandingPage", () => {
     await renderLandingPage();
 
     const trust = document.querySelector<HTMLElement>('[data-landing-region="trust"]')!;
-    expect(trust).toHaveTextContent("Free to use. Bring your own key.");
-    expect(trust).toHaveTextContent("Map public repositories.");
+    expect(trust).toHaveTextContent("No account. Maps stay on this device.");
+    expect(trust).toHaveTextContent("Direct BYOK, only when you ask.");
     expect(trust).toHaveTextContent("Open source on GitHub.");
+    expect(trust).toHaveTextContent("Your key never passes through us.");
 
     for (const capability of [
       "See and shape the system.",

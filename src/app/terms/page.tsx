@@ -14,8 +14,8 @@ export default function TermsPage() {
       homeHref="/"
       homeLabel="StackHatch home"
       eyebrow="Agreement"
-      title="Terms of Service"
-      description="Effective July 15, 2026"
+      title="Terms of Use"
+      description="Effective July 24, 2026"
       className={styles.legalShell}
     >
       <div className={styles.publicLayout}>
@@ -28,40 +28,50 @@ export default function TermsPage() {
 
         <article className={styles.legalArticle}>
           <section>
-            <h2>Use of StackHatch</h2>
-            <p className="mt-2">
-              StackHatch helps users generate architecture diagrams, place Note nodes on maps, keep
-              personal templates, and create handoff artifacts from bounded repository evidence and
-              user input. Projects are accessible only to their account owner; StackHatch does not
-              provide shared project access. Generated maps are explanations, not a complete audit
-              of a codebase. Users are responsible for reviewing output before relying on it for
-              production engineering decisions.
+            <h2>Using StackHatch</h2>
+            <p>
+              StackHatch is free, open-source software for creating and exploring architecture maps.
+              The hosted app requires no account and stores workspace data in your browser. You are
+              responsible for keeping backups when the work matters and for protecting access to
+              your device and browser profile.
             </p>
           </section>
 
           <section>
-            <h2>Accounts and AI Usage</h2>
-            <p className="mt-2">
-              StackHatch is free to use. AI features require a user-provided Anthropic API key, and
-              Anthropic bills that usage directly to the user&apos;s Anthropic account. Users are
-              responsible for securing their Anthropic account and complying with its terms.
+            <h2>Providers and Credentials</h2>
+            <p>
+              Repository and AI actions are optional. When you approve one, your browser connects
+              directly to GitHub or Anthropic. You are responsible for your provider credentials,
+              charges, rate limits, and compliance with each provider&apos;s terms. Never use a key
+              you are not authorized to use.
+            </p>
+          </section>
+
+          <section>
+            <h2>Content and Generated Output</h2>
+            <p>
+              Only analyze repositories and content you have permission to use. Generated maps,
+              explanations, alternatives, and PRDs may be incomplete or incorrect. They are aids for
+              engineering judgment, not a security audit or a substitute for reviewing the
+              underlying system before making production decisions.
             </p>
           </section>
 
           <section>
             <h2>Acceptable Use</h2>
-            <p className="mt-2">
-              Users may not attempt to bypass access controls, abuse AI or repository scanning,
-              upload content they do not have permission to use, or use StackHatch to violate
-              applicable law.
+            <p>
+              Do not use StackHatch to violate applicable law, disrupt the hosted site or provider
+              services, bypass technical safeguards, distribute malware, or expose credentials or
+              content that you are not permitted to share.
             </p>
           </section>
 
           <section>
-            <h2>Support</h2>
-            <p className="mt-2">
-              For account or product support, contact support@stackhatch.io from the email
-              associated with the account.
+            <h2>Availability and Support</h2>
+            <p>
+              The software and public hosted app are provided as-is, without an uptime or support
+              commitment. Community help is handled in the public GitHub repository. Do not post API
+              keys, private project content, or other sensitive material in a public issue.
             </p>
           </section>
         </article>

@@ -31,14 +31,14 @@ export const metadata: Metadata = {
     template: "%s — StackHatch",
   },
   description:
-    "StackHatch turns repositories and requirements into interactive architecture maps you can explore, question, and keep current while you build.",
+    "A private, local-first architecture workspace. Maps stay in your browser; AI requests go directly to providers only when you ask.",
   openGraph: {
     type: "website",
     url: "/",
     siteName: "StackHatch",
     title: "Keep your architecture in view",
     description:
-      "StackHatch turns repositories and requirements into interactive architecture maps you can explore, question, and keep current while you build.",
+      "A private, local-first architecture workspace. Maps stay in your browser; AI requests go directly to providers only when you ask.",
     images: [
       {
         url: "/screenshots/architecture-overview-og.png",
@@ -52,7 +52,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Keep your architecture in view",
     description:
-      "StackHatch turns repositories and requirements into interactive architecture maps you can explore, question, and keep current while you build.",
+      "A private, local-first architecture workspace. Maps stay in your browser; AI requests go directly to providers only when you ask.",
     images: ["/screenshots/architecture-overview-og.png"],
   },
   robots: { index: true, follow: true },
@@ -66,7 +66,7 @@ const softwareApplicationJsonLd = {
   operatingSystem: "Web",
   url: siteUrl,
   description:
-    "StackHatch turns repositories and requirements into interactive architecture maps you can explore, question, and keep current while you build.",
+    "A private, local-first architecture workspace. Maps stay in your browser; AI requests go directly to providers only when you ask.",
   offers: {
     "@type": "Offer",
     price: "0",

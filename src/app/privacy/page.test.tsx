@@ -9,7 +9,7 @@ describe("PrivacyPage", () => {
     expect(screen.getAllByRole("main")).toHaveLength(1);
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     expect(screen.getByRole("heading", { level: 1, name: "Privacy Policy" })).toBeInTheDocument();
-    expect(screen.getByText("Effective July 22, 2026")).toBeInTheDocument();
+    expect(screen.getByText("Effective July 24, 2026")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "StackHatch home" })).toHaveAttribute("href", "/");
     expect(screen.getByRole("button", { name: /^Theme:/ })).toBeInTheDocument();
     const legalNavigation = screen.getByRole("navigation", { name: "Legal pages" });
@@ -23,28 +23,26 @@ describe("PrivacyPage", () => {
     );
 
     for (const heading of [
-      "Information We Use",
-      "Public Repository Analysis",
-      "Product Analytics",
-      "AI Keys and Project Content",
-      "AI Provider",
-      "Data Retention",
-      "Data Requests",
+      "The Short Version",
+      "Data on Your Device",
+      "Direct Provider Requests",
+      "Static Hosting",
+      "Network Boundary",
+      "Your Controls",
     ]) {
       expect(screen.getByRole("heading", { level: 2, name: heading })).toBeInTheDocument();
     }
   });
 
-  it("preserves substantive repository, analytics, and data-request wording", () => {
+  it("states the local, provider, host, and data-loss boundaries", () => {
     render(<PrivacyPage />);
 
     expect(screen.getByText(/Private repositories are not supported/)).toBeInTheDocument();
-    expect(
-      screen.getByText(/Analytics never include repository names, project IDs, prompts, API keys/)
-    ).toBeInTheDocument();
-    expect(screen.getByText(/delete your account permanently from Settings/)).toBeInTheDocument();
-    expect(screen.getByText(/active application database/)).toBeInTheDocument();
-    expect(screen.getByText(/creates a fresh account/)).toBeInTheDocument();
-    expect(screen.getByText(/WAL files and backups follow/)).toBeInTheDocument();
+    expect(screen.getByText(/no user accounts, product analytics/)).toBeInTheDocument();
+    expect(screen.getByText(/Clearing site data.*can remove it/)).toBeInTheDocument();
+    expect(screen.getByText(/Backups.*exclude provider credentials/)).toBeInTheDocument();
+    expect(screen.getByText(/does not proxy or retain that request/)).toBeInTheDocument();
+    expect(screen.getByText(/temporarily process ordinary request metadata/)).toBeInTheDocument();
+    expect(screen.getByText(/there is no remote account or project record/)).toBeInTheDocument();
   });
 });

@@ -1,68 +1,65 @@
 # StackHatch Launch Readiness Brief
 
-## Product
+## Product promise
 
-StackHatch turns a blank canvas, product requirements, a public repository, or a personal template
-into an editable system diagram, Note nodes, and handoff artifacts. It is for developers taking
-over a codebase, returning to a complex project, or keeping a system architecture visible while
-they build.
+StackHatch turns a blank canvas, requirements, a public repository, or a local template into an
+editable architecture map and useful handoff artifacts. It is free, open source, accountless, and
+local-first.
 
-The product is free to use. There are no tiers, subscriptions, quotas, or feature gates. Users
-provide their own Anthropic API key, choose a supported Claude model, and are billed directly by
-Anthropic for their AI usage.
+The launch promise is architectural, not contractual sleight of hand: StackHatch infrastructure has
+no route for project content or provider credentials. The browser stores the workspace. GitHub and
+Anthropic receive only the direct requests a user explicitly approves.
 
 ## Activation
 
-The primary activation event is a user creating a real project from any of the four starting points
-and reaching the architecture workspace.
+Activation is a useful map created from any of the four starting points:
 
-The homepage and dashboard should give equal prominence to all four starting points:
+- **Start fresh** creates a local blank canvas with no provider request.
+- **Upload requirements** previews the input and asks before contacting Anthropic.
+- **Map a repo** asks before the browser contacts GitHub, shows evidence status, then asks separately
+  before contacting Anthropic.
+- **Use a template** copies a device-local template into a new local project.
 
-- **Start fresh** creates an editable blank canvas without requiring an Anthropic key.
-- **Upload requirements** turns a Markdown or text brief into an initial architecture map.
-- **Map a repo** analyzes a public GitHub repository and records scan provenance.
-- **Use a template** creates a new personal project from a saved architecture.
+Because there is no analytics pipeline, launch learning comes from opt-in qualitative research,
+public issue discussions, reproducible bug reports, community contributions, and voluntary public
+feedback—not behavioral tracking.
 
-AI entry points explain that an Anthropic key is required and return users to the same starting
-point after setup.
+## Release boundary
 
-The north-star metric is weekly active architecture maps created from real project inputs. Supporting
-launch signals are qualified visits, first-project activation, return usage, exports, and GitHub
-stars.
+- `npm run build` must produce `out/`, the generated host policy, and a passing static verifier.
+- The supported production image contains Caddy plus static files only.
+- Production accepts no database, OAuth, analytics, provider, or encryption secret.
+- Production mounts no writable application volume and runs with a read-only filesystem.
+- CSP `connect-src` allows only self, GitHub's API, and Anthropic's API.
+- All live public surfaces describe browser ownership, direct providers, host request metadata,
+  remembered-key risk, data-loss risk, community support, and the absence of migration.
 
-## Core Launch Capabilities
+## Launch risks
 
-- GitHub authentication and encrypted per-user Anthropic keys.
-- Per-user Claude model and theme preferences.
-- Per-user custom node subtypes and checked-in, immutable architecture prompts.
-- Repository analysis, requirements input, chat, and a fully editable canvas.
-- PNG, SVG, JSON, YAML, and PRD exports for every user.
-- Unlimited personal projects, Note nodes on architecture maps, and personal templates.
-- Self-service account deletion plus support, privacy, and terms surfaces.
+- Users may mistake browser-local persistence for cloud sync and lose work.
+- Users may remember a provider key on a shared or compromised browser profile.
+- Provider CORS, rate limits, billing, or API changes may break optional actions.
+- Repository evidence and generated output may be incomplete or wrong.
+- A static host or CDN may inject scripts, omit security headers, retain request logs, or serve stale
+  policy and application bytes from different releases.
 
-## Risks and Validation
+Mitigations include visible storage status, explicit backup and destructive controls, provider
+disclosures, partial-evidence warnings, immutable candidate digests, direct-refresh tests, exact CSP
+hash generation, a read-only production image, and a human-gated cutover runbook.
 
-The main launch risks are repository-analysis quality, whether the BYOK setup is understandable,
-and whether users return to update architecture decisions and export useful handoff artifacts. Watch
-for missing keys, no first project, projects with no follow-up edit or export, and failed provider
-requests.
+## Static release gate
 
-Validate the product through public repository walkthroughs, developer onboarding stories, direct
-outreach to maintainers, and community launches. Measure landing-page signup, key setup,
-first-project activation, first export, alternative exploration, GitHub stars, and weekly return
-usage.
+Before production cutover:
 
-## Technical Notes
+1. Pass unit tests, typecheck, lint, changed-file formatting, static build, artifact verification,
+   development browser tests, and production-equivalent static browser tests.
+2. Record source, artifact, host-policy, and container digests without rebuilding the candidate.
+3. Verify blank editing creates no network request; provider actions contact only their approved
+   origin; credentials never enter backups or logs.
+4. Confirm every static route refreshes directly and unknown routes return the hardened 404.
+5. Complete the inventory, owners, witness, rollback, observation window, and evidence locations in
+   `docs/operations/local-first-cutover.md`.
 
-The launch baseline includes Next.js, GitHub authentication, encrypted per-user settings, per-user
-custom subtypes, checked-in prompt defaults, personal projects, Note nodes stored as part of each
-architecture map, personal templates, tests, and migrations. Production does not use a
-server-managed Anthropic key or model fallback, and the web product has no roles, administrator
-surface, or impersonation mode.
-
-Production migrations run offline during a maintenance window against an explicit database path.
-The same explicit-path boundary protects the narrow host-authorized account preview/delete command;
-it is not a replacement administrator product. Self-service deletion removes the user's active
-SQLite records transactionally, while WAL files and backups follow the deployment's retention
-policy. A later GitHub login provisions a fresh account rather than reviving deleted data or an old
-session.
+Static release readiness does not authorize destruction. Retiring the legacy database, backups,
+volumes, secrets, OAuth capability, analytics, images, ingress, or retained logs requires a separate,
+witnessed production authorization against revalidated exact targets.

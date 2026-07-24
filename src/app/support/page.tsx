@@ -1,32 +1,32 @@
 import Link from "next/link";
-import { ArrowRight, BookOpen, GitBranch, LifeBuoy, Mail, ShieldCheck, Star } from "lucide-react";
+import { ArrowRight, BookOpen, GitBranch, LifeBuoy, ShieldCheck, Star } from "lucide-react";
 import PublicPageShell from "@/components/shells/PublicPageShell";
 import styles from "../public-pages.module.css";
 
 export const metadata = {
-  title: "Support",
-  description: "Help with repository maps, bring-your-own-key setup, and scan evidence.",
+  title: "Help",
+  description: "Help with local maps, browser backups, BYOK setup, and repository evidence.",
   alternates: { canonical: "/support" },
 };
 
 const SUPPORT_PATHS = [
   {
-    id: "first-map",
-    title: "Map a repository",
+    id: "local-data",
+    title: "Protect your local work",
     description:
-      "Start with a public GitHub repository or a short Markdown PRD, then open the project and review the generated nodes before asking the assistant for tradeoffs.",
+      "Maps live in this browser profile and do not sync to an account. Use Settings to export a backup before clearing site data, changing browser profiles, or moving devices.",
   },
   {
     id: "byok",
     title: "Bring your Anthropic key",
     description:
-      "StackHatch is free and every feature is available to every user. Add your Anthropic API key in Settings; Anthropic bills AI usage directly to your account.",
+      "Blank maps need no key. Add a key in Settings for AI actions; it stays in session memory unless you explicitly choose to remember it on this device. Anthropic bills usage directly.",
   },
   {
     id: "evidence",
     title: "Understand the evidence",
     description:
-      "Repository maps are inferred from bounded public evidence. The editor shows the scanned commit and marks partial analysis when a repository exceeds those limits.",
+      "Repository maps use bounded public GitHub evidence and may be partial. Review the scanned revision, warnings, inferred components, and connections before relying on a generated map.",
   },
 ];
 
@@ -35,13 +35,13 @@ export default function SupportPage() {
     <PublicPageShell
       homeHref="/"
       homeLabel="StackHatch home"
-      eyebrow="Support"
-      title="Get from repository to a map you can reason about."
-      description="StackHatch helps developers see the pieces of a codebase, follow how they connect, and keep the architecture visible while the project changes."
+      eyebrow="Help"
+      title="Keep your map private, portable, and understandable."
+      description="The app is local-first and the project is community-supported. These are the boundaries worth knowing before you start."
       className={styles.supportShell}
     >
       <div className={styles.publicLayout}>
-        <nav aria-label="Support topics" className={styles.sectionNav}>
+        <nav aria-label="Help topics" className={styles.sectionNav}>
           {SUPPORT_PATHS.map((item) => (
             <a key={item.id} href={`#${item.id}`}>
               {item.title}
@@ -53,22 +53,24 @@ export default function SupportPage() {
           <section className={styles.contactPanel}>
             <LifeBuoy aria-hidden="true" />
             <div className={styles.panelCopy}>
-              <h2>Contact support</h2>
+              <h2>Community support</h2>
               <p>
-                Include your account email, browser, and the action that failed. Never email an API
-                key or private project content.
+                Ask a question or report a reproducible bug on GitHub. Keep keys, private
+                requirements, and private repository content out of public issues.
               </p>
             </div>
             <a
-              href="mailto:support@stackhatch.io"
+              href="https://github.com/mwmdev/stackhatch/issues/new/choose"
+              target="_blank"
+              rel="noreferrer"
               className={`${styles.actionLink} ${styles.primaryActionLink}`}
             >
-              <Mail className="h-4 w-4" aria-hidden="true" />
-              support@stackhatch.io
+              <GitBranch className="h-4 w-4" aria-hidden="true" />
+              Open an issue
             </a>
           </section>
 
-          <section className={styles.supportPaths} aria-label="Support guidance">
+          <section className={styles.supportPaths} aria-label="Help guidance">
             {SUPPORT_PATHS.map((item) => (
               <article key={item.title} id={item.id} className={styles.supportPath}>
                 <BookOpen aria-hidden="true" />
@@ -81,9 +83,11 @@ export default function SupportPage() {
           <section className={styles.trustPanel}>
             <ShieldCheck aria-hidden="true" />
             <div className={styles.panelCopy}>
-              <h2>Trust basics</h2>
+              <h2>Trust boundary</h2>
               <p>
-                Review the privacy and terms pages before sharing customer-sensitive requirements.
+                The app stores your work locally and contacts GitHub or Anthropic only after an
+                explicit action. Read the exact data and provider boundaries before using sensitive
+                material.
               </p>
             </div>
             <div className={styles.trustActions}>
@@ -92,13 +96,13 @@ export default function SupportPage() {
               </Link>
               <Link href="/terms" className={styles.actionLink}>
                 Terms
-                <ArrowRight className="h-4 w-4" />
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </Link>
             </div>
           </section>
 
           <section className={styles.sourcePanel}>
-            <p>StackHatch is open source and developed in public.</p>
+            <p>StackHatch is MIT-licensed, open source, and developed in public.</p>
             <div className={styles.sourceActions}>
               <a
                 href="https://github.com/mwmdev/stackhatch"
@@ -106,7 +110,7 @@ export default function SupportPage() {
                 rel="noreferrer"
                 className={styles.actionLink}
               >
-                <GitBranch className="h-4 w-4" />
+                <GitBranch className="h-4 w-4" aria-hidden="true" />
                 View source
               </a>
               <a
@@ -115,7 +119,7 @@ export default function SupportPage() {
                 rel="noreferrer"
                 className={styles.actionLink}
               >
-                <Star className="h-4 w-4" />
+                <Star className="h-4 w-4" aria-hidden="true" />
                 Star on GitHub
               </a>
             </div>

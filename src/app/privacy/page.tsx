@@ -5,7 +5,7 @@ import styles from "../public-pages.module.css";
 export const metadata = {
   title: "Privacy",
   description:
-    "How StackHatch handles accounts, public repository analysis, AI keys, and analytics.",
+    "The local-first StackHatch privacy boundary: device storage, direct provider requests, and static hosting.",
   alternates: { canonical: "/privacy" },
 };
 
@@ -16,7 +16,7 @@ export default function PrivacyPage() {
       homeLabel="StackHatch home"
       eyebrow="Policy"
       title="Privacy Policy"
-      description="Effective July 22, 2026"
+      description="Effective July 24, 2026"
       className={styles.legalShell}
     >
       <div className={styles.publicLayout}>
@@ -29,81 +29,75 @@ export default function PrivacyPage() {
 
         <article className={styles.legalArticle}>
           <section>
-            <h2>Information We Use</h2>
-            <p className="mt-2">
-              StackHatch stores account profile details from authentication, personal project names
-              and descriptions, public repository URLs, generated architecture data (including Note
-              nodes placed on a map), personal templates, and user preferences needed to operate the
-              product.
+            <h2>The Short Version</h2>
+            <p>
+              StackHatch is a static, local-first application. It has no user accounts, product
+              analytics, application database, or API for receiving your maps. Projects, messages,
+              repository evidence, templates, and preferences stay in your browser profile.
             </p>
           </section>
 
           <section>
-            <h2>Public Repository Analysis</h2>
-            <p className="mt-2">
-              When you ask StackHatch to scan a public GitHub repository, it reads bounded
-              repository metadata, languages, the file tree, README, and selected configuration
-              files. StackHatch records the public repository URL, scanned commit, scan time, and
-              whether the evidence was partial. Private repositories are not supported.
+            <h2>Data on Your Device</h2>
+            <p>
+              StackHatch stores workspace data in browser storage. It does not sync that data
+              between devices. Clearing site data, resetting the browser profile, losing the device,
+              or using private-browsing storage can remove it. Use the backup controls in Settings
+              if you need a portable copy.
+            </p>
+            <p>
+              Backups include your maps and app settings but exclude provider credentials. An
+              Anthropic key stays in memory for the browser session by default. If you explicitly
+              choose to remember it, the key is stored in this browser profile until you forget it
+              or clear site data.
             </p>
           </section>
 
           <section>
-            <h2>Product Analytics</h2>
-            <p className="mt-2">
-              When enabled, StackHatch uses privacy-focused Umami analytics to count page visits and
-              named product actions. It records the normalized page path, site hostname, browser
-              language, screen dimensions, and—when relevant—an allowlisted page location and fixed
-              error category. Automatic event capture and user identification are disabled.
-              Analytics never include repository names, project IDs, prompts, API keys, account
-              identifiers, referrers, page titles, or URL query strings.
+            <h2>Direct Provider Requests</h2>
+            <p>
+              StackHatch contacts no provider while you edit a blank map. When you approve a public
+              repository scan, your browser sends the repository reference directly to GitHub and
+              receives bounded public evidence. Private repositories are not supported.
+            </p>
+            <p>
+              When you approve an AI action, your browser sends the selected model, relevant map and
+              conversation context, requirements, and bounded repository evidence directly to
+              Anthropic using your key. StackHatch does not proxy or retain that request. GitHub and
+              Anthropic process those direct requests under their own terms and privacy policies;
+              Anthropic bills usage to the account that issued the key.
             </p>
           </section>
 
           <section>
-            <h2>AI Keys and Project Content</h2>
-            <p className="mt-2">
-              Each user provides their own Anthropic API key. Keys are encrypted before storage,
-              used only on the server for that user&apos;s requests, and never returned to the
-              browser. Project content is sent to Anthropic only when a user asks StackHatch to
-              generate, analyze, or revise architecture output.
+            <h2>Static Hosting</h2>
+            <p>
+              The StackHatch host serves only the application&apos;s HTML, JavaScript, fonts,
+              images, and styles. It sets no application session cookie and runs no product
+              analytics. Like any web host, the hosting and network infrastructure may temporarily
+              process ordinary request metadata such as an IP address, user agent, requested path,
+              timestamp, and security events to deliver and protect the site. It has no application
+              endpoint for project content or provider keys.
             </p>
           </section>
 
           <section>
-            <h2>AI Provider</h2>
-            <p className="mt-2">
-              StackHatch does not process payments. Anthropic bills AI usage directly to the
-              Anthropic account associated with each user-provided key. Anthropic&apos;s own privacy
-              terms apply when it processes those AI requests.
+            <h2>Network Boundary</h2>
+            <p>
+              The published host policy permits application connections only to the StackHatch
+              origin, GitHub&apos;s API, and Anthropic&apos;s API. Imported files, repository
+              content, and model output are treated as untrusted text and cannot add executable
+              assets or new network destinations.
             </p>
           </section>
 
           <section>
-            <h2>Data Retention</h2>
-            <p className="mt-2">
-              Account and personal project data remain stored until the related project or account
-              is deleted. You can delete your account permanently from Settings. After deletion
-              commits, your profile, encrypted AI key, projects, messages, templates, and
-              preferences are removed from the active application database. StackHatch does not
-              currently apply an automatic expiration period. If you later sign in with GitHub
-              again, StackHatch creates a fresh account; the new account and any old session do not
-              restore deleted data.
-            </p>
-            <p className="mt-2">
-              SQLite WAL files and backups follow the storage-retention lifecycle managed by the
-              operator. Self-hosted operators control their own database backups and retention
-              schedules, so account deletion does not promise immediate byte-level removal from
-              every backup or storage layer.
-            </p>
-          </section>
-
-          <section>
-            <h2>Data Requests</h2>
-            <p className="mt-2">
-              Use Settings for self-service account deletion. To request project export or
-              correction of account data, contact support@stackhatch.io from the email associated
-              with the account.
+            <h2>Your Controls</h2>
+            <p>
+              Settings lets you export or restore a backup, forget a remembered key, and clear all
+              StackHatch data in this browser. Because StackHatch never receives the workspace,
+              there is no remote account or project record for us to retrieve, correct, or delete.
+              Self-hosted forks and third-party hosts set their own operational practices.
             </p>
           </section>
         </article>

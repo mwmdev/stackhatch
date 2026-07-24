@@ -8,8 +8,8 @@ describe("TermsPage", () => {
 
     expect(screen.getAllByRole("main")).toHaveLength(1);
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
-    expect(screen.getByRole("heading", { level: 1, name: "Terms of Service" })).toBeInTheDocument();
-    expect(screen.getByText("Effective July 15, 2026")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Terms of Use" })).toBeInTheDocument();
+    expect(screen.getByText("Effective July 24, 2026")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "StackHatch home" })).toHaveAttribute("href", "/");
     expect(screen.getByRole("button", { name: /^Theme:/ })).toBeInTheDocument();
     const legalNavigation = screen.getByRole("navigation", { name: "Legal pages" });
@@ -23,24 +23,22 @@ describe("TermsPage", () => {
     );
 
     for (const heading of [
-      "Use of StackHatch",
-      "Accounts and AI Usage",
+      "Using StackHatch",
+      "Providers and Credentials",
+      "Content and Generated Output",
       "Acceptable Use",
-      "Support",
+      "Availability and Support",
     ]) {
       expect(screen.getByRole("heading", { level: 2, name: heading })).toBeInTheDocument();
     }
   });
 
-  it("preserves substantive ownership, AI usage, and support wording", () => {
+  it("states device ownership, direct provider, and generated-output limits", () => {
     render(<TermsPage />);
 
-    expect(
-      screen.getByText(/Projects are accessible only to their account owner/)
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/AI features require a user-provided Anthropic API key/)
-    ).toBeInTheDocument();
-    expect(screen.getByText(/contact support@stackhatch.io/)).toBeInTheDocument();
+    expect(screen.getByText(/stores workspace data in your browser/)).toBeInTheDocument();
+    expect(screen.getByText(/connects directly to GitHub or Anthropic/)).toBeInTheDocument();
+    expect(screen.getByText(/may be incomplete or incorrect/)).toBeInTheDocument();
+    expect(screen.getByText(/without an uptime or support commitment/)).toBeInTheDocument();
   });
 });

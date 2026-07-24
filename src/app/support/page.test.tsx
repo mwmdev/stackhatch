@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import SupportPage from "./page";
 
 describe("SupportPage", () => {
-  it("preserves the support paths, trust links, and public shell navigation", () => {
+  it("presents local-first help, trust links, and community support", () => {
     render(<SupportPage />);
 
     expect(screen.getAllByRole("main")).toHaveLength(1);
@@ -11,15 +11,15 @@ describe("SupportPage", () => {
     expect(
       screen.getByRole("heading", {
         level: 1,
-        name: "Get from repository to a map you can reason about.",
+        name: "Keep your map private, portable, and understandable.",
       })
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "StackHatch home" })).toHaveAttribute("href", "/");
     expect(screen.getByRole("button", { name: /^Theme:/ })).toBeInTheDocument();
 
-    const topicNavigation = screen.getByRole("navigation", { name: "Support topics" });
+    const topicNavigation = screen.getByRole("navigation", { name: "Help topics" });
     expect(topicNavigation).toContainElement(
-      screen.getByRole("link", { name: "Map a repository" })
+      screen.getByRole("link", { name: "Protect your local work" })
     );
     expect(topicNavigation).toContainElement(
       screen.getByRole("link", { name: "Bring your Anthropic key" })
@@ -27,22 +27,22 @@ describe("SupportPage", () => {
     expect(topicNavigation).toContainElement(
       screen.getByRole("link", { name: "Understand the evidence" })
     );
-    expect(screen.getByRole("link", { name: "Map a repository" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Protect your local work" })).toHaveAttribute(
       "href",
-      "#first-map"
+      "#local-data"
     );
 
     for (const heading of [
-      "Map a repository",
+      "Protect your local work",
       "Bring your Anthropic key",
       "Understand the evidence",
     ]) {
       expect(screen.getByRole("heading", { level: 2, name: heading })).toBeInTheDocument();
     }
 
-    expect(screen.getByRole("link", { name: "support@stackhatch.io" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Open an issue" })).toHaveAttribute(
       "href",
-      "mailto:support@stackhatch.io"
+      "https://github.com/mwmdev/stackhatch/issues/new/choose"
     );
     for (const link of screen.getAllByRole("link", { name: "Privacy" })) {
       expect(link).toHaveAttribute("href", "/privacy");
@@ -60,17 +60,20 @@ describe("SupportPage", () => {
     );
   });
 
-  it("keeps the substantive BYOK and evidence guidance", () => {
+  it("states the local backup, BYOK, and evidence guidance", () => {
     render(<SupportPage />);
 
     expect(
-      screen.getByText(/Add your Anthropic API key in Settings; Anthropic bills AI usage directly/)
+      screen.getByText(/Maps live in this browser profile and do not sync to an account/)
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/The editor shows the scanned commit and marks partial analysis/)
+      screen.getByText(/stays in session memory unless you explicitly choose to remember it/)
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/Never email an API key or private project content/)
+      screen.getByText(/Review the scanned revision, warnings, inferred components/)
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Keep keys, private requirements, and private repository content out/)
     ).toBeInTheDocument();
   });
 });

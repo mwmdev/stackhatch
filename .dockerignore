@@ -1,10 +1,15 @@
 node_modules
-.next
+.next*
+out
+dist-host
 operator
 .git
 .beads
 .ralph-tui
 data
 docs
+coverage
+playwright-report
+test-results
 *.md
 .env.local

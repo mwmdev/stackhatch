@@ -2092,7 +2092,9 @@ export default function ProjectPage({
                   )}
                   <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
                     <a
-                      href={`mailto:support@stackhatch.io?subject=${encodeURIComponent("Incorrect architecture map")}&body=${encodeURIComponent(`Public repository: ${project.repoUrl ?? "Not attached"}\nScanned commit: ${project.repoCommitSha ?? "Unknown"}\n\nWhat looks incorrect?\n`)}`}
+                      href="https://github.com/mwmdev/stackhatch/issues/new?labels=feedback&title=Incorrect%20architecture%20map"
+                      target="_blank"
+                      rel="noreferrer"
                       className="text-sm text-[var(--muted-foreground)] underline-offset-4 hover:text-[var(--foreground)] hover:underline"
                     >
                       Report an incorrect map

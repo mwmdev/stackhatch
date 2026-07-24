@@ -1,41 +1,26 @@
-FROM node:22-alpine AS base
-
-# --- Dependencies ---
-FROM base AS deps
+FROM node:22-alpine AS builder
 WORKDIR /app
+ENV NEXT_TELEMETRY_DISABLED=1
+
 COPY package.json package-lock.json ./
 RUN npm ci
 
-# --- Build ---
-FROM base AS builder
-WORKDIR /app
-ARG NEXT_PUBLIC_UMAMI_SCRIPT_URL=""
-ARG NEXT_PUBLIC_UMAMI_WEBSITE_ID=""
-ENV NEXT_PUBLIC_UMAMI_SCRIPT_URL=$NEXT_PUBLIC_UMAMI_SCRIPT_URL
-ENV NEXT_PUBLIC_UMAMI_WEBSITE_ID=$NEXT_PUBLIC_UMAMI_WEBSITE_ID
-COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build
 
-# --- Production ---
-FROM base AS runner
-WORKDIR /app
-ENV NODE_ENV=production
+FROM caddy:2.10.0-alpine AS runner
 
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+RUN setcap -r /usr/bin/caddy \
+  && addgroup -S -g 1001 stackhatch \
+  && adduser -S -D -H -u 1001 -G stackhatch stackhatch
 
-COPY --from=builder /app/public ./public
-COPY --from=builder --chown=nextjs:nodejs /app/drizzle ./drizzle
-COPY --from=builder --chown=nextjs:nodejs /app/operator ./operator
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder /app/out /srv
+COPY --from=builder /app/dist-host/Caddyfile /etc/caddy/Caddyfile
 
-RUN mkdir -p /app/data && chown nextjs:nodejs /app/data
+RUN caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
 
-USER nextjs
+USER stackhatch
 EXPOSE 3000
-ENV PORT=3000
-ENV HOSTNAME="0.0.0.0"
 
-CMD ["node", "server.js"]
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget -q -O /dev/null http://127.0.0.1:3000/ || exit 1

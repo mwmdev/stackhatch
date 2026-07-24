@@ -3,11 +3,11 @@ import Link from "next/link";
 import {
   ArrowRight,
   CircleHelp,
-  GitBranch,
-  KeyRound,
+  HardDrive,
   MessageSquareText,
   Network,
   RefreshCw,
+  Send,
   Star,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -107,7 +107,8 @@ export default function LandingPage() {
               </h1>
               <p className={styles.heroDescription}>
                 StackHatch turns repositories and requirements into interactive architecture maps
-                you can explore, question, and keep current while you build.
+                that stay in your browser. No account, no product analytics, and no StackHatch data
+                server.
               </p>
               <div className={styles.heroActions}>
                 <Link href="/app" className={styles.primaryAction}>
@@ -151,20 +152,23 @@ export default function LandingPage() {
         >
           <div className={styles.trustInner}>
             <article>
-              <KeyRound aria-hidden="true" />
+              <HardDrive aria-hidden="true" />
               <div>
-                <h2>Free to use. Bring your own key.</h2>
+                <h2>No account. Maps stay on this device.</h2>
                 <p>
-                  Blank maps and templates need no key. AI-assisted work uses your Anthropic API
-                  key.
+                  Projects, chat, templates, and preferences live in your browser—not in a
+                  StackHatch database.
                 </p>
               </div>
             </article>
             <article>
-              <GitBranch aria-hidden="true" />
+              <Send aria-hidden="true" />
               <div>
-                <h2>Map public repositories.</h2>
-                <p>Bring a public GitHub codebase directly into the same architecture workspace.</p>
+                <h2>Direct BYOK, only when you ask.</h2>
+                <p>
+                  Approved actions contact GitHub or Anthropic from your browser. Your key never
+                  passes through us.
+                </p>
               </div>
             </article>
             <article>
@@ -266,7 +270,7 @@ export default function LandingPage() {
       <footer className={styles.footer}>
         <div>
           <StackHatchWordmark href="/" label="StackHatch home" />
-          <p>Architecture you can see, question, and revisit.</p>
+          <p>Private by architecture. Open by default.</p>
         </div>
         <nav aria-label="Footer navigation">
           <a href="https://github.com/mwmdev/stackhatch" target="_blank" rel="noreferrer">

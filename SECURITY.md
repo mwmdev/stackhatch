@@ -1,20 +1,32 @@
 # Security Policy
 
-## Reporting a vulnerability
+## Report a vulnerability privately
 
-Please do not open a public issue for a suspected vulnerability. Email `support@stackhatch.io` with:
+Use [GitHub private vulnerability reporting](https://github.com/mwmdev/stackhatch/security/advisories/new).
+Do not open a public issue for a suspected vulnerability and do not include live API keys, private
+project content, browser-storage exports, or other secrets.
 
-- the affected route or component;
-- steps to reproduce;
-- the potential impact; and
-- any suggested mitigation.
-
-Do not include live API keys, session cookies, OAuth credentials, or private project content. You should receive an acknowledgement within seven days. Please allow time for investigation and a coordinated fix before public disclosure.
+Include the affected route or component, reproduction steps, potential impact, and any suggested
+mitigation. This is a community-maintained open-source project, so response times are best effort
+and there is no support SLA.
 
 ## Supported version
 
-Security fixes are applied to the current version running at `stackhatch.io`. Older commits and self-hosted forks are not maintained by the StackHatch project.
+Security fixes target the current `main` branch and the static release served at `stackhatch.io`.
+Self-hosted forks are responsible for tracking upstream changes and for their own host, logs,
+headers, TLS, and retention practices.
 
-## Data and credentials
+## Security boundary
 
-StackHatch supports public GitHub repositories only. Anthropic API keys are encrypted at rest and are never returned to the browser after storage. Development authentication bypasses must never be enabled in production.
+The supported release is a static browser application:
+
+- no accounts, sessions, application API, server database, analytics, or runtime application secret;
+- maps and preferences remain in the user's browser profile;
+- provider keys remain in session memory unless the user explicitly remembers one locally;
+- backups exclude provider credentials;
+- approved network connections are limited to the StackHatch origin, GitHub's API, and Anthropic's
+  API; and
+- imported files, repository evidence, and model output are treated as untrusted data.
+
+The host can still observe ordinary web-request metadata. GitHub and Anthropic receive only the
+direct requests a user approves and apply their own security and privacy terms.
