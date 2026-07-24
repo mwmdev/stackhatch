@@ -145,30 +145,15 @@
 }
 
 .hero {
-  position: relative;
-  overflow: hidden;
   padding-block: clamp(68px, 7vw, 96px) clamp(72px, 7vw, 104px);
-  isolation: isolate;
 }
 
 .heroInner {
-  position: relative;
-  z-index: 1;
   display: grid;
   min-height: 570px;
   align-items: center;
   grid-template-columns: minmax(0, 1fr) minmax(540px, 1.08fr);
   gap: clamp(40px, 4vw, 56px);
-}
-
-.heroIllustration {
-  top: auto;
-  right: clamp(-120px, -6vw, -72px);
-  bottom: clamp(34px, 5vw, 68px);
-  z-index: 0;
-  width: clamp(30rem, 52vw, 48rem);
-  height: clamp(9rem, 15vw, 13rem);
-  opacity: 0.48;
 }
 
 .eyebrow {
@@ -692,14 +677,6 @@
   .heroProof {
     width: 100%;
     margin: 0 !important;
-  }
-
-  .heroIllustration {
-    right: -10rem;
-    bottom: 18px;
-    width: 28rem;
-    height: 8rem;
-    opacity: 0.32;
   }
 
   .trustInner {

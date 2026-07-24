@@ -5,7 +5,7 @@ import PublicPageShell from "./PublicPageShell";
 
 describe("PublicPageShell", () => {
   it("provides a reading-width page with one main landmark and presentation slots", () => {
-    const { container } = render(
+    render(
       <PublicPageShell
         homeHref="/"
         homeLabel="StackHatch home"
@@ -28,11 +28,6 @@ describe("PublicPageShell", () => {
     expect(screen.getByText("Policy content")).toBeInTheDocument();
     expect(screen.getByText("Last updated today.")).toBeInTheDocument();
     expect(screen.getByRole("main")).toHaveAttribute("data-width", "reading");
-
-    const illustrations = container.querySelectorAll('[data-stack-illustration="true"]');
-    expect(illustrations).toHaveLength(1);
-    expect(illustrations[0]).toHaveAttribute("aria-hidden", "true");
-    expect(illustrations[0]).toHaveAttribute("focusable", "false");
   });
 
   it("provides the shared public footer when no custom footer is supplied", () => {
@@ -53,7 +48,7 @@ describe("PublicPageShell", () => {
 
 describe("AppPageShell", () => {
   it("provides a dense app page with navigation, actions, and one main landmark", () => {
-    const { container } = render(
+    render(
       <AppPageShell
         eyebrow="Workspace"
         title="Settings"
@@ -81,10 +76,5 @@ describe("AppPageShell", () => {
       "data-density",
       "dense"
     );
-
-    const illustrations = container.querySelectorAll('[data-stack-illustration="true"]');
-    expect(illustrations).toHaveLength(1);
-    expect(illustrations[0]).toHaveAttribute("aria-hidden", "true");
-    expect(illustrations[0]).toHaveAttribute("focusable", "false");
   });
 });

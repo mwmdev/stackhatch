@@ -222,11 +222,7 @@ test.describe("launch experience", () => {
           page.getByRole("heading", { level: 1, name: publicRoute.heading })
         ).toBeVisible();
         await expect(page.locator("main")).toHaveCount(1);
-        const illustration = page.locator('[data-stack-illustration="true"]');
-        await expect(illustration).toHaveCount(1);
-        if (viewport.width === 1440) {
-          await expect(illustration).toBeVisible();
-        }
+        await expect(page.locator('[data-stack-illustration="true"]')).toHaveCount(0);
         expect(
           await page.evaluate(() => ({
             viewport: window.innerWidth,

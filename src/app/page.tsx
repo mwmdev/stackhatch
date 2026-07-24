@@ -12,7 +12,6 @@ import {
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import TrackedSourceLink from "@/components/public/TrackedSourceLink";
-import StackIllustration from "@/components/shells/StackIllustration";
 import StackHatchWordmark from "@/components/shells/StackHatchWordmark";
 import IconControl from "@/components/ui/IconControl";
 import { formatGitHubStarCount, getGitHubStarCount } from "@/lib/github-stars";
@@ -113,7 +112,6 @@ export default async function LandingPage() {
 
       <main>
         <section className={styles.hero} aria-labelledby="hero-heading" data-landing-region="hero">
-          <StackIllustration variant="compact" className={styles.heroIllustration} />
           <div className={styles.heroInner}>
             <div className={styles.heroCopy} data-testid="hero-copy">
               <p className={styles.eyebrow}>Architecture workspace</p>
