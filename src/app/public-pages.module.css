@@ -1,0 +1,218 @@
+/* Support, Privacy and Terms inside PublicPageShell's 720 px reading column.
+   Structure comes from rules and spacing: no panels, no cards. */
+
+/* ---------- Page links (help topics, legal pages) ---------- */
+
+.pageNav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 1.5rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+.pageNav a {
+  display: inline-flex;
+  min-height: var(--control-size);
+  align-items: center;
+  color: var(--ink2);
+  font-family: var(--font-display), var(--font-body), sans-serif;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  font-stretch: 112%;
+  letter-spacing: 0.01em;
+  text-decoration: none;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 5px;
+  transition: color var(--motion-quick) var(--motion-ease);
+}
+
+.pageNav a:hover {
+  color: var(--ink);
+  text-decoration-line: underline;
+}
+
+.pageNav a[aria-current="page"] {
+  color: var(--ink);
+  text-decoration-line: underline;
+  text-decoration-thickness: 2px;
+}
+
+/* ---------- Ruled sections ---------- */
+
+.sections > section {
+  padding-block: 2rem;
+}
+
+.sections > section + section {
+  border-top: 1px solid var(--rule);
+}
+
+.sections > section:last-child {
+  padding-bottom: 0;
+}
+
+.sections h2 {
+  margin: 0;
+}
+
+.sections p {
+  margin: 0.75rem 0 0;
+}
+
+.sectionHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem 1.5rem;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+}
+
+/* A title column beside its text; `stacked` puts long titles above. */
+.ruledList {
+  margin: 1.25rem 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--rule);
+}
+
+.ruledList li {
+  display: grid;
+  grid-template-columns: minmax(0, 11rem) minmax(0, 1fr);
+  gap: 0.375rem 1.5rem;
+  padding-block: 1rem 1.125rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+.ruledList.stacked li {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* The next section's rule closes the list; don't double it. */
+.ruledList li:last-child,
+.defs > div:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.ruledList h3 {
+  margin: 0;
+}
+
+.ruledList li p {
+  margin: 0;
+}
+
+.defs {
+  margin: 1.25rem 0 0;
+  border-top: 1px solid var(--rule);
+}
+
+.defs > div {
+  display: grid;
+  grid-template-columns: minmax(0, 13rem) minmax(0, 1fr);
+  gap: 0.25rem 1.5rem;
+  padding-block: 0.75rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+.defs dt {
+  font-weight: 700;
+}
+
+.defs dd {
+  margin: 0;
+}
+
+/* ---------- Legal articles ---------- */
+
+.legal > section {
+  padding-block: 1.75rem;
+}
+
+.legal > section + section {
+  border-top: 1px solid var(--rule);
+}
+
+.legal > section:last-child {
+  padding-bottom: 0;
+}
+
+.legal h2 {
+  margin: 0;
+}
+
+.legal p {
+  margin: 0.75rem 0 0;
+}
+
+.requests {
+  width: 100%;
+  margin-top: 1rem;
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+
+.requests th,
+.requests td {
+  padding: 0.75rem 1rem 0.75rem 0;
+  border-top: 1px solid var(--rule);
+  text-align: left;
+  vertical-align: top;
+}
+
+.requests thead th {
+  border-top: 0;
+  color: var(--ink2);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.requests tbody th {
+  width: 9rem;
+  font-weight: 700;
+}
+
+@media (max-width: 640px) {
+  .ruledList li,
+  .defs > div {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .requests thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .requests tr,
+  .requests th,
+  .requests tbody th,
+  .requests td {
+    display: block;
+    width: auto;
+  }
+
+  .requests td {
+    padding-top: 0.25rem;
+    border-top: 0;
+  }
+
+  .requests td::before {
+    content: attr(data-label);
+    display: block;
+    color: var(--ink2);
+    font-size: 0.8125rem;
+    font-weight: 700;
+  }
+}

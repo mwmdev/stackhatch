@@ -1,0 +1,26 @@
+services:
+  dev:
+    build:
+      context: .
+      target: builder
+    command: npm run dev -- --hostname 0.0.0.0
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    profiles:
+      - dev
+
+  prod:
+    build:
+      context: .
+      target: runner
+    ports:
+      - "3000:3000"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: unless-stopped

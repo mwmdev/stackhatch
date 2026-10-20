@@ -1,0 +1,50 @@
+# dependencies
+node_modules/
+
+# next.js
+.next/
+.next-playwright/
+out/
+
+# production
+build/
+operator/
+
+# env files
+.env
+.env.*
+!.env.example
+!.env.local.example
+
+# debug
+npm-debug.log*
+tsconfig.tsbuildinfo
+dist-host/
+dist-release/
+
+# IDEs
+.idea/
+.vscode/
+.codex/
+*.swp
+
+# OS
+.DS_Store
+
+# data
+data/
+
+# test
+test-results/
+playwright-report/
+coverage/
+
+# ralph-tui
+.ralph-tui/
+
+# Local SQLite databases
+*.db
+
+tasks/
+docs/
+/video/

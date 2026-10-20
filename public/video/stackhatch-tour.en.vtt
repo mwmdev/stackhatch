@@ -1,0 +1,106 @@
+WEBVTT
+
+00:00.250 --> 00:02.848
+Right now, your architecture probably
+lives in your head.
+
+00:03.374 --> 00:06.450
+StackHatch lets you see it, question it,
+and shape it.
+
+00:07.000 --> 00:08.586
+Say all you have is an idea.
+
+00:09.114 --> 00:12.670
+Open a blank canvas and describe it the
+way you would to a colleague.
+
+00:16.400 --> 00:18.972
+A few seconds later there's a first
+draft, and you
+
+00:18.972 --> 00:21.647
+can click into any part of it to see why
+it's there.
+
+00:26.000 --> 00:27.842
+Or maybe the code's already written.
+
+00:28.421 --> 00:31.023
+Paste its GitHub link, and StackHatch
+reads
+
+00:31.023 --> 00:33.504
+the repository and draws the map for
+you.
+
+00:34.300 --> 00:35.862
+Then you can ask it questions.
+
+00:40.850 --> 00:43.900
+It works on private repos too, with a
+read-only
+
+00:43.900 --> 00:46.691
+GitHub token that only ever goes to
+GitHub.
+
+00:48.050 --> 00:51.684
+If you've already written a spec, drop
+the Markdown file in, and
+
+00:51.684 --> 00:55.090
+your requirements turn into a map you
+can review and refine.
+
+00:57.600 --> 01:00.219
+Every requirement ends up with a home on
+the map.
+
+01:04.000 --> 01:06.126
+And when you're not sure about a choice,
+
+01:06.126 --> 01:08.518
+click the component and ask for
+alternatives.
+
+01:10.740 --> 01:14.116
+You see the trade-offs, and if one fits
+better, you swap it in.
+
+01:19.400 --> 01:23.219
+And if you'd rather do it yourself, you
+can add components, connect
+
+01:23.219 --> 01:27.095
+them, lock the parts you've settled on,
+and let auto-layout tidy up.
+
+01:31.250 --> 01:35.847
+When it's time to share, you can export
+an image, SVG, JSON or YAML.
+
+01:36.100 --> 01:39.217
+Or have it write a product requirements
+document from the map.
+
+01:44.550 --> 01:47.834
+It all runs on your own key, from
+Anthropic,
+
+01:47.834 --> 01:50.520
+OpenAI, Google Gemini or OpenRouter.
+
+01:50.900 --> 01:53.711
+There's no account and no StackHatch
+server in between.
+
+01:54.152 --> 01:55.743
+Your maps stay in your browser.
+
+01:58.600 --> 01:59.526
+That's StackHatch.
+
+01:59.865 --> 02:03.553
+It's free and open source, so go try it
+at stackhatch.io.
