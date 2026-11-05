@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { PublicBar, PublicFooter } from "@/components/shells/PublicChrome";
 import HeroBackdrop from "./HeroBackdrop";
+import { HeroLens, LensLayer, LensOverlay, LensProvider } from "./LandingLens";
 import HeroStart from "./HeroStart";
 import HeroTour from "./HeroTour";
 import styles from "./landing.module.css";
@@ -127,8 +128,43 @@ const PRIVACY: readonly Card[] = [
   },
 ];
 
-function CardIcon({ icon: Icon }: { icon: LucideIcon }) {
-  return <Icon className={styles.icon} aria-hidden="true" strokeWidth={1.75} />;
+/** Title on the left, its icon at the right end of the same line. */
+function CardHead({ icon: Icon, title }: { icon: LucideIcon; title: string }) {
+  return (
+    <div className={styles.head}>
+      <h3 className="type-section">{title}</h3>
+      <Icon className={styles.icon} aria-hidden="true" strokeWidth={1.75} />
+    </div>
+  );
+}
+
+/** A repository fanning out into the map it drafts; draws itself as the tile scrolls in. */
+function LeadSketch() {
+  const leaves = [
+    { x: 20, tone: styles.toneApi },
+    { x: 138, tone: styles.toneServices },
+    { x: 256, tone: styles.toneData },
+  ];
+  return (
+    <svg className={styles.sketch} viewBox="0 0 360 160" aria-hidden="true" focusable="false">
+      {leaves.map(({ x }) => (
+        <path
+          key={x}
+          className={styles.sketchEdge}
+          d={`M180 44 C180 85 ${x + 42} 75 ${x + 42} 116`}
+          pathLength={1}
+        />
+      ))}
+      {[{ x: 138, y: 14, tone: styles.toneClient }, ...leaves.map((l) => ({ ...l, y: 116 }))].map(
+        ({ x, y, tone }) => (
+          <g key={`${x}-${y}`} className={styles.sketchNode}>
+            <rect x={x} y={y} width={84} height={30} rx={4} />
+            <rect className={tone} x={x + 6} y={y - 4} width={28} height={8} rx={2} />
+          </g>
+        )
+      )}
+    </svg>
+  );
 }
 
 export default function LandingPage() {
@@ -136,123 +172,128 @@ export default function LandingPage() {
     <div className={styles.page}>
       <PublicBar />
 
-      <main id="main" tabIndex={-1} className={styles.main}>
-        <section aria-labelledby="hero-heading" data-landing-region="hero">
-          <div className={styles.headline}>
-            <HeroBackdrop />
-            {/* One line on desktop; three forced lines on a phone. */}
-            <h1 id="hero-heading" className={`type-display-xl ${styles.title}`}>
-              <span>Keep the</span> <span>whole stack</span> <span>in view</span>
-            </h1>
-            <div className={styles.lede}>
-              <div className={styles.ledeText}>
-                <p>
-                  StackHatch turns a GitHub repository or a Markdown brief into an editable
-                  architecture map you can question, reshape, and export.
-                </p>
-                <p className={styles.terms}>Free · No account · Bring your own AI key</p>
+      <LensProvider>
+        <main id="main" tabIndex={-1} className={styles.main}>
+          <section aria-labelledby="hero-heading" data-landing-region="hero">
+            <div className={styles.headline}>
+              <HeroBackdrop />
+              <HeroLens />
+              {/* One line on desktop; three forced lines on a phone. */}
+              <h1 id="hero-heading" className={`type-display-xl ${styles.title}`}>
+                <span>Keep the</span> <span>whole stack</span> <span>in view</span>
+              </h1>
+              <div className={styles.lede}>
+                <div className={styles.ledeText}>
+                  <p>
+                    StackHatch turns a GitHub repository or a Markdown brief into an editable
+                    architecture map you can question, reshape, and export.
+                  </p>
+                  <p className={styles.terms}>Free · No account · Bring your own AI key</p>
+                </div>
+                <HeroStart />
               </div>
-              <HeroStart />
             </div>
-          </div>
 
-          <div className={styles.slot} data-testid="hero-proof">
-            <HeroTour />
-          </div>
-        </section>
+            <div className={styles.slot} data-testid="hero-proof">
+              <HeroTour />
+            </div>
+          </section>
 
-        <section
-          className={styles.band}
-          aria-labelledby="audience-heading"
-          data-landing-region="audience"
-        >
-          <h2 id="audience-heading" className="type-display">
-            Who it&apos;s for
-          </h2>
-          <ul className={styles.cards}>
-            {AUDIENCES.map(({ icon, title, uses }) => (
-              <li key={title} className={styles.card}>
-                <CardIcon icon={icon} />
-                <h3 className="type-section">{title}</h3>
-                <ul className={styles.uses}>
-                  {uses.map((use) => (
-                    <li key={use}>{use}</li>
-                  ))}
-                </ul>
+          <section
+            className={styles.band}
+            aria-labelledby="audience-heading"
+            data-landing-region="audience"
+          >
+            <LensLayer band="audience" />
+            <h2 id="audience-heading" className="type-display">
+              Who it&apos;s for
+            </h2>
+            <ul className={styles.columns}>
+              {AUDIENCES.map(({ icon, title, uses }) => (
+                <li key={title} className={styles.column}>
+                  <CardHead icon={icon} title={title} />
+                  <ul className={styles.uses}>
+                    {uses.map((use) => (
+                      <li key={use}>{use}</li>
+                    ))}
+                  </ul>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <section
+            id="features"
+            className={`${styles.band} ${styles.table}`}
+            aria-labelledby="features-heading"
+            data-landing-region="features"
+          >
+            <LensLayer band="features" />
+            <h2 id="features-heading" className="type-display">
+              Features
+            </h2>
+            <ul className={styles.mosaic}>
+              {FEATURES.map(({ description, icon, size, title }) => (
+                <li
+                  key={title}
+                  className={[
+                    styles.tile,
+                    size === "lead" ? `${styles.wide} ${styles.lead}` : "",
+                    size === "wide" ? styles.wide : "",
+                  ].join(" ")}
+                >
+                  {size === "lead" && <LeadSketch />}
+                  <CardHead icon={icon} title={title} />
+                  <p>{description}</p>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <section
+            className={styles.band}
+            aria-labelledby="privacy-heading"
+            data-landing-region="privacy"
+          >
+            <LensLayer band="privacy" />
+            <h2 id="privacy-heading" className="type-display">
+              Your maps stay yours
+            </h2>
+            <ul className={`${styles.columns} ${styles.privacy}`}>
+              {PRIVACY.map(({ description, icon, title }) => (
+                <li key={title} className={styles.column}>
+                  <CardHead icon={icon} title={title} />
+                  <p>{description}</p>
+                </li>
+              ))}
+              <li className={styles.column}>
+                <CardHead icon={FileCode} title="Open source" />
+                <p>
+                  Free and MIT licensed.{" "}
+                  <a href={SOURCE_URL} target="_blank" rel="noreferrer" className="link">
+                    View on GitHub
+                  </a>
+                </p>
               </li>
-            ))}
-          </ul>
-        </section>
+            </ul>
+          </section>
 
-        <section
-          id="features"
-          className={styles.band}
-          aria-labelledby="features-heading"
-          data-landing-region="features"
-        >
-          <h2 id="features-heading" className="type-display">
-            Features
-          </h2>
-          <ul className={styles.mosaic}>
-            {FEATURES.map(({ description, icon, size, title }) => (
-              <li
-                key={title}
-                className={[
-                  styles.card,
-                  size === "lead" ? `${styles.wide} ${styles.lead}` : "",
-                  size === "wide" ? styles.wide : "",
-                ].join(" ")}
-              >
-                <CardIcon icon={icon} />
-                <h3 className="type-section">{title}</h3>
-                <p>{description}</p>
-              </li>
-            ))}
-          </ul>
-        </section>
-
-        <section
-          className={styles.band}
-          aria-labelledby="privacy-heading"
-          data-landing-region="privacy"
-        >
-          <h2 id="privacy-heading" className="type-display">
-            Your maps stay yours
-          </h2>
-          <ul className={`${styles.cards} ${styles.privacy}`}>
-            {PRIVACY.map(({ description, icon, title }) => (
-              <li key={title} className={styles.card}>
-                <CardIcon icon={icon} />
-                <h3 className="type-section">{title}</h3>
-                <p>{description}</p>
-              </li>
-            ))}
-            <li className={styles.card}>
-              <CardIcon icon={FileCode} />
-              <h3 className="type-section">Open source</h3>
-              <p>
-                Free and MIT licensed.{" "}
-                <a href={SOURCE_URL} target="_blank" rel="noreferrer" className="link">
-                  View on GitHub
-                </a>
-              </p>
-            </li>
-          </ul>
-        </section>
-
-        <section
-          className={styles.closing}
-          aria-labelledby="final-cta-heading"
-          data-landing-region="final-cta"
-        >
-          <h2 id="final-cta-heading" className="type-display">
-            Make the next architecture decision visible
-          </h2>
-          <Link href="/project/new" className="btn btn--primary btn--lg">
-            Start a map
-          </Link>
-        </section>
-      </main>
+          <section
+            className={styles.closing}
+            aria-labelledby="final-cta-heading"
+            data-landing-region="final-cta"
+          >
+            <LensLayer band="closing" />
+            <h2 id="final-cta-heading" className="type-display">
+              Make the next architecture decision visible
+            </h2>
+            <Link href="/project/new" className="btn btn--primary btn--lg">
+              Start a map
+            </Link>
+          </section>
+          <LensOverlay />
+        </main>
+      </LensProvider>
 
       <PublicFooter />
     </div>

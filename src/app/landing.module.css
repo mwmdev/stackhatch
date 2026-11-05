@@ -11,7 +11,9 @@
   background: var(--bg);
 }
 
+/* Positioned so the lens overlay can cover exactly the page content between bar and footer. */
 .main {
+  position: relative;
   flex: 1;
 }
 
@@ -253,52 +255,95 @@
 
 /* ---------- Bands: audience, features, privacy ---------- */
 
+/* Each band is its own stacking context, so its lens layer sits above the band's background and
+   under its content. */
 .band {
-  padding: 4.5rem var(--gutter) 0;
+  position: relative;
+  isolation: isolate;
+  padding: clamp(3.5rem, 7vw, 6.5rem) var(--gutter) 0;
 }
 
 .band > h2 {
-  margin: 0 0 1.75rem;
+  margin: 0 0 clamp(1.75rem, 3vw, 2.75rem);
 }
 
-/* Flat paper cards on the ruled page: one strong rule, no shadow, no icon circle. */
-.cards,
+.columns,
 .mosaic {
   display: grid;
-  gap: 1rem;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.cards {
+/* Audience and privacy are open columns, not boxes: audience hangs from a 2 px ink rule,
+   privacy sits between 1 px column rules. */
+.columns {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 2.5rem clamp(1.5rem, 3.5vw, 3.5rem);
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  padding-top: 1.5rem;
+  border-top: 2px solid var(--ink);
 }
 
 .privacy {
   grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 2.5rem 0;
+}
+
+.privacy .column {
+  padding: 0.25rem clamp(1.25rem, 2.5vw, 2rem) 0;
+  border-top: 0;
+  border-left: 1px solid var(--rule);
+}
+
+/* Features sit on the map table: the canvas bed, its paper grain and dot grid, full bleed. */
+.band.table {
+  margin-top: clamp(3.5rem, 7vw, 6.5rem);
+  padding-block: clamp(3rem, 6vw, 5.5rem);
+  background:
+    var(--canvas-texture) 0 0 / 256px 256px repeat,
+    radial-gradient(circle, var(--dot) 1.1px, transparent 1.6px) 0 0 / 22px 22px,
+    var(--canvas);
+  box-shadow:
+    inset 0 1px 0 var(--rule),
+    inset 0 -1px 0 var(--rule);
 }
 
 /* Four columns. The lead tile takes a 2×2 block and wide tiles take two columns, so the seven
    tiles fill three full rows: lead+1+1 / lead+1+1 / 2+2. */
 .mosaic {
   grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: clamp(1rem, 2vw, 1.5rem);
 }
 
 .wide {
   grid-column: span 2;
 }
 
-.card.lead {
+/* Tiles take node geometry: paper, a 1.5 px strong rule, 4 px corners. */
+.tile {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  padding: 1.5rem 1.625rem 1.625rem;
+  background: var(--paper);
+  border: 1.5px solid var(--rule-strong);
+  border-radius: 4px;
+}
+
+.tile.lead {
   grid-row: span 2;
-  justify-content: flex-end;
   padding: 2rem;
 }
 
 .lead .icon {
-  width: 3rem;
-  height: 3rem;
-  margin-bottom: auto;
+  width: 2.25rem;
+  height: 2.25rem;
 }
 
 .lead h3 {
@@ -309,21 +354,20 @@
   font-size: 1.125rem;
 }
 
-.card {
+/* Title and icon share a line; the icon sits at the right end, level with the title's first line. */
+.head {
   display: flex;
-  flex-direction: column;
-  gap: 0.625rem;
-  padding: 1.375rem 1.5rem 1.5rem;
-  background: var(--paper);
-  border: 1px solid var(--rule);
-  border-top: 2px solid var(--ink);
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
 }
 
-.card h3 {
+.head h3 {
   margin: 0;
 }
 
-.card p {
+.column p,
+.tile p {
   max-width: 40rem;
   margin: 0;
   font-size: 1rem;
@@ -331,9 +375,9 @@
 }
 
 .icon {
+  flex: none;
   width: 1.75rem;
   height: 1.75rem;
-  margin-bottom: 0.25rem;
   color: var(--link);
 }
 
@@ -351,9 +395,275 @@
   color: var(--ink2);
 }
 
+/* The lead tile's sketch fills the space above its heading. */
+.sketch {
+  width: min(100%, 24rem);
+  margin: 0.5rem auto auto;
+  padding-bottom: 1.5rem;
+  fill: none;
+}
+
+.sketchNode rect {
+  fill: var(--bg);
+  stroke: var(--rule-strong);
+  stroke-width: 1.5;
+}
+
+.sketchNode rect + rect {
+  stroke: none;
+}
+
+.sketchEdge {
+  stroke: var(--edge-http);
+  stroke-width: 1.5;
+  stroke-dasharray: 1;
+}
+
+.sketchNode .toneClient {
+  fill: var(--color-client-fill);
+}
+
+.sketchNode .toneApi {
+  fill: var(--color-api-fill);
+}
+
+.sketchNode .toneServices {
+  fill: var(--color-services-fill);
+}
+
+.sketchNode .toneData {
+  fill: var(--color-data-fill);
+}
+
+/* ---------- Lens ---------- */
+
+/* The lens strength, 0 at rest and 1 under a moving pointer; registered so it can transition. */
+@property --lens-a {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 0;
+}
+
+/* Masked to a feathered circle around the eased pointer (`--lx`/`--ly`, set by LandingLens).
+   Outside the circle, and everywhere at rest, the layer shows at `--lens-floor`. No ring, no
+   glow. */
+.lensLayer,
+.heroLens,
+.lensOverlay {
+  --lens-r: 118px;
+  --lens-floor: 0;
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+  transition: --lens-a 0.45s ease;
+  -webkit-mask-image: radial-gradient(
+    circle var(--lens-r) at var(--lx, -999px) var(--ly, -999px),
+    rgb(0 0 0 / calc(var(--lens-floor) + (1 - var(--lens-floor)) * var(--lens-a))) 0%,
+    rgb(0 0 0 / calc(var(--lens-floor) + (0.8 - var(--lens-floor)) * var(--lens-a))) 45%,
+    rgb(0 0 0 / var(--lens-floor)) 100%
+  );
+  mask-image: radial-gradient(
+    circle var(--lens-r) at var(--lx, -999px) var(--ly, -999px),
+    rgb(0 0 0 / calc(var(--lens-floor) + (1 - var(--lens-floor)) * var(--lens-a))) 0%,
+    rgb(0 0 0 / calc(var(--lens-floor) + (0.8 - var(--lens-floor)) * var(--lens-a))) 45%,
+    rgb(0 0 0 / var(--lens-floor)) 100%
+  );
+}
+
+/* Below the hero, the whole map rests just visible behind the content. The hero has its own
+   faint backdrop, and the overlay never rests over content. */
+.lensLayer {
+  --lens-floor: 0.08;
+  inset: 0;
+  overflow: hidden;
+}
+
+.lensLayer > svg {
+  display: block;
+}
+
+/* Exactly over the faint backdrop, so the lens shows the same nodes in full. */
+.heroLens {
+  right: 0;
+  bottom: 0;
+  height: 100%;
+  max-width: 100%;
+}
+
+/* Over content the map runs at low strength, so it never competes with text or cards. */
+.lensOverlay {
+  inset: 0;
+  z-index: 2;
+  overflow: hidden;
+  opacity: 0.4;
+}
+
+.lensOverlay > svg {
+  display: block;
+}
+
+.lensLayer[data-active],
+.heroLens[data-active],
+.lensOverlay[data-active] {
+  --lens-a: 1;
+}
+
+.lensNode {
+  --tone: var(--rule-strong);
+  --tone-fg: var(--paper);
+}
+
+.lensNode > rect:first-child {
+  fill: var(--paper);
+  stroke: var(--rule-strong);
+  stroke-width: 1.5;
+}
+
+.lensNode[data-tone="client"] {
+  --tone: var(--color-client-fill);
+  --tone-fg: var(--color-client-foreground);
+}
+
+.lensNode[data-tone="api"] {
+  --tone: var(--color-api-fill);
+  --tone-fg: var(--color-api-foreground);
+}
+
+.lensNode[data-tone="services"] {
+  --tone: var(--color-services-fill);
+  --tone-fg: var(--color-services-foreground);
+}
+
+.lensNode[data-tone="data"] {
+  --tone: var(--color-data-fill);
+  --tone-fg: var(--color-data-foreground);
+}
+
+.lensNode[data-tone="infrastructure"] {
+  --tone: var(--color-infrastructure-fill);
+  --tone-fg: var(--color-infrastructure-foreground);
+}
+
+.lensNode[data-tone="external"] {
+  --tone: var(--color-external-fill);
+  --tone-fg: var(--color-external-foreground);
+}
+
+.lensTone {
+  fill: var(--tone);
+}
+
+.lensTag {
+  fill: var(--tone-fg);
+  font-family: var(--font-body), sans-serif;
+  font-size: 9.5px;
+  font-weight: 700;
+}
+
+.lensName {
+  fill: var(--ink);
+  font-family: var(--font-display), var(--font-body), sans-serif;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.lensTech {
+  fill: var(--ink2);
+  font-family: var(--font-utility), ui-monospace, monospace;
+  font-size: 10.5px;
+}
+
+.heroMap .lensName {
+  font-size: 11px;
+}
+
+.heroMap .lensTech {
+  font-size: 8.5px;
+}
+
+.lensEdge {
+  fill: none;
+  stroke: var(--edge-http);
+  stroke-width: 1.5;
+}
+
+.lensEdge[data-wire="websocket"] {
+  stroke: var(--edge-websocket);
+  stroke-dasharray: 6 4;
+}
+
+.lensEdge[data-wire="grpc"] {
+  stroke: var(--edge-grpc);
+}
+
+.lensEdge[data-wire="tcp"] {
+  stroke: var(--edge-tcp);
+  stroke-dasharray: 2 4;
+}
+
+/* Scroll-linked reveal: each column and tile rises in as it enters, a beat behind its left
+   neighbour, and the lead sketch draws itself. Scrolling drives it, so it never runs on its own;
+   without scroll timelines or with reduced motion everything is simply there. */
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    .column,
+    .tile {
+      animation: card-rise linear both;
+      animation-timeline: view();
+      animation-range: entry 0% cover 28%;
+    }
+
+    .column:nth-child(2),
+    .tile:nth-child(3),
+    .tile:nth-child(5) {
+      animation-range: entry 8% cover 32%;
+    }
+
+    .column:nth-child(3),
+    .tile:nth-child(2),
+    .tile:nth-child(4) {
+      animation-range: entry 16% cover 36%;
+    }
+
+    .column:nth-child(4),
+    .tile:nth-child(7) {
+      animation-range: entry 24% cover 40%;
+    }
+
+    .lead {
+      view-timeline: --lead-tile block;
+    }
+
+    .sketchNode {
+      animation: map-fade linear both;
+      animation-timeline: --lead-tile;
+      animation-range: entry 30% cover 35%;
+    }
+
+    .sketchNode + .sketchNode {
+      animation-range: entry 60% cover 45%;
+    }
+
+    .sketchEdge {
+      animation: map-draw linear both;
+      animation-timeline: --lead-tile;
+      animation-range: entry 45% cover 45%;
+    }
+  }
+}
+
+@keyframes card-rise {
+  from {
+    opacity: 0;
+    translate: 0 1.5rem;
+  }
+}
+
 /* ---------- Closing row ---------- */
 
 .closing {
+  position: relative;
+  isolation: isolate;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -392,21 +702,19 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .card.lead {
+  .tile.lead {
     grid-row: auto;
-    justify-content: flex-start;
-    padding: 1.375rem 1.5rem 1.5rem;
+    padding: 1.5rem 1.625rem 1.625rem;
   }
 
   .lead .icon {
     width: 1.75rem;
     height: 1.75rem;
-    margin-bottom: 0.25rem;
   }
 }
 
 @media (max-width: 900px) {
-  .cards {
+  .columns:not(.privacy) {
     grid-template-columns: minmax(0, 1fr);
   }
 }
@@ -475,10 +783,6 @@
     flex: 1;
   }
 
-  .band {
-    padding-top: 3rem;
-  }
-
   .mosaic,
   .privacy {
     grid-template-columns: minmax(0, 1fr);
@@ -488,8 +792,12 @@
     grid-column: auto;
   }
 
-  .card {
-    padding: 1.125rem 1.25rem 1.25rem;
+  .tile {
+    padding: 1.25rem 1.25rem 1.375rem;
+  }
+
+  .privacy .column {
+    padding: 0 0 0 1.25rem;
   }
 
   .closing {
