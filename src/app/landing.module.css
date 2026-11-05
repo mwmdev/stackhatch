@@ -17,8 +17,114 @@
 
 /* ---------- Headline band ---------- */
 
+/* The wash pools from the top right; the paper grain over it dithers away any banding. */
 .headline {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
   padding: 2.5rem var(--gutter) 1.75rem;
+  background:
+    var(--canvas-texture) 0 0 / 256px 256px repeat,
+    radial-gradient(ellipse 70% 120% at 85% 0%, var(--hero-wash), transparent 70%),
+    var(--bg);
+}
+
+/* ---------- Hero map backdrop ---------- */
+
+.backdrop {
+  position: absolute;
+  z-index: -1;
+  right: 0;
+  bottom: 0;
+  height: 100%;
+  max-width: 100%;
+  pointer-events: none;
+  fill: none;
+  stroke: var(--rule-strong);
+  stroke-width: 1.25;
+  opacity: 0.32;
+}
+
+.mapNode rect {
+  fill: var(--bg);
+}
+
+.mapNode .mapTag {
+  fill: var(--rule-strong);
+  stroke: none;
+}
+
+.mapEdge {
+  stroke-dasharray: 1;
+}
+
+.mapPacket {
+  fill: var(--primary);
+  stroke: none;
+  opacity: 0;
+  offset-path: path("M525 52 C525 90 385 85 385 120");
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .mapNode {
+    animation: map-fade 0.6s ease-out both;
+  }
+
+  .mapNode:nth-of-type(2) {
+    animation-delay: 0.15s;
+  }
+
+  .mapNode:nth-of-type(3) {
+    animation-delay: 0.5s;
+  }
+
+  .mapNode:nth-of-type(4) {
+    animation-delay: 0.65s;
+  }
+
+  .mapEdge {
+    animation: map-draw 1.1s ease-in-out 0.4s both;
+  }
+
+  .mapEdge:nth-of-type(n + 4) {
+    animation-delay: 1.1s;
+  }
+
+  .mapPacket {
+    animation: map-packet 1.6s ease-in-out 2s both;
+  }
+}
+
+@keyframes map-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes map-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+}
+
+@keyframes map-packet {
+  0% {
+    offset-distance: 0%;
+    opacity: 0;
+  }
+  15%,
+  80% {
+    opacity: 1;
+  }
+  100% {
+    offset-distance: 100%;
+    opacity: 0;
+  }
+}
+
+.title,
+.lede {
+  position: relative;
 }
 
 .title {
@@ -109,9 +215,7 @@
   width: 100%;
   padding: clamp(1rem, 3vw, 2.5rem) var(--gutter);
   background: var(--hero-slot);
-  box-shadow:
-    inset 0 1px 0 var(--hero-slot-edge),
-    inset 0 -1px 0 var(--hero-slot-edge);
+  box-shadow: inset 0 -1px 0 var(--hero-slot-edge);
 }
 
 .player {
@@ -320,6 +424,10 @@
 }
 
 @media (max-width: 640px) {
+  .backdrop {
+    display: none;
+  }
+
   .headline {
     padding-top: 1.625rem;
     padding-bottom: 1.25rem;

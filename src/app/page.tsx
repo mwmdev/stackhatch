@@ -18,6 +18,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { PublicBar, PublicFooter } from "@/components/shells/PublicChrome";
+import HeroBackdrop from "./HeroBackdrop";
 import HeroStart from "./HeroStart";
 import HeroTour from "./HeroTour";
 import styles from "./landing.module.css";
@@ -138,6 +139,7 @@ export default function LandingPage() {
       <main id="main" tabIndex={-1} className={styles.main}>
         <section aria-labelledby="hero-heading" data-landing-region="hero">
           <div className={styles.headline}>
+            <HeroBackdrop />
             {/* One line on desktop; three forced lines on a phone. */}
             <h1 id="hero-heading" className={`type-display-xl ${styles.title}`}>
               <span>Keep the</span> <span>whole stack</span> <span>in view</span>

@@ -118,6 +118,8 @@
   /* Hero video slot: light in both themes, because the hero video is light. */
   --hero-slot: #e9e2d3; /* the light --canvas value, literal */
   --hero-slot-edge: #d8cdb9; /* the light --rule value, literal */
+  /* Landing hero only: one ambient ochre wash, under the paper grain. */
+  --hero-wash: rgb(212 160 40 / 0.16);
   --rule-strong: #877861;
   /* The inner edge of docked panels (detail, chat, library side column). */
   --panel-edge: var(--ink);
@@ -265,6 +267,7 @@
   /* Hero video slot: light in both themes, because the hero video is light. */
   --hero-slot: #e9e2d3; /* the light --canvas value, literal */
   --hero-slot-edge: #d8cdb9; /* the light --rule value, literal */
+  --hero-wash: rgb(226 176 78 / 0.09);
   --rule-strong: #8e8170;
   --panel-edge: var(--frame-rule);
   --column-rule: var(--rule-strong);
