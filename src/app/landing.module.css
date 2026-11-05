@@ -741,10 +741,10 @@
     padding-bottom: 1.25rem;
   }
 
-  /* Three forced lines at 74 px ("Keep the / whole stack / in view"),
+  /* Three forced lines at 64 px ("Keep the / whole stack / in view"),
      shrinking only where "whole stack" would outgrow a 320 px screen. */
   .title {
-    font-size: min(4.625rem, 21vw);
+    font-size: min(4rem, 18vw);
   }
 
   .title span {

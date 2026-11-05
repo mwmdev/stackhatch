@@ -368,7 +368,7 @@
 
 @utility type-display-xl {
   font-family: var(--font-display), var(--font-body), sans-serif;
-  font-size: clamp(4.625rem, 3.37rem + 5.14vw, 8rem);
+  font-size: clamp(4rem, 2.95rem + 4.3vw, 6.5rem);
   font-weight: 800;
   font-stretch: 62%;
   line-height: 0.86;
