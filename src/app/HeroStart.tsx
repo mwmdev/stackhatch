@@ -27,7 +27,7 @@ export default function HeroStart() {
       return;
     }
     setError(null);
-    router.push(buildProjectStartPath("repository", { repository: reference.slug }));
+    router.push(buildProjectStartPath("repository", { repository: reference.shorthand }));
   };
 
   return (

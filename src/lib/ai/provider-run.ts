@@ -4,10 +4,13 @@ import { CANVAS_TEXT_LIMITS } from "@/lib/canvas-limits";
 import {
   analyzeRepo,
   formatRepoAnalysis,
+  readRepositoryFiles,
   REPO_ANALYSIS_LIMITS,
   type RepoAnalysis,
   type RepoEvidenceCacheEntry,
+  type RepoSourceFile,
 } from "@/lib/github-analyzer";
+import { applyEvidencePolicy } from "@/lib/node-evidence";
 import { createBrowserAiClient, type BrowserAiClient } from "@/lib/ai/browser-client";
 import { buildCanvasContext, buildMessages } from "@/lib/ai/context-builder";
 import { DEFAULT_ALTERNATIVES_PROMPT, DEFAULT_PRD_PROMPT } from "@/lib/ai/default-prompts";
@@ -109,6 +112,8 @@ export interface ProviderRunRequest {
   projectId: string;
   kind: VaultProviderRunKind;
   prompt?: string;
+  /** Files a repository-generation run may cite as node evidence: the scan's `citablePaths`. */
+  citablePaths?: readonly string[];
   targetNode?: StackNode;
   runId?: string;
   retryRunId?: string;
@@ -134,12 +139,20 @@ export interface RepositoryEvidenceOutcome {
   generation: string;
 }
 
+export interface NodeSourcesOutcome {
+  node: StackNode;
+  repositoryUrl: string;
+  commitSha: string;
+  files: RepoSourceFile[];
+}
+
 interface ProviderRunCoordinatorOptions {
   repository: VaultRepository;
   keyManager: ProviderKeyManager;
   ai?: BrowserAiClient;
   locks?: VaultLockCoordinator;
   analyzeRepository?: typeof analyzeRepo;
+  readRepositoryFiles?: typeof readRepositoryFiles;
   idFactory?: () => string;
   now?: () => number;
 }
@@ -153,6 +166,12 @@ export interface ProviderRunCoordinator {
     repositoryUrl: string,
     options?: { signal?: AbortSignal; beforeCommit?: () => Promise<void> }
   ): Promise<RepositoryEvidenceOutcome>;
+  /** Reads a saved node's evidence files from GitHub at the scanned revision. */
+  readNodeSources(
+    projectId: string,
+    nodeId: string,
+    options?: { signal?: AbortSignal }
+  ): Promise<NodeSourcesOutcome>;
   run(request: ProviderRunRequest): Promise<ProviderRunOutcome>;
   close(): void;
 }
@@ -321,6 +340,26 @@ export function createProviderRunCoordinator(
     async listMessages(projectId) {
       ensureOpen();
       return options.repository.listProjectMessages(projectId);
+    },
+
+    async readNodeSources(projectId, nodeId, readOptions = {}) {
+      ensureOpen();
+      const bundle = await options.repository.getProjectBundle(projectId);
+      const node = bundle?.project.canvasState?.nodes.find((candidate) => candidate.id === nodeId);
+      if (!bundle?.provenance || !node?.evidence?.length) {
+        throw new ProviderError(
+          "invalid_request",
+          "This component has no repository files to read."
+        );
+      }
+      const { repositoryUrl, commitSha } = bundle.provenance;
+      const files = await (options.readRepositoryFiles ?? readRepositoryFiles)(
+        repositoryUrl,
+        commitSha,
+        node.evidence,
+        { signal: readOptions.signal, githubToken: await githubTokenForScan(options.keyManager) }
+      );
+      return { node, repositoryUrl, commitSha, files };
     },
 
     async scanRepository(projectId, repositoryUrl, scanOptions = {}) {
@@ -699,10 +738,15 @@ export function createProviderRunCoordinator(
 
             let canvasState = bundle.project.canvasState;
             if (providerResult.architecture) {
+              const incoming = applyEvidencePolicy(
+                providerResult.architecture,
+                canvasState,
+                request.kind === "repository-generation" ? new Set(request.citablePaths) : null
+              );
               const architecture =
                 request.kind === "repository-generation" || !canvasState?.nodes.length
-                  ? providerResult.architecture
-                  : mergeArchitecture(canvasState, providerResult.architecture, [], {
+                  ? incoming
+                  : mergeArchitecture(canvasState, incoming, [], {
                       nodeLockingEnabled: true,
                     }).architecture;
               const mergedIds = new Set(architecture.nodes.map((node) => node.id));

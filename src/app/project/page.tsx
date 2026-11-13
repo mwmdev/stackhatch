@@ -54,6 +54,7 @@ import ProjectNameField from "@/components/canvas/ProjectNameField";
 import EditorOverflowMenu from "@/components/canvas/EditorOverflowMenu";
 import ProviderKeyField from "@/components/projects/ProviderKeyField";
 import Toast, { type ToastMessage } from "@/components/ui/Toast";
+import { repositoryBlobBaseUrl } from "@/lib/github-analyzer";
 import {
   toReactFlowNodes,
   toReactFlowEdges,
@@ -298,6 +299,9 @@ export default function ProjectPage({
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const [customSubtypes, setCustomSubtypes] = useState<CustomSubtypesMap>({});
   const [scanTrigger, setScanTrigger] = useState(0);
+  const [sourceRequest, setSourceRequest] = useState<{ nodeId: string; nonce: number } | null>(
+    null
+  );
   const [chatStreaming, setChatStreaming] = useState(false);
   const [chatMapping, setChatMapping] = useState(false);
   const [architectureStreamPhase, setArchitectureStreamPhase] = useState<
@@ -764,6 +768,7 @@ export default function ProjectPage({
         reasoning: data.reasoning,
         locked: data.locked,
         ...(data.noteColor ? { noteColor: data.noteColor } : {}),
+        ...(data.evidence?.length ? { evidence: data.evidence } : {}),
       });
     },
     [closeNodePanel, nodePanelOpen, openNodePanel, selectedNode?.id]
@@ -1113,6 +1118,13 @@ export default function ProjectPage({
 
   const canvasNodes = useMemo(() => fromReactFlowNodes(rfNodes), [rfNodes]);
   const canvasEdges = useMemo(() => fromReactFlowEdges(rfEdges), [rfEdges]);
+  const evidenceBaseUrl = useMemo(
+    () =>
+      project?.repoUrl && project.repoCommitSha
+        ? repositoryBlobBaseUrl(project.repoUrl, project.repoCommitSha)
+        : null,
+    [project?.repoUrl, project?.repoCommitSha]
+  );
   const nodeNames = useMemo(
     () => new Map(rfNodes.map((node) => [node.id, node.data.name])),
     [rfNodes]
@@ -1503,6 +1515,17 @@ export default function ProjectPage({
     if (!selectedNode || isCanvasMutationBlocked()) return;
     void runSuggestAlternatives();
   }, [isCanvasMutationBlocked, runSuggestAlternatives, selectedNode]);
+
+  const handleAskAboutEvidence = useCallback(() => {
+    if (!selectedNodeId) return;
+    // On phones the detail sheet covers the chat it is about to fill.
+    if (window.innerWidth <= 640) closeNodePanel();
+    setChatOpen(true);
+    setSourceRequest((previous) => ({
+      nodeId: selectedNodeId,
+      nonce: (previous?.nonce ?? 0) + 1,
+    }));
+  }, [closeNodePanel, selectedNodeId]);
 
   // --- Swap alternative ---
 
@@ -2156,6 +2179,7 @@ export default function ProjectPage({
             open={chatOpen}
             onOpenChange={handleChatOpenChange}
             scanTrigger={scanTrigger}
+            sourceRequest={sourceRequest}
             coordinator={providerCoordinator}
             onArchitecture={handleArchitecture}
             onProviderCommit={acknowledgeProviderCommit}
@@ -2393,6 +2417,9 @@ export default function ProjectPage({
           onSuggestAlternatives={handleSuggestAlternatives}
           onSwapAlternative={handleSwapAlternative}
           mutationBlocked={canvasMutationBlocked}
+          evidenceBaseUrl={evidenceBaseUrl}
+          onAskAboutEvidence={handleAskAboutEvidence}
+          askAboutEvidenceDisabled={chatStreaming}
         />
       </div>
 

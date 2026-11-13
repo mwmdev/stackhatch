@@ -73,11 +73,21 @@ export default function PrivacyPage() {
                 <th scope="row">Scan a repository</th>
                 <td data-label="Your browser contacts">GitHub (api.github.com)</td>
                 <td data-label="What it sends">
-                  The repository reference. GitHub returns bounded evidence: repository metadata,
-                  languages, topics, the default branch and its current commit, the file tree, the
-                  README, and a small number of configuration files. Public repositories need no
-                  token. Private repositories need a fine-grained, read-only GitHub token, sent in
-                  the Authorization header on every scan.
+                  The repository reference and optional directory. GitHub returns bounded evidence:
+                  repository metadata, languages, topics, the default branch and its current commit,
+                  the scoped file tree, README, and a small number of configuration files. Public
+                  repositories need no token. Private repositories need a fine-grained, read-only
+                  GitHub token, sent in the Authorization header on every scan.
+                </td>
+              </tr>
+              <tr>
+                <th scope="row">Ask about a component&apos;s files</th>
+                <td data-label="Your browser contacts">GitHub (api.github.com)</td>
+                <td data-label="What it sends">
+                  The repository reference, scanned commit, and up to six linked file paths, with
+                  your GitHub token when set. GitHub returns their contents, each shortened to 6,000
+                  characters, for a removable chat attachment. Sending that message shares the
+                  attachment with your selected AI provider and stores it in the thread and backups.
                 </td>
               </tr>
               <tr>
@@ -88,8 +98,9 @@ export default function PrivacyPage() {
                 <td data-label="What it sends">
                   The selected model, this map&apos;s latest committed nodes and connections, its
                   chat history, your custom subtype vocabulary, any requirements brief, and the
-                  bounded GitHub evidence above, including the file tree, README, and configuration
-                  files from private repositories, with your key for that provider.
+                  bounded GitHub evidence above, including the file tree, README, configuration
+                  files, and any source-file or uploaded attachment you send, with your key for
+                  that provider. This can include content from private repositories.
                 </td>
               </tr>
             </tbody>

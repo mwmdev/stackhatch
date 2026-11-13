@@ -8,6 +8,7 @@ import AppPageShell from "@/components/shells/AppPageShell";
 import { GitHubTokenCreateLink, GitHubTokenRemember } from "@/components/projects/GitHubTokenField";
 import ProviderKeyField, { KeyStateChip } from "@/components/projects/ProviderKeyField";
 import { buildLocalProjectPath } from "@/lib/app-route";
+import { CANVAS_TEXT_LIMITS } from "@/lib/canvas-limits";
 import { parseGitHubRepoReference } from "@/lib/github-analyzer";
 import {
   GITHUB_CREDENTIAL_ID,
@@ -356,7 +357,13 @@ export default function ProjectStartWorkspace({
       }
     }
     recordStartSelection("repository");
-    void createProject({ name: repository.repo, repoUrl: repository.normalizedUrl });
+    void createProject({
+      name: (repository.subpath
+        ? `${repository.repo}/${repository.subpath}`
+        : repository.repo
+      ).slice(0, CANVAS_TEXT_LIMITS.projectName),
+      repoUrl: repository.normalizedUrl,
+    });
   }
 
   const blankAttemptFailed = blankAttempted && Boolean(error);
@@ -520,7 +527,7 @@ export default function ProjectStartWorkspace({
                       spellCheck={false}
                       value={repoUrl}
                       onChange={(event) => setRepoUrl(event.target.value)}
-                      placeholder="owner/repo"
+                      placeholder="owner/repo or owner/repo/directory"
                       disabled={submitting}
                       aria-invalid={repositoryError ? true : undefined}
                       aria-describedby={

@@ -252,6 +252,66 @@ describe("StackHatch backups", () => {
     expect(await target.getProject("project-1")).toBeNull();
   });
 
+  function evidencePayload(exportedBytes: string, evidence: unknown) {
+    const payload = JSON.parse(JSON.parse(exportedBytes).payload);
+    const url = "https://github.com/acme/app/tree/HEAD/packages/api";
+    payload.projects[0].project.repoUrl = url;
+    payload.projects[0].provenance.repositoryUrl = url;
+    payload.projects[0].project.canvasState = {
+      nodes: [
+        {
+          id: "api",
+          category: "api",
+          subtype: "rest-api",
+          name: "API",
+          technology: "",
+          description: "",
+          reasoning: "",
+          locked: false,
+          evidence,
+        },
+      ],
+      edges: [],
+    };
+    return payload;
+  }
+
+  it("round-trips node evidence and a directory-scoped repository URL", async () => {
+    const source = await repository("evidence-source");
+    const target = await repository("evidence-target");
+    await seed(source);
+    const payload = evidencePayload(await exportProjectBackup(source, "project-1"), [
+      "packages/api/src/server.ts",
+    ]);
+
+    await (await prepareBackupImport(target, await envelope(payload))).commit("keep-both");
+
+    const restored = (await target.getProjectBundle("project-1"))!;
+    expect(restored.project.canvasState?.nodes[0].evidence).toEqual(["packages/api/src/server.ts"]);
+    expect(restored.provenance?.repositoryUrl).toBe(
+      "https://github.com/acme/app/tree/HEAD/packages/api"
+    );
+  });
+
+  it.each([
+    "src/app.ts",
+    [],
+    ["../outside.ts"],
+    ["src/app.ts", "src/app.ts"],
+    [42],
+    Array.from({ length: 7 }, (_, index) => `src/file-${index}.ts`),
+  ])("rejects malformed node evidence without restoring a map: %j", async (evidence) => {
+    const source = await repository("invalid-evidence-source");
+    const target = await repository("invalid-evidence-target");
+    await seed(source);
+    const payload = evidencePayload(await exportProjectBackup(source, "project-1"), evidence);
+
+    await expect(prepareBackupImport(target, await envelope(payload))).rejects.toBeInstanceOf(
+      BackupValidationError
+    );
+    expect(await target.getProject("project-1")).toBeNull();
+  });
+
   it("repairs legacy names, IDs, metadata and labels in the exported copy", async () => {
     const source = await repository("invalid-local");
     const target = await repository("restored-local");

@@ -21,6 +21,7 @@ export interface StackNodeData {
   locked: boolean;
   customSubtypes?: CustomSubtypesMap;
   noteColor?: NoteColor;
+  evidence?: string[];
   showDescription?: boolean;
   canUseNodeLocking?: boolean;
   onLockToggle?: (id: string, locked: boolean) => void;

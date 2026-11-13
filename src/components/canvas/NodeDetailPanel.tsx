@@ -23,6 +23,7 @@ import DynamicLucideIcon from "@/components/ui/DynamicLucideIcon";
 import IconControl from "@/components/ui/IconControl";
 import { sanitizeHtml, containsHtml } from "@/lib/sanitize-html";
 import { CANVAS_TEXT_LIMITS } from "@/lib/canvas-limits";
+import { encodeRepositoryPath } from "@/lib/github-analyzer";
 import { edgeStyles } from "@/components/canvas/StackEdge";
 
 export interface NodeDetailPanelProps {
@@ -45,6 +46,10 @@ export interface NodeDetailPanelProps {
   onSuggestAlternatives?: () => void;
   onSwapAlternative?: (alt: AlternativeNode) => void;
   mutationBlocked?: boolean;
+  /** Where the scanned revision's files are browsed, ending in a slash; null without a scan. */
+  evidenceBaseUrl?: string | null;
+  onAskAboutEvidence?: () => void;
+  askAboutEvidenceDisabled?: boolean;
 }
 
 export default function NodeDetailPanel({
@@ -67,6 +72,9 @@ export default function NodeDetailPanel({
   onSuggestAlternatives,
   onSwapAlternative,
   mutationBlocked = false,
+  evidenceBaseUrl = null,
+  onAskAboutEvidence,
+  askAboutEvidenceDisabled = false,
 }: NodeDetailPanelProps) {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -289,6 +297,40 @@ export default function NodeDetailPanel({
               <p className="type-ui m-0 text-ink">{node.reasoning}</p>
             </div>
           )}
+
+          {!isNoteNode && node.evidence?.length ? (
+            <div className="field">
+              <span className="field-label">Evidence</span>
+              <ul aria-label="Evidence files" className="m-0 flex list-none flex-col gap-1 p-0">
+                {node.evidence.map((path) => (
+                  <li key={path} className="type-small font-utility [overflow-wrap:anywhere]">
+                    {evidenceBaseUrl ? (
+                      <a
+                        href={`${evidenceBaseUrl}${encodeRepositoryPath(path)}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="link"
+                      >
+                        {path}
+                      </a>
+                    ) : (
+                      path
+                    )}
+                  </li>
+                ))}
+              </ul>
+              {evidenceBaseUrl && onAskAboutEvidence ? (
+                <button
+                  type="button"
+                  onClick={onAskAboutEvidence}
+                  disabled={askAboutEvidenceDisabled}
+                  className="btn btn--sm mt-1 justify-self-start"
+                >
+                  Ask about these files
+                </button>
+              ) : null}
+            </div>
+          ) : null}
 
           {!isNoteNode && onSuggestAlternatives && onSwapAlternative && (
             <AlternativesSection

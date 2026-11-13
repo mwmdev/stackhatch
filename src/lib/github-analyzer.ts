@@ -1,7 +1,11 @@
+import { CANVAS_EVIDENCE_LIMITS } from "@/lib/canvas-limits";
+import { normalizeEvidencePath } from "@/lib/node-evidence";
+
 export const REPO_ANALYSIS_LIMITS = {
   maxTreePaths: 1_500,
   maxTreeCharacters: 60_000,
   maxTreeDepth: 8,
+  maxSubpathSegments: 8,
   maxReadmeCharacters: 12_000,
   maxEvidenceFiles: 8,
   maxEvidenceCharacters: 6_000,
@@ -10,10 +14,12 @@ export const REPO_ANALYSIS_LIMITS = {
 } as const;
 
 export const GITHUB_API_ORIGIN = "https://api.github.com";
+export const MAX_REPOSITORY_URL_LENGTH = 300;
 export const GITHUB_REST_VERSION = "2022-11-28";
 
 export type RepoAnalysisErrorCode =
   | "invalid_url"
+  | "path_not_found"
   | "not_found_or_private"
   | "github_token_cannot_read"
   | "github_token_rejected"
@@ -56,7 +62,13 @@ export interface GitHubRepoReference {
   owner: string;
   repo: string;
   slug: string;
+  /** Branch a pasted tree link names; null means the default branch. */
+  ref: string | null;
+  /** Directory the scan is limited to, without outer slashes; null for the whole repository. */
+  subpath: string | null;
   normalizedUrl: string;
+  /** The reference as typed into a field: owner/repo, optionally with a directory. */
+  shorthand: string;
 }
 
 export interface RepoEvidenceFile {
@@ -87,6 +99,8 @@ export interface RepoAnalysis {
   owner: string;
   repo: string;
   normalizedUrl: string;
+  /** Directory the scan was limited to; null for the whole repository. */
+  subpath: string | null;
   description: string | null;
   primaryLanguage: string | null;
   languages: Record<string, number>;
@@ -94,6 +108,8 @@ export interface RepoAnalysis {
   defaultBranch: string;
   commitSha: string;
   treePaths: string[];
+  /** Files in the bounded tree that a node may cite as evidence. */
+  citablePaths: string[];
   readme: string | null;
   evidenceFiles: RepoEvidenceFile[];
   status: "complete" | "partial";
@@ -239,16 +255,39 @@ function isValidRepo(repo: string): boolean {
   return /^[A-Za-z0-9_.-]{1,100}$/.test(repo) && repo !== "." && repo !== "..";
 }
 
+function isValidPathSegment(segment: string): boolean {
+  return (
+    segment !== "" &&
+    segment !== "." &&
+    segment !== ".." &&
+    segment === segment.trim() &&
+    !/[\\\u0000-\u001f\u007f]/.test(segment)
+  );
+}
+
+/** Percent-encodes a repository path for a URL, keeping its slashes. */
+export function encodeRepositoryPath(path: string): string {
+  return path.split("/").map(encodeURIComponent).join("/");
+}
+
+function repositoryUrl(slug: string, ref: string | null, subpath: string | null): string {
+  if (!ref && !subpath) return `https://github.com/${slug}`;
+  const treePath = subpath ? `${ref ?? "HEAD"}/${subpath}` : (ref ?? "HEAD");
+  return `https://github.com/${slug}/tree/${encodeRepositoryPath(treePath)}`;
+}
+
+/**
+ * Accepts owner/repo, owner/repo/directory, and github.com repository or tree
+ * links. A tree link's branch is kept so the scan can refuse one that is not
+ * the default branch instead of silently reading another.
+ */
 export function parseGitHubRepoReference(input: string): GitHubRepoReference | null {
   const value = input.trim();
   if (!value) return null;
 
-  let owner: string | undefined;
-  let repo: string | undefined;
-
-  if (/^[^/:\s]+\/[^/\s]+\/?$/.test(value)) {
-    [owner, repo] = value.replace(/\/$/, "").split("/");
-  } else {
+  let segments: string[];
+  // An owner has no dot, colon, or at sign, so one in the first segment marks a host.
+  if (/^https?:\/\//i.test(value) || /[.:@]/.test(value.split("/")[0])) {
     const withProtocol = /^https?:\/\//i.test(value) ? value : `https://${value}`;
     let url: URL;
     try {
@@ -267,21 +306,46 @@ export function parseGitHubRepoReference(input: string): GitHubRepoReference | n
       return null;
     }
 
-    const segments = url.pathname.split("/").filter(Boolean);
-    if (segments.length !== 2) return null;
-    [owner, repo] = segments;
+    try {
+      segments = url.pathname.split("/").filter(Boolean).map(decodeURIComponent);
+    } catch {
+      return null;
+    }
+    // On github.com only a tree link names a directory; issues, files and the rest do not.
+    if (segments.length > 2 && (segments[2] !== "tree" || segments.length < 4)) return null;
+  } else {
+    segments = value.replace(/\/$/, "").split("/");
   }
 
-  repo = repo?.replace(/\.git$/i, "");
-  if (!owner || !repo || !isValidOwner(owner) || !isValidRepo(repo)) return null;
+  if (segments.length < 2) return null;
+  const [owner, repoSegment, ...rest] = segments;
+  const repo = repoSegment.replace(/\.git$/i, "");
+  if (!isValidOwner(owner) || !isValidRepo(repo)) return null;
 
+  const isTree = rest[0] === "tree" && rest.length >= 2;
+  const namedRef = isTree ? rest[1] : null;
+  const directories = isTree ? rest.slice(2) : rest;
+  if (
+    (namedRef !== null && !isValidPathSegment(namedRef)) ||
+    directories.length > REPO_ANALYSIS_LIMITS.maxSubpathSegments ||
+    !directories.every(isValidPathSegment)
+  ) {
+    return null;
+  }
+
+  const ref = namedRef === null || namedRef === "HEAD" ? null : namedRef;
+  const subpath = directories.length > 0 ? directories.join("/") : null;
   const slug = `${owner}/${repo}`;
-  return {
-    owner,
-    repo,
-    slug,
-    normalizedUrl: `https://github.com/${slug}`,
-  };
+  const normalizedUrl = repositoryUrl(slug, ref, subpath);
+  if (normalizedUrl.length > MAX_REPOSITORY_URL_LENGTH) return null;
+
+  let shorthand = slug;
+  if (ref || directories[0] === "tree") {
+    shorthand = `${slug}/tree/${ref ?? "HEAD"}${subpath ? `/${subpath}` : ""}`;
+  } else if (subpath) {
+    shorthand = `${slug}/${subpath}`;
+  }
+  return { owner, repo, slug, ref, subpath, normalizedUrl, shorthand };
 }
 
 /** @deprecated Prefer parseGitHubRepoReference for normalized URLs and slugs. */
@@ -604,14 +668,20 @@ function parseTreeEntries(values: unknown[]): {
   return { entries, malformed };
 }
 
-function boundTree(entries: GitHubTreeEntry[]): { paths: string[]; truncated: boolean } {
+/** `root` is the scanned directory with a trailing slash, or empty for the whole repository. */
+function boundTree(
+  entries: GitHubTreeEntry[],
+  root: string
+): { paths: string[]; files: string[]; truncated: boolean } {
   const paths: string[] = [];
+  const files: string[] = [];
   let characters = 0;
   let truncated = false;
 
   for (const entry of entries) {
     if (!entry.path || !isUsefulTreePath(entry.path, entry.type)) continue;
-    const nextCharacters = characters + entry.path.length + 1;
+    const path = root + entry.path;
+    const nextCharacters = characters + path.length + 1;
     if (
       paths.length >= REPO_ANALYSIS_LIMITS.maxTreePaths ||
       nextCharacters > REPO_ANALYSIS_LIMITS.maxTreeCharacters
@@ -619,11 +689,51 @@ function boundTree(entries: GitHubTreeEntry[]): { paths: string[]; truncated: bo
       truncated = true;
       continue;
     }
-    paths.push(entry.path);
+    paths.push(path);
+    if (entry.type === "blob" && normalizeEvidencePath(path) === path) files.push(path);
     characters = nextCharacters;
   }
 
-  return { paths, truncated };
+  return { paths, files, truncated };
+}
+
+/** The directory to scan, once the default branch can tell a tree link's branch from its path. */
+function scanSubpath(reference: GitHubRepoReference, defaultBranch: string): string | null {
+  if (!reference.ref) return reference.subpath;
+  const treePath = reference.subpath ? `${reference.ref}/${reference.subpath}` : reference.ref;
+  if (treePath === defaultBranch) return null;
+  if (treePath.startsWith(`${defaultBranch}/`)) return treePath.slice(defaultBranch.length + 1);
+  throw new RepoAnalysisError(
+    "invalid_url",
+    `StackHatch scans the default branch, ${defaultBranch}. That link names another branch.`
+  );
+}
+
+/** Walks one tree per path segment; the recursive root tree of a large repository is truncated. */
+async function resolveSubtreeSha(
+  repoPath: string,
+  rootTreeSha: string,
+  subpath: string,
+  context: GitHubRequestContext
+): Promise<string> {
+  let sha = rootTreeSha;
+  for (const segment of subpath.split("/")) {
+    const value = await getRequiredJson(
+      `${repoPath}/git/trees/${encodeURIComponent(sha)}`,
+      context
+    );
+    const entries =
+      isRecord(value) && Array.isArray(value.tree) ? parseTreeEntries(value.tree).entries : [];
+    const directory = entries.find((entry) => entry.type === "tree" && entry.path === segment);
+    if (!directory?.sha) {
+      throw new RepoAnalysisError(
+        "path_not_found",
+        `${context.repository} has no "${subpath}" directory on its default branch.`
+      );
+    }
+    sha = directory.sha;
+  }
+  return sha;
 }
 
 function evidencePriority(path: string): number {
@@ -805,6 +915,8 @@ export async function analyzeRepo(
     repoData.default_branch,
     "GitHub did not return a default branch for this repository."
   );
+  const subpath = scanSubpath(parsed, defaultBranch);
+  const root = subpath ? `${subpath}/` : "";
 
   const [languagesValue, commitValue] = await withStageAbort(context, (stageContext) =>
     Promise.all([
@@ -842,14 +954,17 @@ export async function analyzeRepo(
     );
   }
 
+  const scopeTreeSha = subpath
+    ? await resolveSubtreeSha(repoPath, treeSha, subpath, context)
+    : treeSha;
   const [treeValue, readmeData] = await withStageAbort(context, (stageContext) =>
     Promise.all([
       getRequiredJson(
-        `${repoPath}/git/trees/${encodeURIComponent(treeSha)}?recursive=1`,
+        `${repoPath}/git/trees/${encodeURIComponent(scopeTreeSha)}?recursive=1`,
         stageContext
       ),
       readGitHubContent(
-        `${repoPath}/readme?ref=${encodeURIComponent(defaultBranch)}`,
+        `${repoPath}/readme${subpath ? `/${encodeRepositoryPath(subpath)}` : ""}?ref=${encodeURIComponent(defaultBranch)}`,
         REPO_ANALYSIS_LIMITS.maxReadmeCharacters,
         stageContext
       ),
@@ -865,7 +980,7 @@ export async function analyzeRepo(
   const treeData = treeValue as unknown as GitHubTreeResponse;
   const parsedTree = parseTreeEntries(treeValue.tree);
   const treeEntries = parsedTree.entries;
-  const boundedTree = boundTree(treeEntries);
+  const boundedTree = boundTree(treeEntries, root);
   const warnings = new Set<string>();
   if (parsedTree.malformed) warnings.add("GitHub returned malformed repository tree entries.");
   if (treeData.truncated) warnings.add("GitHub returned a truncated repository tree.");
@@ -881,14 +996,14 @@ export async function analyzeRepo(
     evidenceCandidates.entries,
     3,
     async (entry) => {
-      const cached = options.evidenceCache?.[entry.path!];
+      const path = root + entry.path!;
       const result = await readGitHubContent(
         `${repoPath}/git/blobs/${encodeURIComponent(entry.sha!)}`,
         REPO_ANALYSIS_LIMITS.maxEvidenceCharacters,
         context,
-        cached
+        options.evidenceCache?.[path]
       );
-      return { path: entry.path!, ...result };
+      return { path, ...result };
     }
   );
 
@@ -922,7 +1037,8 @@ export async function analyzeRepo(
   return {
     owner: parsed.owner,
     repo: parsed.repo,
-    normalizedUrl: parsed.normalizedUrl,
+    normalizedUrl: repositoryUrl(parsed.slug, null, subpath),
+    subpath,
     description: typeof repoData.description === "string" ? repoData.description : null,
     primaryLanguage: typeof repoData.language === "string" ? repoData.language : null,
     languages,
@@ -932,6 +1048,7 @@ export async function analyzeRepo(
     defaultBranch,
     commitSha,
     treePaths: boundedTree.paths,
+    citablePaths: boundedTree.files,
     readme: readmeData.content,
     evidenceFiles,
     status: warningList.length > 0 ? "partial" : "complete",
@@ -960,10 +1077,21 @@ export function formatRepoAnalysis(analysis: RepoAnalysis): string {
     "- Model deployable architecture, not a package or folder graph; keep in-process modules inside their parent application.",
     "- Never label an in-process call as HTTP/TCP. Use file-io for embedded databases and local filesystems.",
     "- Treat a path name as existence evidence only; ambiguous filenames do not prove behavior or an external provider.",
+    `- Give each node an "evidence" array of up to ${CANVAS_EVIDENCE_LIMITS.pathsPerNode} file paths, copied exactly from the bounded repository tree, naming the files that most directly support it. Leave it out when no file applies.`,
+    ...(analysis.subpath
+      ? [
+          "- Map only what lives in the scanned directory. Show the rest of the repository only where the evidence shows this directory depends on it.",
+        ]
+      : []),
     "- Generate the architecture immediately; do not ask interview questions.",
     "",
     "Observed repository evidence:",
     `Repository: ${analysis.normalizedUrl}`,
+    ...(analysis.subpath
+      ? [
+          `Scanned directory: ${analysis.subpath} (languages and topics describe the whole repository)`,
+        ]
+      : []),
     `Revision: ${analysis.defaultBranch} @ ${analysis.commitSha}`,
     `Analysis status: ${analysis.status}`,
   ];
@@ -989,4 +1117,76 @@ export function formatRepoAnalysis(analysis: RepoAnalysis): string {
     "Produce the StackHatch architecture now. In the explanation, label uncertain conclusions as inference."
   );
   return lines.join("\n");
+}
+
+/** Where a scanned revision's files are browsed on github.com, ending in a slash. */
+export function repositoryBlobBaseUrl(repositoryUrl: string, commitSha: string): string | null {
+  const parsed = parseGitHubRepoReference(repositoryUrl);
+  if (!parsed || !commitSha) return null;
+  return `https://github.com/${parsed.slug}/blob/${encodeURIComponent(commitSha)}/`;
+}
+
+export interface RepoSourceFile {
+  path: string;
+  content: string;
+  truncated: boolean;
+}
+
+/**
+ * Reads files at one revision, each bounded like scan evidence. Paths that are
+ * missing, binary, or directories are skipped; a request failure is thrown only
+ * when it leaves nothing to return.
+ */
+export async function readRepositoryFiles(
+  repositoryUrl: string,
+  commitSha: string,
+  paths: readonly string[],
+  options: Omit<RepoAnalysisOptions, "evidenceCache"> = {}
+): Promise<RepoSourceFile[]> {
+  const parsed = parseGitHubRepoReference(repositoryUrl);
+  if (!parsed || !commitSha) {
+    throw new RepoAnalysisError("invalid_url", "This map has no scanned repository revision.");
+  }
+
+  const context: GitHubRequestContext = {
+    fetch: options.fetch ?? globalThis.fetch.bind(globalThis),
+    signal: options.signal,
+    now: options.now ?? Date.now,
+    requestTimeoutMs: options.requestTimeoutMs ?? REPO_ANALYSIS_LIMITS.requestTimeoutMs,
+    repository: parsed.slug,
+    token: options.githubToken?.trim() || null,
+  };
+  const repoPath = `/repos/${encodeURIComponent(parsed.owner)}/${encodeURIComponent(parsed.repo)}`;
+  const results = await allSettledWithConcurrency(
+    paths.slice(0, CANVAS_EVIDENCE_LIMITS.pathsPerNode),
+    3,
+    async (path) => ({
+      path,
+      ...(await readGitHubContent(
+        `${repoPath}/contents/${encodeRepositoryPath(path)}?ref=${encodeURIComponent(commitSha)}`,
+        REPO_ANALYSIS_LIMITS.maxEvidenceCharacters,
+        context
+      )),
+    })
+  );
+
+  const files: RepoSourceFile[] = [];
+  let failure: unknown;
+  for (const result of results) {
+    if (result.status === "rejected") {
+      if (result.reason instanceof RepoAnalysisError && result.reason.code === "aborted") {
+        throw result.reason;
+      }
+      failure ??= result.reason;
+      continue;
+    }
+    if (!result.value.content) continue;
+    files.push({
+      path: result.value.path,
+      content: result.value.content,
+      truncated: result.value.truncated,
+    });
+  }
+  if (files.length === 0 && failure) throw failure;
+  return files;
 }

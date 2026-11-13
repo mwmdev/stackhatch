@@ -37,6 +37,7 @@ import { createId } from "@/lib/id";
 import {
   ChatAttachmentError,
   composeAttachedMessage,
+  composeSourceAttachment,
   parseAttachedMessage,
   readChatAttachment,
   type ChatAttachment,
@@ -77,6 +78,8 @@ interface ChatSidebarProps {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   scanTrigger?: number;
+  /** Attaches a node's evidence files, read from GitHub, to the composer. A new nonce asks again. */
+  sourceRequest?: { nodeId: string; nonce: number } | null;
   coordinator?: ProviderRunCoordinator;
   keyManager?: ProviderKeyManager;
   onArchitecture?: (
@@ -274,6 +277,7 @@ export default function ChatSidebar({
   open: controlledOpen,
   onOpenChange,
   scanTrigger = 0,
+  sourceRequest = null,
   coordinator: providedCoordinator,
   onArchitecture,
   keyManager,
@@ -295,6 +299,9 @@ export default function ChatSidebar({
   const [error, setError] = useState("");
   const [attachment, setAttachment] = useState<ChatAttachment | null>(null);
   const [attachmentError, setAttachmentError] = useState("");
+  const [readingSources, setReadingSources] = useState(false);
+  const sourcesAbortRef = useRef<AbortController | null>(null);
+  const previousSourceRequest = useRef(sourceRequest?.nonce ?? 0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [keyStatus, setKeyStatus] = useState<ProviderKeyStatus | null>(null);
   const [evidence, setEvidence] = useState<RepositoryEvidenceOutcome | null>(null);
@@ -406,6 +413,7 @@ export default function ChatSidebar({
     return () => {
       cancelled = true;
       abortRef.current?.abort();
+      sourcesAbortRef.current?.abort();
       if (streamFrameRef.current !== null) {
         cancelAnimationFrame(streamFrameRef.current);
         streamFrameRef.current = null;
@@ -594,6 +602,7 @@ export default function ChatSidebar({
         projectId,
         kind: "repository-generation",
         prompt: repositoryPrompt(scanned.analysis),
+        citablePaths: scanned.analysis.citablePaths,
       },
       scanned
     );
@@ -622,6 +631,45 @@ export default function ChatSidebar({
     previousScanTrigger.current = scanTrigger;
     void scanAndGenerate();
   }, [scanTrigger, scanAndGenerate]);
+
+  const attachNodeSources = useCallback(
+    async (nodeId: string) => {
+      setSidebarOpen(true);
+      setAttachmentError("");
+      setReadingSources(true);
+      sourcesAbortRef.current?.abort();
+      const controller = new AbortController();
+      sourcesAbortRef.current = controller;
+      try {
+        const sources = await coordinator.readNodeSources(projectId, nodeId, {
+          signal: controller.signal,
+        });
+        if (controller.signal.aborted) return;
+        if (sources.files.length === 0) {
+          setAttachmentError("GitHub returned none of this component's files.");
+          return;
+        }
+        setAttachment(composeSourceAttachment(sources));
+        textareaRef.current?.focus();
+      } catch (readError) {
+        if (!controller.signal.aborted) {
+          setAttachmentError(providerErrorDetails(readError).message);
+        }
+      } finally {
+        if (sourcesAbortRef.current === controller) {
+          sourcesAbortRef.current = null;
+          setReadingSources(false);
+        }
+      }
+    },
+    [coordinator, projectId, setSidebarOpen]
+  );
+
+  useEffect(() => {
+    if (!sourceRequest || sourceRequest.nonce === previousSourceRequest.current) return;
+    previousSourceRequest.current = sourceRequest.nonce;
+    void attachNodeSources(sourceRequest.nodeId);
+  }, [sourceRequest, attachNodeSources]);
 
   useEffect(() => {
     if (streaming || !ready || !restoreComposerFocusRef.current) return;
@@ -654,7 +702,7 @@ export default function ChatSidebar({
   }
 
   function sendMessage({ restoreFocus = false }: { restoreFocus?: boolean } = {}) {
-    if ((!input.trim() && !attachment) || streaming) return;
+    if ((!input.trim() && !attachment) || streaming || readingSources) return;
     if (keyStatus?.state === "absent") {
       pendingKeySendRef.current = true;
       setError(KEY_MISSING);
@@ -840,6 +888,12 @@ export default function ChatSidebar({
               </IconControl>
             </div>
           ) : null}
+          {readingSources ? (
+            <p role="status" className="type-small mb-2 flex items-center gap-2 text-ink2">
+              <Loader2 aria-hidden="true" className="size-4 animate-spin" />
+              Reading files from GitHub…
+            </p>
+          ) : null}
           {attachmentError ? (
             <p role="alert" className="type-small mb-2 text-danger">
               {attachmentError}
@@ -933,7 +987,7 @@ export default function ChatSidebar({
                   }
                   sendMessage({ restoreFocus: event.detail === 0 });
                 }}
-                disabled={!ready || (!input.trim() && !attachment)}
+                disabled={!ready || readingSources || (!input.trim() && !attachment)}
                 className="btn btn--primary size-10 shrink-0 p-0 disabled:opacity-100 disabled:[&>svg]:opacity-45"
                 aria-label="Send message"
               >

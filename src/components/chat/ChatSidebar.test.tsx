@@ -60,6 +60,7 @@ function evidenceOutcome(): RepositoryEvidenceOutcome {
       owner: "acme",
       repo: "app",
       normalizedUrl: "https://github.com/acme/app",
+      subpath: null,
       description: "App",
       primaryLanguage: "TypeScript",
       languages: { TypeScript: 1 },
@@ -67,6 +68,7 @@ function evidenceOutcome(): RepositoryEvidenceOutcome {
       defaultBranch: "main",
       commitSha: "abcdef1234567890",
       treePaths: ["src/app.ts"],
+      citablePaths: ["src/app.ts"],
       readme: "# App",
       evidenceFiles: [],
       status: "complete",
@@ -85,6 +87,9 @@ function coordinator(overrides: Partial<ProviderRunCoordinator> = {}): ProviderR
     listMessages: vi.fn(async () => []),
     scanRepository: vi.fn(async () => evidenceOutcome()),
     run: vi.fn(async () => runOutcome()),
+    readNodeSources: vi.fn(async () => {
+      throw new Error("readNodeSources was not expected");
+    }),
     close: vi.fn(),
     ...overrides,
   };
@@ -813,6 +818,76 @@ describe("local-first ChatSidebar", () => {
 
       expect(await screen.findByRole("alert")).toHaveTextContent("Markdown (.md) or text (.txt)");
       expect(screen.queryByTestId("chat-attachment-chip")).not.toBeInTheDocument();
+    });
+
+    const askAbout = async (localCoordinator: ProviderRunCoordinator) => {
+      const view = renderSidebar(localCoordinator);
+      await screen.findByPlaceholderText("Ask anything…");
+      view.rerender(
+        <ChatSidebar
+          projectId="project-1"
+          repoUrl="https://github.com/acme/app"
+          defaultOpen
+          coordinator={localCoordinator}
+          sourceRequest={{ nodeId: "api", nonce: 1 }}
+        />
+      );
+    };
+
+    it("attaches a node's files read from GitHub and asks about them", async () => {
+      const localCoordinator = coordinator({
+        readNodeSources: vi.fn(async () => ({
+          node: {
+            id: "api",
+            category: "api" as const,
+            subtype: "rest-api",
+            name: "API Server",
+            technology: "",
+            description: "",
+            reasoning: "",
+            locked: false,
+            evidence: ["src/api.ts"],
+          },
+          repositoryUrl: "https://github.com/acme/app",
+          commitSha: "abc123",
+          files: [{ path: "src/api.ts", content: "export const port = 8080;", truncated: false }],
+        })),
+      });
+      await askAbout(localCoordinator);
+
+      expect(await screen.findByTestId("chat-attachment-chip")).toHaveTextContent(
+        "API Server · 1 file"
+      );
+      expect(localCoordinator.readNodeSources).toHaveBeenCalledWith(
+        "project-1",
+        "api",
+        expect.anything()
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+      await waitFor(() => expect(localCoordinator.run).toHaveBeenCalledOnce());
+      const { kind, prompt } = vi.mocked(localCoordinator.run).mock.calls[0][0];
+      expect(kind).toBe("chat");
+      expect(prompt).toContain("Explain this component from the attached source files.");
+      expect(prompt).toContain("--- src/api.ts ---\nexport const port = 8080;");
+    });
+
+    it("reports a GitHub failure instead of attaching anything", async () => {
+      const failure = new RepoAnalysisError(
+        "not_found_or_private",
+        "StackHatch can't read acme/app. If it's private, add a read-only GitHub token."
+      );
+      await askAbout(
+        coordinator({
+          readNodeSources: vi.fn(async () => {
+            throw failure;
+          }),
+        })
+      );
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(failure.message);
+      expect(screen.queryByTestId("chat-attachment-chip")).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Send message" })).toBeDisabled();
     });
 
     it("shows a stored attachment as its file name, not its text", async () => {

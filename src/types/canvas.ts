@@ -21,6 +21,7 @@ export function toReactFlowNodes(
       reasoning: node.reasoning,
       locked: node.locked,
       ...(node.noteColor ? { noteColor: node.noteColor } : {}),
+      ...(node.evidence?.length ? { evidence: node.evidence } : {}),
     },
   }));
 }
@@ -58,6 +59,7 @@ export function fromReactFlowNodes(nodes: Node<StackNodeData>[]): StackNode[] {
     reasoning: node.data.reasoning,
     locked: node.data.locked,
     ...(node.data.noteColor ? { noteColor: node.data.noteColor } : {}),
+    ...(node.data.evidence?.length ? { evidence: node.data.evidence } : {}),
   }));
 }
 

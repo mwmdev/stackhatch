@@ -1,8 +1,13 @@
 import { createId } from "@/lib/id";
-import { parseGitHubRepoReference } from "@/lib/github-analyzer";
+import { MAX_REPOSITORY_URL_LENGTH, parseGitHubRepoReference } from "@/lib/github-analyzer";
 import { validateCustomSubtypes } from "@/lib/custom-subtypes";
 import { normalizeArchitecture } from "@/lib/ai/output-parser";
-import { CANVAS_ID_PATTERN, CANVAS_TEXT_LIMITS } from "@/lib/canvas-limits";
+import {
+  CANVAS_EVIDENCE_LIMITS,
+  CANVAS_ID_PATTERN,
+  CANVAS_TEXT_LIMITS,
+} from "@/lib/canvas-limits";
+import { normalizeEvidencePath } from "@/lib/node-evidence";
 import type { ConnectionSides } from "@/types/stack";
 import type {
   VaultDevicePreferencesRecord,
@@ -208,7 +213,7 @@ function inspectResourceLimits(value: unknown) {
 
 function validateRepositoryUrl(value: unknown, label: string) {
   if (value === null) return null;
-  const url = string(value, label, 300);
+  const url = string(value, label, MAX_REPOSITORY_URL_LENGTH);
   const parsed = parseGitHubRepoReference(url);
   if (!parsed || parsed.normalizedUrl !== url) {
     throw new BackupValidationError(`${label} must be a canonical public GitHub URL`);
@@ -230,7 +235,7 @@ function validateCanvas(value: unknown) {
     exactKeys(
       node,
       ["id", "category", "subtype", "name", "technology", "description", "reasoning", "locked"],
-      ["noteColor"]
+      ["noteColor", "evidence"]
     );
     const nodeId = id(node.id, "node id");
     if (nodeIds.has(nodeId)) throw new BackupValidationError("Canvas node IDs must be unique");
@@ -242,6 +247,20 @@ function validateCanvas(value: unknown) {
     if (noteColor && !NOTE_COLORS.has(noteColor)) {
       throw new BackupValidationError("Invalid note color");
     }
+    let evidence: string[] | undefined;
+    if (node.evidence !== undefined) {
+      evidence = array(node.evidence, "node evidence").map((path) =>
+        string(path, "evidence path", CANVAS_EVIDENCE_LIMITS.pathLength)
+      );
+      if (
+        evidence.length === 0 ||
+        evidence.length > CANVAS_EVIDENCE_LIMITS.pathsPerNode ||
+        new Set(evidence).size !== evidence.length ||
+        evidence.some((path) => normalizeEvidencePath(path) !== path)
+      ) {
+        throw new BackupValidationError("Invalid node evidence");
+      }
+    }
     return {
       id: nodeId,
       category,
@@ -252,6 +271,7 @@ function validateCanvas(value: unknown) {
       reasoning: string(node.reasoning, "node reasoning"),
       locked: boolean(node.locked, "node locked"),
       ...(noteColor ? { noteColor } : {}),
+      ...(evidence ? { evidence } : {}),
     };
   });
   const edgeIds = new Set<string>();

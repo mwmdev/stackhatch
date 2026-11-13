@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { StackArchitecture } from "@/types/stack";
 import { CANVAS_ID_PATTERN, CANVAS_TEXT_LIMITS } from "@/lib/canvas-limits";
+import { normalizeEvidencePaths } from "@/lib/node-evidence";
 
 const nodeCategories = ["client", "api", "services", "data", "infrastructure", "external"] as const;
 const nodeCategoriesWithNotes = [...nodeCategories, "note"] as const;
@@ -20,6 +21,8 @@ function createStackNodeSchema(allowNoteNodes: boolean) {
     reasoning: z.string(),
     locked: z.boolean(),
     noteColor: z.enum(noteColors).optional(),
+    // A malformed list must not cost the user the whole map.
+    evidence: z.array(z.string()).optional().catch(undefined),
   });
 }
 
@@ -80,12 +83,15 @@ export function normalizeArchitecture(architecture: StackArchitecture): {
   const nodes = architecture.nodes.map((node) => {
     const id = CANVAS_ID_PATTERN.test(node.id) ? node.id : uniqueId(node.id, nodeIds);
     mappedIds.set(node.id, id);
+    const { evidence: citedPaths, ...rest } = node;
+    const evidence = normalizeEvidencePaths(citedPaths);
     return {
-      ...node,
+      ...rest,
       id,
       subtype: node.subtype.slice(0, CANVAS_TEXT_LIMITS.nodeSubtype),
       name: node.name.slice(0, CANVAS_TEXT_LIMITS.nodeName),
       technology: node.technology.slice(0, CANVAS_TEXT_LIMITS.nodeTechnology),
+      ...(evidence ? { evidence } : {}),
     };
   });
   const edgeIds = new Set(

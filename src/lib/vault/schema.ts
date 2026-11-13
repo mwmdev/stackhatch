@@ -3,7 +3,7 @@ import type { AlternativeNode, StackArchitecture } from "@/types/stack";
 import type { CustomSubtypeEntry, CustomSubtypesMap } from "@/lib/custom-subtypes";
 
 export const VAULT_DATABASE_NAME = "stackhatch-vault";
-export const VAULT_SCHEMA_VERSION = 4;
+export const VAULT_SCHEMA_VERSION = 5;
 export const VAULT_META_ID = "vault" as const;
 export const DEVICE_RECORD_ID = "device" as const;
 

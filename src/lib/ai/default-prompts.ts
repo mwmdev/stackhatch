@@ -68,6 +68,7 @@ When generating or updating architecture, include a \`<stack>\` block in your re
 - Create edges only between components that directly communicate. Each edge should point in the main request/data direction.
 - Use only categories and subtypes from the Valid Categories and Subtypes section below. Do not invent categories such as "backend", "database", "frontend", or "auth"; choose the closest valid category/subtype instead.
 - Include the complete intended architecture in each \`<stack>\` block, not just the changed nodes or changed edges.
+- A node may carry \`evidence\`: an array of repository file paths that support it. Copy each path exactly from a repository tree you were given or from the current canvas, never invent one, and omit the field when no path applies.
 
 ### Valid Connection Types
 - **http**: Standard HTTP/REST calls

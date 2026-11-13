@@ -21,6 +21,7 @@ function compactNode(node: StackNode): Partial<StackNode> {
     ...(node.reasoning ? { reasoning: node.reasoning } : {}),
     locked: node.locked,
     ...(node.noteColor ? { noteColor: node.noteColor } : {}),
+    ...(node.evidence?.length ? { evidence: node.evidence } : {}),
   };
 }
 

@@ -6,4 +6,9 @@ export const CANVAS_TEXT_LIMITS = {
   edgeLabel: 40,
 } as const;
 
+export const CANVAS_EVIDENCE_LIMITS = {
+  pathsPerNode: 6,
+  pathLength: 512,
+} as const;
+
 export const CANVAS_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;

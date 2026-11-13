@@ -539,6 +539,7 @@ describe("browser provider-run coordinator", () => {
       owner: "acme",
       repo: "app",
       normalizedUrl: "https://github.com/acme/app",
+      subpath: null,
       description: "App",
       primaryLanguage: "TypeScript",
       languages: { TypeScript: 1 },
@@ -546,6 +547,7 @@ describe("browser provider-run coordinator", () => {
       defaultBranch: "main",
       commitSha: "abc123",
       treePaths: ["src/app.ts"],
+      citablePaths: ["src/app.ts"],
       readme: "# App",
       evidenceFiles: [
         {
@@ -601,6 +603,72 @@ describe("browser provider-run coordinator", () => {
     expect((await vault.getProjectBundle("project-1"))?.evidence).toHaveLength(2);
   });
 
+  it("lets a repository map cite only scanned files and reads them at the scanned revision", async () => {
+    const vault = await repository("node-sources");
+    const analysis: RepoAnalysis = {
+      owner: "acme",
+      repo: "app",
+      normalizedUrl: "https://github.com/acme/app",
+      subpath: null,
+      description: null,
+      primaryLanguage: null,
+      languages: {},
+      topics: [],
+      defaultBranch: "main",
+      commitSha: "abc123",
+      treePaths: ["src", "src/api.ts"],
+      citablePaths: ["src/api.ts"],
+      readme: null,
+      evidenceFiles: [],
+      status: "complete",
+      warnings: [],
+    };
+    const generated = architecture();
+    generated.nodes[1].evidence = ["src/api.ts", "src/invented.ts"];
+    const readFiles = vi.fn(async () => [
+      { path: "src/api.ts", content: "export {};", truncated: false },
+    ]);
+    const coordinator = createProviderRunCoordinator({
+      repository: vault,
+      keyManager: keyManager(),
+      ai: client(async () => ({
+        text: "<stack>{}</stack>",
+        message: "",
+        architecture: generated,
+        requestId: "req-1",
+      })),
+      locks,
+      analyzeRepository: vi.fn(async () => analysis),
+      readRepositoryFiles: readFiles,
+    });
+
+    await coordinator.scanRepository("project-1", "acme/app");
+    await coordinator.run({
+      projectId: "project-1",
+      kind: "repository-generation",
+      prompt: repositoryPrompt(analysis),
+      citablePaths: analysis.citablePaths,
+    });
+
+    const sources = await coordinator.readNodeSources("project-1", "api");
+    expect(sources).toMatchObject({
+      node: { id: "api", evidence: ["src/api.ts"] },
+      commitSha: "abc123",
+      files: [{ path: "src/api.ts" }],
+    });
+    expect(readFiles).toHaveBeenCalledWith(
+      "https://github.com/acme/app",
+      "abc123",
+      ["src/api.ts"],
+      expect.objectContaining({ githubToken: null })
+    );
+    // A node without evidence has nothing to read, so GitHub is not contacted.
+    await expect(coordinator.readNodeSources("project-1", "locked-client")).rejects.toMatchObject({
+      code: "invalid_request",
+    });
+    expect(readFiles).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps a newer project revision when a GitHub scan finishes late", async () => {
     const vault = await repository("github-stale");
     const analysisResult = deferred<RepoAnalysis>();
@@ -632,6 +700,7 @@ describe("browser provider-run coordinator", () => {
       owner: "acme",
       repo: "app",
       normalizedUrl: "https://github.com/acme/app",
+      subpath: null,
       description: null,
       primaryLanguage: null,
       languages: {},
@@ -639,6 +708,7 @@ describe("browser provider-run coordinator", () => {
       defaultBranch: "main",
       commitSha: "late",
       treePaths: [],
+      citablePaths: [],
       readme: null,
       evidenceFiles: [],
       status: "complete",

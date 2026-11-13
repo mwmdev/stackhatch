@@ -52,6 +52,8 @@ export interface StackNode {
   reasoning: string;
   locked: boolean;
   noteColor?: NoteColor;
+  /** Repository file paths this node was inferred from. Set by repository scans only. */
+  evidence?: string[];
 }
 
 /** User-chosen attachment sides. Omitted on automatically routed connections. */

@@ -1,18 +1,21 @@
+import { parseGitHubRepoReference } from "@/lib/github-analyzer";
+
 export const PROJECT_START_METHODS = ["blank", "requirements", "repository"] as const;
 
 export type ProjectStartMethod = (typeof PROJECT_START_METHODS)[number];
 
 const PROJECT_START_METHOD_KEY = "stackhatch:project-start-method";
 const BLANK_AUTO_CREATE_KEY = "stackhatch:blank-auto-create";
-const REPOSITORY_SLUG_PATTERN = /^[A-Za-z0-9_-]+\/[A-Za-z0-9_.-]+$/;
 const PROJECT_RETURN_PATTERN = /^\/project\/#[A-Za-z0-9_-]{1,128}$/;
 
 export function isProjectStartMethod(value: unknown): value is ProjectStartMethod {
   return typeof value === "string" && PROJECT_START_METHODS.includes(value as ProjectStartMethod);
 }
 
+/** True for the shorthand StackHatch writes itself: owner/repo, optionally with a directory. */
 export function isPublicRepositorySlug(value: string) {
-  return REPOSITORY_SLUG_PATTERN.test(value.trim());
+  const reference = value.trim();
+  return parseGitHubRepoReference(reference)?.shorthand === reference;
 }
 
 export function safeProjectReturnPath(value: string | null | undefined) {

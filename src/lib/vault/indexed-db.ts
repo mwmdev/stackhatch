@@ -115,9 +115,10 @@ export async function upgradeVaultSchema(
     database.deleteObjectStore("templates");
   }
 
-  // Version 4 adds optional connection sides. Existing edges stay automatic;
-  // no backfill is needed. The version barrier prevents older clients from
-  // opening the vault and discarding chosen sides on their next canvas save.
+  // Version 4 adds optional connection sides and version 5 optional node
+  // evidence paths. Existing records need no backfill. The version barrier
+  // prevents older clients from opening the vault and discarding either on
+  // their next canvas save.
   const metadata = await transaction.objectStore("meta").get(VAULT_META_ID);
   if (metadata && metadata.schemaVersion !== targetVersion) {
     await transaction.objectStore("meta").put({
