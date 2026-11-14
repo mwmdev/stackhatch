@@ -2,12 +2,8 @@ import { createId } from "@/lib/id";
 import { MAX_REPOSITORY_URL_LENGTH, parseGitHubRepoReference } from "@/lib/github-analyzer";
 import { validateCustomSubtypes } from "@/lib/custom-subtypes";
 import { normalizeArchitecture } from "@/lib/ai/output-parser";
-import {
-  CANVAS_EVIDENCE_LIMITS,
-  CANVAS_ID_PATTERN,
-  CANVAS_TEXT_LIMITS,
-} from "@/lib/canvas-limits";
-import { normalizeEvidencePath } from "@/lib/node-evidence";
+import { CANVAS_EVIDENCE_LIMITS, CANVAS_ID_PATTERN, CANVAS_TEXT_LIMITS } from "@/lib/canvas-limits";
+import { hasLoneSurrogate, normalizeEvidencePath } from "@/lib/node-evidence";
 import type { ConnectionSides } from "@/types/stack";
 import type {
   VaultDevicePreferencesRecord,
@@ -446,22 +442,31 @@ function validateEvidence(value: unknown, projectId: string): VaultRepositoryEvi
   };
 }
 
+function wellFormed(value: string, label: string) {
+  if (hasLoneSurrogate(value)) throw new BackupValidationError(`${label} must be valid text`);
+  return value;
+}
+
 function validateProvenance(
   value: unknown,
   projectId: string
 ): VaultRepositoryProvenanceRecord | null {
   if (value === null) return null;
   const provenance = object(value, "repository provenance");
-  exactKeys(provenance, [
-    "projectId",
-    "repositoryUrl",
-    "commitSha",
-    "scannedAt",
-    "analysisStatus",
-    "warning",
-    "revision",
-    "updatedAt",
-  ]);
+  exactKeys(
+    provenance,
+    [
+      "projectId",
+      "repositoryUrl",
+      "commitSha",
+      "scannedAt",
+      "analysisStatus",
+      "warning",
+      "revision",
+      "updatedAt",
+    ],
+    ["mapCommitSha"]
+  );
   if (provenance.projectId !== projectId) {
     throw new BackupValidationError("Repository provenance references an unknown project");
   }
@@ -471,7 +476,15 @@ function validateProvenance(
   return {
     projectId,
     repositoryUrl: validateRepositoryUrl(provenance.repositoryUrl, "provenance repository URL")!,
-    commitSha: string(provenance.commitSha, "commit SHA", 200),
+    commitSha: wellFormed(string(provenance.commitSha, "commit SHA", 200), "commit SHA"),
+    ...(provenance.mapCommitSha === undefined || provenance.mapCommitSha === null
+      ? {}
+      : {
+          mapCommitSha: wellFormed(
+            string(provenance.mapCommitSha, "map commit SHA", 200),
+            "map commit SHA"
+          ),
+        }),
     scannedAt: number(provenance.scannedAt, "scan time"),
     analysisStatus: provenance.analysisStatus,
     warning: nullableString(provenance.warning, "provenance warning"),

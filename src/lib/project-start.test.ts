@@ -34,6 +34,11 @@ describe("project start contract", () => {
   it("validates public repository slugs before putting them in a URL", () => {
     expect(isPublicRepositorySlug("acme/api")).toBe(true);
     expect(isPublicRepositorySlug("https://github.com/acme/api")).toBe(false);
+    // Links written before directory scans, and tree links, keep working.
+    expect(isPublicRepositorySlug("acme/api.git")).toBe(true);
+    expect(isPublicRepositorySlug("acme/api/packages/web")).toBe(true);
+    expect(isPublicRepositorySlug("acme/api/tree/main")).toBe(true);
+    expect(isPublicRepositorySlug("https://github.com/acme/api/tree/next/docs")).toBe(true);
     expect(() =>
       buildProjectStartPath("repository", { repository: "https://evil.example/repo" })
     ).toThrow("owner/repository");

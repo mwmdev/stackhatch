@@ -76,6 +76,8 @@ export interface VaultProviderResultWrite {
   run: RecordWrite<VaultProviderRunRecord>;
   messages?: Array<RecordWrite<VaultMessageRecord>>;
   replaceMessages?: boolean;
+  /** Records the commit the committed map was generated from on the project's provenance. */
+  mapCommitSha?: string;
 }
 
 export interface VaultProviderResultPrecondition extends VaultProjectPrecondition {
@@ -835,6 +837,7 @@ class IndexedDbVaultRepository implements VaultRepository {
   ) {
     const database = await this.database();
     const stores: VaultStoreName[] = ["meta", "projects", "providerRuns"];
+    if (result.mapCommitSha) stores.push("repositoryProvenance");
     if (result.messages?.length || result.replaceMessages) stores.push("messages");
     const committed = await runWrite(
       database,
@@ -853,6 +856,19 @@ class IndexedDbVaultRepository implements VaultRepository {
           revision: existingProject.revision + 1,
         };
         await projectStore.put(project);
+
+        if (result.mapCommitSha) {
+          const provenanceStore = transaction.objectStore("repositoryProvenance");
+          const provenance = await provenanceStore.get(result.project.id);
+          if (provenance) {
+            await provenanceStore.put({
+              ...provenance,
+              mapCommitSha: result.mapCommitSha,
+              revision: provenance.revision + 1,
+              updatedAt: result.project.updatedAt,
+            });
+          }
+        }
 
         if (result.replaceMessages) {
           await deleteProjectIndexRecords(transaction, "messages", result.project.id);
@@ -891,6 +907,7 @@ class IndexedDbVaultRepository implements VaultRepository {
         "projects",
         "providerRuns",
         ...(result.messages?.length || result.replaceMessages ? (["messages"] as const) : []),
+        ...(result.mapCommitSha ? (["repositoryProvenance"] as const) : []),
       ],
       reason: "mutation",
     });

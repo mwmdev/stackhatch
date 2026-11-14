@@ -2,12 +2,23 @@ import { CANVAS_EVIDENCE_LIMITS } from "@/lib/canvas-limits";
 import type { StackArchitecture, StackNode } from "@/types/stack";
 
 const UNSAFE_PATH = /[\\\u0000-\u001f\u007f]/;
+const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+
+/** True for a string that cannot be encoded as UTF-8 or percent-encoded into a URL. */
+export function hasLoneSurrogate(value: string): boolean {
+  return LONE_SURROGATE.test(value);
+}
 
 /** A repository-rooted file path, or null when the value cannot be one. */
 export function normalizeEvidencePath(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const path = value.trim().replace(/^(?:\.\/)+/, "");
-  if (!path || path.length > CANVAS_EVIDENCE_LIMITS.pathLength || UNSAFE_PATH.test(path)) {
+  if (
+    !path ||
+    path.length > CANVAS_EVIDENCE_LIMITS.pathLength ||
+    UNSAFE_PATH.test(path) ||
+    hasLoneSurrogate(path)
+  ) {
     return null;
   }
   const segments = path.split("/");

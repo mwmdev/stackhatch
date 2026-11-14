@@ -6,6 +6,7 @@ import { RepoAnalysisError } from "@/lib/github-analyzer";
 import { composeAttachedMessage } from "@/lib/chat-attachment";
 import { ProviderKeyUnavailableError, type ProviderKeyManager } from "@/lib/provider-key";
 import type {
+  NodeSourcesOutcome,
   ProviderRunCoordinator,
   ProviderRunOutcome,
   ProviderRunRequest,
@@ -851,12 +852,13 @@ describe("local-first ChatSidebar", () => {
           repositoryUrl: "https://github.com/acme/app",
           commitSha: "abc123",
           files: [{ path: "src/api.ts", content: "export const port = 8080;", truncated: false }],
+          omitted: ["src/gone.ts"],
         })),
       });
       await askAbout(localCoordinator);
 
       expect(await screen.findByTestId("chat-attachment-chip")).toHaveTextContent(
-        "API Server · 1 file"
+        "API Server · 1 file (1 not read)"
       );
       expect(localCoordinator.readNodeSources).toHaveBeenCalledWith(
         "project-1",
@@ -888,6 +890,35 @@ describe("local-first ChatSidebar", () => {
       expect(await screen.findByRole("alert")).toHaveTextContent(failure.message);
       expect(screen.queryByTestId("chat-attachment-chip")).not.toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Send message" })).toBeDisabled();
+    });
+
+    it("keeps a file the user attached while GitHub was still being read", async () => {
+      const { promise: pending, resolve: release } = Promise.withResolvers<NodeSourcesOutcome>();
+      await askAbout(coordinator({ readNodeSources: vi.fn(() => pending) }));
+      expect(await screen.findByRole("status")).toHaveTextContent("Reading files from GitHub");
+
+      await attach(new File(["# PRD"], "prd.md"));
+      expect(await screen.findByTestId("chat-attachment-chip")).toHaveTextContent("prd.md");
+      release({
+        node: {
+          id: "api",
+          category: "api",
+          subtype: "rest-api",
+          name: "API Server",
+          technology: "",
+          description: "",
+          reasoning: "",
+          locked: false,
+          evidence: ["src/api.ts"],
+        },
+        repositoryUrl: "https://github.com/acme/app",
+        commitSha: "abc123",
+        files: [{ path: "src/api.ts", content: "late", truncated: false }],
+        omitted: [],
+      });
+
+      await waitFor(() => expect(screen.queryByRole("status")).not.toBeInTheDocument());
+      expect(screen.getByTestId("chat-attachment-chip")).toHaveTextContent("prd.md");
     });
 
     it("shows a stored attachment as its file name, not its text", async () => {

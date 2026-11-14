@@ -12,10 +12,18 @@ export function isProjectStartMethod(value: unknown): value is ProjectStartMetho
   return typeof value === "string" && PROJECT_START_METHODS.includes(value as ProjectStartMethod);
 }
 
-/** True for the shorthand StackHatch writes itself: owner/repo, optionally with a directory. */
+/**
+ * True for a reference StackHatch accepts in a start link: owner/repo with an
+ * optional directory, a tree link naming a branch, or either with `.git`.
+ */
 export function isPublicRepositorySlug(value: string) {
   const reference = value.trim();
-  return parseGitHubRepoReference(reference)?.shorthand === reference;
+  const parsed = parseGitHubRepoReference(reference);
+  return (
+    parsed !== null &&
+    (reference === parsed.shorthand ||
+      (!parsed.subpath && !parsed.ref && reference === `${parsed.slug}.git`))
+  );
 }
 
 export function safeProjectReturnPath(value: string | null | undefined) {

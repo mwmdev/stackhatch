@@ -6,7 +6,12 @@ import {
   type AiProviderId,
 } from "@/lib/ai/providers";
 import { createId } from "@/lib/id";
-import type { VaultCanvasState, VaultCustomSubtypes, VaultProjectRecord } from "./schema";
+import type {
+  VaultCanvasState,
+  VaultCustomSubtypes,
+  VaultProjectRecord,
+  VaultRepositoryProvenanceRecord,
+} from "./schema";
 import { getBrowserVaultRepository, type VaultRepository } from "./repository";
 import type { VaultInvalidation } from "./coordination";
 
@@ -25,6 +30,8 @@ export interface WorkspaceProjectDraft {
   description?: string | null;
   repoUrl?: string | null;
   canvasState?: VaultCanvasState | null;
+  /** Scan provenance to carry over, such as when a snapshot is saved as a copy. */
+  provenance?: Omit<VaultRepositoryProvenanceRecord, "projectId" | "revision"> | null;
 }
 
 export interface WorkspaceVault {
@@ -91,10 +98,11 @@ export function createWorkspaceVault(
     async createProject(draft) {
       const expectedGeneration = await generation();
       const timestamp = now();
+      const id = idFactory();
       const project = await repository.saveProjectBundle(
         {
           project: {
-            id: idFactory(),
+            id,
             name: draft.name,
             description: draft.description ?? null,
             repoUrl: draft.repoUrl ?? null,
@@ -102,6 +110,22 @@ export function createWorkspaceVault(
             createdAt: timestamp,
             updatedAt: timestamp,
           },
+          ...(draft.provenance
+            ? {
+                provenance: {
+                  repositoryUrl: draft.provenance.repositoryUrl,
+                  commitSha: draft.provenance.commitSha,
+                  ...(draft.provenance.mapCommitSha
+                    ? { mapCommitSha: draft.provenance.mapCommitSha }
+                    : {}),
+                  scannedAt: draft.provenance.scannedAt,
+                  analysisStatus: draft.provenance.analysisStatus,
+                  warning: draft.provenance.warning,
+                  updatedAt: timestamp,
+                  projectId: id,
+                },
+              }
+            : {}),
         },
         { expectedGeneration, expectedProjectRevision: null }
       );

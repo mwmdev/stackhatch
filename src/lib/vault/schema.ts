@@ -89,6 +89,11 @@ export interface VaultRepositoryProvenanceRecord {
   projectId: string;
   repositoryUrl: string;
   commitSha: string;
+  /**
+   * The commit the saved map was generated from. A re-scan moves `commitSha`
+   * ahead of a map whose regeneration failed; node evidence belongs to this one.
+   */
+  mapCommitSha?: string | null;
   scannedAt: number;
   analysisStatus: "complete" | "partial";
   warning: string | null;

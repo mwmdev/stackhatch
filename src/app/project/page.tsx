@@ -111,6 +111,8 @@ import {
 
 type Project = VaultProjectRecord & {
   repoCommitSha?: string | null;
+  /** The commit the open map was generated from; its node evidence belongs to this one. */
+  repoMapCommitSha?: string | null;
   repoScannedAt?: number | string | null;
   repoAnalysisStatus?: "complete" | "partial" | null;
   repoAnalysisWarning?: string | null;
@@ -1120,10 +1122,10 @@ export default function ProjectPage({
   const canvasEdges = useMemo(() => fromReactFlowEdges(rfEdges), [rfEdges]);
   const evidenceBaseUrl = useMemo(
     () =>
-      project?.repoUrl && project.repoCommitSha
-        ? repositoryBlobBaseUrl(project.repoUrl, project.repoCommitSha)
+      project?.repoUrl && project.repoMapCommitSha
+        ? repositoryBlobBaseUrl(project.repoUrl, project.repoMapCommitSha)
         : null,
-    [project?.repoUrl, project?.repoCommitSha]
+    [project?.repoUrl, project?.repoMapCommitSha]
   );
   const nodeNames = useMemo(
     () => new Map(rfNodes.map((node) => [node.id, node.data.name])),
@@ -1665,6 +1667,7 @@ export default function ProjectPage({
               ? {
                   repoUrl: meta.provenance.repoUrl,
                   repoCommitSha: meta.provenance.commitSha,
+                  repoMapCommitSha: meta.provenance.commitSha,
                   repoScannedAt: meta.provenance.scannedAt,
                   repoAnalysisStatus: meta.provenance.analysisStatus,
                   repoAnalysisWarning: meta.provenance.analysisWarning,
@@ -1699,6 +1702,7 @@ export default function ProjectPage({
                     ? {
                         repoUrl: meta.provenance.repoUrl,
                         repoCommitSha: meta.provenance.commitSha,
+                        repoMapCommitSha: meta.provenance.commitSha,
                         repoScannedAt: meta.provenance.scannedAt,
                         repoAnalysisStatus: meta.provenance.analysisStatus,
                         repoAnalysisWarning: meta.provenance.analysisWarning,
@@ -1780,6 +1784,7 @@ export default function ProjectPage({
             ? {
                 repoUrl: provenance.repositoryUrl,
                 repoCommitSha: provenance.commitSha,
+                repoMapCommitSha: provenance.mapCommitSha ?? provenance.commitSha,
                 repoScannedAt: provenance.scannedAt,
                 repoAnalysisStatus: provenance.analysisStatus,
                 repoAnalysisWarning: provenance.warning,
@@ -1968,11 +1973,13 @@ export default function ProjectPage({
     if (!current || !snapshot) return;
     setSaveRecoveryPending(true);
     try {
+      const provenance = await workspaceVault.getRepositoryProvenance(current.id);
       const duplicate = await workspaceVault.createProject({
         name: `${current.name} – Local copy`,
         description: current.description,
         repoUrl: current.repoUrl,
         canvasState: snapshot,
+        provenance,
       });
       window.location.hash = encodeURIComponent(duplicate.id);
     } catch {

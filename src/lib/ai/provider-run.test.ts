@@ -625,9 +625,11 @@ describe("browser provider-run coordinator", () => {
     };
     const generated = architecture();
     generated.nodes[1].evidence = ["src/api.ts", "src/invented.ts"];
-    const readFiles = vi.fn(async () => [
-      { path: "src/api.ts", content: "export {};", truncated: false },
-    ]);
+    const readFiles = vi.fn(async () => ({
+      files: [{ path: "src/api.ts", content: "export {};", truncated: false }],
+      omitted: ["src/gone.ts"],
+    }));
+    const analyze = vi.fn(async () => analysis);
     const coordinator = createProviderRunCoordinator({
       repository: vault,
       keyManager: keyManager(),
@@ -638,7 +640,7 @@ describe("browser provider-run coordinator", () => {
         requestId: "req-1",
       })),
       locks,
-      analyzeRepository: vi.fn(async () => analysis),
+      analyzeRepository: analyze,
       readRepositoryFiles: readFiles,
     });
 
@@ -667,6 +669,19 @@ describe("browser provider-run coordinator", () => {
       code: "invalid_request",
     });
     expect(readFiles).toHaveBeenCalledTimes(1);
+
+    // A later scan whose regeneration never happens moves the scan commit, but
+    // the saved map and its evidence still belong to the commit that produced it.
+    analyze.mockResolvedValue({ ...analysis, commitSha: "def456" });
+    await coordinator.scanRepository("project-1", "acme/app");
+    expect((await vault.getRepositoryProvenance("project-1"))?.commitSha).toBe("def456");
+    expect((await coordinator.readNodeSources("project-1", "api")).commitSha).toBe("abc123");
+    expect(readFiles).toHaveBeenLastCalledWith(
+      "https://github.com/acme/app",
+      "abc123",
+      ["src/api.ts"],
+      expect.anything()
+    );
   });
 
   it("keeps a newer project revision when a GitHub scan finishes late", async () => {

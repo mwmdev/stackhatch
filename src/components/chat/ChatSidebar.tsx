@@ -302,6 +302,14 @@ export default function ChatSidebar({
   const [readingSources, setReadingSources] = useState(false);
   const sourcesAbortRef = useRef<AbortController | null>(null);
   const previousSourceRequest = useRef(sourceRequest?.nonce ?? 0);
+  // Bumped by every attachment change, so a read that finishes late cannot replace a newer one.
+  const attachmentTicketRef = useRef(0);
+  const cancelSourceRead = useCallback(() => {
+    attachmentTicketRef.current += 1;
+    sourcesAbortRef.current?.abort();
+    sourcesAbortRef.current = null;
+    setReadingSources(false);
+  }, []);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [keyStatus, setKeyStatus] = useState<ProviderKeyStatus | null>(null);
   const [evidence, setEvidence] = useState<RepositoryEvidenceOutcome | null>(null);
@@ -556,6 +564,7 @@ export default function ChatSidebar({
     setError("");
     setScanFailure(null);
     setEvidence(null);
+    cancelSourceRead();
     const controller = new AbortController();
     abortRef.current = controller;
     try {
@@ -580,6 +589,7 @@ export default function ChatSidebar({
       await finishBarrier("completed");
     }
   }, [
+    cancelSourceRead,
     coordinator,
     finishBarrier,
     normalizedRepoUrl,
@@ -636,15 +646,16 @@ export default function ChatSidebar({
     async (nodeId: string) => {
       setSidebarOpen(true);
       setAttachmentError("");
+      cancelSourceRead();
+      const ticket = attachmentTicketRef.current;
       setReadingSources(true);
-      sourcesAbortRef.current?.abort();
       const controller = new AbortController();
       sourcesAbortRef.current = controller;
       try {
         const sources = await coordinator.readNodeSources(projectId, nodeId, {
           signal: controller.signal,
         });
-        if (controller.signal.aborted) return;
+        if (controller.signal.aborted || ticket !== attachmentTicketRef.current) return;
         if (sources.files.length === 0) {
           setAttachmentError("GitHub returned none of this component's files.");
           return;
@@ -652,7 +663,7 @@ export default function ChatSidebar({
         setAttachment(composeSourceAttachment(sources));
         textareaRef.current?.focus();
       } catch (readError) {
-        if (!controller.signal.aborted) {
+        if (!controller.signal.aborted && ticket === attachmentTicketRef.current) {
           setAttachmentError(providerErrorDetails(readError).message);
         }
       } finally {
@@ -662,7 +673,7 @@ export default function ChatSidebar({
         }
       }
     },
-    [coordinator, projectId, setSidebarOpen]
+    [cancelSourceRead, coordinator, projectId, setSidebarOpen]
   );
 
   useEffect(() => {
@@ -679,10 +690,15 @@ export default function ChatSidebar({
 
   async function attachFile(file: File | undefined) {
     if (!file || !ready || streaming) return;
+    cancelSourceRead();
+    const ticket = attachmentTicketRef.current;
     try {
-      setAttachment(await readChatAttachment(file));
+      const read = await readChatAttachment(file);
+      if (ticket !== attachmentTicketRef.current) return;
+      setAttachment(read);
       setAttachmentError("");
     } catch (attachError) {
+      if (ticket !== attachmentTicketRef.current) return;
       setAttachmentError(
         attachError instanceof ChatAttachmentError
           ? attachError.message
@@ -882,7 +898,10 @@ export default function ChatSidebar({
               <IconControl
                 label={`Remove ${attachment.name}`}
                 tooltipPlacement="top"
-                onClick={() => setAttachment(null)}
+                onClick={() => {
+                  cancelSourceRead();
+                  setAttachment(null);
+                }}
               >
                 <X />
               </IconControl>

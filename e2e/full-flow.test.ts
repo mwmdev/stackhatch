@@ -75,7 +75,7 @@ test("a repository becomes a map from one action, reading GitHub then Anthropic"
       "/repos/acme/platform/languages",
       "/repos/acme/platform/commits/main",
       "/repos/acme/platform/git/trees/tree123?recursive=1",
-      "/repos/acme/platform/readme?ref=main",
+      "/repos/acme/platform/readme?ref=abc123def456",
     ])
   );
   expect(anthropic).toHaveLength(1);

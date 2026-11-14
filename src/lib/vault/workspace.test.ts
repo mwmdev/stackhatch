@@ -50,6 +50,45 @@ describe("workspace vault facade", () => {
     expect(project.id).toBe("local-map");
   });
 
+  it("carries scan provenance, including the map's generating commit, into a copy", async () => {
+    const repository = repositoryMock();
+    const workspace = createWorkspaceVault(repository, {
+      createId: () => "copy",
+      now: () => 60,
+    });
+
+    await workspace.createProject({
+      name: "Copy",
+      repoUrl: "https://github.com/acme/app",
+      canvasState: emptyCanvas,
+      provenance: {
+        repositoryUrl: "https://github.com/acme/app",
+        commitSha: "newer",
+        mapCommitSha: "older",
+        scannedAt: 5,
+        analysisStatus: "complete",
+        warning: null,
+        updatedAt: 5,
+      },
+    });
+
+    expect(repository.saveProjectBundle).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provenance: {
+          projectId: "copy",
+          repositoryUrl: "https://github.com/acme/app",
+          commitSha: "newer",
+          mapCommitSha: "older",
+          scannedAt: 5,
+          analysisStatus: "complete",
+          warning: null,
+          updatedAt: 60,
+        },
+      }),
+      expect.anything()
+    );
+  });
+
   it("saves canvas revisions with both generation and project preconditions", async () => {
     const repository = repositoryMock({
       saveProjectBundle: vi.fn().mockImplementation(async (bundle) => ({

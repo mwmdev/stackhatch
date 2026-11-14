@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CANVAS_EVIDENCE_LIMITS } from "@/lib/canvas-limits";
-import { applyEvidencePolicy } from "@/lib/node-evidence";
+import { applyEvidencePolicy, normalizeEvidencePath } from "@/lib/node-evidence";
 import type { StackArchitecture, StackNode } from "@/types/stack";
 
 function node(id: string, evidence?: string[]): StackNode {
@@ -61,5 +61,18 @@ describe("applyEvidencePolicy", () => {
       ["prisma/schema.prisma"],
       ["src/api.ts"],
     ]);
+  });
+});
+
+describe("normalizeEvidencePath", () => {
+  it.each(["src/\ud800.ts", "../outside.ts", "src//a.ts", "src\\a.ts", ""])(
+    "rejects %j",
+    (path) => {
+      expect(normalizeEvidencePath(path)).toBeNull();
+    }
+  );
+
+  it("keeps an astral character that is a valid surrogate pair", () => {
+    expect(normalizeEvidencePath("docs/\u{1f600}.md")).toBe("docs/\u{1f600}.md");
   });
 });

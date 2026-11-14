@@ -7,6 +7,7 @@ import {
   analyzeRepo,
   formatRepoAnalysis,
   parseGitHubRepoReference,
+  repositoryBlobBaseUrl,
   readRepositoryFiles,
 } from "@/lib/github-analyzer";
 
@@ -57,6 +58,10 @@ describe("parseGitHubRepoReference", () => {
     "https://github.com/acme/architecture/blob/main/src/app.ts",
     "acme/architecture/../secrets",
     "acme/architecture/a/b/c/d/e/f/g/h/i",
+    "https://github.com/acme/app/tree/main/x%2F..%2F..%2Fvictim",
+    "https://github.com/acme/app/tree/main/a%2Fb",
+    "https://github.com/acme/app/tree/main/%ED%A0%80",
+    `https://github.com/acme/app/tree/dev/${"a".repeat(263)}`,
   ])("rejects %s", (input) => {
     expect(parseGitHubRepoReference(input)).toBeNull();
   });
@@ -74,7 +79,7 @@ describe("parseGitHubRepoReference", () => {
       "main",
       "packages/api",
       "https://github.com/acme/app/tree/main/packages/api",
-      "acme/app/tree/main/packages/api",
+      "https://github.com/acme/app/tree/main/packages/api",
     ],
     [
       "https://github.com/acme/app/tree/HEAD/docs%20site",
@@ -83,12 +88,13 @@ describe("parseGitHubRepoReference", () => {
       "https://github.com/acme/app/tree/HEAD/docs%20site",
       "acme/app/docs site",
     ],
+    ["acme/app/tree", null, "tree", "https://github.com/acme/app/tree/HEAD/tree", "acme/app/tree"],
     [
-      "acme/app/tree",
+      "acme/app/tree/main",
       null,
-      "tree",
-      "https://github.com/acme/app/tree/HEAD/tree",
-      "acme/app/tree/HEAD/tree",
+      "tree/main",
+      "https://github.com/acme/app/tree/HEAD/tree/main",
+      "acme/app/tree/main",
     ],
   ])("reads the directory in %s", (input, ref, subpath, normalizedUrl, shorthand) => {
     expect(parseGitHubRepoReference(input)).toMatchObject({
@@ -101,6 +107,13 @@ describe("parseGitHubRepoReference", () => {
     // Stored URLs and prefilled shorthands must parse back to the same scan.
     expect(parseGitHubRepoReference(normalizedUrl)?.normalizedUrl).toBe(normalizedUrl);
     expect(parseGitHubRepoReference(shorthand)?.normalizedUrl).toBe(normalizedUrl);
+  });
+
+  it("keeps the branch a link names so a scan can refuse it", () => {
+    expect(parseGitHubRepoReference("github.com/acme/app/tree/next/docs")).toMatchObject({
+      ref: "next",
+      subpath: "docs",
+    });
   });
 });
 
@@ -263,7 +276,7 @@ describe("analyzeRepo", () => {
         }),
       ],
       [
-        "/repos/acme/app/readme?ref=main",
+        "/repos/acme/app/readme?ref=abc123",
         jsonResponse({
           encoding: "base64",
           content: base64("# Example"),
@@ -753,11 +766,14 @@ describe("analyzeRepo on a directory", () => {
             { path: "src", type: "tree", sha: "src" },
             { path: "src/server.ts", type: "blob", sha: "server", size: 10 },
             { path: "package.json", type: "blob", sha: "package", size: 10 },
+            // A symlink would read as its target, and a 2 MB file is beyond the Contents API.
+            { path: "src/link.ts", type: "blob", sha: "link", size: 5, mode: "120000" },
+            { path: "src/big.ts", type: "blob", sha: "big", size: 2_000_000, mode: "100644" },
           ],
         }),
       ],
       [
-        "/repos/acme/app/readme/packages/api?ref=main",
+        "/repos/acme/app/readme/packages/api?ref=abc123",
         jsonResponse({ encoding: "base64", content: base64("# API") }),
       ],
       [
@@ -773,7 +789,13 @@ describe("analyzeRepo on a directory", () => {
     expect(analysis).toMatchObject({
       normalizedUrl: "https://github.com/acme/app/tree/HEAD/packages/api",
       subpath: "packages/api",
-      treePaths: ["packages/api/src", "packages/api/src/server.ts", "packages/api/package.json"],
+      treePaths: [
+        "packages/api/src",
+        "packages/api/src/server.ts",
+        "packages/api/package.json",
+        "packages/api/src/link.ts",
+        "packages/api/src/big.ts",
+      ],
       citablePaths: ["packages/api/src/server.ts", "packages/api/package.json"],
       readme: "# API",
       evidenceFiles: [{ path: "packages/api/package.json", content: '{"name":"api"}' }],
@@ -819,13 +841,40 @@ describe("readRepositoryFiles", () => {
       { fetch: fetchMock, githubToken: "github_pat_example" }
     );
 
-    expect(files).toEqual([
-      { path: "src/app server.ts", content: "export const server = 1;", truncated: false },
-    ]);
+    expect(files).toEqual({
+      files: [{ path: "src/app server.ts", content: "export const server = 1;", truncated: false }],
+      omitted: ["src", "src/gone.ts"],
+    });
     for (const [input, init] of fetchMock.mock.calls) {
       expect(new URL(String(input)).origin).toBe(GITHUB_API_ORIGIN);
       expect(new Headers(init?.headers).get("authorization")).toBe("Bearer github_pat_example");
     }
+  });
+
+  it("keeps an empty file instead of treating it as missing", async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({ encoding: "base64", content: "" }));
+
+    await expect(
+      readRepositoryFiles("acme/app", "abc123", ["src/empty.ts"], { fetch: fetchMock })
+    ).resolves.toEqual({
+      files: [{ path: "src/empty.ts", content: "", truncated: false }],
+      omitted: [],
+    });
+  });
+
+  it("reports a private repository as an access problem rather than missing files", async () => {
+    await expect(
+      readRepositoryFiles("acme/app", "abc123", ["src/a.ts", "src/b.ts"], {
+        fetch: vi.fn(async () => jsonResponse({ message: "Not Found" }, 404)),
+      })
+    ).rejects.toMatchObject({ code: "not_found_or_private" });
+
+    await expect(
+      readRepositoryFiles("acme/app", "abc123", ["src/a.ts"], {
+        fetch: vi.fn(async () => jsonResponse({ message: "Not Found" }, 404)),
+        githubToken: "github_pat_example",
+      })
+    ).rejects.toMatchObject({ code: "github_token_cannot_read" });
   });
 
   it("throws the GitHub failure when it leaves nothing to return", async () => {
@@ -835,6 +884,66 @@ describe("readRepositoryFiles", () => {
         githubToken: "github_pat_expired",
       })
     ).rejects.toMatchObject({ code: "github_token_rejected" });
+  });
+
+  it("lists files it could not read when others succeed", async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request) =>
+      String(input).includes("good.ts")
+        ? jsonResponse({ encoding: "base64", content: base64("ok") })
+        : jsonResponse({}, 429, { "retry-after": "5" })
+    );
+
+    const result = await readRepositoryFiles("acme/app", "abc123", ["src/good.ts", "src/bad.ts"], {
+      fetch: fetchMock,
+    });
+
+    expect(result.files.map((file) => file.path)).toEqual(["src/good.ts"]);
+    expect(result.omitted).toEqual(["src/bad.ts"]);
+  });
+
+  it("withholds a blob base URL for a commit that cannot be URL-encoded", () => {
+    expect(repositoryBlobBaseUrl("acme/app", "\ud800")).toBeNull();
+    expect(repositoryBlobBaseUrl("acme/app", "abc123")).toBe(
+      "https://github.com/acme/app/blob/abc123/"
+    );
+  });
+});
+
+describe("analyzeRepo citations", () => {
+  it("keeps a configuration file the model was given citable past the tree bound", async () => {
+    const tree = [
+      ...Array.from({ length: REPO_ANALYSIS_LIMITS.maxTreePaths + 5 }, (_, index) => ({
+        path: `src/module-${index}.ts`,
+        type: "blob",
+        sha: `sha-${index}`,
+        size: 10,
+      })),
+      { path: "package.json", type: "blob", sha: "package", size: 10 },
+    ];
+    const responses = new Map<string, Response>([
+      ["/repos/acme/app", jsonResponse({ default_branch: "main" })],
+      ["/repos/acme/app/languages", jsonResponse({ TypeScript: 1 })],
+      [
+        "/repos/acme/app/commits/main",
+        jsonResponse({ sha: "abc123", commit: { tree: { sha: "root" } } }),
+      ],
+      ["/repos/acme/app/git/trees/root?recursive=1", jsonResponse({ tree })],
+      ["/repos/acme/app/readme?ref=abc123", jsonResponse({}, 404)],
+      [
+        "/repos/acme/app/git/blobs/package",
+        jsonResponse({ encoding: "base64", content: base64("{}") }),
+      ],
+    ]);
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = new URL(String(input));
+      return responses.get(`${url.pathname}${url.search}`)?.clone() ?? jsonResponse({}, 404);
+    });
+
+    const analysis = await analyzeRepo("acme/app", { fetch: fetchMock });
+
+    expect(analysis.treePaths).not.toContain("package.json");
+    expect(analysis.evidenceFiles.map((file) => file.path)).toEqual(["package.json"]);
+    expect(analysis.citablePaths).toContain("package.json");
   });
 });
 

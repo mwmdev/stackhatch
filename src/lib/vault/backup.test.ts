@@ -299,6 +299,7 @@ describe("StackHatch backups", () => {
     ["../outside.ts"],
     ["src/app.ts", "src/app.ts"],
     [42],
+    ["src/\ud800.ts"],
     Array.from({ length: 7 }, (_, index) => `src/file-${index}.ts`),
   ])("rejects malformed node evidence without restoring a map: %j", async (evidence) => {
     const source = await repository("invalid-evidence-source");
@@ -312,6 +313,23 @@ describe("StackHatch backups", () => {
     expect(await target.getProject("project-1")).toBeNull();
   });
 
+  it("round-trips the commit a map was generated from and rejects malformed commit text", async () => {
+    const source = await repository("map-commit-source");
+    const target = await repository("map-commit-target");
+    const rejecting = await repository("map-commit-rejecting");
+    await seed(source);
+    const exported = await exportProjectBackup(source, "project-1");
+
+    const payload = JSON.parse(JSON.parse(exported).payload);
+    payload.projects[0].provenance.mapCommitSha = "older123";
+    await (await prepareBackupImport(target, await envelope(payload))).commit("keep-both");
+    expect((await target.getProjectBundle("project-1"))?.provenance?.mapCommitSha).toBe("older123");
+
+    payload.projects[0].provenance.commitSha = "\ud800";
+    await expect(prepareBackupImport(rejecting, await envelope(payload))).rejects.toBeInstanceOf(
+      BackupValidationError
+    );
+  });
   it("repairs legacy names, IDs, metadata and labels in the exported copy", async () => {
     const source = await repository("invalid-local");
     const target = await repository("restored-local");

@@ -144,6 +144,8 @@ export interface NodeSourcesOutcome {
   repositoryUrl: string;
   commitSha: string;
   files: RepoSourceFile[];
+  /** Linked paths that returned nothing: directories, binary files, or failed reads. */
+  omitted: string[];
 }
 
 interface ProviderRunCoordinatorOptions {
@@ -352,14 +354,17 @@ export function createProviderRunCoordinator(
           "This component has no repository files to read."
         );
       }
-      const { repositoryUrl, commitSha } = bundle.provenance;
-      const files = await (options.readRepositoryFiles ?? readRepositoryFiles)(
+      // Evidence belongs to the commit the map was generated from, which a
+      // later scan with a failed regeneration leaves behind `commitSha`.
+      const { repositoryUrl } = bundle.provenance;
+      const commitSha = bundle.provenance.mapCommitSha ?? bundle.provenance.commitSha;
+      const { files, omitted } = await (options.readRepositoryFiles ?? readRepositoryFiles)(
         repositoryUrl,
         commitSha,
         node.evidence,
         { signal: readOptions.signal, githubToken: await githubTokenForScan(options.keyManager) }
       );
-      return { node, repositoryUrl, commitSha, files };
+      return { node, repositoryUrl, commitSha, files, omitted };
     },
 
     async scanRepository(projectId, repositoryUrl, scanOptions = {}) {
@@ -455,6 +460,13 @@ export function createProviderRunCoordinator(
                 projectId,
                 repositoryUrl: analysis.normalizedUrl,
                 commitSha: analysis.commitSha,
+                // Keep the generating commit of the map this scan leaves in place.
+                ...(bundle.project.canvasState?.nodes.length
+                  ? {
+                      mapCommitSha:
+                        bundle.provenance?.mapCommitSha ?? bundle.provenance?.commitSha ?? null,
+                    }
+                  : {}),
                 scannedAt: timestamp,
                 analysisStatus: analysis.status,
                 warning: analysis.warnings.length > 0 ? analysis.warnings.join(" ") : null,
@@ -827,6 +839,11 @@ export function createProviderRunCoordinator(
                 },
                 messages,
                 replaceMessages: request.kind === "repository-generation",
+                ...(request.kind === "repository-generation" &&
+                providerResult.architecture &&
+                bundle.provenance
+                  ? { mapCommitSha: bundle.provenance.commitSha }
+                  : {}),
                 run: recordWithoutRevision(completedRun),
               },
               {
