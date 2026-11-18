@@ -19,6 +19,22 @@ function makeNode(overrides: Partial<StackNode> = {}): StackNode {
 }
 
 describe("NodeDetailPanel", () => {
+  it("offers local file evidence as plain text and an attachment action", () => {
+    const onAskAboutEvidence = vi.fn();
+    render(
+      <NodeDetailPanel
+        node={makeNode({ evidence: ["src/store.ts"] })}
+        onUpdate={vi.fn()}
+        onDelete={vi.fn()}
+        onClose={vi.fn()}
+        onAskAboutEvidence={onAskAboutEvidence}
+      />
+    );
+    expect(screen.getByText("src/store.ts").closest("a")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Ask about these files" }));
+    expect(onAskAboutEvidence).toHaveBeenCalledOnce();
+  });
+
   it("renders nothing when node is null", () => {
     const { container } = render(
       <NodeDetailPanel node={null} onUpdate={vi.fn()} onDelete={vi.fn()} onClose={vi.fn()} />

@@ -319,7 +319,7 @@ export default function NodeDetailPanel({
                   </li>
                 ))}
               </ul>
-              {evidenceBaseUrl && onAskAboutEvidence ? (
+              {onAskAboutEvidence ? (
                 <button
                   type="button"
                   onClick={onAskAboutEvidence}
