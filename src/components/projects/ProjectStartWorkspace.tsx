@@ -3,10 +3,13 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronRight, FileText, GitBranch, KeyRound, Scan } from "lucide-react";
+import { ChevronRight, FileText, FolderCode, GitBranch, KeyRound, Scan } from "lucide-react";
 import AppPageShell from "@/components/shells/AppPageShell";
 import { GitHubTokenCreateLink, GitHubTokenRemember } from "@/components/projects/GitHubTokenField";
 import ProviderKeyField, { KeyStateChip } from "@/components/projects/ProviderKeyField";
+import SourceReviewDialog from "@/components/projects/SourceReviewDialog";
+import type { VaultLocalFolder } from "@/lib/vault/schema";
+import type { ApprovedLocalGeneration } from "@/lib/local-source/generation";
 import { buildLocalProjectPath } from "@/lib/app-route";
 import { CANVAS_TEXT_LIMITS } from "@/lib/canvas-limits";
 import { parseGitHubRepoReference } from "@/lib/github-analyzer";
@@ -35,7 +38,17 @@ import {
   MAX_REQUIREMENTS_FILE_BYTES,
 } from "@/lib/requirements-file";
 import { getBrowserWorkspaceVault, type WorkspaceVault } from "@/lib/vault/workspace";
+import {
+  LOCAL_FOLDER_PICKER_ID,
+  rememberLocalFolder,
+  registerPendingGeneration,
+  takePickedLocalFolder,
+  takePickedRepository,
+} from "@/lib/local-source/folder-session";
+import { isLocalSourceSupported } from "@/lib/local-source/support";
+import { useHydrated } from "@/lib/use-hydrated";
 import { AI_PROVIDERS, DEFAULT_AI_SELECTION, type AiProviderId } from "@/lib/ai/providers";
+import type { RepositorySourceCommit } from "@/lib/ai/provider-run";
 
 interface ProjectStartWorkspaceProps {
   initialMode: ProjectStartMethod | null;
@@ -46,7 +59,12 @@ interface ProjectStartWorkspaceProps {
 interface ProjectPayload {
   name: string;
   description?: string;
-  repoUrl?: string;
+  repository?: { generation: ApprovedLocalGeneration; source: RepositorySourceCommit };
+  localFolder?: {
+    folder: VaultLocalFolder;
+    handle: FileSystemDirectoryHandle;
+    generation: ApprovedLocalGeneration;
+  };
 }
 
 /** What a start is good for, under its description. */
@@ -70,7 +88,7 @@ function UseCases({ items }: { items: readonly string[] }) {
 }
 
 /** Which start raised the error, so the message renders next to its cause. */
-type ErrorSource = "blank" | "requirements" | "repository" | "key" | "token";
+type ErrorSource = "blank" | "requirements" | "repository" | "key" | "token" | "local";
 
 export function projectNameFromRequirements(requirements: string) {
   const firstLine = requirements.split("\n").find((line) => line.trim());
@@ -95,6 +113,7 @@ export default function ProjectStartWorkspace({
   const keySetupHeadingRef = useRef<HTMLHeadingElement>(null);
   const [mode, setMode] = useState<ProjectStartMethod | null>(initialMode);
   const [repoUrl, setRepoUrl] = useState("");
+  const [repositoryReview, setRepositoryReview] = useState<string | null>(null);
   // Absent until read; a set token replaces the disclosure with its status.
   const [githubToken, setGitHubToken] = useState<GitHubTokenStatus | null>(null);
   const [tokenOpen, setTokenOpen] = useState(false);
@@ -106,6 +125,9 @@ export default function ProjectStartWorkspace({
   const [navigationRecoveryPath, setNavigationRecoveryPath] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [blankAttempted, setBlankAttempted] = useState(false);
+  const [localFolderHandle, setLocalFolderHandle] = useState<FileSystemDirectoryHandle | null>(
+    null
+  );
   const modeHeadingRef = useRef<HTMLHeadingElement>(null);
   const blankAutoCreateAttempted = useRef(false);
   const recordedSelection = useRef<ProjectStartMethod | null>(null);
@@ -200,6 +222,16 @@ export default function ProjectStartWorkspace({
   useEffect(() => () => cancelRequirementsRead(), [cancelRequirementsRead]);
 
   useEffect(() => {
+    const picked = takePickedLocalFolder();
+    if (picked) setLocalFolderHandle(picked);
+    const pickedRepository = parseGitHubRepoReference(takePickedRepository() ?? "");
+    if (pickedRepository) {
+      setRepoUrl(pickedRepository.shorthand);
+      setRepositoryReview(pickedRepository.normalizedUrl);
+    }
+  }, []);
+
+  useEffect(() => {
     if (!mode) return;
     modeHeadingRef.current?.focus();
   }, [mode]);
@@ -221,10 +253,25 @@ export default function ProjectStartWorkspace({
         const project = await workspaceVault.createProject({
           name: payload.name,
           description: payload.description ?? null,
-          repoUrl: payload.repoUrl ?? null,
+          repoUrl: payload.repository?.source.repositoryUrl ?? null,
+          ...(payload.localFolder ? { localFolder: payload.localFolder.folder } : {}),
           canvasState: null,
         });
         createdPath = buildLocalProjectPath(project.id);
+        if (payload.localFolder) {
+          rememberLocalFolder(project.id, payload.localFolder.handle);
+          registerPendingGeneration(project.id, {
+            source: "local",
+            generation: payload.localFolder.generation,
+          });
+        }
+        if (payload.repository) {
+          registerPendingGeneration(project.id, {
+            source: "github",
+            generation: payload.repository.generation,
+            repository: payload.repository.source,
+          });
+        }
         setNavigationRecoveryPath(createdPath);
         router.push(createdPath);
         return true;
@@ -329,6 +376,25 @@ export default function ProjectStartWorkspace({
     reader.readAsText(file);
   }
 
+  function handleLocalFolder() {
+    const picking = window.showDirectoryPicker?.({ id: LOCAL_FOLDER_PICKER_ID, mode: "read" });
+    if (!picking) return;
+    void (async () => {
+      let handle: FileSystemDirectoryHandle;
+      try {
+        handle = await picking;
+      } catch (pickerError) {
+        if (pickerError instanceof DOMException && pickerError.name === "AbortError") return;
+        setError(
+          "local",
+          "StackHatch could not open that folder. Check the browser's permission and try again."
+        );
+        return;
+      }
+      setLocalFolderHandle(handle);
+    })();
+  }
+
   async function handleRepositorySubmit(event: React.FormEvent) {
     event.preventDefault();
     const repository = parseGitHubRepoReference(repoUrl);
@@ -342,8 +408,7 @@ export default function ProjectStartWorkspace({
       setError("token", shapeError);
       return;
     }
-    if (!(await requireProviderKey())) return;
-    // The token is in place before the map exists, so its first scan uses it.
+    // The token is in place before the review, so listing the repository uses it.
     if (token) {
       try {
         const next = rememberToken
@@ -357,14 +422,11 @@ export default function ProjectStartWorkspace({
       }
     }
     recordStartSelection("repository");
-    void createProject({
-      name: (repository.subpath
-        ? `${repository.repo}/${repository.subpath}`
-        : repository.repo
-      ).slice(0, CANVAS_TEXT_LIMITS.projectName),
-      repoUrl: repository.normalizedUrl,
-    });
+    setRepositoryReview(repository.normalizedUrl);
   }
+
+  const hydrated = useHydrated();
+  const localSupported = hydrated && isLocalSourceSupported();
 
   const blankAttemptFailed = blankAttempted && Boolean(error);
   let blankButtonLabel = "Create blank map";
@@ -434,7 +496,7 @@ export default function ProjectStartWorkspace({
       <section aria-labelledby="project-start-title" className="page-gutter pb-12">
         {keyStatus ? (
           <>
-            <div className="grid lg:grid-cols-3">
+            <div className="grid lg:grid-cols-4">
               <div className={optionClass}>
                 <Scan
                   className="mb-[22px] size-[34px] text-ink2"
@@ -449,7 +511,6 @@ export default function ProjectStartWorkspace({
                   items={[
                     "Brainstorming ideas",
                     "Starting a project from scratch",
-                    "Iterating on a design with the assistant",
                   ]}
                 />
                 <div className="mt-auto flex flex-col gap-2.5 pt-[26px]">
@@ -506,7 +567,7 @@ export default function ProjectStartWorkspace({
                   GitHub repository
                 </label>
                 <p className="mt-2.5 max-w-[320px] text-[14.5px] text-ink2">
-                  Reads bounded evidence from GitHub, then drafts a map.
+                  Sends the folders you choose to your AI provider, then drafts a map.
                 </p>
                 <UseCases
                   items={[
@@ -624,6 +685,41 @@ export default function ProjectStartWorkspace({
                   </button>
                 </div>
               </form>
+
+              <div className={optionClass}>
+                <FolderCode
+                  className="mb-[22px] size-[34px] text-ink2"
+                  strokeWidth={1.5}
+                  aria-hidden="true"
+                />
+                <h3 className="type-option-title m-0">Local folder</h3>
+                <p className="mt-2.5 max-w-[320px] text-[14.5px] text-ink2">
+                  Sends the folders you choose to your AI provider, then drafts a map.
+                </p>
+                <UseCases
+                  items={["Mapping a codebase you have checked out", "Code that is not on GitHub"]}
+                />
+                <div className="mt-auto flex flex-col gap-2.5 pt-[26px]">
+                  {hydrated && !localSupported ? (
+                    <p className="type-small m-0 text-ink2">
+                      Needs a desktop Chromium browser, such as Chrome or Edge.
+                    </p>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={handleLocalFolder}
+                    disabled={submitting || !localSupported}
+                    className="btn btn--lg btn--block"
+                  >
+                    {submitting ? "Creating map..." : "Choose local folder"}
+                  </button>
+                  {errorFor("local") ? (
+                    <p className="field-error m-0" role="alert">
+                      {errorFor("local")}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
             </div>
 
             <div className="border-t-2 border-ink">
@@ -685,6 +781,44 @@ export default function ProjectStartWorkspace({
           </p>
         )}
       </section>
+      {repositoryReview && (
+        <SourceReviewDialog
+          source={{ kind: "github", repositoryUrl: repositoryReview }}
+          initialExcludedPaths={[]}
+          replacesMap={false}
+          aiSettings={workspaceVault}
+          keyManager={providerKeyManager}
+          onCancel={() => setRepositoryReview(null)}
+          onApprove={(approval) => {
+            void createProject({
+              name: approval.name.slice(0, CANVAS_TEXT_LIMITS.projectName) || "Repository",
+              repository: { generation: approval.generation, source: approval.repository! },
+            });
+            setRepositoryReview(null);
+          }}
+        />
+      )}
+      {localFolderHandle && (
+        <SourceReviewDialog
+          source={{ kind: "local", handle: localFolderHandle }}
+          initialExcludedPaths={[]}
+          replacesMap={false}
+          aiSettings={workspaceVault}
+          keyManager={providerKeyManager}
+          onCancel={() => setLocalFolderHandle(null)}
+          onApprove={(approval) => {
+            void createProject({
+              name: approval.name.slice(0, CANVAS_TEXT_LIMITS.projectName) || "Local folder",
+              localFolder: {
+                folder: { name: approval.name, excludedPaths: approval.excludedPaths },
+                handle: localFolderHandle,
+                generation: approval.generation,
+              },
+            });
+            setLocalFolderHandle(null);
+          }}
+        />
+      )}
     </AppPageShell>
   );
 }

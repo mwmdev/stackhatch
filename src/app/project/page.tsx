@@ -31,6 +31,7 @@ import "reactflow/dist/style.css";
 import ChatSidebar, {
   type ArchitectureStreamOutcome,
   type ArchitectureUpdateMeta,
+  type SourceGenerationRequest,
 } from "@/components/chat/ChatSidebar";
 import ResizableChatSidebar from "@/components/chat/ResizableChatSidebar";
 import NodeDetailPanel from "@/components/canvas/NodeDetailPanel";
@@ -53,8 +54,19 @@ import Modal from "@/components/ui/Modal";
 import ProjectNameField from "@/components/canvas/ProjectNameField";
 import EditorOverflowMenu from "@/components/canvas/EditorOverflowMenu";
 import ProviderKeyField from "@/components/projects/ProviderKeyField";
+import SourceReviewDialog from "@/components/projects/SourceReviewDialog";
 import Toast, { type ToastMessage } from "@/components/ui/Toast";
 import { repositoryBlobBaseUrl } from "@/lib/github-analyzer";
+import { isLocalSourceSupported } from "@/lib/local-source/support";
+import {
+  LOCAL_FOLDER_PICKER_ID,
+  localFolderFor,
+  usableLocalFolder,
+  rememberLocalFolder,
+  peekPendingGeneration,
+  clearPendingGeneration,
+} from "@/lib/local-source/folder-session";
+import type { ApprovedLocalGeneration } from "@/lib/local-source/generation";
 import {
   toReactFlowNodes,
   toReactFlowEdges,
@@ -97,7 +109,7 @@ import {
   type CanvasPersistenceCommit,
   type CanvasPersistenceCoordinator,
 } from "@/lib/canvas-persistence";
-import type { VaultProjectRecord } from "@/lib/vault/schema";
+import type { VaultLocalFolder, VaultProjectRecord } from "@/lib/vault/schema";
 import {
   getBrowserWorkspaceVault,
   type WorkspaceProjectPrecondition,
@@ -116,6 +128,8 @@ type Project = VaultProjectRecord & {
   repoScannedAt?: number | string | null;
   repoAnalysisStatus?: "complete" | "partial" | null;
   repoAnalysisWarning?: string | null;
+  /** Folders unchecked in the last approved selection, for the next review. */
+  repoExcludedPaths?: string[];
 };
 
 function EditorStateShell({ title, children }: { title: string; children: ReactNode }) {
@@ -247,6 +261,15 @@ function briefSummary(description: string | null, projectName: string): string |
 }
 
 function getProjectIdentity(project: Project): ProjectIdentity {
+  if (project.localFolder && !project.repoUrl) {
+    const name = project.localFolder.name;
+    return {
+      accessibleLabel: `${project.name}. Map of the local folder ${name}.`,
+      detailTitle: `Generated from the local folder ${name}; not verified source truth.`,
+      qualifier: null,
+      visibleText: `Local folder ${name}`,
+    };
+  }
   if (!project.repoUrl) {
     const description = briefSummary(project.description, project.name);
     return {
@@ -300,10 +323,18 @@ export default function ProjectPage({
   const [canvasAddMenu, setCanvasAddMenu] = useState<CanvasAddMenu | null>(null);
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const [customSubtypes, setCustomSubtypes] = useState<CustomSubtypesMap>({});
-  const [scanTrigger, setScanTrigger] = useState(0);
-  const [sourceRequest, setSourceRequest] = useState<{ nodeId: string; nonce: number } | null>(
-    null
-  );
+  const requestNonceRef = useRef(0);
+  const [sourceRequest, setSourceRequest] = useState<{ projectId: string; nodeId: string; nonce: number } | null>(null);
+  const [generationRequest, setGenerationRequest] = useState<SourceGenerationRequest | null>(null);
+  const [attachmentRequest, setAttachmentRequest] = useState<{
+    projectId: string; node: StackNode; handle: FileSystemDirectoryHandle; nonce: number;
+  } | null>(null);
+  const [localFolderHandle, setLocalFolderHandle] = useState<FileSystemDirectoryHandle | null>(null);
+  const [retryFolderExclusions, setRetryFolderExclusions] = useState<string[] | null>(null);
+  const [repositoryReview, setRepositoryReview] = useState<{
+    repositoryUrl: string;
+    excludedPaths: string[];
+  } | null>(null);
   const [chatStreaming, setChatStreaming] = useState(false);
   const [chatMapping, setChatMapping] = useState(false);
   const [architectureStreamPhase, setArchitectureStreamPhase] = useState<
@@ -316,7 +347,6 @@ export default function ProjectPage({
   const [prdStatus, setPrdStatus] = useState("");
   const [aiSetupRequired, setAiSetupRequired] = useState(false);
   const [pendingAiAction, setPendingAiAction] = useState<"prd" | "alternatives" | null>(null);
-  const [rescanConfirmOpen, setRescanConfirmOpen] = useState(false);
   // React Flow fits on its first measured nodes. For a map that starts empty
   // that is the first added node, which would undo placement beside the
   // detail panel, so only maps that load with nodes are fitted.
@@ -336,7 +366,7 @@ export default function ProjectPage({
   const rfInstanceRef = useRef<ReactFlowInstance | null>(null);
   const persistenceRef = useRef<CanvasPersistenceCoordinator<StoredCanvasState> | null>(null);
   const rescanInvokerRef = useRef<HTMLButtonElement | null>(null);
-  const rescanKeepRef = useRef<HTMLButtonElement | null>(null);
+  const localFolderInvokerRef = useRef<HTMLElement | null>(null);
   const canvasFocusTargetRef = useRef<HTMLDivElement | null>(null);
   const connectionInvokerRef = useRef<HTMLElement | null>(null);
   const connectionDropRef = useRef<{ x: number; y: number } | null>(null);
@@ -358,13 +388,6 @@ export default function ProjectPage({
     () => architectureStreamActiveRef.current || saveBlockedRef.current,
     []
   );
-
-  const startRepositoryRescan = useCallback(() => {
-    if (isCanvasMutationBlocked()) return;
-    setRescanConfirmOpen(false);
-    setChatOpen(true);
-    setScanTrigger((trigger) => trigger + 1);
-  }, [isCanvasMutationBlocked]);
 
   const focusCanvasTarget = useCallback(() => {
     window.requestAnimationFrame(() => canvasFocusTargetRef.current?.focus());
@@ -673,6 +696,7 @@ export default function ProjectPage({
       acknowledgedProjectRef.current = {
         ...saved,
         name: projectRef.current?.id === saved.id ? projectRef.current.name : saved.name,
+        localFolder: projectRef.current?.id === saved.id ? projectRef.current.localFolder : saved.localFolder,
       };
       authoritativeUpdatedAtRef.current = saved.updatedAt;
       setSaveError("");
@@ -839,6 +863,7 @@ export default function ProjectPage({
     const snapshot = coordinator?.getLatestSnapshot();
     if (coordinator && snapshot) coordinator.publish(snapshot);
   }, []);
+
 
   const handleEdgeDelete = useCallback(
     (edgeId: string) => {
@@ -1519,15 +1544,31 @@ export default function ProjectPage({
   }, [isCanvasMutationBlocked, runSuggestAlternatives, selectedNode]);
 
   const handleAskAboutEvidence = useCallback(() => {
-    if (!selectedNodeId) return;
+    if (!projectId || !selectedNodeId) return;
     // On phones the detail sheet covers the chat it is about to fill.
     if (window.innerWidth <= 640) closeNodePanel();
     setChatOpen(true);
-    setSourceRequest((previous) => ({
-      nodeId: selectedNodeId,
-      nonce: (previous?.nonce ?? 0) + 1,
-    }));
-  }, [closeNodePanel, selectedNodeId]);
+    setSourceRequest({ projectId, nodeId: selectedNodeId, nonce: ++requestNonceRef.current });
+  }, [closeNodePanel, projectId, selectedNodeId]);
+
+  const handleAskAboutLocalEvidence = useCallback(async () => {
+    if (!projectId || !selectedNode?.evidence?.length) return;
+    try {
+      let handle = await usableLocalFolder(projectId);
+      if (!handle) {
+        handle = await window.showDirectoryPicker?.({ id: LOCAL_FOLDER_PICKER_ID, mode: "read" });
+        if (!handle) return;
+        if (projectRef.current?.id !== projectId) return;
+        rememberLocalFolder(projectId, handle);
+      }
+      if (window.innerWidth <= 640) closeNodePanel();
+      setChatOpen(true);
+      setAttachmentRequest({ projectId, node: selectedNode, handle, nonce: ++requestNonceRef.current });
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      setToast({ tone: "error", message: "StackHatch could not open that folder. Check the browser's permission and try again." });
+    }
+  }, [closeNodePanel, projectId, selectedNode]);
 
   // --- Swap alternative ---
 
@@ -1660,6 +1701,9 @@ export default function ProjectPage({
           };
           const nextProject = {
             ...currentProject,
+            ...(meta.project ? { repoUrl: meta.project.repoUrl, localFolder: meta.project.localFolder,
+              repoCommitSha: null, repoMapCommitSha: null, repoScannedAt: null,
+              repoAnalysisStatus: null, repoAnalysisWarning: null, repoExcludedPaths: undefined } : {}),
             canvasState: storedCanvas,
             revision: meta.commit.projectRevision,
             updatedAt: Date.now(),
@@ -1671,6 +1715,8 @@ export default function ProjectPage({
                   repoScannedAt: meta.provenance.scannedAt,
                   repoAnalysisStatus: meta.provenance.analysisStatus,
                   repoAnalysisWarning: meta.provenance.analysisWarning,
+                  repoExcludedPaths: meta.provenance.excludedPaths,
+                  localFolder: undefined,
                 }
               : {}),
           };
@@ -1706,6 +1752,8 @@ export default function ProjectPage({
                         repoScannedAt: meta.provenance.scannedAt,
                         repoAnalysisStatus: meta.provenance.analysisStatus,
                         repoAnalysisWarning: meta.provenance.analysisWarning,
+                        repoExcludedPaths: meta.provenance.excludedPaths,
+                        localFolder: undefined,
                       }
                     : {}),
                 }
@@ -1747,6 +1795,13 @@ export default function ProjectPage({
   // --- Load project ---
 
   useEffect(() => {
+    setSourceRequest((current) => current?.projectId === projectId ? current : null);
+    setAttachmentRequest((current) => current?.projectId === projectId ? current : null);
+    setGenerationRequest((current) => current?.projectId === projectId ? current : null);
+    // A review belongs to the map that opened it.
+    setRepositoryReview(null);
+    setLocalFolderHandle(null);
+    setRetryFolderExclusions(null);
     if (projectId === undefined) return;
     if (projectId === null) {
       initializedRef.current = false;
@@ -1771,6 +1826,20 @@ export default function ProjectPage({
           workspaceVault.getRepositoryProvenance(requestedProjectId),
         ]);
         if (cancelled) return;
+        const pending = peekPendingGeneration(requestedProjectId);
+        const pendingHandle = localFolderFor(requestedProjectId);
+        if (pending?.source === "local" && pendingHandle && projectSnapshot?.project.localFolder) {
+          clearPendingGeneration(requestedProjectId);
+          setGenerationRequest({ projectId: requestedProjectId, source: "local", generation: pending.generation,
+            localFolder: projectSnapshot.project.localFolder, handle: pendingHandle, nonce: ++requestNonceRef.current });
+        } else if (
+          pending?.source === "github" &&
+          projectSnapshot?.project.repoUrl === pending.repository.repositoryUrl
+        ) {
+          clearPendingGeneration(requestedProjectId);
+          setGenerationRequest({ projectId: requestedProjectId, source: "github", generation: pending.generation,
+            repository: pending.repository, nonce: ++requestNonceRef.current });
+        }
         setCustomSubtypes(loadedCustomSubtypes);
         if (!projectSnapshot) {
           setProject(null);
@@ -1788,6 +1857,7 @@ export default function ProjectPage({
                 repoScannedAt: provenance.scannedAt,
                 repoAnalysisStatus: provenance.analysisStatus,
                 repoAnalysisWarning: provenance.warning,
+                repoExcludedPaths: provenance.excludedPaths ?? [],
               }
             : {}),
         };
@@ -1798,8 +1868,9 @@ export default function ProjectPage({
         const hasLoadedCanvas = (data.canvasState?.nodes?.length ?? 0) > 0;
         // Open the assistant only when it has something to act on. A blank
         // map keeps the canvas call to action, which offers manual editing too.
-        const assistantOwnsNextStep = !hasLoadedCanvas && Boolean(data.repoUrl || data.description);
-        setChatOpen(assistantOwnsNextStep);
+        const assistantOwnsNextStep =
+          !hasLoadedCanvas && !data.repoUrl && !data.localFolder && Boolean(data.description);
+        setChatOpen(assistantOwnsNextStep || Boolean(pending));
 
         const pendingStartMethod = getPendingProjectStart();
         const tracksOnLoad = pendingStartMethod === "blank" && !hasLoadedCanvas;
@@ -1944,7 +2015,8 @@ export default function ProjectPage({
   useEffect(() => {
     if (canvasMutationBlocked) setCanvasAddMenu(null);
   }, [canvasMutationBlocked]);
-  const toolSurfaceDialogOpen = rescanConfirmOpen || aiSetupRequired;
+  const toolSurfaceDialogOpen =
+    Boolean(repositoryReview) || aiSetupRequired || Boolean(localFolderHandle);
   const retryLocalSave = useCallback(async () => {
     const coordinator = persistenceRef.current;
     if (!coordinator) return;
@@ -1978,6 +2050,7 @@ export default function ProjectPage({
         name: `${current.name} – Local copy`,
         description: current.description,
         repoUrl: current.repoUrl,
+        localFolder: current.localFolder ?? null,
         canvasState: snapshot,
         provenance,
       });
@@ -2041,14 +2114,12 @@ export default function ProjectPage({
     );
   }
 
-  const autoStartKind: "repository" | "brief" | null =
+  const autoStartKind: "brief" | null =
     nodeCount > 0
       ? null
-      : project.repoUrl && !project.repoCommitSha
-        ? "repository"
-        : !project.repoUrl && project.description
-          ? "brief"
-          : null;
+      : !project.repoUrl && !project.localFolder && project.description
+        ? "brief"
+        : null;
 
   const flushBeforeBackup = async () => {
     const coordinator = persistenceRef.current;
@@ -2069,9 +2140,30 @@ export default function ProjectPage({
 
   const rescanVerb = project.repoCommitSha ? "Re-scan" : "Scan";
   const requestRescan = (invoker: HTMLButtonElement) => {
+    if (isCanvasMutationBlocked() || !project.repoUrl) return;
     rescanInvokerRef.current = invoker;
-    if (nodeCount > 0) setRescanConfirmOpen(true);
-    else startRepositoryRescan();
+    setRepositoryReview({
+      repositoryUrl: project.repoUrl,
+      excludedPaths: project.repoExcludedPaths ?? [],
+    });
+  };
+
+  const requestFolderScan = async (invoker: HTMLElement) => {
+    if (isCanvasMutationBlocked() || !projectId) return;
+    localFolderInvokerRef.current = invoker;
+    try {
+      let handle = await usableLocalFolder(projectId);
+      if (!handle) {
+        handle = await window.showDirectoryPicker?.({ id: LOCAL_FOLDER_PICKER_ID, mode: "read" });
+        if (!handle) return;
+      }
+      if (projectRef.current?.id !== projectId) return;
+      setRetryFolderExclusions(null);
+      setLocalFolderHandle(handle);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      setToast({ tone: "error", message: "StackHatch could not open that folder. Check the browser's permission and try again." });
+    }
   };
 
   return (
@@ -2123,6 +2215,19 @@ export default function ProjectPage({
             disabled={canvasMutationBlocked}
             data-testid="rescan-button"
             onClick={(event) => requestRescan(event.currentTarget)}
+          >
+            <RefreshCw />
+          </IconControl>
+        ) : null}
+        {project.localFolder ? (
+          <IconControl
+            label={`Re-scan folder: ${project.localFolder.name}`}
+            tooltip={isLocalSourceSupported() ? "Re-scan folder" : "Needs desktop Chrome or Edge"}
+            surface="frame"
+            tooltipPlacement="bottom"
+            disabled={canvasMutationBlocked || !isLocalSourceSupported()}
+            data-testid="rescan-folder-button"
+            onClick={(event) => void requestFolderScan(event.currentTarget)}
           >
             <RefreshCw />
           </IconControl>
@@ -2179,14 +2284,32 @@ export default function ProjectPage({
 
         <ResizableChatSidebar open={chatOpen}>
           <ChatSidebar
+            key={projectId}
             projectId={projectId}
-            hasRequirementsBrief={Boolean(project.description) && !project.repoUrl}
+            hasRequirementsBrief={
+              Boolean(project.description) && !project.repoUrl && !project.localFolder
+            }
             autoStart={autoStartKind}
-            repoUrl={project.repoUrl}
             open={chatOpen}
             onOpenChange={handleChatOpenChange}
-            scanTrigger={scanTrigger}
             sourceRequest={sourceRequest}
+            generationRequest={generationRequest}
+            attachmentRequest={attachmentRequest}
+            onConsumeSourceRequest={(nonce) => setSourceRequest((current) => current?.nonce === nonce ? null : current)}
+            onConsumeGenerationRequest={(nonce) => setGenerationRequest((current) => current?.nonce === nonce ? null : current)}
+            onConsumeAttachmentRequest={(nonce) => setAttachmentRequest((current) => current?.nonce === nonce ? null : current)}
+            onLocalGenerationCommitted={rememberLocalFolder}
+            onReviewSource={(review) => {
+              if (review.source === "github") {
+                setRepositoryReview({
+                  repositoryUrl: review.repositoryUrl,
+                  excludedPaths: review.excludedPaths,
+                });
+                return;
+              }
+              setRetryFolderExclusions(review.folder.excludedPaths);
+              setLocalFolderHandle(review.handle);
+            }}
             coordinator={providerCoordinator}
             onArchitecture={handleArchitecture}
             onProviderCommit={acknowledgeProviderCommit}
@@ -2356,19 +2479,32 @@ export default function ProjectPage({
               <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-4">
                 <div className="project-editor__empty pointer-events-auto">
                   <h2 className="type-section">Nothing on the canvas yet</h2>
-                  {project.repoUrl ? (
+                  {project.localFolder ? (
                     <>
                       <p className="type-ui mt-2 text-ink2">
-                        This map is staged from {project.repoUrl}. Review what the scan found, then
-                        generate the map.
+                        Choose {project.localFolder.name} to generate its map.
+                      </p>
+                      <div className="mt-5 flex flex-wrap gap-2">
+                        <button type="button" className="btn btn--primary"
+                          disabled={canvasMutationBlocked || !isLocalSourceSupported()}
+                          onClick={(event) => void requestFolderScan(event.currentTarget)}>
+                          Choose folder
+                        </button>
+                      </div>
+                    </>
+                  ) : project.repoUrl ? (
+                    <>
+                      <p className="type-ui mt-2 text-ink2">
+                        Choose folders in {project.repoUrl} to generate its map.
                       </p>
                       <div className="mt-5 flex flex-wrap gap-2">
                         <button
                           type="button"
-                          onClick={() => handleChatOpenChange(true)}
+                          onClick={(event) => requestRescan(event.currentTarget)}
+                          disabled={canvasMutationBlocked}
                           className="btn btn--primary"
                         >
-                          Review the repository evidence
+                          Choose folders
                         </button>
                       </div>
                     </>
@@ -2425,7 +2561,7 @@ export default function ProjectPage({
           onSwapAlternative={handleSwapAlternative}
           mutationBlocked={canvasMutationBlocked}
           evidenceBaseUrl={evidenceBaseUrl}
-          onAskAboutEvidence={handleAskAboutEvidence}
+          onAskAboutEvidence={evidenceBaseUrl ? handleAskAboutEvidence : project.localFolder && isLocalSourceSupported() ? handleAskAboutLocalEvidence : undefined}
           askAboutEvidenceDisabled={chatStreaming}
         />
       </div>
@@ -2457,59 +2593,6 @@ export default function ProjectPage({
           }
         />
       )}
-
-      {typeof document !== "undefined" &&
-        createPortal(
-          // Portalled out of the shell, which the dialog marks inert while open.
-          <Modal
-            open={rescanConfirmOpen}
-            onClose={() => setRescanConfirmOpen(false)}
-            title="Replace this architecture map?"
-            invokerRef={rescanInvokerRef}
-            initialFocusRef={rescanKeepRef}
-            inertSelector="[data-testid='project-editor-shell']"
-            footer={
-              <>
-                <button
-                  ref={rescanKeepRef}
-                  type="button"
-                  onClick={() => setRescanConfirmOpen(false)}
-                  className="btn btn--quiet"
-                >
-                  Keep current map
-                </button>
-                <button
-                  type="button"
-                  onClick={startRepositoryRescan}
-                  className="btn btn--danger-solid"
-                >
-                  Re-scan repository
-                </button>
-              </>
-            }
-          >
-            <p>
-              Re-scanning reads the latest repository state and replaces the generated map and
-              architecture chat. Manual canvas changes are not merged into the new map.
-            </p>
-            {project.repoAnalysisWarning && (
-              <p className="type-small mt-3 text-ink2">
-                Current scan note: {project.repoAnalysisWarning}
-              </p>
-            )}
-            <p className="type-small mt-4">
-              <a
-                href="https://github.com/mwmdev/stackhatch/issues/new?labels=feedback&title=Incorrect%20architecture%20map"
-                target="_blank"
-                rel="noreferrer"
-                className="link"
-              >
-                Report an incorrect map
-              </a>
-            </p>
-          </Modal>,
-          document.body
-        )}
 
       <Modal
         open={aiSetupRequired}
@@ -2548,6 +2631,50 @@ export default function ProjectPage({
         />
       </Modal>
 
+      {localFolderHandle && project.localFolder && createPortal(
+        <SourceReviewDialog
+          source={{ kind: "local", handle: localFolderHandle }}
+          initialExcludedPaths={retryFolderExclusions ?? project.localFolder.excludedPaths}
+          replacesMap={nodeCount > 0}
+          aiSettings={workspaceVault}
+          invokerRef={localFolderInvokerRef}
+          inertSelector="[data-testid='project-editor-shell']"
+          onCancel={() => setLocalFolderHandle(null)}
+          onApprove={({ name, excludedPaths, generation }) => {
+            const handle = localFolderHandle;
+            setLocalFolderHandle(null);
+            if (isCanvasMutationBlocked()) return;
+            setChatOpen(true);
+            setGenerationRequest({
+              projectId, source: "local", generation, localFolder: { name, excludedPaths }, handle,
+              nonce: ++requestNonceRef.current,
+            });
+          }}
+        />,
+        document.body
+      )}
+      {repositoryReview && createPortal(
+        <SourceReviewDialog
+          source={{ kind: "github", repositoryUrl: repositoryReview.repositoryUrl }}
+          initialExcludedPaths={repositoryReview.excludedPaths}
+          replacesMap={nodeCount > 0}
+          aiSettings={workspaceVault}
+          invokerRef={rescanInvokerRef}
+          inertSelector="[data-testid='project-editor-shell']"
+          onCancel={() => setRepositoryReview(null)}
+          onApprove={({ generation, repository }) => {
+            setRepositoryReview(null);
+            // Another tab may have changed the map while the review was open.
+            if (isCanvasMutationBlocked()) return;
+            setChatOpen(true);
+            setGenerationRequest({
+              projectId, source: "github", generation, repository: repository!,
+              nonce: ++requestNonceRef.current,
+            });
+          }}
+        />,
+        document.body
+      )}
       <Toast toast={toast} onDismiss={() => setToast(null)} data-testid="canvas-toast" />
     </main>
   );

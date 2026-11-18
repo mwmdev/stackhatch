@@ -21,7 +21,7 @@ Hard product constraints (README.md, docs/features.md, SECURITY.md). Do not brea
         └─ vault/workspace.ts ─ vault/repository.ts ─ IndexedDB "stackhatch-vault" v4
 AI:     provider-run.ts ─ context-builder ─ browser-client (Anthropic SDK) | chat-completions-client
         (OpenAI/Gemini/OpenRouter) ─ output-parser (Zod) ─ atomic commit
-GitHub: github-analyzer.ts (REST, anonymous unless token set, bounded evidence) ─ provider-run
+GitHub: github-analyzer.ts (REST, anonymous unless token set, per-file blob reads gated by quota) ─ provider-run
 ```
 
 - **Project identity is the URL fragment** (`/project/#<id>`, `src/lib/app-route.ts`). Static hosts never see it; a dynamic segment would break static export.
@@ -114,7 +114,7 @@ npm run eval:repositories   # opt-in, Anthropic-only; reads ANTHROPIC_API_KEY, S
   - `e2e/accessibility.test.ts`: axe (WCAG 2.2 AA tags) on `/`, `/app/maps`, `/project/new`, `/settings`, `/support`, `/privacy`, the editor, and the repo-token start state, in both themes.
 - **Before handing off:** `npm test`, `npm run typecheck`, `npm run lint`, `npm run build`, plus E2E for affected journeys.
 - **Visual changes:** check light/dark, narrow mobile (320px), keyboard, reduced motion. Maps must not rely on colour alone. Take headless screenshots with the repo's Playwright and the same browser the E2E suite uses.
-- **Landing hero** (`src/app/page.tsx`, `HeroTour.tsx`, `landing.module.css`): the light plate (`--hero-slot`, light in both themes) holds a click-to-play 16:9 two-minute tour (poster first, never autoplays, native controls, English captions). Files in `public/video/` (`stackhatch-tour.mp4` 1080p, `stackhatch-tour-720.mp4` ≤760 px, `-poster.webp`, `.en.vtt`) are encoded from the promo video project, which lives outside git (`video/` is ignored); poster is a real editor capture. Below: audience cards, features mosaic, privacy cards (Lucide icons). OG image: `public/screenshots/architecture-overview-og.png` (1200×630).
+- **Landing hero** (`src/app/page.tsx`, `HeroTour.tsx`, `landing.module.css`): the light plate (`--hero-slot`, light in both themes) holds a click-to-play 16:9 two-minute tour (poster first, never autoplays, native controls, English captions). Files in `public/video/` (`stackhatch-tour.mp4` 1080p, `stackhatch-tour-720.mp4` ≤760 px, `-poster.webp`, `.en.vtt`) are encoded from the promo video project, which lives outside git (`video/` is ignored); the poster is a title slide ("Map it. Ask it. Decide." over three real editor captures) rendered by `video/stackhatch-promo-2min/poster/render.mjs`. Below: audience columns, features mosaic, privacy columns (Lucide icons). OG image: `public/screenshots/stackhatch-share.png` (2400×1260, centred wordmark so LinkedIn's square and small crops stay legible).
 
 <!-- BEGIN:nextjs-agent-rules -->
 

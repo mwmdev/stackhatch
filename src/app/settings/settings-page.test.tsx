@@ -223,7 +223,7 @@ describe("DeviceSettingsPage", () => {
 
     await waitFor(() =>
       expect(repository.putDevicePreferences).toHaveBeenCalledWith(
-        expect.objectContaining({ model: "openai:gpt-6.1-sol" }),
+        expect.objectContaining({ model: "openai:gpt-6.2-sol" }),
         { expectedGeneration: "generation-1", expectedRevision: null }
       )
     );

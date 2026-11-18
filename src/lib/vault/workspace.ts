@@ -9,6 +9,7 @@ import { createId } from "@/lib/id";
 import type {
   VaultCanvasState,
   VaultCustomSubtypes,
+  VaultLocalFolder,
   VaultProjectRecord,
   VaultRepositoryProvenanceRecord,
 } from "./schema";
@@ -29,6 +30,7 @@ export interface WorkspaceProjectDraft {
   name: string;
   description?: string | null;
   repoUrl?: string | null;
+  localFolder?: VaultLocalFolder | null;
   canvasState?: VaultCanvasState | null;
   /** Scan provenance to carry over, such as when a snapshot is saved as a copy. */
   provenance?: Omit<VaultRepositoryProvenanceRecord, "projectId" | "revision"> | null;
@@ -60,6 +62,7 @@ export interface WorkspaceVault {
   getAiSelection(): Promise<AiModelSelection>;
   /** Switches to `provider`'s default model; keeps the model when it is already selected. */
   selectAiProvider(provider: AiProviderId): Promise<AiModelSelection>;
+  selectAiModel(selection: AiModelSelection): Promise<AiModelSelection>;
   subscribeInvalidation(listener: (invalidation: VaultInvalidation) => void): () => void;
 }
 
@@ -106,6 +109,7 @@ export function createWorkspaceVault(
             name: draft.name,
             description: draft.description ?? null,
             repoUrl: draft.repoUrl ?? null,
+            ...(draft.localFolder ? { localFolder: draft.localFolder } : {}),
             canvasState: draft.canvasState ?? null,
             createdAt: timestamp,
             updatedAt: timestamp,
@@ -117,6 +121,9 @@ export function createWorkspaceVault(
                   commitSha: draft.provenance.commitSha,
                   ...(draft.provenance.mapCommitSha
                     ? { mapCommitSha: draft.provenance.mapCommitSha }
+                    : {}),
+                  ...(draft.provenance.excludedPaths
+                    ? { excludedPaths: draft.provenance.excludedPaths }
                     : {}),
                   scannedAt: draft.provenance.scannedAt,
                   analysisStatus: draft.provenance.analysisStatus,
@@ -140,6 +147,7 @@ export function createWorkspaceVault(
             name: project.name,
             description,
             repoUrl: project.repoUrl,
+            ...(project.localFolder ? { localFolder: project.localFolder } : {}),
             canvasState: project.canvasState,
             createdAt: project.createdAt,
             updatedAt: now(),
@@ -162,6 +170,7 @@ export function createWorkspaceVault(
             name: project.name,
             description: project.description,
             repoUrl: project.repoUrl,
+            ...(project.localFolder ? { localFolder: project.localFolder } : {}),
             canvasState,
             createdAt: project.createdAt,
             updatedAt: now(),
@@ -185,6 +194,7 @@ export function createWorkspaceVault(
             name: current.name,
             description: current.description,
             repoUrl: current.repoUrl,
+            ...(current.localFolder ? { localFolder: current.localFolder } : {}),
             canvasState,
             createdAt: current.createdAt,
             updatedAt: now(),
@@ -214,6 +224,22 @@ export function createWorkspaceVault(
       const current = parseModelReference(preferences?.model);
       if (current.provider === provider) return current;
       const selection = defaultModelSelection(provider);
+      await repository.putDevicePreferences(
+        {
+          model: formatModelReference(selection),
+          theme: preferences?.theme ?? "system",
+          customSubtypes: preferences?.customSubtypes ?? {},
+          editorDisplay: preferences?.editorDisplay ?? {},
+        },
+        { expectedGeneration, expectedRevision: preferences?.revision ?? null }
+      );
+      return selection;
+    },
+    async selectAiModel(selection) {
+      const { generation: expectedGeneration, preferences } =
+        await repository.getDevicePreferencesSnapshot();
+      const current = parseModelReference(preferences?.model);
+      if (formatModelReference(current) === formatModelReference(selection)) return current;
       await repository.putDevicePreferences(
         {
           model: formatModelReference(selection),

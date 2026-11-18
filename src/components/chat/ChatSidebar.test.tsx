@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import ChatSidebar from "@/components/chat/ChatSidebar";
 import { ProviderError } from "@/lib/ai/provider-errors";
@@ -10,10 +10,25 @@ import type {
   ProviderRunCoordinator,
   ProviderRunOutcome,
   ProviderRunRequest,
-  RepositoryEvidenceOutcome,
 } from "@/lib/ai/provider-run";
 import type { VaultProjectRecord } from "@/lib/vault/schema";
+import type { StackNode } from "@/types/stack";
+import { fakeDirectory } from "@/test/fake-directory";
 
+const localHandle = fakeDirectory({ "app.ts": "Local source" });
+const localFolder = { name: "fixture", excludedPaths: [] };
+const localNode: StackNode = {
+  id: "app",
+  name: "App",
+  category: "client",
+  subtype: "web-app",
+  technology: "",
+  description: "",
+  reasoning: "",
+  locked: false,
+  evidence: ["app.ts"],
+};
+const selection = { provider: "anthropic", model: "claude-sonnet-5" } as const;
 const project: VaultProjectRecord = {
   id: "project-1",
   name: "Private map",
@@ -53,30 +68,6 @@ function runOutcome(overrides: Partial<ProviderRunOutcome> = {}): ProviderRunOut
   };
 }
 
-function evidenceOutcome(): RepositoryEvidenceOutcome {
-  return {
-    project,
-    generation: "vault-1",
-    analysis: {
-      owner: "acme",
-      repo: "app",
-      normalizedUrl: "https://github.com/acme/app",
-      subpath: null,
-      description: "App",
-      primaryLanguage: "TypeScript",
-      languages: { TypeScript: 1 },
-      topics: [],
-      defaultBranch: "main",
-      commitSha: "abcdef1234567890",
-      treePaths: ["src/app.ts"],
-      citablePaths: ["src/app.ts"],
-      readme: "# App",
-      evidenceFiles: [],
-      status: "complete",
-      warnings: [],
-    },
-  };
-}
 
 function coordinator(overrides: Partial<ProviderRunCoordinator> = {}): ProviderRunCoordinator {
   return {
@@ -86,7 +77,6 @@ function coordinator(overrides: Partial<ProviderRunCoordinator> = {}): ProviderR
       generation: "key-1",
     })),
     listMessages: vi.fn(async () => []),
-    scanRepository: vi.fn(async () => evidenceOutcome()),
     run: vi.fn(async () => runOutcome()),
     readNodeSources: vi.fn(async () => {
       throw new Error("readNodeSources was not expected");
@@ -100,7 +90,6 @@ function renderSidebar(localCoordinator: ProviderRunCoordinator, props = {}) {
   return render(
     <ChatSidebar
       projectId="project-1"
-      repoUrl="https://github.com/acme/app"
       defaultOpen
       coordinator={localCoordinator}
       {...props}
@@ -167,7 +156,216 @@ describe("local-first ChatSidebar", () => {
     expect(await screen.findByText("Stored locally")).toBeInTheDocument();
     expect(screen.queryByText(/Begin the architecture/)).not.toBeInTheDocument();
     expect(localCoordinator.run).not.toHaveBeenCalled();
-    expect(localCoordinator.scanRepository).not.toHaveBeenCalled();
+  });
+
+  it("dispatches each local generation nonce once with a short prompt and separate source context", async () => {
+    const localCoordinator = coordinator();
+    const generation = {
+      summary: "Generate the local map.",
+      context: "Private source contents",
+      citablePaths: ["src/app.ts"],
+      selection,
+      customSubtypes: {},
+    };
+    const sidebar = (nonce: number) => (
+      <ChatSidebar
+        projectId="project-1"
+        defaultOpen
+        coordinator={localCoordinator}
+        generationRequest={{
+          source: "local",
+          projectId: "project-1",
+          generation,
+          localFolder,
+          handle: localHandle,
+          nonce,
+        }}
+      />
+    );
+    const view = render(sidebar(1));
+
+    await waitFor(() => expect(localCoordinator.run).toHaveBeenCalledTimes(1));
+    expect(localCoordinator.run).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectId: "project-1",
+        kind: "repository-generation",
+        prompt: generation.summary,
+        sourceContext: generation.context,
+        citablePaths: generation.citablePaths,
+      })
+    );
+    await screen.findByPlaceholderText("Ask anything…");
+    view.rerender(sidebar(1));
+    expect(localCoordinator.run).toHaveBeenCalledTimes(1);
+    view.rerender(sidebar(2));
+    await waitFor(() => expect(localCoordinator.run).toHaveBeenCalledTimes(2));
+  });
+
+  it("reopens local folder review without resending the failed request", async () => {
+    const run = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("Provider failed"))
+      .mockResolvedValueOnce(runOutcome());
+    const generation = {
+      summary: "Generate the local map.",
+      context: "Private source contents",
+      citablePaths: ["src/app.ts"],
+      selection,
+      customSubtypes: {},
+    };
+    const onReviewSource = vi.fn();
+    renderSidebar(coordinator({ run }), {
+      onReviewSource,
+      generationRequest: {
+        source: "local",
+        projectId: "project-1",
+        generation,
+        localFolder,
+        handle: localHandle,
+        nonce: 1,
+      },
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: /retry/i }));
+    expect(onReviewSource).toHaveBeenCalledWith({ source: "local", handle: localHandle, folder: localFolder });
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens and focuses the composer for an initial attachment request", async () => {
+    const attachmentName = "App · 1 file";
+    render(
+      <ChatSidebar
+        projectId="project-1"
+        coordinator={coordinator()}
+        attachmentRequest={{
+          projectId: "project-1",
+          node: localNode,
+          handle: localHandle,
+          nonce: 1,
+        }}
+      />
+    );
+
+    expect(await screen.findByTestId("chat-attachment-chip")).toHaveTextContent(attachmentName);
+    const input = await screen.findByPlaceholderText("Ask anything…");
+    await waitFor(() => expect(input).toHaveFocus());
+  });
+
+  it("does not dispatch or attach requests belonging to another project", async () => {
+    const localCoordinator = coordinator();
+    const generation = {
+      summary: "Map",
+      context: "private",
+      citablePaths: ["app.ts"],
+      selection,
+      customSubtypes: {},
+    };
+    render(
+      <ChatSidebar
+        projectId="project-2"
+        defaultOpen
+        coordinator={localCoordinator}
+        generationRequest={{
+          source: "local",
+          projectId: "project-1",
+          generation,
+          localFolder,
+          handle: localHandle,
+          nonce: 1,
+        }}
+        attachmentRequest={{
+          projectId: "project-1",
+          node: localNode,
+          handle: localHandle,
+          nonce: 2,
+        }}
+      />
+    );
+    await screen.findByPlaceholderText("Ask anything…");
+    expect(localCoordinator.run).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("chat-attachment-chip")).not.toBeInTheDocument();
+  });
+
+  it("discards a slower local read when a newer attachment is requested", async () => {
+    const deferred = Promise.withResolvers<File>();
+    const getFile = vi.fn(() => deferred.promise);
+    const slow = {
+      name: "slow",
+      getFileHandle: async () => ({ getFile }),
+    } as unknown as FileSystemDirectoryHandle;
+    const localCoordinator = coordinator();
+    const view = render(
+      <ChatSidebar
+        projectId="project-1"
+        defaultOpen
+        coordinator={localCoordinator}
+        attachmentRequest={{ projectId: "project-1", node: localNode, handle: slow, nonce: 1 }}
+      />
+    );
+    await waitFor(() => expect(getFile).toHaveBeenCalled());
+    expect(screen.getByRole("button", { name: "Send message" })).toBeDisabled();
+    view.rerender(
+      <ChatSidebar
+        projectId="project-1"
+        defaultOpen
+        coordinator={localCoordinator}
+        attachmentRequest={{
+          projectId: "project-1",
+          node: { ...localNode, name: "New" },
+          handle: localHandle,
+          nonce: 2,
+        }}
+      />
+    );
+    expect(await screen.findByTestId("chat-attachment-chip")).toHaveTextContent("New");
+    const oldHandle = await fakeDirectory({ "app.ts": "Old source" }).getFileHandle("app.ts");
+    await act(async () => deferred.resolve(await oldHandle.getFile()));
+    expect(screen.getByTestId("chat-attachment-chip")).toHaveTextContent("New");
+  });
+
+  it("retains an approved generation after a missing key and retries explicitly with pinned settings", async () => {
+    let state: "absent" | "session" = "absent";
+    const manager = {
+      getStatus: vi.fn(async () => ({ provider: "anthropic", state, generation: "key-1" })),
+      useSessionKey: vi.fn(async () => {
+        state = "session";
+        return { provider: "anthropic", state, generation: "key-1" };
+      }),
+      rememberKey: vi.fn(),
+    } as unknown as ProviderKeyManager;
+    const run = vi
+      .fn()
+      .mockRejectedValueOnce(new ProviderKeyUnavailableError("Missing", "anthropic"))
+      .mockResolvedValueOnce(runOutcome());
+    const generation = {
+      summary: "Map",
+      context: "private",
+      citablePaths: ["app.ts"],
+      selection,
+      customSubtypes: {},
+    };
+    const onReviewSource = vi.fn();
+    renderSidebar(coordinator({ run }), {
+      onReviewSource,
+      keyManager: manager,
+      generationRequest: {
+        source: "local",
+        projectId: "project-1",
+        generation,
+        localFolder,
+        handle: localHandle,
+        nonce: 1,
+      },
+    });
+    fireEvent.change(await screen.findByLabelText("Anthropic API key"), {
+      target: { value: "sk-ant-local-test" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Use key" }));
+    const retry = await screen.findByRole("button", { name: /review and retry/i });
+    expect(run).toHaveBeenCalledTimes(1);
+    fireEvent.click(retry);
+    expect(onReviewSource).toHaveBeenCalledWith({ source: "local", handle: localHandle, folder: localFolder });
+    expect(run).toHaveBeenCalledTimes(1);
   });
 
   it("renders assistant Markdown paragraphs and lists, keeping an ordered list's start", async () => {
@@ -233,11 +431,10 @@ describe("local-first ChatSidebar", () => {
     // so this is what stands in for the old "not rendered until you ask"
     // guarantee: mounting is not an action, and only an action reaches out.
     const localCoordinator = coordinator({ listMessages: vi.fn(async () => []) });
-    renderSidebar(localCoordinator, { repoUrl: null });
+    renderSidebar(localCoordinator);
 
     expect(await screen.findByPlaceholderText("Ask anything…")).toBeInTheDocument();
     expect(localCoordinator.run).not.toHaveBeenCalled();
-    expect(localCoordinator.scanRepository).not.toHaveBeenCalled();
     expect(
       screen.queryByText("Local until you ask for a provider request")
     ).not.toBeInTheDocument();
@@ -297,214 +494,38 @@ describe("local-first ChatSidebar", () => {
     await waitFor(() => expect(onMapping).toHaveBeenLastCalledWith(false));
   });
 
-  it("scans and generates from one action, in that order", async () => {
-    // Reading the repository and turning it into a map used to be two clicks
-    // with a confirmation on each. They are still two network events; the user
-    // step between them is gone.
-    const calls: string[] = [];
-    const onProviderCommit = vi.fn();
-    const onProviderCommitStart = vi.fn();
-    const scanRepository = vi.fn(async (_projectId, _repositoryUrl, options) => {
-      calls.push("github");
-      await options?.beforeCommit?.();
-      return evidenceOutcome();
-    });
-    const run = vi.fn(async (_request: ProviderRunRequest) => {
-      calls.push("anthropic");
-      return runOutcome();
-    });
-    const localCoordinator = coordinator({ scanRepository, run });
-    renderSidebar(localCoordinator, { onProviderCommit, onProviderCommitStart });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Map this repository" }));
-
+  it("dispatches approved GitHub source and adopts its provenance", async () => {
+    const repository = { repositoryUrl: "https://github.com/acme/app", commitSha: "abc123", excludedPaths: ["web"], analysisStatus: "complete" as const, warning: null };
+    const generation = { summary: "Map", context: "source", citablePaths: ["src/app.ts"], selection, customSubtypes: {} };
+    const architecture = { nodes: [localNode], edges: [] };
+    const run = vi.fn(async () => runOutcome({ architecture }));
+    const onArchitecture = vi.fn();
+    renderSidebar(coordinator({ run }), {
+      onArchitecture,
+      generationRequest: { source: "github", projectId: "project-1", generation, repository, nonce: 1 },
+    });
     await waitFor(() => expect(run).toHaveBeenCalledOnce());
-    expect(calls).toEqual(["github", "anthropic"]);
-    expect(run.mock.calls[0][0]).toMatchObject({ kind: "repository-generation" });
-    expect(onProviderCommitStart).toHaveBeenCalled();
-    expect(onProviderCommit).toHaveBeenCalledWith({
-      projectRevision: 2,
-      vaultGeneration: "vault-1",
+    expect(run).toHaveBeenCalledWith(expect.objectContaining({
+      repositorySource: repository, selection, sourceContext: "source",
+    }));
+    await waitFor(() => expect(onArchitecture).toHaveBeenCalledWith(architecture, expect.objectContaining({
+      provenance: expect.objectContaining({ excludedPaths: ["web"] }),
+    })));
+  });
+
+  it("reopens GitHub review after failure without a second run", async () => {
+    const repository = { repositoryUrl: "https://github.com/acme/app", commitSha: "abc123", excludedPaths: ["web"], analysisStatus: "complete" as const, warning: null };
+    const generation = { summary: "Map", context: "source", citablePaths: ["src/app.ts"], selection, customSubtypes: {} };
+    const run = vi.fn().mockRejectedValue(new Error("Provider failed"));
+    const onReviewSource = vi.fn();
+    renderSidebar(coordinator({ run }), {
+      onReviewSource,
+      generationRequest: { source: "github", projectId: "project-1", generation, repository, nonce: 1 },
     });
-    expect(screen.queryByText("Read from GitHub")).not.toBeInTheDocument();
-  });
-
-  it("does not generate when the scan fails", async () => {
-    const run = vi.fn(async () => runOutcome());
-    const localCoordinator = coordinator({
-      scanRepository: vi.fn(async () => {
-        throw new Error("GitHub was unreachable.");
-      }),
-      run,
-    });
-    renderSidebar(localCoordinator);
-
-    fireEvent.click(await screen.findByRole("button", { name: "Map this repository" }));
-
-    expect(await screen.findByText("GitHub was unreachable.")).toBeInTheDocument();
-    expect(run).not.toHaveBeenCalled();
-  });
-
-  function githubKeyManager(
-    state: "absent" | "session" = "absent",
-    aiKey: "absent" | "session" = "session"
-  ) {
-    let current = state;
-    return {
-      getStatus: vi.fn(async (provider: string) => ({
-        provider,
-        state: provider === "github" ? current : aiKey,
-        generation: "g",
-      })),
-      useSessionKey: vi.fn(async (provider: string) => {
-        current = "session";
-        return { provider, state: current, generation: "g" };
-      }),
-      rememberKey: vi.fn(),
-      forgetKey: vi.fn(async (provider: string) => {
-        current = "absent";
-        return { provider, state: current, generation: "g2" };
-      }),
-    } as unknown as ProviderKeyManager;
-  }
-
-  it("offers a GitHub token in place when a scan can't read the repository, then scans again", async () => {
-    const run = vi.fn(async () => runOutcome());
-    const scanRepository = vi
-      .fn()
-      .mockRejectedValueOnce(
-        new RepoAnalysisError(
-          "not_found_or_private",
-          "StackHatch can't read acme/app. If it's private, add a read-only GitHub token."
-        )
-      )
-      .mockResolvedValueOnce(evidenceOutcome());
-    const keyManager = githubKeyManager();
-    renderSidebar(coordinator({ scanRepository, run }), { keyManager });
-
-    fireEvent.click(await screen.findByRole("button", { name: "Map this repository" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("StackHatch can't read acme/app.");
-    expect(
-      await screen.findByRole("link", { name: "Create a read-only token for acme" })
-    ).toHaveAttribute("href", expect.stringContaining("target_name=acme"));
-    expect(screen.queryByRole("button", { name: "Forget token" })).not.toBeInTheDocument();
-
-    const token = await screen.findByLabelText("GitHub token");
-    fireEvent.change(token, { target: { value: "ghp_classic" } });
-    fireEvent.click(screen.getByRole("button", { name: "Use token" }));
-    expect(await screen.findByText(/only accepts fine-grained tokens/)).toBeInTheDocument();
-    expect(scanRepository).toHaveBeenCalledTimes(1);
-
-    fireEvent.change(token, { target: { value: "github_pat_private" } });
-    fireEvent.click(screen.getByRole("button", { name: "Use token" }));
-
-    await waitFor(() => expect(run).toHaveBeenCalledTimes(1));
-    expect(keyManager.useSessionKey).toHaveBeenCalledWith("github", "github_pat_private");
-    expect(scanRepository).toHaveBeenCalledTimes(2);
-    expect(screen.queryByLabelText("GitHub token")).not.toBeInTheDocument();
-  });
-
-  it("offers Forget only when GitHub rejected the token, and scans again after it", async () => {
-    const cannotRead = vi
-      .fn()
-      .mockRejectedValue(
-        new RepoAnalysisError(
-          "github_token_cannot_read",
-          "Your GitHub token can't read acme/app.",
-          null,
-          null,
-          true
-        )
-      );
-    const first = renderSidebar(coordinator({ scanRepository: cannotRead }), {
-      keyManager: githubKeyManager("session"),
-    });
-    fireEvent.click(await screen.findByRole("button", { name: "Map this repository" }));
-    expect(await screen.findByRole("button", { name: "Replace token" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Forget token" })).not.toBeInTheDocument();
-    first.unmount();
-
-    const run = vi.fn(async () => runOutcome());
-    const rejected = vi
-      .fn()
-      .mockRejectedValueOnce(
-        new RepoAnalysisError(
-          "github_token_rejected",
-          "GitHub rejected the token.",
-          null,
-          null,
-          true
-        )
-      )
-      .mockResolvedValueOnce(evidenceOutcome());
-    const keyManager = githubKeyManager("session");
-    renderSidebar(coordinator({ scanRepository: rejected, run }), { keyManager });
-    fireEvent.click(await screen.findByRole("button", { name: "Map this repository" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Forget token" }));
-
-    await waitFor(() => expect(run).toHaveBeenCalledTimes(1));
-    expect(keyManager.forgetKey).toHaveBeenCalledWith("github");
-    expect(rejected).toHaveBeenCalledTimes(2);
-  });
-
-  it("replaces the token prompt when a later error takes over the panel", async () => {
-    const scanRepository = vi
-      .fn()
-      .mockRejectedValue(
-        new RepoAnalysisError(
-          "not_found_or_private",
-          "StackHatch can't read acme/app. If it's private, add a read-only GitHub token."
-        )
-      );
-    renderSidebar(
-      coordinator({
-        scanRepository,
-        getKeyStatus: vi.fn(async () => ({
-          provider: "anthropic" as const,
-          state: "absent" as const,
-          generation: "key-1",
-        })),
-      }),
-      { keyManager: githubKeyManager("absent", "absent") }
-    );
-
-    fireEvent.click(await screen.findByRole("button", { name: "Map this repository" }));
-    expect(await screen.findByLabelText("GitHub token")).toBeInTheDocument();
-
-    await send("Hello");
-
-    expect(await screen.findByLabelText("Anthropic API key")).toBeInTheDocument();
-    expect(screen.queryByLabelText("GitHub token")).not.toBeInTheDocument();
-    expect(screen.queryByText("credentials-missing")).not.toBeInTheDocument();
-  });
-
-  it("points an anonymous rate-limited scan to the GitHub token, but not one that used it", async () => {
-    const limited = (tokenUsed: boolean) =>
-      new RepoAnalysisError(
-        "github_rate_limited",
-        "GitHub's API limit was reached.",
-        null,
-        null,
-        tokenUsed
-      );
-    const scanRepository = vi
-      .fn()
-      .mockRejectedValueOnce(limited(false))
-      .mockRejectedValueOnce(limited(true));
-    const { unmount } = renderSidebar(coordinator({ scanRepository }));
-
-    fireEvent.click(await screen.findByRole("button", { name: "Map this repository" }));
-    expect(await screen.findByRole("link", { name: "Add a GitHub token" })).toHaveAttribute(
-      "href",
-      "/settings#github-token"
-    );
-    expect(screen.queryByLabelText("GitHub token")).not.toBeInTheDocument();
-    unmount();
-
-    renderSidebar(coordinator({ scanRepository }));
-    fireEvent.click(await screen.findByRole("button", { name: "Map this repository" }));
-    expect(await screen.findByText("GitHub's API limit was reached.")).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Add a GitHub token" })).not.toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: /review and retry/i }));
+    expect(onReviewSource).toHaveBeenCalledWith({ source: "github", repositoryUrl: repository.repositoryUrl, excludedPaths: ["web"] });
+    expect(run).toHaveBeenCalledOnce();
   });
 
   it("updates the editor only with the coordinator's committed architecture", async () => {
@@ -827,10 +848,9 @@ describe("local-first ChatSidebar", () => {
       view.rerender(
         <ChatSidebar
           projectId="project-1"
-          repoUrl="https://github.com/acme/app"
           defaultOpen
           coordinator={localCoordinator}
-          sourceRequest={{ nodeId: "api", nonce: 1 }}
+          sourceRequest={{ projectId: "project-1", nodeId: "api", nonce: 1 }}
         />
       );
     };
@@ -895,7 +915,7 @@ describe("local-first ChatSidebar", () => {
     it("keeps a file the user attached while GitHub was still being read", async () => {
       const { promise: pending, resolve: release } = Promise.withResolvers<NodeSourcesOutcome>();
       await askAbout(coordinator({ readNodeSources: vi.fn(() => pending) }));
-      expect(await screen.findByRole("status")).toHaveTextContent("Reading files from GitHub");
+      expect(await screen.findByRole("status")).toHaveTextContent("Reading files");
 
       await attach(new File(["# PRD"], "prd.md"));
       expect(await screen.findByTestId("chat-attachment-chip")).toHaveTextContent("prd.md");

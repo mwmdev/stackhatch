@@ -722,21 +722,27 @@ test("generated maps separate wide measured nodes after automatic layout", async
 test("mobile repository maps keep re-scan in the editor bar", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 640 });
   await useProviderKey(page, { remember: true });
-  await mockAnthropic(page, ["Repository scan complete."]);
-  const github = await mockGitHub(page);
+  await mockAnthropic(page, [
+    'Mapped.\n<stack>{"nodes":[{"id":"client","category":"client","subtype":"web-app","name":"Web Client","technology":"React","description":"Browser UI","reasoning":"Local boundary","locked":false}],"edges":[]}</stack>',
+  ]);
+  await mockGitHub(page);
   await page.goto("/project/new");
   await page.getByLabel("GitHub repository").fill("acme/platform");
   await page.getByRole("button", { name: "Map repository" }).click();
-  await expect.poll(() => new URL(page.url()).hash).toMatch(/^#.+/);
+  const dialog = page.getByTestId("source-review-dialog");
+  await dialog.getByRole("button", { name: "Generate map" }).click();
+  await expect(page.getByText("Web Client").first()).toBeVisible({ timeout: 30_000 });
 
   const rescan = page.getByTestId("rescan-button");
   await expect(rescan).toBeVisible();
   await expectNoHorizontalOverflow(page);
   await rescan.click();
-  await expect.poll(() => github.length).toBeGreaterThan(0);
+  await expect(dialog.getByRole("button", { name: "Replace map" })).toBeVisible({
+    timeout: 30_000,
+  });
   await expect(
-    page.getByRole("alert").filter({ has: page.getByLabel("Anthropic API key") })
-  ).toHaveCount(0);
+    dialog.getByText("Replacing the map also replaces the existing Assistant conversation.")
+  ).toBeVisible();
 });
 
 test("a map can be renamed and the new name survives a reload", async ({ page }) => {

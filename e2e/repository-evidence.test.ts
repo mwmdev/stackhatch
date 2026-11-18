@@ -7,6 +7,8 @@ const CORS_HEADERS = {
   "access-control-allow-origin": "*",
 };
 const base64 = (text: string) => Buffer.from(text).toString("base64");
+const SERVER_TEXT = "export const server = listen(8080);";
+const PACKAGE_TEXT = '{"name":"api"}';
 
 const GITHUB_RESPONSES: Record<string, unknown> = {
   "/repos/acme/platform": {
@@ -21,21 +23,16 @@ const GITHUB_RESPONSES: Record<string, unknown> = {
   "/repos/acme/platform/git/trees/apitree?recursive=1": {
     tree: [
       { path: "src", type: "tree", sha: "src" },
-      { path: "src/server.ts", type: "blob", sha: "server", size: 40 },
-      { path: "package.json", type: "blob", sha: "pkg", size: 20 },
+      { path: "src/server.ts", type: "blob", sha: "server", size: Buffer.byteLength(SERVER_TEXT) },
+      { path: "package.json", type: "blob", sha: "pkg", size: Buffer.byteLength(PACKAGE_TEXT) },
     ],
   },
-  "/repos/acme/platform/readme/packages/api?ref=abc123def456": {
-    encoding: "base64",
-    content: base64("# API"),
-  },
-  "/repos/acme/platform/git/blobs/pkg": {
-    encoding: "base64",
-    content: base64('{"name":"api"}'),
-  },
+  "/rate_limit": { resources: { core: { limit: 60, remaining: 50, reset: 1794989321 } } },
+  "/repos/acme/platform/git/blobs/pkg": { encoding: "base64", content: base64(PACKAGE_TEXT) },
+  "/repos/acme/platform/git/blobs/server": { encoding: "base64", content: base64(SERVER_TEXT) },
   "/repos/acme/platform/contents/packages/api/src/server.ts?ref=abc123def456": {
     encoding: "base64",
-    content: base64("export const server = listen(8080);"),
+    content: base64(SERVER_TEXT),
   },
 };
 
@@ -86,6 +83,10 @@ test("a directory scan links nodes to files and attaches them to a chat question
     .getByLabel("GitHub repository")
     .fill("https://github.com/acme/platform/tree/main/packages/api");
   await page.getByRole("button", { name: "Map repository" }).click();
+  await page
+    .getByTestId("source-review-dialog")
+    .getByRole("button", { name: "Generate map" })
+    .click();
   await expect(page.getByText("API Server").first()).toBeVisible({ timeout: 30_000 });
 
   // Only the directory's tree is read, and the model is told about the scope.

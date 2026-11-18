@@ -3,7 +3,8 @@ import type { AlternativeNode, StackArchitecture } from "@/types/stack";
 import type { CustomSubtypeEntry, CustomSubtypesMap } from "@/lib/custom-subtypes";
 
 export const VAULT_DATABASE_NAME = "stackhatch-vault";
-export const VAULT_SCHEMA_VERSION = 5;
+/** v6 adds optional project localFolder and provenance excludedPaths; no backfill or new store is needed. */
+export const VAULT_SCHEMA_VERSION = 6;
 export const VAULT_META_ID = "vault" as const;
 export const DEVICE_RECORD_ID = "device" as const;
 
@@ -33,11 +34,17 @@ export interface VaultMetaRecord {
   updatedAt: number;
 }
 
+export interface VaultLocalFolder {
+  name: string;
+  excludedPaths: string[];
+}
+
 export interface VaultProjectRecord {
   id: string;
   name: string;
   description: string | null;
   repoUrl: string | null;
+  localFolder?: VaultLocalFolder;
   canvasState: VaultCanvasState | null;
   revision: number;
   createdAt: number;
@@ -94,6 +101,8 @@ export interface VaultRepositoryProvenanceRecord {
    * ahead of a map whose regeneration failed; node evidence belongs to this one.
    */
   mapCommitSha?: string | null;
+  /** Folders unchecked in the last approved GitHub selection; absent on maps from the old bounded scan. */
+  excludedPaths?: string[];
   scannedAt: number;
   analysisStatus: "complete" | "partial";
   warning: string | null;

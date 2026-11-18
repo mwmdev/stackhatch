@@ -17,10 +17,15 @@ test.describe("local project starts", () => {
     await page.goto("/project/new");
 
     await expect(page.getByRole("heading", { level: 1, name: "Start a new map" })).toBeVisible();
-    await expect(page.locator("main h3")).toHaveText(["Blank canvas", "Requirements file"]);
+    await expect(page.locator("main h3")).toHaveText([
+      "Blank canvas",
+      "Requirements file",
+      "Local folder",
+    ]);
     await expect(page.getByRole("button", { name: "Create blank map" })).toBeVisible();
     await expect(page.getByLabel("Choose .md or .txt file")).toBeAttached();
     await expect(page.getByLabel("GitHub repository")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Choose local folder" })).toBeVisible();
     await expect(page.getByText("Start from a worked example")).toHaveCount(0);
     await expect(
       page.getByRole("button", { name: "Copy one of your saved maps instead" })
@@ -86,6 +91,10 @@ test.describe("local project starts", () => {
     await page.goto("/project/new");
     await page.getByLabel("GitHub repository").fill("https://github.com/acme/platform.git");
     await page.getByRole("button", { name: "Map repository" }).click();
+    await page
+      .getByTestId("source-review-dialog")
+      .getByRole("button", { name: "Generate map" })
+      .click();
 
     await expect.poll(() => new URL(page.url()).hash).toMatch(/^#.+/);
     await expect(page.getByRole("heading", { level: 1, name: /platform/ })).toBeVisible();

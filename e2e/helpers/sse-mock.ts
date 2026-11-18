@@ -237,14 +237,29 @@ const GITHUB_CORS_HEADERS = {
     "Authorization, Content-Type, If-None-Match, X-GitHub-Api-Version, Accept",
 };
 
-function githubResponse(url: URL) {
-  if (url.pathname === "/repos/acme/platform") {
-    return {
-      description: "A private-by-design example app",
-      language: "TypeScript",
-      topics: ["architecture"],
-      default_branch: "main",
-    };
+/** The files of every fixture repository; `nm` sits under an ignored directory. */
+export const PLATFORM_FILES = {
+  readme: { path: "README.md", text: "# Platform" },
+  server: { path: "src/server.ts", text: "export const server = listen(8080);" },
+  web: { path: "web/app.tsx", text: "export const App = () => null;" },
+  nm: { path: "node_modules/x/index.js", text: "module.exports = 1;" },
+} as const;
+
+function githubResponse(
+  url: URL,
+  {
+    rateRemaining,
+    authorized,
+  }: {
+    rateRemaining: number;
+    authorized: boolean;
+  }
+) {
+  if (url.pathname === "/rate_limit") {
+    const core = authorized
+      ? { limit: 5000, remaining: 4999 }
+      : { limit: 60, remaining: rateRemaining };
+    return { resources: { core: { ...core, reset: 1794989321 } } };
   }
   if (url.pathname === "/repos/acme/billing") {
     return {
@@ -256,15 +271,37 @@ function githubResponse(url: URL) {
       visibility: "private",
     };
   }
+  if (/^\/repos\/[^/]+\/[^/]+$/.test(url.pathname)) {
+    return {
+      description: "A private-by-design example app",
+      language: "TypeScript",
+      topics: ["architecture"],
+      default_branch: "main",
+    };
+  }
   if (url.pathname.endsWith("/languages")) return { TypeScript: 900, CSS: 100 };
   if (url.pathname.endsWith("/commits/main")) {
     return { sha: "abc123def456", commit: { tree: { sha: "tree123" } } };
   }
   if (url.pathname.endsWith("/git/trees/tree123")) {
-    return { truncated: false, tree: [] };
+    return {
+      truncated: false,
+      tree: Object.entries(PLATFORM_FILES).map(([sha, file]) => ({
+        path: file.path,
+        type: "blob",
+        sha,
+        size: Buffer.byteLength(file.text),
+      })),
+    };
   }
-  if (url.pathname.endsWith("/readme")) {
-    return { encoding: "base64", content: Buffer.from("# Platform").toString("base64") };
+  const blob = url.pathname.match(/\/git\/blobs\/([^/]+)$/)?.[1];
+  const file = blob ? PLATFORM_FILES[blob as keyof typeof PLATFORM_FILES] : undefined;
+  if (file) {
+    return {
+      encoding: "base64",
+      content: Buffer.from(file.text).toString("base64"),
+      size: Buffer.byteLength(file.text),
+    };
   }
   return {};
 }
@@ -272,8 +309,13 @@ function githubResponse(url: URL) {
 /**
  * Fakes GitHub's REST API. `acme/billing` is private: without the expected
  * token GitHub answers 404, as it does for repositories a caller cannot see.
+ * `rateRemaining` is the anonymous quota `/rate_limit` reports; the test token
+ * reports a 5,000-request quota.
  */
-export async function mockGitHub(page: Page) {
+export async function mockGitHub(
+  page: Page,
+  { rateRemaining = 50 }: { rateRemaining?: number } = {}
+) {
   const requests: ProviderRequest[] = [];
   await page.route(`${GITHUB_ORIGIN}/**`, async (route) => {
     const request = route.request();
@@ -289,13 +331,14 @@ export async function mockGitHub(page: Page) {
       url: request.url(),
     });
     const url = new URL(request.url());
-    const hidden =
-      url.pathname.startsWith("/repos/acme/billing") &&
-      headers.authorization !== `Bearer ${TEST_GITHUB_TOKEN}`;
+    const authorized = headers.authorization === `Bearer ${TEST_GITHUB_TOKEN}`;
+    const hidden = url.pathname.startsWith("/repos/acme/billing") && !authorized;
     await route.fulfill({
       status: hidden ? 404 : 200,
       headers: { ...GITHUB_CORS_HEADERS, "content-type": "application/json" },
-      body: JSON.stringify(hidden ? { message: "Not Found" } : githubResponse(url)),
+      body: JSON.stringify(
+        hidden ? { message: "Not Found" } : githubResponse(url, { rateRemaining, authorized })
+      ),
     });
   });
   return requests;

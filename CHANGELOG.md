@@ -6,6 +6,36 @@ All notable changes to StackHatch are documented here. The format follows
 
 ## Unreleased
 
+### Added
+
+- **GitHub repositories:** choose folders in a tree, pick a provider and model, and review the
+  token, cost and GitHub-request estimate before approving. Each selected file costs one GitHub
+  request, checked against your remaining quota; the full text is sent in one generation request
+  and is not stored. A repository map keeps only its address, commit and unchecked folders. This
+  replaces the bounded scan for new maps and re-scans.
+- **Local folders:** choose a folder in desktop Chromium and select folders at any depth. Review
+  the built-in token and cost estimate before sending selected source in one generation request;
+  selections over a known model's context window are blocked. Re-scan to replace the map, or attach
+  a component's files to an Assistant message and send them explicitly.
+- **Local-folder privacy:** source read for generation is transient. Backup format version 3
+  includes the folder name and unchecked paths, not source sent for generation; files sent in
+  Assistant messages are included in chat backups. Version 1 and 2 backups still import.
+
+### Fixed
+
+- Refresh OpenAI suggestions to GPT-6.2 Sol/Astra and GPT-6.1 Sol/Terra, with their input limits
+  and long-context pricing included in local-folder estimates.
+- Bind local generation to the approved provider, model, and subtype prompt; consume requests once
+  and retain explicit retries when a key becomes unavailable.
+- Reopen folder and model review for local-generation retries instead of immediately resending
+  the rejected request.
+- Keep local-folder identity and handles with the map that committed, including after cancelled or
+  failed re-scans, and prevent stale evidence reads from replacing newer attachments.
+- Bound source preparation and evidence reads, refresh estimates after file-size changes, retain
+  missing folder exclusions, and preserve legal folder paths in backups.
+- Screen current Gemini keys and secret filenames, include Go manifests and Prisma schemas, report
+  unreadable entries and all skipped directories, and disclose chat replacement and attachment retention.
+
 ## 1.0.0 - 2026-10-20
 
 First public release: a free, open-source, local-first architecture-map editor that runs entirely in

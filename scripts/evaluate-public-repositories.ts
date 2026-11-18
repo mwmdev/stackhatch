@@ -1,11 +1,38 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { buildSystemPrompt } from "../src/lib/ai/system-prompt";
 import { parseAIResponse } from "../src/lib/ai/output-parser";
-import { analyzeRepo, formatRepoAnalysis } from "../src/lib/github-analyzer";
-import { parseModelReference } from "../src/lib/ai/providers";
+import { listRepositoryFiles } from "../src/lib/github-analyzer";
+import { modelOption, parseModelReference } from "../src/lib/ai/providers";
+import { isPathIncluded } from "../src/lib/local-source/folder-tree";
+import {
+  buildLocalGeneration,
+  estimateLocalGeneration,
+  repositorySubject,
+} from "../src/lib/local-source/generation";
 
-const repositories = ["pocketbase/pocketbase", "umami-software/umami"] as const;
+// Folders left out so the selection fits the model's context window.
+const targets = [
+  {
+    repository: "pocketbase/pocketbase",
+    excludedPaths: [".github", "examples", "migrations", "plugins", "tests", "tools", "ui"],
+  },
+  {
+    repository: "umami-software/umami",
+    excludedPaths: [
+      ".eloqnt",
+      ".github",
+      "db",
+      "docker",
+      "packages",
+      "podman",
+      "public",
+      "scripts",
+      "tests",
+    ],
+  },
+] as const;
 const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
+const githubToken = process.env.GITHUB_TOKEN?.trim() || null;
 // Accepts the stored `provider:model` form as well as a bare Anthropic id.
 const selection = parseModelReference(process.env.STACKHATCH_EVAL_MODEL);
 const model = selection.model;
@@ -18,7 +45,7 @@ if (selection.provider !== "anthropic") {
 
 if (!apiKey) {
   throw new Error(
-    "Set ANTHROPIC_API_KEY before running npm run eval:repositories. Repository evidence and model output are printed, but the key is never logged."
+    "Set ANTHROPIC_API_KEY before running npm run eval:repositories. GITHUB_TOKEN is optional but needed above 60 GitHub requests an hour. Model output is printed; keys are never logged."
   );
 }
 
@@ -27,14 +54,34 @@ async function main() {
   const system = buildSystemPrompt(undefined, { includeNoteNodes: true });
   const results = [];
 
-  for (const repository of repositories) {
+  for (const { repository, excludedPaths } of targets) {
     process.stderr.write(`Evaluating ${repository}...\n`);
-    const analysis = await analyzeRepo(repository);
+    const { snapshot, enumeration } = await listRepositoryFiles(repository, { githubToken });
+    const excluded = new Set<string>(excludedPaths);
+    const files = enumeration.files.filter((file) => isPathIncluded(file.path, excluded));
+    const subject = repositorySubject(snapshot);
+    const estimate = estimateLocalGeneration({
+      files,
+      subject,
+      systemPromptCharacters: system.length,
+      option: modelOption(selection),
+    });
+    if (!estimate.fits) {
+      throw new Error(
+        `${repository}: about ${estimate.inputTokens} input tokens exceed ${model}'s limit; add folders to its excludedPaths.`
+      );
+    }
+    const generation = await buildLocalGeneration({
+      subject,
+      files,
+      signal: new AbortController().signal,
+      onProgress: () => {},
+    });
     const response = await client.messages.create({
       model,
       max_tokens: 8192,
       system,
-      messages: [{ role: "user", content: formatRepoAnalysis(analysis) }],
+      messages: [{ role: "user", content: `${generation.summary}\n\n${generation.context}` }],
       ...(supportsEffort ? { output_config: { effort: "low" as const } } : {}),
     });
     const fullResponse = response.content
@@ -51,11 +98,11 @@ async function main() {
 
     results.push({
       repository,
-      normalizedUrl: analysis.normalizedUrl,
-      defaultBranch: analysis.defaultBranch,
-      commitSha: analysis.commitSha,
-      analysisStatus: analysis.status,
-      warnings: analysis.warnings,
+      normalizedUrl: snapshot.normalizedUrl,
+      defaultBranch: snapshot.defaultBranch,
+      commitSha: snapshot.commitSha,
+      treeTruncated: snapshot.treeTruncated,
+      files: generation.citablePaths.length,
       model,
       explanation: parsed.message,
       architecture: parsed.architecture,

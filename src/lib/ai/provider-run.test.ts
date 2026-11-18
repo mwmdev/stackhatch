@@ -5,7 +5,6 @@ import {
   createProviderRunCoordinator,
   providerErrorDetails,
   ProviderRunStaleError,
-  repositoryPrompt,
 } from "@/lib/ai/provider-run";
 import type { BrowserAiClient } from "@/lib/ai/browser-client";
 import type { ProviderStreamResult } from "@/lib/ai/provider-stream";
@@ -14,7 +13,6 @@ import type { CredentialId, ProviderKeyManager, ProviderKeyStatus } from "@/lib/
 import type { VaultLockCoordinator } from "@/lib/vault/coordination";
 import { openStackHatchVault, deleteVaultDatabase } from "@/lib/vault/indexed-db";
 import { createVaultRepository, type VaultRepository } from "@/lib/vault/repository";
-import type { RepoAnalysis } from "@/lib/github-analyzer";
 import type { StackArchitecture } from "@/types/stack";
 
 const databases = new Set<string>();
@@ -149,6 +147,94 @@ afterEach(async () => {
 });
 
 describe("browser provider-run coordinator", () => {
+  it("pins local approval settings and commits source identity only with a successful map", async () => {
+    const vault = await repository("local-replacement");
+    const manager = keyManager();
+    const ai = client(async () => ({
+      text: "Generated",
+      message: "Generated",
+      architecture: architecture(),
+      requestId: "local-request",
+    }));
+    const initial = (await vault.getProjectBundle("project-1"))!;
+    await vault.saveProjectBundle({
+      project: { ...initial.project, repoUrl: "https://github.com/acme/app" },
+      provenance: {
+        projectId: "project-1", repositoryUrl: "https://github.com/acme/app",
+        commitSha: "old", scannedAt: 1, analysisStatus: "complete", warning: null, updatedAt: 1,
+      },
+      evidence: [{ id: "old-evidence", projectId: "project-1", path: "README.md", content: "old", etag: null, createdAt: 1, updatedAt: 1 }],
+    }, { expectedGeneration: await vault.getGeneration(), expectedProjectRevision: initial.project.revision });
+    const coordinator = createProviderRunCoordinator({ repository: vault, keyManager: manager, ai, locks });
+    const original = (await vault.getProjectBundle("project-1"))!;
+    expect(original.provenance).not.toBeNull();
+    const request = {
+      projectId: "project-1",
+      kind: "repository-generation" as const,
+      prompt: "Map local",
+      sourceContext: "source",
+      citablePaths: ["src/app.ts"],
+      selection: { provider: "openai" as const, model: "gpt-6.1-sol" },
+      customSubtypes: {},
+      localFolder: { name: "new-folder", excludedPaths: ["private"] },
+    };
+    vi.mocked(ai.stream).mockRejectedValueOnce(new Error("failed"));
+    await expect(coordinator.run(request)).rejects.toThrow();
+    const failed = (await vault.getProjectBundle("project-1"))!;
+    expect(failed.project.repoUrl).toBe(original.project.repoUrl);
+    expect(failed.project.localFolder).toBeUndefined();
+    expect(failed.provenance).toEqual(original.provenance);
+    expect(failed.evidence).toEqual(original.evidence);
+    await coordinator.run(request);
+    const committed = (await vault.getProjectBundle("project-1"))!;
+    expect(manager.dispatched).toEqual(["openai", "openai"]);
+    expect(committed.project.localFolder).toEqual(request.localFolder);
+    expect(committed.project.repoUrl).toBeNull();
+    expect(committed.provenance).toBeNull();
+    expect(committed.evidence).toEqual([]);
+  });
+
+  it("preserves local folder metadata when generation replaces the map", async () => {
+    const vault = await repository("local-folder");
+    const bundle = (await vault.getProjectBundle("project-1"))!;
+    const localFolder = { name: "fixture", excludedPaths: ["engine"] };
+    await vault.saveProjectBundle(
+      { project: { ...bundle.project, localFolder } },
+      {
+        expectedGeneration: await vault.getGeneration(),
+        expectedProjectRevision: bundle.project.revision,
+      }
+    );
+    const ai = client(async () => ({
+      text: "Generated",
+      message: "Generated",
+      architecture: architecture(),
+      requestId: "local-request",
+    }));
+    const coordinator = createProviderRunCoordinator({
+      repository: vault,
+      keyManager: keyManager(),
+      ai,
+      locks,
+    });
+    await coordinator.run({
+      projectId: "project-1",
+      kind: "repository-generation",
+      prompt: "Map fixture.",
+      sourceContext: "PRIVATE_SOURCE_CONTEXT",
+      localFolder,
+    });
+    expect((await vault.getProjectBundle("project-1"))?.project.localFolder).toEqual(localFolder);
+    expect(ai.stream).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messages: [{ role: "user", content: "Map fixture.\n\nPRIVATE_SOURCE_CONTEXT" }],
+      })
+    );
+    const saved = (await vault.getProjectBundle("project-1"))!;
+    expect(saved.messages.find((message) => message.role === "user")?.content).toBe("Map fixture.");
+    expect(JSON.stringify(saved)).not.toContain("PRIVATE_SOURCE_CONTEXT");
+  });
+
   it("allows only one live provider request per map", async () => {
     const vault = await repository("single-flight");
     const firstResult = deferred<ProviderStreamResult>();
@@ -533,103 +619,15 @@ describe("browser provider-run coordinator", () => {
     expect(ai.stream).not.toHaveBeenCalled();
   });
 
-  it("persists reviewed GitHub evidence without invoking the AI provider", async () => {
-    const vault = await repository("github");
-    const analysis: RepoAnalysis = {
-      owner: "acme",
-      repo: "app",
-      normalizedUrl: "https://github.com/acme/app",
-      subpath: null,
-      description: "App",
-      primaryLanguage: "TypeScript",
-      languages: { TypeScript: 1 },
-      topics: [],
-      defaultBranch: "main",
-      commitSha: "abc123",
-      treePaths: ["src/app.ts"],
-      citablePaths: ["src/app.ts"],
-      readme: "# App",
-      evidenceFiles: [
-        {
-          path: "package.json",
-          content: "{}",
-          etag: '"v1"',
-          fromCache: false,
-          truncated: false,
-        },
-      ],
-      status: "complete",
-      warnings: [],
-    };
-    const ai = client(vi.fn());
-    const coordinator = createProviderRunCoordinator({
-      repository: vault,
-      keyManager: keyManager(),
-      ai,
-      locks,
-      analyzeRepository: vi.fn(async () => analysis),
-      idFactory: (() => {
-        let id = 0;
-        return () => `evidence-${++id}`;
-      })(),
-      now: () => 30,
-    });
-
-    const result = await coordinator.scanRepository("project-1", "https://github.com/acme/app");
-
-    expect(ai.stream).not.toHaveBeenCalled();
-    expect(result.project.repoUrl).toBe("https://github.com/acme/app");
-    expect((await vault.getProjectBundle("project-1"))?.evidence).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ path: "README.md", content: "# App" }),
-        expect.objectContaining({ path: "package.json", etag: '"v1"' }),
-      ])
-    );
-    expect(repositoryPrompt(analysis)).toContain("Revision: main @ abc123");
-
-    vi.mocked(ai.stream).mockResolvedValue({
-      text: '<stack>{"nodes":[],"edges":[]}</stack>',
-      message: "",
-      architecture: { nodes: [], edges: [] },
-      requestId: "req-empty",
-    });
-    await expect(
-      coordinator.run({
-        projectId: "project-1",
-        kind: "repository-generation",
-        prompt: repositoryPrompt(analysis),
-      })
-    ).rejects.toMatchObject({ code: "invalid_output" });
-    expect((await vault.getProjectBundle("project-1"))?.evidence).toHaveLength(2);
-  });
-
-  it("lets a repository map cite only scanned files and reads them at the scanned revision", async () => {
+  it("lets a repository map cite only approved files and reads them at the approved revision", async () => {
     const vault = await repository("node-sources");
-    const analysis: RepoAnalysis = {
-      owner: "acme",
-      repo: "app",
-      normalizedUrl: "https://github.com/acme/app",
-      subpath: null,
-      description: null,
-      primaryLanguage: null,
-      languages: {},
-      topics: [],
-      defaultBranch: "main",
-      commitSha: "abc123",
-      treePaths: ["src", "src/api.ts"],
-      citablePaths: ["src/api.ts"],
-      readme: null,
-      evidenceFiles: [],
-      status: "complete",
-      warnings: [],
-    };
     const generated = architecture();
     generated.nodes[1].evidence = ["src/api.ts", "src/invented.ts"];
     const readFiles = vi.fn(async () => ({
       files: [{ path: "src/api.ts", content: "export {};", truncated: false }],
       omitted: ["src/gone.ts"],
     }));
-    const analyze = vi.fn(async () => analysis);
+    const repositorySource = { repositoryUrl: "https://github.com/acme/app", commitSha: "abc123", excludedPaths: ["web"], analysisStatus: "complete" as const, warning: null };
     const coordinator = createProviderRunCoordinator({
       repository: vault,
       keyManager: keyManager(),
@@ -640,16 +638,15 @@ describe("browser provider-run coordinator", () => {
         requestId: "req-1",
       })),
       locks,
-      analyzeRepository: analyze,
       readRepositoryFiles: readFiles,
     });
 
-    await coordinator.scanRepository("project-1", "acme/app");
     await coordinator.run({
       projectId: "project-1",
       kind: "repository-generation",
-      prompt: repositoryPrompt(analysis),
-      citablePaths: analysis.citablePaths,
+      prompt: "Map approved files",
+      citablePaths: ["src/api.ts"],
+      repositorySource,
     });
 
     const sources = await coordinator.readNodeSources("project-1", "api");
@@ -670,73 +667,49 @@ describe("browser provider-run coordinator", () => {
     });
     expect(readFiles).toHaveBeenCalledTimes(1);
 
-    // A later scan whose regeneration never happens moves the scan commit, but
-    // the saved map and its evidence still belong to the commit that produced it.
-    analyze.mockResolvedValue({ ...analysis, commitSha: "def456" });
-    await coordinator.scanRepository("project-1", "acme/app");
-    expect((await vault.getRepositoryProvenance("project-1"))?.commitSha).toBe("def456");
-    expect((await coordinator.readNodeSources("project-1", "api")).commitSha).toBe("abc123");
-    expect(readFiles).toHaveBeenLastCalledWith(
-      "https://github.com/acme/app",
-      "abc123",
-      ["src/api.ts"],
-      expect.anything()
-    );
   });
 
-  it("keeps a newer project revision when a GitHub scan finishes late", async () => {
-    const vault = await repository("github-stale");
-    const analysisResult = deferred<RepoAnalysis>();
+  it.each([false, true])("commits GitHub provenance only on success (failure: %s)", async (fail) => {
+    const vault = await repository(`github-commit-${fail}`);
+    const initial = (await vault.getProjectBundle("project-1"))!;
+    await vault.saveProjectBundle({
+      project: { ...initial.project, localFolder: { name: "old", excludedPaths: [] } },
+      provenance: { projectId: "project-1", repositoryUrl: "https://github.com/old/repo", commitSha: "old", scannedAt: 1, analysisStatus: "complete", warning: null, updatedAt: 1 },
+      evidence: [{ id: "old-evidence", projectId: "project-1", path: "README.md", content: "old source", etag: null, createdAt: 1, updatedAt: 1 }],
+    }, { expectedGeneration: await vault.getGeneration(), expectedProjectRevision: initial.project.revision });
+    const before = (await vault.getProjectBundle("project-1"))!;
     const coordinator = createProviderRunCoordinator({
-      repository: vault,
-      keyManager: keyManager(),
-      ai: client(vi.fn()),
-      locks,
-      analyzeRepository: () => analysisResult.promise,
+      repository: vault, keyManager: keyManager(), locks,
+      ai: client(async () => {
+        if (fail) throw new Error("stream failed");
+        return { text: "Generated", message: "Generated", architecture: architecture(), requestId: "github" };
+      }),
     });
-
-    const scan = coordinator.scanRepository("project-1", "acme/app");
-    await Promise.resolve();
-    const current = (await vault.getProject("project-1"))!;
-    await vault.saveProjectBundle(
-      {
-        project: {
-          ...current,
-          name: "Newer local name",
-          updatedAt: 20,
-        },
-      },
-      {
-        expectedGeneration: await vault.getGeneration(),
-        expectedProjectRevision: current.revision,
-      }
-    );
-    analysisResult.resolve({
-      owner: "acme",
-      repo: "app",
-      normalizedUrl: "https://github.com/acme/app",
-      subpath: null,
-      description: null,
-      primaryLanguage: null,
-      languages: {},
-      topics: [],
-      defaultBranch: "main",
-      commitSha: "late",
-      treePaths: [],
-      citablePaths: [],
-      readme: null,
-      evidenceFiles: [],
-      status: "complete",
-      warnings: [],
-    });
-
-    await expect(scan).rejects.toBeInstanceOf(ProviderRunStaleError);
-    expect(await vault.getProject("project-1")).toMatchObject({
-      name: "Newer local name",
-      repoUrl: null,
-    });
+    const source = { repositoryUrl: "https://github.com/acme/app", commitSha: "abc123", excludedPaths: ["web"], analysisStatus: "complete" as const, warning: null };
+    const run = coordinator.run({ projectId: "project-1", kind: "repository-generation", prompt: "Map", repositorySource: source });
+    if (fail) {
+      await expect(run).rejects.toThrow();
+      const after = (await vault.getProjectBundle("project-1"))!;
+      expect(after.project).toEqual(before.project);
+      expect(after.provenance).toEqual(before.provenance);
+      expect(after.evidence).toEqual(before.evidence);
+    } else {
+      await run;
+      const after = (await vault.getProjectBundle("project-1"))!;
+      expect(after.project.repoUrl).toBe(source.repositoryUrl);
+      expect(after.project.localFolder).toBeUndefined();
+      expect(after.provenance).toMatchObject({ commitSha: "abc123", mapCommitSha: "abc123", excludedPaths: ["web"] });
+      expect(after.evidence).toEqual([]);
+    }
   });
 
+  it("rejects repository generation without an approved source", async () => {
+    const vault = await repository("missing-source");
+    const ai = client(vi.fn());
+    const coordinator = createProviderRunCoordinator({ repository: vault, keyManager: keyManager(), ai, locks });
+    await expect(coordinator.run({ projectId: "project-1", kind: "repository-generation", prompt: "Map" })).rejects.toMatchObject({ code: "invalid_request" });
+    expect(ai.stream).not.toHaveBeenCalled();
+  });
   it("resolves alternatives against the current saved node", async () => {
     const vault = await repository("stale-node");
     const coordinator = createProviderRunCoordinator({

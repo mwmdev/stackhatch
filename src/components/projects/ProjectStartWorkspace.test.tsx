@@ -1,10 +1,18 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { markProjectStart } from "@/lib/project-start";
 import type { ProviderKeyManager } from "@/lib/provider-key";
 import type { WorkspaceVault } from "@/lib/vault/workspace";
 import ProjectStartWorkspace from "./ProjectStartWorkspace";
 import { MAX_REQUIREMENTS_CHARACTERS, MAX_REQUIREMENTS_FILE_BYTES } from "@/lib/requirements-file";
+import {
+  clearPendingGeneration,
+  peekPendingGeneration,
+  localFolderFor,
+  setPickedLocalFolder,
+  setPickedRepository,
+} from "@/lib/local-source/folder-session";
+import type { SourceReviewDialogProps } from "./SourceReviewDialog";
 
 const push = vi.fn();
 
@@ -13,6 +21,37 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("next-themes", () => ({
   useTheme: () => ({ theme: "dark", setTheme: vi.fn() }),
+}));
+vi.mock("@/components/projects/SourceReviewDialog", () => ({
+  default: ({ onApprove, onCancel, source }: SourceReviewDialogProps) => (
+    <div role="dialog" aria-label={source.kind === "local" ? "Local folder" : "GitHub repository review"} data-source={source.kind}>
+      <button onClick={onCancel}>Cancel folder</button>
+      <button
+        onClick={() =>
+          onApprove({
+            name: source.kind === "local" ? source.handle.name : source.repositoryUrl.split("/").pop()!,
+            excludedPaths: ["engine"],
+            repository: source.kind === "github" ? {
+              repositoryUrl: source.repositoryUrl,
+              commitSha: "abc123",
+              excludedPaths: ["engine"],
+              analysisStatus: "complete",
+              warning: null,
+            } : null,
+            generation: {
+              summary: "Generate fixture",
+              context: "source text",
+              citablePaths: ["src/app.ts"],
+              selection: { provider: "anthropic", model: "claude-sonnet-5" },
+              customSubtypes: {},
+            },
+          })
+        }
+      >
+        Approve folder
+      </button>
+    </div>
+  ),
 }));
 
 function project(id: string) {
@@ -90,13 +129,14 @@ describe("ProjectStartWorkspace", () => {
     window.sessionStorage.clear();
   });
 
-  it("offers only the three supported starting points without account or decorative UI", async () => {
+  it("offers only the four supported starting points without account or decorative UI", async () => {
     await renderWorkspace();
     expect(screen.getByRole("heading", { name: "Start a new map" })).toBeInTheDocument();
 
     expect(screen.getByRole("button", { name: "Create blank map" })).toBeInTheDocument();
     expect(screen.getByLabelText("Choose .md or .txt file")).toBeInTheDocument();
     expect(screen.getByLabelText("GitHub repository")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Choose local folder" })).toBeInTheDocument();
     expect(screen.queryByText("Start from a worked example")).not.toBeInTheDocument();
     expect(screen.queryByText("Or bring your own")).not.toBeInTheDocument();
     expect(
@@ -147,32 +187,22 @@ describe("ProjectStartWorkspace", () => {
     expect(screen.getAllByRole("alert")).toHaveLength(1);
   });
 
-  it("offers every start without a key and asks for one when an AI start is submitted", async () => {
+  it("opens repository review without an AI key or creating a project", async () => {
     const vault = makeVault();
     await renderWorkspace({ keyManager: keyManager("absent") }, vault);
-
-    const keyHeading = screen.getByRole("heading", { name: "Connect an AI provider" });
-    expect(screen.getByRole("button", { name: "Create blank map" })).toBeInTheDocument();
-    expect(screen.getByLabelText("Choose .md or .txt file")).toBeInTheDocument();
-    expect(screen.getByLabelText("GitHub repository")).toBeInTheDocument();
-
     fireEvent.change(screen.getByLabelText("GitHub repository"), {
       target: { value: "acme/api" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Map repository" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Add an AI provider key to generate this map."
-    );
-    await waitFor(() => expect(keyHeading).toHaveFocus());
+    expect(await screen.findByRole("dialog", { name: "GitHub repository review" })).toHaveAttribute("data-source", "github");
     expect(vault.createProject).not.toHaveBeenCalled();
+  });
 
-    fireEvent.change(await screen.findByLabelText("Anthropic API key"), {
-      target: { value: "sk-ant-valid-test" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Use key" }));
-    await screen.findByText("Anthropic key");
-    fireEvent.click(screen.getByRole("button", { name: "Map repository" }));
-    await waitFor(() => expect(vault.createProject).toHaveBeenCalledOnce());
+  it("opens a repository picked on the landing page", async () => {
+    setPickedRepository("acme/app");
+    await renderWorkspace();
+    expect(await screen.findByRole("dialog", { name: "GitHub repository review" })).toBeInTheDocument();
+    expect(screen.getByLabelText("GitHub repository")).toHaveValue("acme/app");
   });
 
   it("adds a fine-grained GitHub token before the repository map exists", async () => {
@@ -207,19 +237,9 @@ describe("ProjectStartWorkspace", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: /Remember on this device/ }));
     fireEvent.click(screen.getByRole("button", { name: "Map repository" }));
 
-    await waitFor(() => expect(vault.createProject).toHaveBeenCalledOnce());
+    expect(await screen.findByRole("dialog", { name: "GitHub repository review" })).toBeInTheDocument();
     expect(manager.rememberKey).toHaveBeenCalledWith("github", "github_pat_private");
-    expect(vi.mocked(manager.rememberKey).mock.invocationCallOrder[0]).toBeLessThan(
-      vi.mocked(vault.createProject).mock.invocationCallOrder[0]
-    );
-    expect(vault.createProject).toHaveBeenCalledWith(
-      expect.objectContaining({ repoUrl: "https://github.com/acme/billing" })
-    );
-    expect(screen.getByText("Remembered on device")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Change in Settings" })).toHaveAttribute(
-      "href",
-      "/settings#github-token"
-    );
+    expect(vault.createProject).not.toHaveBeenCalled();
   });
 
   it("starts a blank canvas without a key", async () => {
@@ -262,10 +282,9 @@ describe("ProjectStartWorkspace", () => {
     });
     await renderWorkspace({}, vault);
     await act(async () => {});
-    fireEvent.change(screen.getByLabelText("GitHub repository"), {
-      target: { value: "acme/api" },
+    fireEvent.change(screen.getByLabelText("Choose .md or .txt file"), {
+      target: { files: [new File(["requirements"], "requirements.txt", { type: "text/plain" })] },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Map repository" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "The AI provider setting could not be read"
     );
@@ -457,7 +476,9 @@ describe("ProjectStartWorkspace", () => {
       "/project/#origin-map"
     );
     fireEvent.click(screen.getByRole("button", { name: "Map repository" }));
-
+    await screen.findByRole("dialog", { name: "GitHub repository review" });
+    expect(localVault.createProject).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Approve folder" }));
     await waitFor(() =>
       expect(localVault.createProject).toHaveBeenCalledWith({
         name: "api",
@@ -467,6 +488,8 @@ describe("ProjectStartWorkspace", () => {
       })
     );
     expect(push).toHaveBeenCalledWith("/project/#repository-map");
+    expect(peekPendingGeneration("repository-map")?.source).toBe("github");
+    clearPendingGeneration("repository-map");
   });
 
   it("ignores the retired template mode and keeps the chooser available", async () => {
@@ -490,5 +513,80 @@ describe("ProjectStartWorkspace", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("browser storage");
     fireEvent.click(screen.getByRole("button", { name: "Retry blank map" }));
     await waitFor(() => expect(push).toHaveBeenCalledWith("/project/#retried-map"));
+  });
+
+  describe("local folder", () => {
+    function supportLocalFolders(picker: (() => Promise<unknown>) | undefined) {
+      Object.defineProperty(window, "showDirectoryPicker", {
+        configurable: true,
+        writable: true,
+        value: picker,
+      });
+    }
+
+    afterEach(() => {
+      Reflect.deleteProperty(window, "showDirectoryPicker");
+      clearPendingGeneration("local-map");
+    });
+
+    it("creates a map only after approval and hands transient source to the editor", async () => {
+      const handle = { kind: "directory", name: "my-project" } as FileSystemDirectoryHandle;
+      const picker = vi.fn().mockResolvedValue(handle);
+      supportLocalFolders(picker);
+      const { vault } = await renderWorkspace();
+
+      fireEvent.click(screen.getByRole("button", { name: "Choose local folder" }));
+      await screen.findByRole("dialog", { name: "Local folder" });
+      expect(vault.createProject).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByRole("button", { name: "Approve folder" }));
+
+      await waitFor(() => expect(push).toHaveBeenCalledWith("/project/#local-map"));
+      expect(picker).toHaveBeenCalledWith({ id: "stackhatch-local-source", mode: "read" });
+      expect(vault.createProject).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: "my-project",
+          localFolder: { name: "my-project", excludedPaths: ["engine"] },
+        })
+      );
+      expect(localFolderFor("local-map")).toBe(handle);
+      expect(peekPendingGeneration("local-map")?.generation.context).toBe("source text");
+    });
+
+    it("opens review for a folder picked on the landing page", async () => {
+      setPickedLocalFolder({
+        kind: "directory",
+        name: "landing-folder",
+      } as FileSystemDirectoryHandle);
+      await renderWorkspace();
+      expect(await screen.findByRole("dialog", { name: "Local folder" })).toBeInTheDocument();
+    });
+
+    it("cancels folder approval without creating a project", async () => {
+      supportLocalFolders(vi.fn().mockResolvedValue({ name: "fixture", kind: "directory" }));
+      const { vault } = await renderWorkspace();
+      fireEvent.click(screen.getByRole("button", { name: "Choose local folder" }));
+      fireEvent.click(await screen.findByRole("button", { name: "Cancel folder" }));
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(vault.createProject).not.toHaveBeenCalled();
+    });
+
+    it("does nothing when the folder picker is dismissed", async () => {
+      supportLocalFolders(vi.fn().mockRejectedValue(new DOMException("closed", "AbortError")));
+      const { vault } = await renderWorkspace();
+
+      fireEvent.click(screen.getByRole("button", { name: "Choose local folder" }));
+
+      await act(async () => {});
+      expect(vault.createProject).not.toHaveBeenCalled();
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    });
+
+    it("explains an unsupported browser and disables the start", async () => {
+      await renderWorkspace();
+      expect(screen.getByRole("button", { name: "Choose local folder" })).toBeDisabled();
+      expect(
+        screen.getByText("Needs a desktop Chromium browser, such as Chrome or Edge.")
+      ).toBeInTheDocument();
+    });
   });
 });

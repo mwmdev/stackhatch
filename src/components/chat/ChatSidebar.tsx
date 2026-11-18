@@ -10,29 +10,21 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import Link from "next/link";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { FileText, Loader2, Paperclip, Send, Square, X } from "lucide-react";
-import GitHubTokenField from "@/components/projects/GitHubTokenField";
 import ProviderKeyField from "@/components/projects/ProviderKeyField";
 import { AI_PROVIDERS, DEFAULT_AI_SELECTION } from "@/lib/ai/providers";
 import IconControl from "@/components/ui/IconControl";
 import {
   getBrowserProviderRunCoordinator,
   providerErrorDetails,
-  repositoryPrompt,
   type ProviderRunCoordinator,
   type ProviderRunRequest,
-  type RepositoryEvidenceOutcome,
+  type RepositorySourceCommit,
 } from "@/lib/ai/provider-run";
 import type { CanvasPersistenceCommit } from "@/lib/canvas-persistence";
 import { stripStackTags } from "@/lib/ai/context-builder";
-import {
-  GITHUB_TOKEN_RECOVERABLE_CODES,
-  parseGitHubRepoReference,
-  RepoAnalysisError,
-} from "@/lib/github-analyzer";
 import { createId } from "@/lib/id";
 import {
   ChatAttachmentError,
@@ -42,9 +34,12 @@ import {
   readChatAttachment,
   type ChatAttachment,
 } from "@/lib/chat-attachment";
+import type { ApprovedLocalGeneration } from "@/lib/local-source/generation";
+import { readLocalEvidence } from "@/lib/local-source/evidence";
+import type { VaultLocalFolder, VaultProjectRecord } from "@/lib/vault/schema";
 import type { ProviderKeyManager, ProviderKeyStatus } from "@/lib/provider-key";
 import type { ChatMessage } from "@/types/chat";
-import type { StackArchitecture } from "@/types/stack";
+import type { StackArchitecture, StackNode } from "@/types/stack";
 
 export interface RepositoryScanProvenance {
   repoUrl: string;
@@ -52,6 +47,8 @@ export interface RepositoryScanProvenance {
   scannedAt: number;
   analysisStatus: "complete" | "partial";
   analysisWarning: string | null;
+  /** Folders unchecked in the approved selection. */
+  excludedPaths: string[];
 }
 
 export interface ArchitectureUpdateMeta {
@@ -59,27 +56,53 @@ export interface ArchitectureUpdateMeta {
   persisted: true;
   commit: CanvasPersistenceCommit;
   provenance?: RepositoryScanProvenance;
+  project?: VaultProjectRecord;
 }
 
 export type ArchitectureStreamOutcome = "completed" | "ambiguous";
+
+/** An approved source selection, ready for one generation run. */
+export type SourceGenerationRequest = {
+  projectId: string;
+  generation: ApprovedLocalGeneration;
+  nonce: number;
+} & (
+  | { source: "local"; localFolder: VaultLocalFolder; handle: FileSystemDirectoryHandle }
+  | { source: "github"; repository: RepositorySourceCommit }
+);
+
+/** A source whose selection the user is asked to review again. */
+export type SourceReview =
+  | { source: "local"; handle: FileSystemDirectoryHandle; folder: VaultLocalFolder }
+  | { source: "github"; repositoryUrl: string; excludedPaths: string[] };
 
 interface ChatSidebarProps {
   projectId: string;
   /** Set when the map was started from an uploaded requirements file. */
   hasRequirementsBrief?: boolean;
   /**
-   * Runs the map's one obvious action on arrival, so submitting a repository or
-   * a brief goes straight to a map. The editor only sets this for a map that
-   * has never been generated, since generation replaces the canvas wholesale.
+   * Runs the map's one obvious action on arrival, so submitting a brief goes
+   * straight to a map. The editor only sets this for a map that has never been
+   * generated, since generation replaces the canvas wholesale.
    */
-  autoStart?: "repository" | "brief" | null;
-  repoUrl?: string | null;
+  autoStart?: "brief" | null;
   defaultOpen?: boolean;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
-  scanTrigger?: number;
   /** Attaches a node's evidence files, read from GitHub, to the composer. A new nonce asks again. */
-  sourceRequest?: { nodeId: string; nonce: number } | null;
+  sourceRequest?: { projectId: string; nodeId: string; nonce: number } | null;
+  generationRequest?: SourceGenerationRequest | null;
+  attachmentRequest?: {
+    projectId: string;
+    node: StackNode;
+    handle: FileSystemDirectoryHandle;
+    nonce: number;
+  } | null;
+  onConsumeSourceRequest?: (nonce: number) => void;
+  onConsumeGenerationRequest?: (nonce: number) => void;
+  onConsumeAttachmentRequest?: (nonce: number) => void;
+  onLocalGenerationCommitted?: (projectId: string, handle: FileSystemDirectoryHandle) => void;
+  onReviewSource?: (review: SourceReview) => void;
   coordinator?: ProviderRunCoordinator;
   keyManager?: ProviderKeyManager;
   onArchitecture?: (
@@ -98,14 +121,8 @@ interface ChatSidebarProps {
 }
 
 interface RetryDraft {
-  runId: string;
+  runId?: string;
   request: ProviderRunRequest;
-}
-
-function normalizeRepoUrl(repoUrl?: string | null) {
-  const value = repoUrl?.trim();
-  if (!value || value === "null" || value === "undefined") return "";
-  return value;
 }
 
 /** Sentinel for the one error that should render the key setup prompt. */
@@ -126,17 +143,6 @@ function visibleMessage(message: ChatMessage) {
       message.content.startsWith("Analyze this GitHub repository") ||
       message.content.startsWith("Generate an architecture overview for this repository"))
   );
-}
-
-function provenanceFrom(outcome: RepositoryEvidenceOutcome): RepositoryScanProvenance {
-  return {
-    repoUrl: outcome.analysis.normalizedUrl,
-    commitSha: outcome.analysis.commitSha,
-    scannedAt: outcome.project.updatedAt,
-    analysisStatus: outcome.analysis.status,
-    analysisWarning:
-      outcome.analysis.warnings.length > 0 ? outcome.analysis.warnings.join(" ") : null,
-  };
 }
 
 function providerErrorMessage(error: unknown) {
@@ -272,12 +278,17 @@ export default function ChatSidebar({
   projectId,
   hasRequirementsBrief = false,
   autoStart = null,
-  repoUrl,
   defaultOpen = false,
   open: controlledOpen,
   onOpenChange,
-  scanTrigger = 0,
   sourceRequest = null,
+  generationRequest = null,
+  attachmentRequest = null,
+  onConsumeSourceRequest,
+  onConsumeGenerationRequest,
+  onConsumeAttachmentRequest,
+  onLocalGenerationCommitted,
+  onReviewSource,
   coordinator: providedCoordinator,
   onArchitecture,
   keyManager,
@@ -301,7 +312,12 @@ export default function ChatSidebar({
   const [attachmentError, setAttachmentError] = useState("");
   const [readingSources, setReadingSources] = useState(false);
   const sourcesAbortRef = useRef<AbortController | null>(null);
-  const previousSourceRequest = useRef(sourceRequest?.nonce ?? 0);
+  const approvedFolderRef = useRef<{ projectId: string; handle: FileSystemDirectoryHandle } | null>(
+    null
+  );
+  const previousSourceRequest = useRef(0);
+  const previousGenerationRequest = useRef(0);
+  const previousAttachmentRequest = useRef(0);
   // Bumped by every attachment change, so a read that finishes late cannot replace a newer one.
   const attachmentTicketRef = useRef(0);
   const cancelSourceRead = useCallback(() => {
@@ -312,10 +328,7 @@ export default function ChatSidebar({
   }, []);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [keyStatus, setKeyStatus] = useState<ProviderKeyStatus | null>(null);
-  const [evidence, setEvidence] = useState<RepositoryEvidenceOutcome | null>(null);
   const [retryDraft, setRetryDraft] = useState<RetryDraft | null>(null);
-  // The last scan's GitHub failure, which decides whether the token prompt shows.
-  const [scanFailure, setScanFailure] = useState<RepoAnalysisError | null>(null);
   // The header gains a rule once the thread scrolls beneath it.
   const [threadScrolled, setThreadScrolled] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -326,12 +339,10 @@ export default function ChatSidebar({
   const pendingKeySendRef = useRef(false);
   const streamFrameRef = useRef<number | null>(null);
   const pendingStreamTextRef = useRef("");
-  const previousScanTrigger = useRef(scanTrigger);
   const autoStartedRef = useRef(false);
   const open = controlledOpen ?? uncontrolledOpen;
   const previousOpenRef = useRef(open);
   const focusCloseControl = open && !previousOpenRef.current;
-  const normalizedRepoUrl = normalizeRepoUrl(repoUrl);
   // Keyed on the names' content, since the editor passes a fresh array each render.
   const nodeNamesKey = nodeNames?.join("\n").toLowerCase() ?? "";
   const nodeNameSet = useMemo(
@@ -390,16 +401,9 @@ export default function ChatSidebar({
     scrollToEnd();
   }, [scrollToEnd, messages, streamText, error, keyStatus, open]);
 
-  // A scan failure only explains the panel while its message is the one shown;
-  // a later error, such as a missing AI key, takes over.
-  const activeScanFailure = scanFailure && error === scanFailure.message ? scanFailure : null;
-  // The key and token prompts render nothing until they have read their
-  // status, so they grow after the scroll above ran; follow their height too.
-  const keyPromptVisible = error === KEY_MISSING;
-  const githubTokenPromptVisible = Boolean(
-    activeScanFailure && GITHUB_TOKEN_RECOVERABLE_CODES.has(activeScanFailure.code)
-  );
-  const promptVisible = keyPromptVisible || githubTokenPromptVisible;
+  // The key prompt renders nothing until it has read its status, so it grows
+  // after the scroll above ran; follow its height too.
+  const promptVisible = error === KEY_MISSING;
   useEffect(() => {
     const prompt = keyPromptRef.current;
     if (!promptVisible || !prompt || typeof ResizeObserver === "undefined") return;
@@ -450,15 +454,12 @@ export default function ChatSidebar({
   );
 
   const runProvider = useCallback(
-    // scanAndGenerate calls this in the same tick as setEvidence, so the state
-    // closure is still null there; the caller passes the fresh scan instead.
-    async (request: ProviderRunRequest, scanned?: RepositoryEvidenceOutcome | null) => {
+    async (request: ProviderRunRequest) => {
       const runId = request.retryRunId ?? request.runId ?? createId();
       const nextRequest = { ...request, runId };
       setStreaming(true);
       setStreamText("");
       setError("");
-      setScanFailure(null);
       setRetryDraft(null);
       // Show the user's turn at once. The stored thread replaces it when the run finishes.
       setMessages((current) => [
@@ -490,6 +491,9 @@ export default function ChatSidebar({
           beforeCommit: onProviderCommitStart,
         });
         providerCommitted = true;
+        if (request.localFolder && approvedFolderRef.current?.projectId === request.projectId) {
+          onLocalGenerationCommitted?.(request.projectId, approvedFolderRef.current.handle);
+        }
         if (result.architecture) {
           await onArchitecture?.(result.architecture, {
             source: request.kind === "repository-generation" ? "scan" : "assistant",
@@ -498,9 +502,17 @@ export default function ChatSidebar({
               projectRevision: result.project.revision,
               vaultGeneration: result.generation,
             },
-            ...(request.kind === "repository-generation" && (scanned ?? evidence)
+            ...(request.localFolder ? { project: result.project } : {}),
+            ...(request.repositorySource
               ? {
-                  provenance: provenanceFrom((scanned ?? evidence)!),
+                  provenance: {
+                    repoUrl: request.repositorySource.repositoryUrl,
+                    commitSha: request.repositorySource.commitSha,
+                    scannedAt: result.project.updatedAt,
+                    analysisStatus: request.repositorySource.analysisStatus,
+                    analysisWarning: request.repositorySource.warning,
+                    excludedPaths: request.repositorySource.excludedPaths,
+                  },
                 }
               : {}),
           });
@@ -532,6 +544,14 @@ export default function ChatSidebar({
               generation: "",
             });
           }
+          if (message === KEY_MISSING && (request.localFolder || request.repositorySource)) {
+            setKeyStatus({
+              provider: request.selection?.provider ?? DEFAULT_AI_SELECTION.provider,
+              state: "absent",
+              generation: "",
+            });
+            setRetryDraft({ request: { ...request, runId: undefined, retryRunId: undefined } });
+          }
           setError(message);
           if (message !== KEY_MISSING) {
             setRetryDraft({ runId, request: nextRequest });
@@ -545,102 +565,56 @@ export default function ChatSidebar({
     },
     [
       coordinator,
-      evidence,
       finishBarrier,
       onArchitecture,
       onArchitectureStreamStart,
       onProviderCommitStart,
       onProviderCommit,
+      onLocalGenerationCommitted,
       projectId,
       publishStreamText,
       refreshMessages,
     ]
   );
 
-  const scanRepository = useCallback(async () => {
-    if (!normalizedRepoUrl || streaming) return null;
-    setSidebarOpen(true);
-    setStreaming(true);
-    setError("");
-    setScanFailure(null);
-    setEvidence(null);
-    cancelSourceRead();
-    const controller = new AbortController();
-    abortRef.current = controller;
-    try {
-      await onArchitectureStreamStart?.();
-      const result = await coordinator.scanRepository(projectId, normalizedRepoUrl, {
-        signal: controller.signal,
-        beforeCommit: onProviderCommitStart,
-      });
-      await onProviderCommit?.({
-        projectRevision: result.project.revision,
-        vaultGeneration: result.generation,
-      });
-      setEvidence(result);
-      return result;
-    } catch (scanError) {
-      if (scanError instanceof RepoAnalysisError) setScanFailure(scanError);
-      setError(providerErrorMessage(scanError));
-      return null;
-    } finally {
-      abortRef.current = null;
-      setStreaming(false);
-      await finishBarrier("completed");
+  useEffect(() => {
+    if (
+      !generationRequest ||
+      generationRequest.projectId !== projectId ||
+      !ready ||
+      streaming ||
+      generationRequest.nonce === previousGenerationRequest.current
+    )
+      return;
+    previousGenerationRequest.current = generationRequest.nonce;
+    const { generation } = generationRequest;
+    onConsumeGenerationRequest?.(generationRequest.nonce);
+    const source =
+      generationRequest.source === "local"
+        ? { localFolder: generationRequest.localFolder }
+        : { repositorySource: generationRequest.repository };
+    if (generationRequest.source === "local") {
+      approvedFolderRef.current = { projectId, handle: generationRequest.handle };
     }
-  }, [
-    cancelSourceRead,
-    coordinator,
-    finishBarrier,
-    normalizedRepoUrl,
-    onArchitectureStreamStart,
-    onProviderCommit,
-    onProviderCommitStart,
-    projectId,
-    setSidebarOpen,
-    streaming,
-  ]);
-
-  const scanAndGenerate = useCallback(async () => {
-    if (!normalizedRepoUrl) return;
-    const scanned = await scanRepository();
-    // The scan is still its own network event; what went is the click between
-    // reading the repository and turning it into a map.
-    if (!scanned) return;
-    await runProvider(
-      {
-        projectId,
-        kind: "repository-generation",
-        prompt: repositoryPrompt(scanned.analysis),
-        citablePaths: scanned.analysis.citablePaths,
-      },
-      scanned
-    );
-  }, [normalizedRepoUrl, projectId, runProvider, scanRepository]);
+    void runProvider({
+      projectId,
+      kind: "repository-generation",
+      prompt: generation.summary,
+      sourceContext: generation.context,
+      citablePaths: generation.citablePaths,
+      selection: generation.selection,
+      customSubtypes: generation.customSubtypes,
+      ...source,
+    });
+  }, [generationRequest, onConsumeGenerationRequest, projectId, ready, runProvider, streaming]);
 
   useEffect(() => {
     if (!autoStart || autoStartedRef.current) return;
     if (!ready || streaming || messages.length > 0) return;
     if (!keyStatus || keyStatus.state === "absent") return;
     autoStartedRef.current = true;
-    if (autoStart === "repository") void scanAndGenerate();
-    else void runProvider({ projectId, kind: "initialization" });
-  }, [
-    autoStart,
-    keyStatus,
-    messages.length,
-    projectId,
-    ready,
-    runProvider,
-    scanAndGenerate,
-    streaming,
-  ]);
-
-  useEffect(() => {
-    if (scanTrigger <= previousScanTrigger.current) return;
-    previousScanTrigger.current = scanTrigger;
-    void scanAndGenerate();
-  }, [scanTrigger, scanAndGenerate]);
+    void runProvider({ projectId, kind: "initialization" });
+  }, [autoStart, keyStatus, messages.length, projectId, ready, runProvider, streaming]);
 
   const attachNodeSources = useCallback(
     async (nodeId: string) => {
@@ -660,8 +634,13 @@ export default function ChatSidebar({
           setAttachmentError("GitHub returned none of this component's files.");
           return;
         }
-        setAttachment(composeSourceAttachment(sources));
-        textareaRef.current?.focus();
+        setAttachment(
+          composeSourceAttachment({
+            ...sources,
+            origin: `${sources.repositoryUrl} at ${sources.commitSha}`,
+          })
+        );
+        restoreComposerFocusRef.current = true;
       } catch (readError) {
         if (!controller.signal.aborted && ticket === attachmentTicketRef.current) {
           setAttachmentError(providerErrorDetails(readError).message);
@@ -677,16 +656,68 @@ export default function ChatSidebar({
   );
 
   useEffect(() => {
-    if (!sourceRequest || sourceRequest.nonce === previousSourceRequest.current) return;
+    if (
+      !sourceRequest ||
+      sourceRequest.projectId !== projectId ||
+      sourceRequest.nonce === previousSourceRequest.current
+    )
+      return;
     previousSourceRequest.current = sourceRequest.nonce;
+    onConsumeSourceRequest?.(sourceRequest.nonce);
     void attachNodeSources(sourceRequest.nodeId);
-  }, [sourceRequest, attachNodeSources]);
+  }, [sourceRequest, projectId, onConsumeSourceRequest, attachNodeSources]);
 
   useEffect(() => {
-    if (streaming || !ready || !restoreComposerFocusRef.current) return;
+    if (
+      !attachmentRequest ||
+      attachmentRequest.projectId !== projectId ||
+      attachmentRequest.nonce === previousAttachmentRequest.current
+    )
+      return;
+    previousAttachmentRequest.current = attachmentRequest.nonce;
+    const { handle, node, nonce } = attachmentRequest;
+    onConsumeAttachmentRequest?.(nonce);
+    cancelSourceRead();
+    const ticket = attachmentTicketRef.current;
+    const controller = new AbortController();
+    sourcesAbortRef.current = controller;
+    setReadingSources(true);
+    setAttachmentError("");
+    setSidebarOpen(true);
+    void readLocalEvidence(handle, node.evidence ?? [], { signal: controller.signal })
+      .then(({ files, omitted }) => {
+        if (controller.signal.aborted || ticket !== attachmentTicketRef.current) return;
+        if (!files.length) {
+          setAttachmentError(`None of this component's files were found in ${handle.name}.`);
+          return;
+        }
+        setAttachment(
+          composeSourceAttachment({
+            node,
+            origin: `the local folder ${handle.name}`,
+            files,
+            omitted,
+          })
+        );
+        restoreComposerFocusRef.current = true;
+      })
+      .catch(() => {
+        if (!controller.signal.aborted && ticket === attachmentTicketRef.current)
+          setAttachmentError("The local files could not be read.");
+      })
+      .finally(() => {
+        if (sourcesAbortRef.current === controller) {
+          sourcesAbortRef.current = null;
+          setReadingSources(false);
+        }
+      });
+  }, [attachmentRequest, cancelSourceRead, onConsumeAttachmentRequest, projectId, setSidebarOpen]);
+
+  useEffect(() => {
+    if (!open || streaming || readingSources || !ready || !restoreComposerFocusRef.current) return;
     restoreComposerFocusRef.current = false;
     textareaRef.current?.focus();
-  }, [ready, streaming]);
+  }, [attachment, open, readingSources, ready, streaming]);
 
   async function attachFile(file: File | undefined) {
     if (!file || !ready || streaming) return;
@@ -732,20 +763,42 @@ export default function ChatSidebar({
     void runProvider({ projectId, kind: "initialization" });
   }
 
+  function reviewAndRetry() {
+    if (!retryDraft) return;
+    const { localFolder, repositorySource } = retryDraft.request;
+    if (repositorySource) {
+      onReviewSource?.({
+        source: "github",
+        repositoryUrl: repositorySource.repositoryUrl,
+        excludedPaths: repositorySource.excludedPaths,
+      });
+      return;
+    }
+    if (localFolder) {
+      const approved = approvedFolderRef.current;
+      if (approved?.projectId === projectId) {
+        onReviewSource?.({ source: "local", handle: approved.handle, folder: localFolder });
+      }
+      return;
+    }
+    void runProvider({
+      ...retryDraft.request,
+      ...(retryDraft.runId ? { retryRunId: retryDraft.runId } : {}),
+    });
+  }
+
   const showApiKeyPrompt = error === KEY_MISSING;
   const providerName = keyStatus ? AI_PROVIDERS[keyStatus.provider].name : "your AI provider";
   // Exactly one next step at a time. Anything further along in the flow owns
   // the panel, so the opening card retires as soon as one of them appears.
-  const showStartCard = messages.length === 0 && !streaming && !evidence && !error;
+  const showStartCard = messages.length === 0 && !streaming && !error;
 
   if (!open) return null;
 
   const hasTurns = messages.length > 0;
-  const startAction = normalizedRepoUrl
-    ? { label: "Map this repository", run: () => void scanAndGenerate() }
-    : hasRequirementsBrief
-      ? { label: "Draft a map from your brief", run: startInterview }
-      : null;
+  const startAction = hasRequirementsBrief
+    ? { label: "Draft a map from your brief", run: startInterview }
+    : null;
 
   return (
     <NodeNamesContext.Provider value={nodeNameSet}>
@@ -779,11 +832,9 @@ export default function ChatSidebar({
           {showStartCard ? (
             <section className="pb-5 pt-3.5">
               <p className="type-body text-ink2">
-                {normalizedRepoUrl
-                  ? `StackHatch reads bounded evidence from GitHub, then asks ${providerName} to turn it into a map you can edit.`
-                  : hasRequirementsBrief
-                    ? `Your brief is stored on this device, and ${providerName} drafts a map from it that you can edit.`
-                    : "Describe what you're building and the assistant drafts a map you can edit."}
+                {hasRequirementsBrief
+                  ? `Your brief is stored on this device, and ${providerName} drafts a map from it that you can edit.`
+                  : "Describe what you're building and the assistant drafts a map you can edit."}
               </p>
               {startAction ? (
                 <button type="button" onClick={startAction.run} className="btn btn--primary mt-4">
@@ -832,10 +883,15 @@ export default function ChatSidebar({
             <div ref={keyPromptRef} role="alert" className="mt-3 border-t-2 border-primary pt-3.5">
               <ProviderKeyField
                 keyManager={keyManager}
+                provider={
+                  retryDraft?.request.localFolder || retryDraft?.request.repositorySource
+                    ? retryDraft.request.selection?.provider
+                    : undefined
+                }
                 onReady={(status) => {
                   setKeyStatus(status);
                   if (status.state === "absent") return;
-                  setError("");
+                  if (!retryDraft) setError("");
                   if (pendingKeySendRef.current && (input.trim() || attachment)) {
                     pendingKeySendRef.current = false;
                     const text = takeComposerMessage();
@@ -843,40 +899,36 @@ export default function ChatSidebar({
                   }
                 }}
               />
+              {retryDraft && keyStatus?.state !== "absent" ? (
+                <button
+                  type="button"
+                  className="btn btn--sm mt-3"
+                  onClick={reviewAndRetry}
+                  disabled={Boolean(
+                    (retryDraft.request.localFolder || retryDraft.request.repositorySource) &&
+                    !onReviewSource
+                  )}
+                >
+                  Review and retry
+                </button>
+              ) : null}
             </div>
           ) : null}
 
-          {githubTokenPromptVisible ? (
-            <div ref={keyPromptRef} className="mt-3 border-t-2 border-primary pt-3.5">
-              <p role="alert" className="type-small mt-0 mb-3 text-ink">
-                {error}
-              </p>
-              <GitHubTokenField
-                keyManager={keyManager}
-                owner={parseGitHubRepoReference(normalizedRepoUrl)?.owner}
-                allowForget={activeScanFailure?.code === "github_token_rejected"}
-                onChange={() => void scanAndGenerate()}
-              />
-            </div>
-          ) : null}
-
-          {error && !showApiKeyPrompt && !githubTokenPromptVisible ? (
+          {error && !showApiKeyPrompt ? (
             <div
               role="alert"
               className="mt-3 border-l-[3px] border-danger bg-danger-surface py-3 pl-3.5 pr-3"
             >
               <p className="type-small text-ink">{error}</p>
-              {activeScanFailure?.code === "github_rate_limited" && !activeScanFailure.tokenUsed ? (
-                <Link href="/settings#github-token" className="link type-small mt-2 inline-block">
-                  Add a GitHub token
-                </Link>
-              ) : null}
               {retryDraft ? (
                 <button
                   type="button"
-                  onClick={() =>
-                    void runProvider({ ...retryDraft.request, retryRunId: retryDraft.runId })
-                  }
+                  onClick={reviewAndRetry}
+                  disabled={Boolean(
+                    (retryDraft.request.localFolder || retryDraft.request.repositorySource) &&
+                    !onReviewSource
+                  )}
                   className="btn btn--sm mt-3"
                 >
                   Review and retry
@@ -910,7 +962,7 @@ export default function ChatSidebar({
           {readingSources ? (
             <p role="status" className="type-small mb-2 flex items-center gap-2 text-ink2">
               <Loader2 aria-hidden="true" className="size-4 animate-spin" />
-              Reading files from GitHub…
+              Reading files…
             </p>
           ) : null}
           {attachmentError ? (

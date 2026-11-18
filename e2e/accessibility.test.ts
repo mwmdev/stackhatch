@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
-import { createBlankMap, useProviderKey } from "./helpers/sse-mock";
+import { createBlankMap, mockGitHub, useProviderKey } from "./helpers/sse-mock";
 
 /**
  * The audit that prompted these tests found contrast and keyboard defects that
@@ -49,6 +49,21 @@ for (const theme of ["light", "dark"] as const) {
     await page.goto("/project/new");
     await page.getByRole("button", { name: "Private repository? Add a GitHub token" }).click();
     await expect(page.getByLabel("GitHub token")).toBeVisible();
+    expect(await scan(page)).toEqual([]);
+  });
+
+  test(`the GitHub review dialog has no accessibility violations in ${theme} mode`, async ({
+    page,
+  }) => {
+    await setTheme(page, theme);
+    await useProviderKey(page, { remember: true });
+    await mockGitHub(page);
+    await page.goto("/project/new");
+    await page.getByLabel("GitHub repository").fill("acme/platform");
+    await page.getByRole("button", { name: "Map repository" }).click();
+    const dialog = page.getByTestId("source-review-dialog");
+    await expect(dialog.getByRole("group", { name: "Folders" })).toBeVisible();
+    await expect(dialog.getByText(/GitHub requests left this hour/)).toBeVisible();
     expect(await scan(page)).toEqual([]);
   });
 }

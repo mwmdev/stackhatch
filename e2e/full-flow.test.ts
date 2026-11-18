@@ -1,12 +1,16 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+import { VAULT_DATABASE_NAME, VAULT_STORE_NAMES } from "../src/lib/vault/schema";
 import {
   ANTHROPIC_ORIGIN,
   GITHUB_ORIGIN,
+  PLATFORM_FILES,
   TEST_ANTHROPIC_KEY,
+  TEST_GITHUB_TOKEN,
   createBlankMap,
   mockAnthropic,
   mockGitHub,
   openChat,
+  readIndexedDbStore,
   sendChatMessage,
   trackExternalRequests,
   useProviderKey,
@@ -45,44 +49,72 @@ test("chat calls Anthropic directly from the browser and persists locally", asyn
   await expect(page.getByText("A browser-local architecture map is a good fit.")).toBeVisible();
 });
 
-test("a repository becomes a map from one action, reading GitHub then Anthropic", async ({
+const WEB_CLIENT_MAP =
+  'Mapped.\n<stack>{"nodes":[{"id":"client","category":"client","subtype":"web-app","name":"Web Client","technology":"React","description":"Browser UI","reasoning":"Local boundary","locked":false}],"edges":[]}</stack>';
+
+/** Opens the review dialog for a repository from the New map page. */
+async function reviewRepository(page: Page, repository: string) {
+  await page.goto("/project/new");
+  await page.getByLabel("GitHub repository").fill(repository);
+  await page.getByRole("button", { name: "Map repository" }).click();
+  const dialog = page.getByTestId("source-review-dialog");
+  await expect(dialog.getByRole("group", { name: "Folders" })).toBeVisible({ timeout: 30_000 });
+  return dialog;
+}
+
+test("a repository becomes a map: choose folders, approve, one request to Anthropic", async ({
   page,
 }) => {
   const external = trackExternalRequests(page);
   await useProviderKey(page, { remember: true });
   const github = await mockGitHub(page);
-  const anthropic = await mockAnthropic(page, [
-    'Mapped.\n<stack>{"nodes":[{"id":"client","category":"client","subtype":"web-app","name":"Web Client","technology":"React","description":"Browser UI","reasoning":"Local boundary","locked":false}],"edges":[]}</stack>',
-  ]);
-  await page.goto("/project/new");
-  await page.getByLabel("GitHub repository").fill("acme/platform");
-  await page.getByRole("button", { name: "Map repository" }).click();
-  await expect.poll(() => new URL(page.url()).hash).toMatch(/^#.+/);
+  const anthropic = await mockAnthropic(page, [WEB_CLIENT_MAP]);
+  const dialog = await reviewRepository(page, "acme/platform");
 
-  // With a key present the map is drawn on arrival: submitting the repository
-  // was the action. No interview, no evidence review, no generate step.
+  await expect(dialog.getByRole("checkbox", { name: /src\// })).toBeVisible();
+  await expect(dialog.getByRole("checkbox", { name: /web\// })).toBeVisible();
+  await expect(dialog.getByText("node_modules/", { exact: true })).toHaveCount(0);
+  await expect(
+    dialog.getByText("Reads 3 files from GitHub · 50 of 60 GitHub requests left this hour")
+  ).toBeVisible();
+  await dialog.getByRole("checkbox", { name: /web\// }).uncheck();
+  await expect(dialog.getByText(/^Reads 2 files from GitHub/)).toBeVisible();
+  // Reviewing reads the file list and the quota, never a file.
+  expect(github.some((request) => request.url.includes("/git/blobs/"))).toBe(false);
+  expect(anthropic).toHaveLength(0);
+
+  await dialog.getByRole("button", { name: "Generate map" }).click();
   await expect(page.getByText("Web Client").first()).toBeVisible({ timeout: 20_000 });
 
-  // Still two distinct, ordered network events against a bounded endpoint set.
-  expect(
-    github.map((request) => {
-      const url = new URL(request.url);
-      return `${url.pathname}${url.search}`;
-    })
-  ).toEqual(
+  const paths = github.map((request) => new URL(request.url).pathname);
+  expect(paths).toEqual(
     expect.arrayContaining([
-      "/repos/acme/platform",
-      "/repos/acme/platform/languages",
-      "/repos/acme/platform/commits/main",
-      "/repos/acme/platform/git/trees/tree123?recursive=1",
-      "/repos/acme/platform/readme?ref=abc123def456",
+      "/rate_limit",
+      "/repos/acme/platform/git/blobs/readme",
+      "/repos/acme/platform/git/blobs/server",
     ])
   );
+  expect(paths).not.toContain("/repos/acme/platform/git/blobs/web");
+  expect(paths).not.toContain("/repos/acme/platform/readme");
   expect(anthropic).toHaveLength(1);
+  expect(anthropic[0].body).toContain(PLATFORM_FILES.server.text);
+  expect(anthropic[0].body).toContain("Revision: main @ abc123def456");
   expect(new Set(external.map((request) => new URL(request.url()).origin))).toEqual(
     new Set([GITHUB_ORIGIN, ANTHROPIC_ORIGIN])
   );
 
+  // Only the address, the commit and the unchecked folders are stored; the source never is.
+  expect(await readIndexedDbStore(page, VAULT_DATABASE_NAME, "repositoryEvidence")).toEqual([]);
+  const provenance = await readIndexedDbStore<{ excludedPaths: string[] }>(
+    page,
+    VAULT_DATABASE_NAME,
+    "repositoryProvenance"
+  );
+  expect(provenance[0].excludedPaths).toEqual(["web"]);
+  for (const store of VAULT_STORE_NAMES) {
+    const records = await readIndexedDbStore(page, VAULT_DATABASE_NAME, store);
+    expect(JSON.stringify(records)).not.toContain(PLATFORM_FILES.server.text);
+  }
   await expect(page.getByText("Read from GitHub")).toHaveCount(0);
   await expect(page.getByTestId("project-provenance")).toHaveCount(0);
 
@@ -93,41 +125,47 @@ test("a repository becomes a map from one action, reading GitHub then Anthropic"
 });
 
 test("a slow Anthropic response still becomes the repository map", async ({ page }) => {
-  // Real responses stream for many seconds. Saving the scan's commit changes the
-  // editor's auto-start state mid-request, which must not cancel the request.
+  // Real responses stream for many seconds; the request must survive the editor's state changes.
   await useProviderKey(page, { remember: true });
   await mockGitHub(page);
-  const anthropic = await mockAnthropic(
-    page,
-    [
-      'Mapped.\n<stack>{"nodes":[{"id":"client","category":"client","subtype":"web-app","name":"Web Client","technology":"React","description":"Browser UI","reasoning":"Local boundary","locked":false}],"edges":[]}</stack>',
-    ],
-    { delayMs: 3_000 }
-  );
-  await page.goto("/project/new");
-  await page.getByLabel("GitHub repository").fill("acme/platform");
-  await page.getByRole("button", { name: "Map repository" }).click();
+  const anthropic = await mockAnthropic(page, [WEB_CLIENT_MAP], { delayMs: 3_000 });
+  const dialog = await reviewRepository(page, "acme/platform");
+  await dialog.getByRole("button", { name: "Generate map" }).click();
 
   await expect(page.getByText("Web Client").first()).toBeVisible({ timeout: 20_000 });
   await expect(page.getByText("Anthropic could not complete the request")).toHaveCount(0);
   expect(anthropic).toHaveLength(1);
 });
 
-test("without a key the AI starts ask for one in place", async ({ page }) => {
-  const external = trackExternalRequests(page);
-  await page.goto("/project/new");
-  const keyHeading = page.getByRole("heading", { name: "Connect an AI provider" });
-  await expect(keyHeading).toBeVisible();
-  await expect(page.getByLabel("GitHub repository")).toBeVisible();
+test("a selection over the GitHub quota is blocked until a token raises it", async ({ page }) => {
+  await useProviderKey(page, { remember: true });
+  await mockGitHub(page, { rateRemaining: 1 });
+  const anthropic = await mockAnthropic(page, [WEB_CLIENT_MAP]);
+  const dialog = await reviewRepository(page, "acme/platform");
 
-  await page.getByLabel("GitHub repository").fill("acme/api");
-  await page.getByRole("button", { name: "Map repository" }).click();
-  await expect(page.getByText("Add an AI provider key to generate this map.")).toBeVisible();
-  await expect(keyHeading).toBeFocused();
+  await expect(dialog.getByRole("alert")).toContainText(
+    "This selection needs 3 GitHub requests, and 1 is left"
+  );
+  const generate = dialog.getByRole("button", { name: "Generate map" });
+  await expect(generate).toBeDisabled();
 
-  await page.getByLabel("Anthropic API key").fill(TEST_ANTHROPIC_KEY);
-  await page.getByRole("button", { name: "Use key" }).click();
-  await expect(page.getByText("Anthropic key")).toBeVisible();
-  await expect(page).toHaveURL(/\/project\/new$/);
-  expect(external).toEqual([]);
+  await dialog.getByLabel("GitHub token").fill(TEST_GITHUB_TOKEN);
+  await dialog.getByRole("button", { name: "Use token" }).click();
+  await expect(generate).toBeEnabled();
+  await generate.click();
+  await expect(page.getByText("Web Client").first()).toBeVisible({ timeout: 20_000 });
+  expect(anthropic).toHaveLength(1);
+});
+
+test("without a key the repository review asks for one in place", async ({ page }) => {
+  await mockGitHub(page);
+  const anthropic = await mockAnthropic(page, [WEB_CLIENT_MAP]);
+  const dialog = await reviewRepository(page, "acme/api");
+  const generate = dialog.getByRole("button", { name: "Generate map" });
+  await expect(generate).toBeDisabled();
+
+  await dialog.getByLabel("Anthropic API key").fill(TEST_ANTHROPIC_KEY);
+  await dialog.getByRole("button", { name: "Use key" }).click();
+  await expect(generate).toBeEnabled();
+  expect(anthropic).toHaveLength(0);
 });

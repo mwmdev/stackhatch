@@ -63,7 +63,7 @@ const TROUBLESHOOTING = [
   },
   {
     title: "A repository map looks incomplete",
-    body: "Repository scans read a bounded amount of evidence and say so when a scan was partial. Re-scan from the toolbar after the code moves, and treat the result as an explanation to review rather than a source of truth.",
+    body: "Repository maps send only the folders you choose, and say so when GitHub returned a partial file list. Re-scan from the toolbar after the code moves, and treat the result as an explanation to review rather than a source of truth.",
   },
 ];
 

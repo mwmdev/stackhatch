@@ -14,6 +14,7 @@ import {
   VaultConflictError,
   VaultGenerationConflictError,
   VaultSnapshotConflictError,
+  VaultValidationError,
 } from "./storage-status";
 
 const databaseNames = new Set<string>();
@@ -109,6 +110,39 @@ describe("browser vault repository", () => {
       generation,
       project: { id: "project-1", revision: 1 },
     });
+  });
+
+  it.each([false, true])("replaces repository provenance and evidence, rejecting conflicting clear (conflict: %s)", async (conflict) => {
+    const repository = await createRepository(`provider-provenance-${conflict}`);
+    const generation = await repository.getGeneration();
+    await repository.saveProjectBundle({
+      project: project("project-1"),
+      provenance: { projectId: "project-1", repositoryUrl: "https://github.com/old/repo", commitSha: "old", scannedAt: 1, analysisStatus: "complete", warning: null, updatedAt: 1 },
+      evidence: [{ id: "old", projectId: "project-1", path: "README.md", content: "old", etag: null, createdAt: 1, updatedAt: 1 }],
+    }, { expectedGeneration: generation, expectedProjectRevision: null });
+    const run: VaultProviderRunWrite = {
+      id: "run-1", projectId: "project-1", kind: "repository-generation", status: "draft",
+      prompt: "Map", model: null, requestId: null, errorCode: null,
+      expectedProjectRevision: 1, expectedVaultGeneration: generation, createdAt: 2, updatedAt: 2,
+    };
+    await repository.putProviderRun(run, { expectedGeneration: generation, expectedRevision: null });
+    const before = (await repository.getProjectBundle("project-1"))!;
+    const provenance = { repositoryUrl: "https://github.com/acme/app", commitSha: "new", mapCommitSha: "new", scannedAt: 3, analysisStatus: "complete" as const, warning: null, excludedPaths: ["web"] };
+    const result = repository.commitProviderResult({
+      project: { ...before.project, updatedAt: 3 }, run: { ...run, status: "completed", updatedAt: 3 },
+      repositoryProvenance: provenance, clearRepositorySource: conflict,
+    }, { expectedGeneration: generation, expectedProjectRevision: 1, expectedRunRevision: 1 });
+    if (conflict) {
+      await expect(result).rejects.toBeInstanceOf(VaultValidationError);
+      const after = (await repository.getProjectBundle("project-1"))!;
+      expect(after.provenance).toEqual(before.provenance);
+      expect(after.evidence).toEqual(before.evidence);
+    } else {
+      await result;
+      const after = (await repository.getProjectBundle("project-1"))!;
+      expect(after.provenance).toMatchObject({ ...provenance, revision: before.provenance!.revision + 1, updatedAt: 3 });
+      expect(after.evidence).toEqual([]);
+    }
   });
 
   it("rolls back every store when a late child write fails", async () => {

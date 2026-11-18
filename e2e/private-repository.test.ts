@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { VAULT_DATABASE_NAME, VAULT_STORE_NAMES } from "../src/lib/vault/schema";
 import {
   GITHUB_ORIGIN,
@@ -14,25 +14,35 @@ import {
 const BILLING_MAP =
   'Mapped.\n<stack>{"nodes":[{"id":"api","category":"api","subtype":"rest-api","name":"Billing API","technology":"Hono","description":"Owns invoices","reasoning":"Inferred","locked":false}],"edges":[]}</stack>';
 
+async function reviewRepository(page: Page, repository: string) {
+  await page.goto("/project/new");
+  await page.getByLabel("GitHub repository").fill(repository);
+  return page.getByTestId("source-review-dialog");
+}
+
 test("a private repository maps with a token added on the New map page", async ({ page }) => {
   const external = trackExternalRequests(page);
   await useProviderKey(page, { remember: true });
   const github = await mockGitHub(page);
   const anthropic = await mockAnthropic(page, [BILLING_MAP]);
-  await page.goto("/project/new");
+  const dialog = await reviewRepository(page, "acme/billing");
 
-  await page.getByLabel("GitHub repository").fill("acme/billing");
   await page.getByRole("button", { name: "Private repository? Add a GitHub token" }).click();
   await expect(
     page.getByRole("link", { name: "Create a read-only token for acme" })
   ).toHaveAttribute("href", /contents=read/);
   await page.getByLabel("GitHub token").fill(TEST_GITHUB_TOKEN);
   await page.getByRole("button", { name: "Map repository" }).click();
+  await dialog.getByRole("button", { name: "Generate map" }).click();
 
   await expect(page.getByText("Billing API").first()).toBeVisible({ timeout: 20_000 });
   expect(anthropic).toHaveLength(1);
   expect(github.map((request) => new URL(request.url).pathname)).toEqual(
-    expect.arrayContaining(["/repos/acme/billing", "/repos/acme/billing/commits/main"])
+    expect.arrayContaining([
+      "/repos/acme/billing",
+      "/repos/acme/billing/commits/main",
+      "/repos/acme/billing/git/blobs/server",
+    ])
   );
   for (const request of github) {
     expect(request.headers.authorization).toBe(`Bearer ${TEST_GITHUB_TOKEN}`);
@@ -46,24 +56,23 @@ test("a private repository maps with a token added on the New map page", async (
   }
 });
 
-test("the Assistant asks for a token when a scan can't read the repository", async ({ page }) => {
+test("the review dialog asks for a token when it can't read the repository", async ({ page }) => {
   await useProviderKey(page, { remember: true });
   const github = await mockGitHub(page);
   const anthropic = await mockAnthropic(page, [BILLING_MAP]);
-  await page.goto("/project/new");
-  await page.getByLabel("GitHub repository").fill("acme/billing");
+  const dialog = await reviewRepository(page, "acme/billing");
   await page.getByRole("button", { name: "Map repository" }).click();
 
-  const assistant = page.getByRole("complementary", { name: "Assistant" });
-  await expect(assistant.getByRole("alert")).toContainText("StackHatch can't read acme/billing.");
+  await expect(dialog.getByRole("alert")).toContainText("StackHatch can't read acme/billing.");
   expect(github[0]?.headers.authorization).toBeUndefined();
   expect(anthropic).toHaveLength(0);
   await expect(
-    assistant.getByRole("link", { name: "Create a read-only token for acme" })
+    dialog.getByRole("link", { name: "Create a read-only token for acme" })
   ).toHaveAttribute("href", /target_name=acme/);
 
-  await assistant.getByLabel("GitHub token").fill(TEST_GITHUB_TOKEN);
-  await assistant.getByRole("button", { name: "Use token" }).click();
+  await dialog.getByLabel("GitHub token").fill(TEST_GITHUB_TOKEN);
+  await dialog.getByRole("button", { name: "Use token" }).click();
+  await dialog.getByRole("button", { name: "Generate map" }).click();
 
   await expect(page.getByText("Billing API").first()).toBeVisible({ timeout: 20_000 });
   expect(anthropic).toHaveLength(1);
@@ -103,6 +112,10 @@ test("a token set in Settings also authenticates public scans", async ({ page })
   await page.getByLabel("GitHub repository").fill("acme/platform");
   await expect(page.getByRole("link", { name: "Change in Settings" })).toBeVisible();
   await page.getByRole("button", { name: "Map repository" }).click();
+  await page
+    .getByTestId("source-review-dialog")
+    .getByRole("button", { name: "Generate map" })
+    .click();
 
   await expect(page.getByText("Billing API").first()).toBeVisible({ timeout: 20_000 });
   expect(github.length).toBeGreaterThan(0);

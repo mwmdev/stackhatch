@@ -76,8 +76,13 @@ export interface VaultProviderResultWrite {
   run: RecordWrite<VaultProviderRunRecord>;
   messages?: Array<RecordWrite<VaultMessageRecord>>;
   replaceMessages?: boolean;
-  /** Records the commit the committed map was generated from on the project's provenance. */
-  mapCommitSha?: string;
+  /** Remove repository evidence when a local folder replaces the map. */
+  clearRepositorySource?: boolean;
+  /** Replace the project's repository provenance and delete stored repository evidence. */
+  repositoryProvenance?: Omit<
+    VaultRepositoryProvenanceRecord,
+    "projectId" | "revision" | "updatedAt"
+  >;
 }
 
 export interface VaultProviderResultPrecondition extends VaultProjectPrecondition {
@@ -835,9 +840,19 @@ class IndexedDbVaultRepository implements VaultRepository {
     result: VaultProviderResultWrite,
     precondition: VaultProviderResultPrecondition
   ) {
+    if (result.repositoryProvenance && result.clearRepositorySource) {
+      throw new VaultValidationError(
+        "A provider result cannot both clear and replace repository provenance"
+      );
+    }
     const database = await this.database();
     const stores: VaultStoreName[] = ["meta", "projects", "providerRuns"];
-    if (result.mapCommitSha) stores.push("repositoryProvenance");
+    if (result.clearRepositorySource || result.repositoryProvenance) {
+      stores.push("repositoryProvenance");
+    }
+    if (result.clearRepositorySource || result.repositoryProvenance) {
+      stores.push("repositoryEvidence");
+    }
     if (result.messages?.length || result.replaceMessages) stores.push("messages");
     const committed = await runWrite(
       database,
@@ -857,17 +872,19 @@ class IndexedDbVaultRepository implements VaultRepository {
         };
         await projectStore.put(project);
 
-        if (result.mapCommitSha) {
+        if (result.clearRepositorySource) {
+          await transaction.objectStore("repositoryProvenance").delete(result.project.id);
+          await deleteProjectIndexRecords(transaction, "repositoryEvidence", result.project.id);
+        } else if (result.repositoryProvenance) {
           const provenanceStore = transaction.objectStore("repositoryProvenance");
-          const provenance = await provenanceStore.get(result.project.id);
-          if (provenance) {
-            await provenanceStore.put({
-              ...provenance,
-              mapCommitSha: result.mapCommitSha,
-              revision: provenance.revision + 1,
-              updatedAt: result.project.updatedAt,
-            });
-          }
+          const existing = await provenanceStore.get(result.project.id);
+          await provenanceStore.put({
+            ...result.repositoryProvenance,
+            projectId: result.project.id,
+            revision: (existing?.revision ?? 0) + 1,
+            updatedAt: result.project.updatedAt,
+          });
+          await deleteProjectIndexRecords(transaction, "repositoryEvidence", result.project.id);
         }
 
         if (result.replaceMessages) {
@@ -907,7 +924,12 @@ class IndexedDbVaultRepository implements VaultRepository {
         "projects",
         "providerRuns",
         ...(result.messages?.length || result.replaceMessages ? (["messages"] as const) : []),
-        ...(result.mapCommitSha ? (["repositoryProvenance"] as const) : []),
+        ...(result.clearRepositorySource || result.repositoryProvenance
+          ? (["repositoryProvenance"] as const)
+          : []),
+        ...(result.clearRepositorySource || result.repositoryProvenance
+          ? (["repositoryEvidence"] as const)
+          : []),
       ],
       reason: "mutation",
     });

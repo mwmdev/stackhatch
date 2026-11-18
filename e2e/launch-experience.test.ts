@@ -1,8 +1,10 @@
 import { expect, test } from "@playwright/test";
+import { mockGitHub } from "./helpers/sse-mock";
 
 test("the landing page accurately explains the working product and trust boundary", async ({
   page,
 }) => {
+  await mockGitHub(page);
   await page.goto("/");
 
   const hero = page.locator('[data-landing-region="hero"]');
@@ -46,9 +48,12 @@ test("the landing page accurately explains the working product and trust boundar
   await hero.getByRole("textbox", { name: "GitHub repository" }).fill("umami-software/umami");
   await hero.getByRole("button", { name: "Map repository" }).click();
   await expect(page).toHaveURL(/\/project\/new\?mode=repository#repo=umami-software%2Fumami$/);
-  // Without a key the start asks for one first; the repository waits in the address.
-  await page.getByRole("textbox", { name: "Anthropic API key" }).fill(`sk-ant-${"x".repeat(40)}`);
-  await page.getByRole("button", { name: "Use key" }).click();
+  // The landing entry opens the review straight away; cancelling leaves the repository in place.
+  const review = page.getByTestId("source-review-dialog");
+  await expect(review).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Map umami-software/umami" })).toBeVisible();
+  await review.getByRole("button", { name: "Cancel" }).click();
+  await expect(review).toHaveCount(0);
   await expect(page.getByRole("textbox", { name: "Repository" })).toHaveValue(
     "umami-software/umami"
   );

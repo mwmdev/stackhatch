@@ -30,7 +30,8 @@ async function repository(label: string) {
 async function seed(
   source: VaultRepository,
   projectId = "project-1",
-  messageId = `message-${projectId}`
+  messageId = `message-${projectId}`,
+  localFolder?: { name: string; excludedPaths: string[] }
 ) {
   const generation = await source.getGeneration();
   await source.saveProjectBundle(
@@ -43,6 +44,7 @@ async function seed(
         canvasState: { nodes: [], edges: [] },
         createdAt: 1,
         updatedAt: 2,
+        ...(localFolder ? { localFolder } : {}),
       },
       messages: [
         {
@@ -162,8 +164,97 @@ describe("StackHatch backups", () => {
     expect((await target.getProjectBundle("project-1"))?.evidence[0].path).toBe("package.json");
     expect((await target.getDevicePreferences())?.theme).toBe("dark");
     const envelopeValue = JSON.parse(bytes);
-    expect(envelopeValue.formatVersion).toBe(2);
+    expect(envelopeValue.formatVersion).toBe(3);
     expect(JSON.parse(envelopeValue.payload)).not.toHaveProperty("templates");
+  });
+
+  it("round-trips local folder metadata in format 3", async () => {
+    const source = await repository("local-folder-source");
+    const target = await repository("local-folder-target");
+    const localFolder = { name: "workspace", excludedPaths: ["docs", "src/generated"] };
+    await seed(source, "project-1", "message-project-1", localFolder);
+    const bytes = await exportProjectBackup(source, "project-1");
+    expect(JSON.parse(bytes).formatVersion).toBe(3);
+    const prepared = await prepareBackupImport(target, bytes);
+    await prepared.commit();
+    expect((await target.getProject("project-1"))?.localFolder).toEqual(localFolder);
+  });
+
+  it("round-trips repository exclusions in format 3", async () => {
+    const source = await repository("repo-exclusions-source");
+    const target = await repository("repo-exclusions-target");
+    await seed(source);
+    const exported = JSON.parse(await exportProjectBackup(source, "project-1"));
+    const payload = JSON.parse(exported.payload);
+    payload.projects[0].provenance.excludedPaths = ["web"];
+    const prepared = await prepareBackupImport(target, await envelope(payload));
+    await prepared.commit();
+    expect((await target.getProjectBundle("project-1"))?.provenance?.excludedPaths).toEqual(["web"]);
+  });
+
+  it.each([
+    { formatVersion: 2, excludedPaths: ["web"], message: "Unknown backup field: excludedPaths" },
+    { formatVersion: 3, excludedPaths: ["../x"], message: "Invalid repository provenance" },
+  ])("rejects invalid provenance exclusions in format $formatVersion", async ({ formatVersion, excludedPaths, message }) => {
+    const source = await repository("repo-exclusions-invalid-source");
+    const target = await repository("repo-exclusions-invalid-target");
+    await seed(source);
+    const exported = JSON.parse(await exportProjectBackup(source, "project-1"));
+    const payload = JSON.parse(exported.payload);
+    payload.projects[0].provenance.excludedPaths = excludedPaths;
+    await expect(prepareBackupImport(target, await envelope(payload, { formatVersion }))).rejects.toThrow(message);
+  });
+
+  it.each(["project", "vault"] as const)(
+    "round-trips exclusions with trailing whitespace through a %s backup",
+    async (kind) => {
+      const source = await repository(`whitespace-${kind}-source`);
+      const target = await repository(`whitespace-${kind}-target`);
+      const localFolder = { name: "workspace", excludedPaths: ["folder ", "nested/child "] };
+      await seed(source, "project-1", "message-project-1", localFolder);
+      const bytes =
+        kind === "project"
+          ? await exportProjectBackup(source, "project-1")
+          : await exportVaultBackup(source);
+      const prepared = await prepareBackupImport(target, bytes);
+      await prepared.commit();
+      expect((await target.getProject("project-1"))?.localFolder).toEqual(localFolder);
+    }
+  );
+
+  it("rejects local folder metadata in a format 2 envelope", async () => {
+    const source = await repository("local-folder-v2-source");
+    const target = await repository("local-folder-v2-target");
+    await seed(source, "project-1", "message-project-1", {
+      name: "workspace",
+      excludedPaths: ["docs"],
+    });
+    const exported = JSON.parse(await exportProjectBackup(source, "project-1"));
+    const payload = JSON.parse(exported.payload);
+    await expect(
+      prepareBackupImport(target, await envelope(payload, { formatVersion: 2 }))
+    ).rejects.toThrow("Unknown backup field: localFolder");
+  });
+
+  it.each([
+    null,
+    { name: "", excludedPaths: [] },
+    { name: "x".repeat(201), excludedPaths: [] },
+    { name: "workspace", excludedPaths: ["docs", "docs"] },
+    { name: "workspace", excludedPaths: ["./docs"] },
+    { name: "workspace", excludedPaths: ["../docs"] },
+    { name: "workspace", excludedPaths: ["x".repeat(513)] },
+    { name: "workspace", excludedPaths: [], extra: true },
+  ])("rejects invalid local folder metadata: %j", async (localFolder) => {
+    const source = await repository("invalid-local-folder-source");
+    const target = await repository("invalid-local-folder-target");
+    await seed(source);
+    const exported = JSON.parse(await exportProjectBackup(source, "project-1"));
+    const payload = JSON.parse(exported.payload);
+    payload.projects[0].project.localFolder = localFolder;
+    await expect(prepareBackupImport(target, await envelope(payload))).rejects.toThrow(
+      "Invalid local folder"
+    );
   });
 
   it("round-trips payloads over one megabyte when each message is individually bounded", async () => {

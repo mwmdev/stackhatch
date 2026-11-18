@@ -4,9 +4,11 @@ import { validateCustomSubtypes } from "@/lib/custom-subtypes";
 import { normalizeArchitecture } from "@/lib/ai/output-parser";
 import { CANVAS_EVIDENCE_LIMITS, CANVAS_ID_PATTERN, CANVAS_TEXT_LIMITS } from "@/lib/canvas-limits";
 import { hasLoneSurrogate, normalizeEvidencePath } from "@/lib/node-evidence";
+import { LOCAL_SOURCE_LIMITS } from "@/lib/local-source/limits";
 import type { ConnectionSides } from "@/types/stack";
 import type {
   VaultDevicePreferencesRecord,
+  VaultLocalFolder,
   VaultMessageRecord,
   VaultProjectRecord,
   VaultRepositoryEvidenceRecord,
@@ -22,7 +24,7 @@ import type {
 } from "./repository";
 import { BACKUP_LIMITS } from "./backup-limits";
 
-export const BACKUP_FORMAT_VERSION = 2;
+export const BACKUP_FORMAT_VERSION = 3;
 export const BACKUP_FORMAT = "stackhatch-backup";
 export { BACKUP_LIMITS } from "./backup-limits";
 
@@ -372,18 +374,54 @@ function validateCanvas(value: unknown) {
   };
 }
 
-function validateProject(value: unknown): VaultProjectRecord {
+function validateExcludedPaths(value: unknown, message: string): string[] {
+  if (!Array.isArray(value) || value.length > LOCAL_SOURCE_LIMITS.maxExcludedPaths) {
+    throw new BackupValidationError(message);
+  }
+  const paths = new Set<string>();
+  for (const path of value) {
+    if (
+      typeof path !== "string" ||
+      path.length > 512 ||
+      normalizeEvidencePath(path, { trim: false }) !== path ||
+      paths.has(path)
+    ) {
+      throw new BackupValidationError(message);
+    }
+    paths.add(path);
+  }
+  return [...paths];
+}
+
+function validateLocalFolder(value: unknown): VaultLocalFolder {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new BackupValidationError("Invalid local folder");
+  }
+  const folder = value as Record<string, unknown>;
+  const keys = Object.keys(folder);
+  if (
+    keys.length !== 2 ||
+    !Object.hasOwn(folder, "name") ||
+    !Object.hasOwn(folder, "excludedPaths") ||
+    typeof folder.name !== "string" ||
+    folder.name.length === 0 ||
+    folder.name.length > LOCAL_SOURCE_LIMITS.maxFolderNameLength
+  ) {
+    throw new BackupValidationError("Invalid local folder");
+  }
+  return {
+    name: folder.name,
+    excludedPaths: validateExcludedPaths(folder.excludedPaths, "Invalid local folder"),
+  };
+}
+
+function validateProject(value: unknown, formatVersion: 1 | 2 | 3): VaultProjectRecord {
   const project = object(value, "project");
-  exactKeys(project, [
-    "id",
-    "name",
-    "description",
-    "repoUrl",
-    "canvasState",
-    "revision",
-    "createdAt",
-    "updatedAt",
-  ]);
+  exactKeys(
+    project,
+    ["id", "name", "description", "repoUrl", "canvasState", "revision", "createdAt", "updatedAt"],
+    formatVersion === 3 ? ["localFolder"] : []
+  );
   return {
     id: id(project.id, "project id"),
     name: string(project.name, "project name", CANVAS_TEXT_LIMITS.projectName),
@@ -393,6 +431,9 @@ function validateProject(value: unknown): VaultProjectRecord {
     revision: revision(project.revision, "project revision"),
     createdAt: number(project.createdAt, "project created time"),
     updatedAt: number(project.updatedAt, "project updated time"),
+    ...(Object.hasOwn(project, "localFolder")
+      ? { localFolder: validateLocalFolder(project.localFolder) }
+      : {}),
   } as VaultProjectRecord;
 }
 
@@ -449,7 +490,8 @@ function wellFormed(value: string, label: string) {
 
 function validateProvenance(
   value: unknown,
-  projectId: string
+  projectId: string,
+  formatVersion: 1 | 2 | 3
 ): VaultRepositoryProvenanceRecord | null {
   if (value === null) return null;
   const provenance = object(value, "repository provenance");
@@ -465,7 +507,7 @@ function validateProvenance(
       "revision",
       "updatedAt",
     ],
-    ["mapCommitSha"]
+    ["mapCommitSha", ...(formatVersion === 3 ? ["excludedPaths"] : [])]
   );
   if (provenance.projectId !== projectId) {
     throw new BackupValidationError("Repository provenance references an unknown project");
@@ -489,14 +531,22 @@ function validateProvenance(
     analysisStatus: provenance.analysisStatus,
     warning: nullableString(provenance.warning, "provenance warning"),
     revision: revision(provenance.revision, "provenance revision"),
+    ...(provenance.excludedPaths === undefined
+      ? {}
+      : {
+          excludedPaths: validateExcludedPaths(
+            provenance.excludedPaths,
+            "Invalid repository provenance"
+          ),
+        }),
     updatedAt: number(provenance.updatedAt, "provenance updated time"),
   };
 }
 
-function validateProjectBundle(value: unknown): BackupProjectBundle {
+function validateProjectBundle(value: unknown, formatVersion: 1 | 2 | 3): BackupProjectBundle {
   const bundle = object(value, "project bundle");
   exactKeys(bundle, ["project", "messages", "evidence", "provenance"]);
-  const project = validateProject(bundle.project);
+  const project = validateProject(bundle.project, formatVersion);
   const messages = array(bundle.messages, "messages").map((message) =>
     validateMessage(message, project.id)
   );
@@ -518,7 +568,7 @@ function validateProjectBundle(value: unknown): BackupProjectBundle {
     project,
     messages,
     evidence,
-    provenance: validateProvenance(bundle.provenance, project.id),
+    provenance: validateProvenance(bundle.provenance, project.id, formatVersion),
   };
 }
 
@@ -583,7 +633,7 @@ function validateResume(value: unknown, projectIds: Set<string>): VaultResumeRec
 function validatePayload(
   value: unknown,
   expectedKind: BackupExportKind,
-  formatVersion: 1 | typeof BACKUP_FORMAT_VERSION
+  formatVersion: 1 | 2 | 3
 ): ParsedBackupPayload {
   inspectResourceLimits(value);
   const payload = object(value, "backup payload");
@@ -597,7 +647,9 @@ function validatePayload(
   } else {
     exactKeys(payload, ["kind", "projects", "preferences", "resume"]);
   }
-  const projects = array(payload.projects, "projects").map(validateProjectBundle);
+  const projects = array(payload.projects, "projects").map((bundle) =>
+    validateProjectBundle(bundle, formatVersion)
+  );
   if (projects.length > BACKUP_LIMITS.maxProjects) {
     throw new BackupValidationError("Backup contains too many projects");
   }
@@ -771,7 +823,7 @@ async function parseEnvelope(text: string, maxBytes: number) {
     "checksum",
   ]);
   if (value.format !== BACKUP_FORMAT) throw new BackupValidationError("Unknown backup format");
-  if (value.formatVersion !== 1 && value.formatVersion !== BACKUP_FORMAT_VERSION) {
+  if (value.formatVersion !== 1 && value.formatVersion !== 2 && value.formatVersion !== 3) {
     throw new BackupValidationError("Unsupported backup format version");
   }
   if (value.exportKind !== "project" && value.exportKind !== "vault") {

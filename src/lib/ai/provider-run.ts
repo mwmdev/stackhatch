@@ -1,15 +1,7 @@
 import { z } from "zod";
 import { createId } from "@/lib/id";
 import { CANVAS_TEXT_LIMITS } from "@/lib/canvas-limits";
-import {
-  analyzeRepo,
-  formatRepoAnalysis,
-  readRepositoryFiles,
-  REPO_ANALYSIS_LIMITS,
-  type RepoAnalysis,
-  type RepoEvidenceCacheEntry,
-  type RepoSourceFile,
-} from "@/lib/github-analyzer";
+import { readRepositoryFiles, type RepoSourceFile } from "@/lib/github-analyzer";
 import { applyEvidencePolicy } from "@/lib/node-evidence";
 import { createBrowserAiClient, type BrowserAiClient } from "@/lib/ai/browser-client";
 import { buildCanvasContext, buildMessages } from "@/lib/ai/context-builder";
@@ -20,7 +12,9 @@ import {
   formatModelReference,
   parseModelReference,
   type AiProviderId,
+  type AiModelSelection,
 } from "@/lib/ai/providers";
+import type { CustomSubtypesMap } from "@/lib/custom-subtypes";
 import { BRIEF_INSTRUCTION, buildSystemPrompt, INIT_INSTRUCTION } from "@/lib/ai/system-prompt";
 import {
   getBrowserProviderKeyManager,
@@ -33,6 +27,7 @@ import { GITHUB_CREDENTIAL_ID } from "@/lib/github-token";
 import { createVaultLockCoordinator, type VaultLockCoordinator } from "@/lib/vault/coordination";
 import { getBrowserVaultRepository, type VaultRepository } from "@/lib/vault/repository";
 import type {
+  VaultLocalFolder,
   VaultCanvasState,
   VaultMessageRecord,
   VaultProjectRecord,
@@ -58,6 +53,7 @@ const alternativeSchema = z.object({
 });
 
 const PROVIDER_RUN_LEASE_MS = 5 * 60 * 1_000;
+export const ARCHITECTURE_MAX_OUTPUT_TOKENS = 8_192;
 
 export class ProviderRunStaleError extends Error {
   readonly code = "stale";
@@ -108,12 +104,27 @@ export function providerErrorDetails(error: unknown): {
   };
 }
 
+export interface RepositorySourceCommit {
+  repositoryUrl: string;
+  commitSha: string;
+  excludedPaths: string[];
+  analysisStatus: "complete" | "partial";
+  warning: string | null;
+}
+
 export interface ProviderRunRequest {
   projectId: string;
   kind: VaultProviderRunKind;
   prompt?: string;
+  /** Sent after the prompt in a repository-generation run; never stored. */
+  sourceContext?: string;
   /** Files a repository-generation run may cite as node evidence: the scan's `citablePaths`. */
   citablePaths?: readonly string[];
+  selection?: AiModelSelection;
+  customSubtypes?: CustomSubtypesMap;
+  localFolder?: VaultLocalFolder;
+  /** Approved GitHub source for a repository-generation run; committed with the map. */
+  repositorySource?: RepositorySourceCommit;
   targetNode?: StackNode;
   runId?: string;
   retryRunId?: string;
@@ -133,12 +144,6 @@ export interface ProviderRunOutcome {
   prd: string | null;
 }
 
-export interface RepositoryEvidenceOutcome {
-  analysis: RepoAnalysis;
-  project: VaultProjectRecord;
-  generation: string;
-}
-
 export interface NodeSourcesOutcome {
   node: StackNode;
   repositoryUrl: string;
@@ -153,7 +158,6 @@ interface ProviderRunCoordinatorOptions {
   keyManager: ProviderKeyManager;
   ai?: BrowserAiClient;
   locks?: VaultLockCoordinator;
-  analyzeRepository?: typeof analyzeRepo;
   readRepositoryFiles?: typeof readRepositoryFiles;
   idFactory?: () => string;
   now?: () => number;
@@ -163,11 +167,6 @@ export interface ProviderRunCoordinator {
   /** The key status of the provider the device's model preference selects. */
   getKeyStatus(): Promise<ProviderKeyStatus>;
   listMessages(projectId: string): Promise<VaultMessageRecord[]>;
-  scanRepository(
-    projectId: string,
-    repositoryUrl: string,
-    options?: { signal?: AbortSignal; beforeCommit?: () => Promise<void> }
-  ): Promise<RepositoryEvidenceOutcome>;
   /** Reads a saved node's evidence files from GitHub at the scanned revision. */
   readNodeSources(
     projectId: string,
@@ -189,6 +188,7 @@ function projectWrite(project: VaultProjectRecord, canvasState: VaultCanvasState
     name: project.name,
     description: project.description,
     repoUrl: project.repoUrl,
+    ...(project.localFolder ? { localFolder: project.localFolder } : {}),
     canvasState,
     createdAt: project.createdAt,
     updatedAt: project.updatedAt,
@@ -273,7 +273,7 @@ function failureStatus(error: unknown): {
 }
 
 /** The GitHub token a scan sends, or null to read public repositories anonymously. */
-async function githubTokenForScan(keyManager: ProviderKeyManager): Promise<string | null> {
+export async function githubTokenForScan(keyManager: ProviderKeyManager): Promise<string | null> {
   const status = await keyManager.getStatus(GITHUB_CREDENTIAL_ID);
   if (status.state === "absent") return null;
   return keyManager.getKeyForDispatch(GITHUB_CREDENTIAL_ID);
@@ -284,7 +284,6 @@ export function createProviderRunCoordinator(
 ): ProviderRunCoordinator {
   const ai = options.ai ?? createBrowserAiClient();
   let locks = options.locks;
-  const analyzeRepository = options.analyzeRepository ?? analyzeRepo;
   const idFactory = options.idFactory ?? createId;
   const now = options.now ?? Date.now;
   let closed = false;
@@ -367,125 +366,6 @@ export function createProviderRunCoordinator(
       return { node, repositoryUrl, commitSha, files, omitted };
     },
 
-    async scanRepository(projectId, repositoryUrl, scanOptions = {}) {
-      ensureOpen();
-      const captured = await lockCoordinator().withProjectLock(
-        projectId,
-        async () => {
-          const [bundle, generation] = await Promise.all([
-            options.repository.getProjectBundle(projectId),
-            options.repository.getGeneration(),
-          ]);
-          if (!bundle) {
-            throw new ProviderError("invalid_request", "The local map is no longer available.");
-          }
-          const evidenceCache: Record<string, RepoEvidenceCacheEntry> = {};
-          for (const evidence of bundle.evidence) {
-            if (!evidence.etag) continue;
-            evidenceCache[evidence.path] = {
-              content: evidence.content,
-              etag: evidence.etag,
-              truncated: evidence.content.length >= REPO_ANALYSIS_LIMITS.maxEvidenceCharacters,
-            };
-          }
-          return {
-            generation,
-            projectRevision: bundle.project.revision,
-            evidenceCache,
-          };
-        },
-        scanOptions.signal
-      );
-
-      const analysis = await analyzeRepository(repositoryUrl, {
-        signal: scanOptions.signal,
-        evidenceCache: captured.evidenceCache,
-        githubToken: await githubTokenForScan(options.keyManager),
-      });
-      const timestamp = now();
-      await scanOptions.beforeCommit?.();
-      throwIfAborted(scanOptions.signal);
-
-      const committed = await lockCoordinator().withProjectLock(
-        projectId,
-        async () => {
-          throwIfAborted(scanOptions.signal);
-          const [bundle, generation] = await Promise.all([
-            options.repository.getProjectBundle(projectId),
-            options.repository.getGeneration(),
-          ]);
-          if (
-            !bundle ||
-            generation !== captured.generation ||
-            bundle.project.revision !== captured.projectRevision
-          ) {
-            throw new ProviderRunStaleError(
-              "This map changed while GitHub was being read. The newer map was kept; scan again."
-            );
-          }
-          const evidence = [
-            ...(analysis.readme
-              ? [
-                  {
-                    id: idFactory(),
-                    projectId,
-                    path: "README.md",
-                    content: analysis.readme,
-                    etag: null,
-                    createdAt: timestamp,
-                    updatedAt: timestamp,
-                  },
-                ]
-              : []),
-            ...analysis.evidenceFiles.map((file) => ({
-              id: idFactory(),
-              projectId,
-              path: file.path,
-              content: file.content,
-              etag: file.etag,
-              createdAt: timestamp,
-              updatedAt: timestamp,
-            })),
-          ];
-          const project = await options.repository.saveProjectBundle(
-            {
-              project: {
-                ...projectWrite(bundle.project, bundle.project.canvasState),
-                repoUrl: analysis.normalizedUrl,
-                updatedAt: timestamp,
-              },
-              evidence,
-              replaceEvidence: true,
-              provenance: {
-                projectId,
-                repositoryUrl: analysis.normalizedUrl,
-                commitSha: analysis.commitSha,
-                // Keep the generating commit of the map this scan leaves in place.
-                ...(bundle.project.canvasState?.nodes.length
-                  ? {
-                      mapCommitSha:
-                        bundle.provenance?.mapCommitSha ?? bundle.provenance?.commitSha ?? null,
-                    }
-                  : {}),
-                scannedAt: timestamp,
-                analysisStatus: analysis.status,
-                warning: analysis.warnings.length > 0 ? analysis.warnings.join(" ") : null,
-                updatedAt: timestamp,
-              },
-            },
-            {
-              expectedGeneration: generation,
-              expectedProjectRevision: bundle.project.revision,
-            }
-          );
-          return { project, generation };
-        },
-        scanOptions.signal
-      );
-
-      return { analysis, ...committed };
-    },
-
     async run(request) {
       ensureOpen();
       let run: VaultProviderRunRecord | null = null;
@@ -503,7 +383,7 @@ export function createProviderRunCoordinator(
             if (!bundle) {
               throw new ProviderError("invalid_request", "The local map is no longer available.");
             }
-            const selection = parseModelReference(preferences?.model);
+            const selection = request.selection ?? parseModelReference(preferences?.model);
             const keyStatus = await options.keyManager.getStatus(selection.provider);
             if (keyStatus.state === "absent") {
               // Distinct from "authentication", which means the provider saw a
@@ -526,10 +406,10 @@ export function createProviderRunCoordinator(
                   ? `${BRIEF_INSTRUCTION}\n\nRequirements brief:\n${bundle.project.description}`
                   : INIT_INSTRUCTION);
             } else if (request.kind === "repository-generation") {
-              if (!prompt) {
+              if (!prompt || Boolean(request.localFolder) === Boolean(request.repositorySource)) {
                 throw new ProviderError(
                   "invalid_request",
-                  "Review GitHub evidence before generating a repository map."
+                  "Review the selected files before generating a map."
                 );
               }
             } else if (request.kind === "alternatives") {
@@ -639,7 +519,7 @@ export function createProviderRunCoordinator(
               bundle,
               generation,
               credentialGeneration: keyStatus.generation,
-              customSubtypes: preferences?.customSubtypes ?? {},
+              customSubtypes: request.customSubtypes ?? preferences?.customSubtypes ?? {},
               targetNode,
               run: nextRun,
             };
@@ -675,7 +555,14 @@ export function createProviderRunCoordinator(
           providerMessages = [{ role: "user" as const, content: captured.run.prompt }];
           system = DEFAULT_PRD_PROMPT;
         } else if (request.kind === "repository-generation") {
-          providerMessages = [{ role: "user" as const, content: captured.run.prompt }];
+          providerMessages = [
+            {
+              role: "user" as const,
+              content: request.sourceContext
+                ? `${captured.run.prompt}\n\n${request.sourceContext}`
+                : captured.run.prompt,
+            },
+          ];
           system = buildSystemPrompt(captured.customSubtypes, { includeNoteNodes: true });
         } else {
           providerMessages = buildMessages(history, captured.bundle.project.canvasState, {
@@ -695,7 +582,11 @@ export function createProviderRunCoordinator(
           messages: providerMessages,
           system,
           maxTokens:
-            request.kind === "alternatives" ? 1_024 : request.kind === "prd" ? 4_096 : 8_192,
+            request.kind === "alternatives"
+              ? 1_024
+              : request.kind === "prd"
+                ? 4_096
+                : ARCHITECTURE_MAX_OUTPUT_TOKENS,
           signal: request.signal,
           requireArchitecture: request.kind === "repository-generation",
           allowNoteNodes: true,
@@ -831,18 +722,37 @@ export function createProviderRunCoordinator(
               errorCode: null,
               updatedAt: timestamp,
             };
+            const repositorySource = request.repositorySource;
+            // A repository map replaces any local folder the project was bound to.
+            const { localFolder: _discarded, ...canvasProject } = projectWrite(
+              bundle.project,
+              canvasState
+            );
             const committed = await options.repository.commitProviderResult(
               {
                 project: {
-                  ...projectWrite(bundle.project, canvasState),
+                  ...(repositorySource ? canvasProject : projectWrite(bundle.project, canvasState)),
+                  ...(request.localFolder
+                    ? { localFolder: request.localFolder, repoUrl: null }
+                    : {}),
+                  ...(repositorySource ? { repoUrl: repositorySource.repositoryUrl } : {}),
                   updatedAt: timestamp,
                 },
                 messages,
                 replaceMessages: request.kind === "repository-generation",
-                ...(request.kind === "repository-generation" &&
-                providerResult.architecture &&
-                bundle.provenance
-                  ? { mapCommitSha: bundle.provenance.commitSha }
+                ...(request.localFolder ? { clearRepositorySource: true } : {}),
+                ...(repositorySource
+                  ? {
+                      repositoryProvenance: {
+                        repositoryUrl: repositorySource.repositoryUrl,
+                        commitSha: repositorySource.commitSha,
+                        mapCommitSha: repositorySource.commitSha,
+                        scannedAt: timestamp,
+                        analysisStatus: repositorySource.analysisStatus,
+                        warning: repositorySource.warning,
+                        excludedPaths: repositorySource.excludedPaths,
+                      },
+                    }
                   : {}),
                 run: recordWithoutRevision(completedRun),
               },
@@ -890,8 +800,4 @@ export function getBrowserProviderRunCoordinator() {
     keyManager: getBrowserProviderKeyManager(),
   });
   return browserProviderRunCoordinator;
-}
-
-export function repositoryPrompt(analysis: RepoAnalysis) {
-  return formatRepoAnalysis(analysis);
 }
