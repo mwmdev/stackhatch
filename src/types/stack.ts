@@ -87,3 +87,7 @@ export interface StackArchitecture {
   nodes: StackNode[];
   edges: StackEdge[];
 }
+
+/** Auto-layout styles, in the order the Auto-layout control cycles through them. */
+export const MAP_LAYOUTS = ["tiers", "flow", "hub", "groups"] as const;
+export type MapLayout = (typeof MAP_LAYOUTS)[number];

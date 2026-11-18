@@ -50,4 +50,35 @@ describe("getEdgeAnchors", () => {
     expect(anchors.sourcePosition).toBe(Position.Bottom);
     expect(anchors.targetPosition).toBe(Position.Top);
   });
+
+  it("routes diagonal neighbours side to side in the Flow layout", () => {
+    expect(getEdgeAnchors(box(0, 0), box(320, 200), "flow")).toMatchObject({
+      sourcePosition: Position.Right,
+      targetPosition: Position.Left,
+    });
+    expect(getEdgeAnchors(box(0, 0), box(320, 200), "tiers")).toMatchObject({
+      sourcePosition: Position.Bottom,
+      targetPosition: Position.Top,
+    });
+  });
+
+  it("routes stacked nodes top to bottom in the Flow layout", () => {
+    expect(getEdgeAnchors(box(0, 0), box(0, 300), "flow")).toMatchObject({
+      sourcePosition: Position.Bottom,
+      targetPosition: Position.Top,
+    });
+  });
+
+  it("follows the dominant axis in the Hub and Groups layouts", () => {
+    for (const layout of ["hub", "groups"] as const) {
+      expect(getEdgeAnchors(box(0, 0), box(900, 200), layout)).toMatchObject({
+        sourcePosition: Position.Right,
+        targetPosition: Position.Left,
+      });
+      expect(getEdgeAnchors(box(0, 0), box(100, 400), layout)).toMatchObject({
+        sourcePosition: Position.Bottom,
+        targetPosition: Position.Top,
+      });
+    }
+  });
 });

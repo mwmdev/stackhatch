@@ -15,6 +15,7 @@ function renderSurface(overrides: Partial<React.ComponentProps<typeof EditorTool
     displaySettings: DEFAULT_EDITOR_DISPLAY_SETTINGS,
     onDisplaySettingsChange: vi.fn(),
     dialogOpen: false,
+    nextLayout: "tiers",
     ...overrides,
   };
 
@@ -35,7 +36,7 @@ describe("EditorToolSurface", () => {
       "Zoom in",
       "Zoom out",
       "Fit map to view",
-      "Auto-layout",
+      "Auto-layout: Tiers",
       "Editor display settings",
     ]);
   });
@@ -66,7 +67,7 @@ describe("EditorToolSurface", () => {
     fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
     fireEvent.click(screen.getByRole("button", { name: "Zoom out" }));
     fireEvent.click(screen.getByRole("button", { name: "Fit map to view" }));
-    fireEvent.click(screen.getByRole("button", { name: "Auto-layout" }));
+    fireEvent.click(screen.getByRole("button", { name: "Auto-layout: Tiers" }));
 
     expect(props.onChatOpenChange).toHaveBeenCalledWith(true);
     expect(props.onZoomIn).toHaveBeenCalledOnce();
@@ -77,8 +78,13 @@ describe("EditorToolSurface", () => {
 
   it("blocks adding and auto-layout during canvas mutations", () => {
     const { props } = renderSurface({ mutationBlocked: true });
-    expect(screen.getByRole("button", { name: "Auto-layout" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Auto-layout: Tiers" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Add node" })).toBeDisabled();
     expect(props.onAutoLayout).not.toHaveBeenCalled();
+  });
+
+  it("names the layout the next Auto-layout click applies", () => {
+    renderSurface({ nextLayout: "hub" });
+    expect(screen.getByRole("button", { name: "Auto-layout: Hub" })).toBeInTheDocument();
   });
 });

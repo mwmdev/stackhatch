@@ -655,6 +655,7 @@ export function createProviderRunCoordinator(
               const mergedIds = new Set(architecture.nodes.map((node) => node.id));
               canvasState = {
                 ...architecture,
+                ...(canvasState?.layout ? { layout: canvasState.layout } : {}),
                 ...(request.kind === "repository-generation"
                   ? {}
                   : {

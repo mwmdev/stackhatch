@@ -143,16 +143,18 @@ vi.mock("@/components/canvas/EditorToolSurface", () => ({
     onAddNode,
     onChatOpenChange,
     onAutoLayout,
+    nextLayout,
   }: {
     onAddNode: (category: "data", subtype: "sql-db") => void;
     onChatOpenChange: (open: boolean) => void;
     onAutoLayout: () => void;
+    nextLayout: string;
   }) => (
     <div>
       <button type="button" onClick={() => onAddNode("data", "sql-db")}>
         Add local node
       </button>
-      <button type="button" onClick={() => onAutoLayout()}>
+      <button type="button" data-next-layout={nextLayout} onClick={() => onAutoLayout()}>
         Auto-layout map
       </button>
       <button type="button" onClick={() => onChatOpenChange(true)}>
@@ -464,6 +466,81 @@ describe("static ProjectPage", () => {
     expect(saved.positions?.movable).not.toEqual({ x: 100, y: 100 });
   });
 
+  const layoutNodes = [
+    {
+      id: "client",
+      name: "Client",
+      category: "client" as const,
+      subtype: "web-app" as const,
+      technology: "",
+      description: "",
+      reasoning: "",
+      locked: false,
+    },
+    {
+      id: "data",
+      name: "Data",
+      category: "data" as const,
+      subtype: "sql-db" as const,
+      technology: "",
+      description: "",
+      reasoning: "",
+      locked: false,
+    },
+  ];
+
+  function layoutVault(layout?: "hub") {
+    return makeVault({
+      getProjectSnapshot: vi.fn().mockResolvedValue({
+        project: {
+          ...project,
+          canvasState: {
+            nodes: layoutNodes,
+            edges: [],
+            positions: { client: { x: 0, y: 0 }, data: { x: 0, y: 0 } },
+            ...(layout ? { layout } : {}),
+          },
+        },
+        generation: "generation-1",
+      }),
+    });
+  }
+
+  it("cycles the saved layout on each Auto-layout click and announces it", async () => {
+    const localVault = layoutVault();
+    render(<ProjectPage vault={localVault} />);
+    await screen.findByText("Test Project");
+    const button = screen.getByRole("button", { name: "Auto-layout map" });
+    expect(button).toHaveAttribute("data-next-layout", "tiers");
+
+    fireEvent.click(button);
+    expect(await screen.findByText("Tiers layout")).toBeInTheDocument();
+    await waitFor(
+      () => expect(vi.mocked(localVault.saveCanvas).mock.calls.at(-1)![1].layout).toBe("tiers"),
+      { timeout: 1_500 }
+    );
+    let saved = vi.mocked(localVault.saveCanvas).mock.calls.at(-1)![1];
+    expect(saved.positions!.client.y).toBeLessThan(saved.positions!.data.y);
+    expect(button).toHaveAttribute("data-next-layout", "flow");
+
+    fireEvent.click(button);
+    await waitFor(
+      () => expect(vi.mocked(localVault.saveCanvas).mock.calls.at(-1)![1].layout).toBe("flow"),
+      { timeout: 1_500 }
+    );
+    saved = vi.mocked(localVault.saveCanvas).mock.calls.at(-1)![1];
+    expect(saved.positions!.client.x).toBeLessThan(saved.positions!.data.x);
+  });
+
+  it("offers the layout after the saved one", async () => {
+    render(<ProjectPage vault={layoutVault("hub")} />);
+    await screen.findByText("Test Project");
+    expect(screen.getByRole("button", { name: "Auto-layout map" })).toHaveAttribute(
+      "data-next-layout",
+      "groups"
+    );
+  });
+
   it("removes a deleted node's alternatives and position from persisted backups", async () => {
     const localVault = makeVault({
       getProjectSnapshot: vi.fn().mockResolvedValue({
@@ -709,8 +786,8 @@ describe("static ProjectPage", () => {
             technology: "Node.js",
             description: "",
             reasoning: "",
-            category: "backend" as const,
-            subtype: "api" as const,
+            category: "api" as const,
+            subtype: "rest-api" as const,
           },
         ],
         edges: [],

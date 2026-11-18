@@ -440,6 +440,50 @@ describe("browser provider-run coordinator", () => {
     });
   });
 
+  it.each(["chat", "repository-generation"] as const)(
+    "keeps the saved map layout after a %s commit",
+    async (kind) => {
+      const vault = await repository(`layout-${kind}`);
+      const bundle = (await vault.getProjectBundle("project-1"))!;
+      await vault.saveProjectBundle(
+        {
+          ...bundle,
+          project: {
+            ...bundle.project,
+            canvasState: { ...bundle.project.canvasState!, layout: "flow" },
+          },
+        },
+        {
+          expectedGeneration: await vault.getGeneration(),
+          expectedProjectRevision: bundle.project.revision,
+        }
+      );
+      const coordinator = createProviderRunCoordinator({
+        repository: vault,
+        keyManager: keyManager(),
+        ai: client(async () => ({
+          text: "Done",
+          message: "Done",
+          architecture: architecture(),
+          requestId: "request-layout",
+        })),
+        locks,
+      });
+      await coordinator.run(
+        kind === "chat"
+          ? { projectId: "project-1", kind, prompt: "Add an API" }
+          : {
+              projectId: "project-1",
+              kind,
+              prompt: "Map fixture.",
+              sourceContext: "context",
+              localFolder: { name: "fixture", excludedPaths: [] },
+            }
+      );
+      expect((await vault.getProject("project-1"))?.canvasState?.layout).toBe("flow");
+    }
+  );
+
   it("keeps a newer canvas and a retryable stale draft when revision CAS fails", async () => {
     const vault = await repository("stale");
     const ai = client(async () => {

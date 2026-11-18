@@ -6,6 +6,7 @@ import type { EdgeProps, ReactFlowState } from "reactflow";
 import { getEdgeAnchors, type NodeRect } from "@/lib/edge-anchors";
 import type { ConnectionSides, ConnectionType } from "@/types/stack";
 import { useEditorDisplaySettings } from "./EditorDisplaySettings";
+import { useMapLayout } from "./use-map-layout";
 import { CANVAS_TEXT_LIMITS } from "@/lib/canvas-limits";
 
 export interface StackEdgeData {
@@ -190,6 +191,7 @@ function StackEdgeComponent({
   const [labelHovered, setLabelHovered] = useState(false);
   const [labelEditing, setLabelEditing] = useState(false);
   const { showEdgeLabels } = useEditorDisplaySettings();
+  const layout = useMapLayout();
   const connectionType = data?.connectionType ?? "http";
   const connectionTypesEnabled = data?.connectionTypesEnabled ?? true;
   const style = connectionTypesEnabled
@@ -203,7 +205,7 @@ function StackEdgeComponent({
 
   const anchors =
     sourceRect && targetRect && !data?.sides
-      ? getEdgeAnchors(sourceRect, targetRect)
+      ? getEdgeAnchors(sourceRect, targetRect, layout)
       : { sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition };
   if (data?.sides && sourceRect && targetRect) {
     // React Flow anchors at the outside of the 20 px handle hit area.

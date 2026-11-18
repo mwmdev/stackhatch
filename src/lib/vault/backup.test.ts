@@ -343,6 +343,43 @@ describe("StackHatch backups", () => {
     expect(await target.getProject("project-1")).toBeNull();
   });
 
+  async function layoutBackup(source: VaultRepository, layout?: unknown) {
+    await seed(source);
+    const exported = JSON.parse(await exportProjectBackup(source, "project-1"));
+    const payload = JSON.parse(exported.payload);
+    payload.projects[0].project.canvasState = {
+      nodes: [],
+      edges: [],
+      ...(layout === undefined ? {} : { layout }),
+    };
+    return envelope(payload);
+  }
+
+  it("round-trips the map layout", async () => {
+    const source = await repository("layout-source");
+    const target = await repository("layout-target");
+    const prepared = await prepareBackupImport(target, await layoutBackup(source, "hub"));
+    await prepared.commit();
+    expect((await target.getProject("project-1"))?.canvasState?.layout).toBe("hub");
+  });
+
+  it("rejects an unknown map layout", async () => {
+    const source = await repository("bad-layout-source");
+    const target = await repository("bad-layout-target");
+    await expect(prepareBackupImport(target, await layoutBackup(source, "spiral"))).rejects.toThrow(
+      "Invalid map layout"
+    );
+    expect(await target.getProject("project-1")).toBeNull();
+  });
+
+  it("restores a map saved without a layout", async () => {
+    const source = await repository("no-layout-source");
+    const target = await repository("no-layout-target");
+    const prepared = await prepareBackupImport(target, await layoutBackup(source));
+    await prepared.commit();
+    expect((await target.getProject("project-1"))?.canvasState).not.toHaveProperty("layout");
+  });
+
   function evidencePayload(exportedBytes: string, evidence: unknown) {
     const payload = JSON.parse(JSON.parse(exportedBytes).payload);
     const url = "https://github.com/acme/app/tree/HEAD/packages/api";

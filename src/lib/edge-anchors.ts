@@ -1,4 +1,5 @@
 import { Position } from "reactflow";
+import type { MapLayout } from "@/types/stack";
 
 export interface NodeRect {
   x: number;
@@ -38,30 +39,49 @@ function anchor(rect: NodeRect, position: Position) {
 
 /**
  * Chooses the facing sides of two nodes so an edge leaves toward its target
- * instead of from a fixed handle. Stacked nodes keep bottom-to-top routing;
- * nodes that share a row connect side to side.
+ * instead of from a fixed handle. Routing follows the map's layout: Tiers keep
+ * bottom-to-top routing, Flow prefers right-to-left, and Hub and Groups follow
+ * whichever axis separates the two nodes most.
  */
-export function getEdgeAnchors(source: NodeRect, target: NodeRect): EdgeAnchors {
+export function getEdgeAnchors(
+  source: NodeRect,
+  target: NodeRect,
+  layout: MapLayout = "tiers"
+): EdgeAnchors {
   const gapBelow = target.y - (source.y + source.height);
   const gapAbove = source.y - (target.y + target.height);
   const gapRight = target.x - (source.x + source.width);
   const gapLeft = source.x - (target.x + target.width);
 
-  let sourcePosition: Position;
-  let targetPosition: Position;
-  if (gapBelow >= MIN_VERTICAL_GAP) {
-    [sourcePosition, targetPosition] = [Position.Bottom, Position.Top];
+  const down: [Position, Position] = [Position.Bottom, Position.Top];
+  const up: [Position, Position] = [Position.Top, Position.Bottom];
+  const right: [Position, Position] = [Position.Right, Position.Left];
+  const left: [Position, Position] = [Position.Left, Position.Right];
+  const centreBelow = target.y + target.height / 2 >= source.y + source.height / 2;
+  const centreRight = target.x + target.width / 2 >= source.x + source.width / 2;
+
+  let sides: [Position, Position];
+  if (layout === "flow") {
+    if (gapRight >= MIN_VERTICAL_GAP) sides = right;
+    else if (gapLeft >= MIN_VERTICAL_GAP) sides = left;
+    else if (gapBelow > 0 || gapAbove > 0) sides = gapBelow >= gapAbove ? down : up;
+    else sides = centreRight ? right : left;
+  } else if (layout === "hub" || layout === "groups") {
+    const vertical = Math.max(gapBelow, gapAbove);
+    const horizontal = Math.max(gapRight, gapLeft);
+    if (vertical <= 0 && horizontal <= 0) sides = centreBelow ? down : up;
+    else if (vertical >= horizontal) sides = gapBelow >= gapAbove ? down : up;
+    else sides = gapRight >= gapLeft ? right : left;
+  } else if (gapBelow >= MIN_VERTICAL_GAP) {
+    sides = down;
   } else if (gapAbove >= MIN_VERTICAL_GAP) {
-    [sourcePosition, targetPosition] = [Position.Top, Position.Bottom];
+    sides = up;
   } else if (gapRight > 0 || gapLeft > 0) {
-    [sourcePosition, targetPosition] =
-      gapRight >= gapLeft ? [Position.Right, Position.Left] : [Position.Left, Position.Right];
+    sides = gapRight >= gapLeft ? right : left;
   } else {
-    [sourcePosition, targetPosition] =
-      target.y + target.height / 2 >= source.y + source.height / 2
-        ? [Position.Bottom, Position.Top]
-        : [Position.Top, Position.Bottom];
+    sides = centreBelow ? down : up;
   }
+  const [sourcePosition, targetPosition] = sides;
 
   const start = anchor(source, sourcePosition);
   const end = anchor(target, targetPosition);

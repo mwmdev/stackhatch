@@ -3,7 +3,8 @@
 import { memo } from "react";
 import { Focus, LayoutDashboard, MessageSquareText, ZoomIn, ZoomOut } from "lucide-react";
 import IconControl from "@/components/ui/IconControl";
-import type { NodeCategory, NodeSubtype } from "@/types/stack";
+import type { MapLayout, NodeCategory, NodeSubtype } from "@/types/stack";
+import { MAP_LAYOUT_LABELS } from "@/lib/layout";
 import type { CustomSubtypesMap } from "@/lib/custom-subtypes";
 import AddNodeDropdown from "./AddNodeDropdown";
 import EditorDisplaySettingsDropdown from "./EditorDisplaySettingsDropdown";
@@ -22,6 +23,8 @@ interface EditorToolSurfaceProps {
   onDisplaySettingsChange: (next: EditorDisplaySettings) => void;
   dialogOpen: boolean;
   mutationBlocked?: boolean;
+  /** Layout the next Auto-layout click applies. */
+  nextLayout: MapLayout;
 }
 
 /**
@@ -41,6 +44,7 @@ function EditorToolSurface({
   onDisplaySettingsChange,
   dialogOpen,
   mutationBlocked = false,
+  nextLayout,
 }: EditorToolSurfaceProps) {
   return (
     <div
@@ -86,7 +90,7 @@ function EditorToolSurface({
         <Focus />
       </IconControl>
       <IconControl
-        label="Auto-layout"
+        label={`Auto-layout: ${MAP_LAYOUT_LABELS[nextLayout]}`}
         surface="frame"
         tooltipPlacement="right"
         onClick={onAutoLayout}

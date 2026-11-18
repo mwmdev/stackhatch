@@ -1,10 +1,10 @@
 import type { DBSchema } from "idb";
-import type { AlternativeNode, StackArchitecture } from "@/types/stack";
+import type { AlternativeNode, MapLayout, StackArchitecture } from "@/types/stack";
 import type { CustomSubtypeEntry, CustomSubtypesMap } from "@/lib/custom-subtypes";
 
 export const VAULT_DATABASE_NAME = "stackhatch-vault";
-/** v6 adds optional project localFolder and provenance excludedPaths; no backfill or new store is needed. */
-export const VAULT_SCHEMA_VERSION = 6;
+/** v7 adds optional canvas layout; no backfill or new store is needed. */
+export const VAULT_SCHEMA_VERSION = 7;
 export const VAULT_META_ID = "vault" as const;
 export const DEVICE_RECORD_ID = "device" as const;
 
@@ -24,6 +24,7 @@ export type VaultStoreName = (typeof VAULT_STORE_NAMES)[number];
 export interface VaultCanvasState extends StackArchitecture {
   positions?: Record<string, { x: number; y: number }>;
   alternatives?: Record<string, AlternativeNode[]>;
+  layout?: MapLayout;
 }
 
 export interface VaultMetaRecord {

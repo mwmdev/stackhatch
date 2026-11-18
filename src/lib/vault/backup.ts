@@ -5,7 +5,8 @@ import { normalizeArchitecture } from "@/lib/ai/output-parser";
 import { CANVAS_EVIDENCE_LIMITS, CANVAS_ID_PATTERN, CANVAS_TEXT_LIMITS } from "@/lib/canvas-limits";
 import { hasLoneSurrogate, normalizeEvidencePath } from "@/lib/node-evidence";
 import { LOCAL_SOURCE_LIMITS } from "@/lib/local-source/limits";
-import type { ConnectionSides } from "@/types/stack";
+import { MAP_LAYOUTS } from "@/types/stack";
+import type { ConnectionSides, MapLayout } from "@/types/stack";
 import type {
   VaultDevicePreferencesRecord,
   VaultLocalFolder,
@@ -221,7 +222,14 @@ function validateRepositoryUrl(value: unknown, label: string) {
 
 function validateCanvas(value: unknown) {
   const canvas = object(value, "canvas state");
-  exactKeys(canvas, ["nodes", "edges"], ["positions", "alternatives"]);
+  exactKeys(canvas, ["nodes", "edges"], ["positions", "alternatives", "layout"]);
+  let layout: MapLayout | undefined;
+  if (canvas.layout !== undefined) {
+    if (!(MAP_LAYOUTS as readonly unknown[]).includes(canvas.layout)) {
+      throw new BackupValidationError("Invalid map layout");
+    }
+    layout = canvas.layout as MapLayout;
+  }
   const nodes = array(canvas.nodes, "canvas nodes");
   const edges = array(canvas.edges, "canvas edges");
   if (nodes.length > 1_000 || edges.length > 2_000) {
@@ -371,6 +379,7 @@ function validateCanvas(value: unknown) {
     edges: validatedEdges,
     ...(positions ? { positions } : {}),
     ...(alternatives ? { alternatives } : {}),
+    ...(layout ? { layout } : {}),
   };
 }
 
@@ -743,6 +752,7 @@ function repairExportPayload(payload: StackHatchBackupPayload): StackHatchBackup
             ...architecture,
             ...(positions ? { positions } : {}),
             ...(alternatives ? { alternatives } : {}),
+            ...(canvas.layout ? { layout: canvas.layout } : {}),
           },
         },
       };

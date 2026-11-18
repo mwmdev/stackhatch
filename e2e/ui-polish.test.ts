@@ -325,7 +325,7 @@ for (const sides of [
     const expectChosenSides = () =>
       expect.poll(async () => Math.max(...(await endpointOffsets()))).toBeLessThan(8);
     await expectChosenSides();
-    await page.getByRole("button", { name: "Auto-layout", exact: true }).click();
+    await page.getByRole("button", { name: /^Auto-layout:/ }).click();
     await expectChosenSides();
 
     const projectId = new URL(page.url()).hash.slice(1);
@@ -541,7 +541,7 @@ test("Auto-layout keeps a locked node in place and fits the destination map", as
   );
   await page.reload();
   await expect(page.locator(".react-flow__node")).toHaveCount(6);
-  await page.getByRole("button", { name: "Auto-layout", exact: true }).click();
+  await page.getByRole("button", { name: /^Auto-layout:/ }).click();
 
   // Waiting for the durable destination also lets the presentation settle finish.
   const savedPositions = async () => {
@@ -600,7 +600,7 @@ for (const gesture of [
         return { x: matrix.e, y: matrix.f, zoom: matrix.a };
       });
 
-    await page.getByRole("button", { name: "Auto-layout", exact: true }).click();
+    await page.getByRole("button", { name: /^Auto-layout:/ }).click();
     // Native gestures start before the first frame, when the viewport is known
     // and a queued cleanup cannot masquerade as the user's camera movement.
     if (gesture === "Zoom in" || gesture === "fit then zoom") await page.clock.runFor(48);

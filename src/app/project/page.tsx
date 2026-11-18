@@ -82,9 +82,11 @@ import type {
   NodeSubtype,
   ConnectionType,
   AlternativeNode,
+  MapLayout,
 } from "@/types/stack";
 import { DEFAULT_NOTE_COLOR, getSubtypeConfig } from "@/lib/node-config";
-import { applyDagreLayout } from "@/lib/layout";
+import { applyMapLayout, MAP_LAYOUT_LABELS, nextMapLayout } from "@/lib/layout";
+import { MapLayoutContext } from "@/components/canvas/use-map-layout";
 import {
   applyLayoutMotion,
   easeLayoutProgress,
@@ -197,19 +199,48 @@ function positionForAnchor(point: { x: number; y: number }, anchor: NodeAnchor) 
 interface StoredCanvasState extends StackArchitecture {
   positions?: Record<string, { x: number; y: number }>;
   alternatives?: Record<string, AlternativeNode[]>;
+  layout?: MapLayout;
 }
 
 function buildStoredCanvasState(
   nodes: Node<StackNodeData>[],
   edges: Edge<StackEdgeData>[],
-  alternatives: Record<string, AlternativeNode[]>
+  alternatives: Record<string, AlternativeNode[]>,
+  layout: MapLayout | undefined
 ): StoredCanvasState {
   return {
     nodes: fromReactFlowNodes(nodes),
     edges: fromReactFlowEdges(edges),
     positions: Object.fromEntries(nodes.map((node) => [node.id, node.position])),
     alternatives,
+    ...(layout ? { layout } : {}),
   };
+}
+
+/** Lays out the map in the given style; locked nodes stay put and unlocked nodes move around them. */
+function layoutReactFlowNodes(
+  layout: MapLayout,
+  nodes: Node<StackNodeData>[],
+  edges: Edge<StackEdgeData>[]
+): Node<StackNodeData>[] {
+  const positions = applyMapLayout(
+    layout,
+    fromReactFlowNodes(nodes),
+    fromReactFlowEdges(edges),
+    new Map(nodes.filter((node) => node.data.locked).map((node) => [node.id, node.position]))
+  );
+  const byId = new Map(positions.map(({ id, position }) => [id, position]));
+  const laidOut = nodes.map((node) => ({
+    ...node,
+    position: byId.get(node.id) ?? node.position,
+  }));
+  const resolved = new Map(
+    resolveNodeOverlaps([
+      ...laidOut.filter((node) => node.data.locked),
+      ...laidOut.filter((node) => !node.data.locked),
+    ]).map((node) => [node.id, node])
+  );
+  return laidOut.map((node) => resolved.get(node.id) ?? node);
 }
 
 const nodeTypes = { stackNode: StackNodeComponent };
@@ -345,6 +376,9 @@ export default function ProjectPage({
   const [altLoading, setAltLoading] = useState(false);
   const [prdLoading, setPrdLoading] = useState(false);
   const [prdStatus, setPrdStatus] = useState("");
+  const [mapLayout, setMapLayout] = useState<MapLayout | undefined>(undefined);
+  const mapLayoutRef = useRef<MapLayout | undefined>(undefined);
+  const [layoutStatus, setLayoutStatus] = useState("");
   const [aiSetupRequired, setAiSetupRequired] = useState(false);
   const [pendingAiAction, setPendingAiAction] = useState<"prd" | "alternatives" | null>(null);
   // React Flow fits on its first measured nodes. For a map that starts empty
@@ -487,24 +521,11 @@ export default function ProjectPage({
   }, [chatOpen, handleFitView]);
   const handleAutoLayout = useCallback(() => {
     if (isCanvasMutationBlocked() || rfNodes.length === 0) return;
-    const positions = applyDagreLayout(
-      fromReactFlowNodes(rfNodes),
-      fromReactFlowEdges(rfEdges),
-      new Map(rfNodes.filter((node) => node.data.locked).map((node) => [node.id, node.position]))
-    );
-    const byId = new Map(positions.map(({ id, position }) => [id, position]));
-    const laidOut = rfNodes.map((node) => ({
-      ...node,
-      position: byId.get(node.id) ?? node.position,
-    }));
-    // Locked nodes keep their place; unlocked nodes move around them.
-    const resolved = new Map(
-      resolveNodeOverlaps([
-        ...laidOut.filter((node) => node.data.locked),
-        ...laidOut.filter((node) => !node.data.locked),
-      ]).map((node) => [node.id, node])
-    );
-    const finalNodes = laidOut.map((node) => resolved.get(node.id) ?? node);
+    const layout = nextMapLayout(mapLayout);
+    const finalNodes = layoutReactFlowNodes(layout, rfNodes, rfEdges);
+    setMapLayout(layout);
+    mapLayoutRef.current = layout;
+    setLayoutStatus(`${MAP_LAYOUT_LABELS[layout]} layout`);
 
     // Where each node is on screen right now, including a settle still in flight.
     const current = layoutMotionRef.current
@@ -576,10 +597,11 @@ export default function ProjectPage({
       }
     };
     void instance.setViewport(viewport, { duration: LAYOUT_SETTLE_MS });
-  }, [isCanvasMutationBlocked, rfNodes, rfEdges, setRfNodes, finishLayoutMotion]);
+  }, [isCanvasMutationBlocked, rfNodes, rfEdges, mapLayout, setRfNodes, finishLayoutMotion]);
 
   // Keep refs in sync for use in stable callbacks
   projectRef.current = project;
+  mapLayoutRef.current = mapLayout;
   alternativesRef.current = alternatives;
   saveBlockedRef.current = Boolean(saveError);
 
@@ -714,12 +736,12 @@ export default function ProjectPage({
       skipNextPersistencePublishRef.current = false;
       return;
     }
-    const snapshot = buildStoredCanvasState(rfNodes, rfEdges, alternatives);
+    const snapshot = buildStoredCanvasState(rfNodes, rfEdges, alternatives, mapLayout);
     if (JSON.stringify(snapshot) === JSON.stringify(persistenceRef.current.getLatestSnapshot())) {
       return;
     }
     persistenceRef.current.publish(snapshot);
-  }, [rfNodes, rfEdges, alternatives]);
+  }, [rfNodes, rfEdges, alternatives, mapLayout]);
 
   useEffect(() => {
     return () => {
@@ -1637,12 +1659,17 @@ export default function ProjectPage({
         const isFirst = !currentCanvas || currentCanvas.nodes.length === 0;
         const isReplacement = forceReplacement || meta?.source === "scan" || meta?.persisted;
 
+        const layout: MapLayout =
+          (meta?.persisted ? (incoming as StoredCanvasState).layout : undefined) ??
+          mapLayoutRef.current ??
+          "tiers";
+
         let finalArch: StackArchitecture;
         let posMap: Map<string, { x: number; y: number }>;
 
         if (isFirst || isReplacement) {
           finalArch = incoming;
-          const positions = applyDagreLayout(incoming.nodes, incoming.edges);
+          const positions = applyMapLayout(layout, incoming.nodes, incoming.edges);
           posMap = new Map(positions.map((p) => [p.id, p.position]));
         } else {
           // Get current positions from React Flow nodes
@@ -1655,7 +1682,8 @@ export default function ProjectPage({
             nodeLockingEnabled: true,
           });
           finalArch = result.architecture;
-          const positions = applyDagreLayout(
+          const positions = applyMapLayout(
+            layout,
             result.architecture.nodes,
             result.architecture.edges,
             result.fixedPositions
@@ -1683,11 +1711,14 @@ export default function ProjectPage({
         if (meta?.persisted) skipNextPersistencePublishRef.current = true;
         finishLayoutMotion();
         setRfNodes(newRfNodes);
+        setMapLayout(layout);
+        mapLayoutRef.current = layout;
         setRfEdges(newRfEdges);
         const storedCanvas = buildStoredCanvasState(
           newRfNodes,
           newRfEdges,
-          replacementAlternatives
+          replacementAlternatives,
+          layout
         );
         if (meta?.persisted) {
           const currentProject = projectRef.current;
@@ -1698,6 +1729,7 @@ export default function ProjectPage({
             edges: persistedCanvas.edges,
             positions: persistedCanvas.positions ?? {},
             alternatives: persistedCanvas.alternatives ?? replacementAlternatives,
+            ...(persistedCanvas.layout ? { layout: persistedCanvas.layout } : {}),
           };
           const nextProject = {
             ...currentProject,
@@ -1883,6 +1915,9 @@ export default function ProjectPage({
         let normalizedCanvas: StoredCanvasState | null = null;
 
         // Initialize React Flow state from loaded canvas
+        const storedLayout = (data.canvasState as StoredCanvasState | null)?.layout;
+        setMapLayout(storedLayout);
+        mapLayoutRef.current = storedLayout;
         setFitViewOnLoad(Boolean(data.canvasState?.nodes?.length));
         if (data.canvasState?.nodes?.length) {
           const stored = data.canvasState as StoredCanvasState;
@@ -1893,8 +1928,8 @@ export default function ProjectPage({
             // Use persisted positions
             posMap = new Map(Object.entries(stored.positions));
           } else {
-            // Compute positions with Dagre
-            const positions = applyDagreLayout(stored.nodes, stored.edges);
+            // Compute positions in the map's layout
+            const positions = applyMapLayout(storedLayout ?? "tiers", stored.nodes, stored.edges);
             posMap = new Map(positions.map((p) => [p.id, p.position]));
           }
 
@@ -1918,7 +1953,8 @@ export default function ProjectPage({
           persistenceBaseline = buildStoredCanvasState(
             positionedNodes,
             edges,
-            stored.alternatives ?? {}
+            stored.alternatives ?? {},
+            storedLayout
           );
           if (
             nodes.some(
@@ -1927,14 +1963,25 @@ export default function ProjectPage({
                 node.position.y !== positionedNodes[index].position.y
             )
           ) {
-            normalizedCanvas = buildStoredCanvasState(nodes, edges, stored.alternatives ?? {});
+            normalizedCanvas = buildStoredCanvasState(
+              nodes,
+              edges,
+              stored.alternatives ?? {},
+              storedLayout
+            );
           }
         } else {
           finishLayoutMotion();
           setRfNodes([]);
           setRfEdges([]);
           setAlternatives({});
-          persistenceBaseline = { nodes: [], edges: [], positions: {}, alternatives: {} };
+          persistenceBaseline = {
+            nodes: [],
+            edges: [],
+            positions: {},
+            alternatives: {},
+            ...(storedLayout ? { layout: storedLayout } : {}),
+          };
         }
 
         const persistenceCoordinator = createCanvasPersistenceCoordinator({
@@ -2265,6 +2312,9 @@ export default function ProjectPage({
       <p className="sr-only" role="status" aria-live="polite">
         {prdStatus}
       </p>
+      <p className="sr-only" role="status" aria-live="polite">
+        {layoutStatus}
+      </p>
 
       <div className="project-editor__body">
         <EditorToolSurface
@@ -2276,6 +2326,7 @@ export default function ProjectPage({
           onZoomOut={handleZoomOut}
           onFitView={handleFitView}
           onAutoLayout={handleAutoLayout}
+          nextLayout={nextMapLayout(mapLayout)}
           displaySettings={editorDisplaySettings}
           onDisplaySettingsChange={setEditorDisplaySettings}
           dialogOpen={toolSurfaceDialogOpen}
@@ -2368,70 +2419,72 @@ export default function ProjectPage({
 
           <div className="project-editor__canvas">
             <EditorDisplaySettingsProvider value={editorDisplaySettings}>
-              <ReactFlow
-                nodes={displayNodes}
-                edges={edgesWithCallbacks}
-                onNodesChange={handleNodesChange}
-                onEdgesChange={handleEdgesChange}
-                onMoveStart={(event) => {
-                  // D3 already interrupted its tween. A zero-duration viewport
-                  // restore here would overwrite the gesture on the next frame.
-                  if (event) finishLayoutMotion(true);
-                }}
-                onConnect={handleConnect}
-                onConnectStart={handleConnectStart}
-                onConnectEnd={handleConnectEnd}
-                onPaneContextMenu={handlePaneContextMenu}
-                onNodeClick={handleNodeClick}
-                onEdgeClick={handleEdgeClick}
-                onKeyDownCapture={(event) => {
-                  if (
-                    event.target instanceof Element &&
-                    event.target.matches(".react-flow__edge") &&
-                    (event.key === "Enter" || event.key === " ")
-                  ) {
-                    const edgeId = event.target
-                      .getAttribute("data-testid")
-                      ?.replace(/^rf__edge-/, "");
-                    if (edgeId) {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      openConnectionTypePicker(edgeId);
+              <MapLayoutContext.Provider value={mapLayout ?? "tiers"}>
+                <ReactFlow
+                  nodes={displayNodes}
+                  edges={edgesWithCallbacks}
+                  onNodesChange={handleNodesChange}
+                  onEdgesChange={handleEdgesChange}
+                  onMoveStart={(event) => {
+                    // D3 already interrupted its tween. A zero-duration viewport
+                    // restore here would overwrite the gesture on the next frame.
+                    if (event) finishLayoutMotion(true);
+                  }}
+                  onConnect={handleConnect}
+                  onConnectStart={handleConnectStart}
+                  onConnectEnd={handleConnectEnd}
+                  onPaneContextMenu={handlePaneContextMenu}
+                  onNodeClick={handleNodeClick}
+                  onEdgeClick={handleEdgeClick}
+                  onKeyDownCapture={(event) => {
+                    if (
+                      event.target instanceof Element &&
+                      event.target.matches(".react-flow__edge") &&
+                      (event.key === "Enter" || event.key === " ")
+                    ) {
+                      const edgeId = event.target
+                        .getAttribute("data-testid")
+                        ?.replace(/^rf__edge-/, "");
+                      if (edgeId) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        openConnectionTypePicker(edgeId);
+                      }
                     }
-                  }
-                }}
-                onPaneClick={handlePaneClick}
-                nodesDraggable={!canvasMutationBlocked}
-                nodesConnectable={!canvasMutationBlocked}
-                // React Flow's wrapper would be a second tab stop that swallows
-                // the key events before they reach the node's own handler, so the
-                // node element itself owns focus and activation.
-                nodesFocusable={false}
-                onInit={(instance) => {
-                  rfInstanceRef.current = instance;
-                }}
-                nodeTypes={nodeTypes}
-                edgeTypes={edgeTypes}
-                fitView={fitViewOnLoad}
-                // Without explicit padding the initial fit clips wide maps at
-                // narrow widths; minZoom keeps a dense map from fitting to
-                // illegibility on a phone.
-                fitViewOptions={{ padding: 0.2, minZoom: 0.35, maxZoom: 1 }}
-                snapToGrid
-                snapGrid={[20, 20]}
-                deleteKeyCode={null}
-                // The credit moves into the docked legend strip, which links it.
-                proOptions={{ hideAttribution: true }}
-                onError={handleReactFlowError}
-                data-testid="react-flow-canvas"
-              >
-                <Background
-                  variant={BackgroundVariant.Dots}
-                  gap={20}
-                  size={1.25}
-                  color="var(--dot)"
-                />
-              </ReactFlow>
+                  }}
+                  onPaneClick={handlePaneClick}
+                  nodesDraggable={!canvasMutationBlocked}
+                  nodesConnectable={!canvasMutationBlocked}
+                  // React Flow's wrapper would be a second tab stop that swallows
+                  // the key events before they reach the node's own handler, so the
+                  // node element itself owns focus and activation.
+                  nodesFocusable={false}
+                  onInit={(instance) => {
+                    rfInstanceRef.current = instance;
+                  }}
+                  nodeTypes={nodeTypes}
+                  edgeTypes={edgeTypes}
+                  fitView={fitViewOnLoad}
+                  // Without explicit padding the initial fit clips wide maps at
+                  // narrow widths; minZoom keeps a dense map from fitting to
+                  // illegibility on a phone.
+                  fitViewOptions={{ padding: 0.2, minZoom: 0.35, maxZoom: 1 }}
+                  snapToGrid
+                  snapGrid={[20, 20]}
+                  deleteKeyCode={null}
+                  // The credit moves into the docked legend strip, which links it.
+                  proOptions={{ hideAttribution: true }}
+                  onError={handleReactFlowError}
+                  data-testid="react-flow-canvas"
+                >
+                  <Background
+                    variant={BackgroundVariant.Dots}
+                    gap={20}
+                    size={1.25}
+                    color="var(--dot)"
+                  />
+                </ReactFlow>
+              </MapLayoutContext.Provider>
             </EditorDisplaySettingsProvider>
 
             {/* Where focus lands after a panel closes. Needs a role that can
