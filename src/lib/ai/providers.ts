@@ -13,6 +13,15 @@ export type AiProviderProtocol = "anthropic-messages" | "chat-completions";
 export interface AiModelOption {
   id: string;
   name: string;
+  contextTokens: number;
+  inputPerMillion: number;
+  outputPerMillion: number;
+  maxInputTokens?: number;
+  longContext?: {
+    aboveInputTokens: number;
+    inputPerMillion: number;
+    outputPerMillion: number;
+  };
 }
 
 export interface AiProviderDefinition {
@@ -32,6 +41,8 @@ export interface AiProviderDefinition {
   models: readonly AiModelOption[];
 }
 
+export const MODEL_PRICES_AS_OF = "Nov 17, 2026";
+
 export const AI_PROVIDERS: Readonly<Record<AiProviderId, AiProviderDefinition>> = {
   anthropic: {
     id: "anthropic",
@@ -44,9 +55,9 @@ export const AI_PROVIDERS: Readonly<Record<AiProviderId, AiProviderDefinition>> 
     keysUrl: "https://console.anthropic.com/settings/keys",
     defaultModel: "claude-sonnet-5",
     models: [
-      { id: "claude-sonnet-5", name: "Claude Sonnet 5" },
-      { id: "claude-opus-4-8", name: "Claude Opus 4.8" },
-      { id: "claude-haiku-4-5-20251001", name: "Claude Haiku 4.5" },
+      { id: "claude-sonnet-5", name: "Claude Sonnet 5", contextTokens: 1_000_000, inputPerMillion: 2, outputPerMillion: 10 },
+      { id: "claude-opus-4-8", name: "Claude Opus 4.8", contextTokens: 1_000_000, inputPerMillion: 5, outputPerMillion: 25 },
+      { id: "claude-haiku-4-5-20251001", name: "Claude Haiku 4.5", contextTokens: 200_000, inputPerMillion: 1, outputPerMillion: 5 },
     ],
   },
   openai: {
@@ -59,11 +70,32 @@ export const AI_PROVIDERS: Readonly<Record<AiProviderId, AiProviderDefinition>> 
     // Anthropic and OpenRouter keys also start with sk-; they are not OpenAI keys.
     keyPattern: /^sk-(?!ant-|or-)\S+$/,
     keysUrl: "https://platform.openai.com/api-keys",
-    defaultModel: "gpt-6.1-sol",
+    defaultModel: "gpt-6.2-sol",
     models: [
-      { id: "gpt-6.1-sol", name: "GPT-6.1 Sol" },
-      { id: "gpt-6-astra", name: "GPT-6 Astra" },
-      { id: "gpt-6-luna", name: "GPT-6 Luna" },
+      {
+        id: "gpt-6.2-sol", name: "GPT-6.2 Sol",
+        contextTokens: 1_050_000, maxInputTokens: 922_000,
+        inputPerMillion: 2, outputPerMillion: 10,
+        longContext: { aboveInputTokens: 272_000, inputPerMillion: 4, outputPerMillion: 15 },
+      },
+      {
+        id: "gpt-6.2-astra", name: "GPT-6.2 Astra",
+        contextTokens: 1_050_000, maxInputTokens: 922_000,
+        inputPerMillion: 8, outputPerMillion: 40,
+        longContext: { aboveInputTokens: 272_000, inputPerMillion: 16, outputPerMillion: 60 },
+      },
+      {
+        id: "gpt-6.1-sol", name: "GPT-6.1 Sol",
+        contextTokens: 1_050_000, maxInputTokens: 922_000,
+        inputPerMillion: 2, outputPerMillion: 10,
+        longContext: { aboveInputTokens: 272_000, inputPerMillion: 4, outputPerMillion: 15 },
+      },
+      {
+        id: "gpt-6.1-terra", name: "GPT-6.1 Terra",
+        contextTokens: 1_050_000, maxInputTokens: 922_000,
+        inputPerMillion: 1, outputPerMillion: 5,
+        longContext: { aboveInputTokens: 272_000, inputPerMillion: 2, outputPerMillion: 7.5 },
+      },
     ],
   },
   gemini: {
@@ -78,9 +110,9 @@ export const AI_PROVIDERS: Readonly<Record<AiProviderId, AiProviderDefinition>> 
     keysUrl: "https://aistudio.google.com/apikey",
     defaultModel: "gemini-3.8-flash",
     models: [
-      { id: "gemini-3.8-flash", name: "Gemini 3.8 Flash" },
-      { id: "gemini-3.1-pro-preview", name: "Gemini 3.1 Pro (preview)" },
-      { id: "gemini-3.5-flash-lite", name: "Gemini 3.5 Flash-Lite" },
+      { id: "gemini-3.8-flash", name: "Gemini 3.8 Flash", contextTokens: 1_048_576, inputPerMillion: 0.825, outputPerMillion: 4.125 },
+      { id: "gemini-3.1-pro-preview", name: "Gemini 3.1 Pro (preview)", contextTokens: 1_048_576, inputPerMillion: 2, outputPerMillion: 12 },
+      { id: "gemini-3.5-flash-lite", name: "Gemini 3.5 Flash-Lite", contextTokens: 1_048_576, inputPerMillion: 0.3, outputPerMillion: 2.5 },
     ],
   },
   openrouter: {
@@ -94,11 +126,11 @@ export const AI_PROVIDERS: Readonly<Record<AiProviderId, AiProviderDefinition>> 
     keysUrl: "https://openrouter.ai/settings/keys",
     defaultModel: "deepseek/deepseek-v4-pro",
     models: [
-      { id: "deepseek/deepseek-v4-pro", name: "DeepSeek V4 Pro" },
-      { id: "moonshotai/kimi-k3", name: "Kimi K3" },
-      { id: "anthropic/claude-sonnet-5", name: "Claude Sonnet 5" },
-      { id: "openai/gpt-6.1-sol", name: "GPT-6.1 Sol" },
-      { id: "google/gemini-3.8-flash", name: "Gemini 3.8 Flash" },
+      { id: "deepseek/deepseek-v4-pro", name: "DeepSeek V4 Pro", contextTokens: 1_048_576, inputPerMillion: 0.9, outputPerMillion: 1.5 },
+      { id: "moonshotai/kimi-k3", name: "Kimi K3", contextTokens: 1_048_576, inputPerMillion: 0.192, outputPerMillion: 16 },
+      { id: "anthropic/claude-sonnet-5", name: "Claude Sonnet 5", contextTokens: 1_000_000, inputPerMillion: 2, outputPerMillion: 10 },
+      { id: "openai/gpt-6.1-sol", name: "GPT-6.1 Sol", contextTokens: 1_050_000, inputPerMillion: 2, outputPerMillion: 10 },
+      { id: "google/gemini-3.8-flash", name: "Gemini 3.8 Flash", contextTokens: 1_048_576, inputPerMillion: 0.825, outputPerMillion: 4.125 },
     ],
   },
 };
@@ -107,6 +139,11 @@ export const AI_PROVIDERS: Readonly<Record<AiProviderId, AiProviderDefinition>> 
 export interface AiModelSelection {
   provider: AiProviderId;
   model: string;
+}
+
+/** Returns pricing and context information only for a provider's suggested models. */
+export function modelOption(selection: AiModelSelection): AiModelOption | null {
+  return AI_PROVIDERS[selection.provider].models.find((option) => option.id === selection.model) ?? null;
 }
 
 /** Leaves room for the provider prefix inside the 200-character stored preference. */

@@ -10,9 +10,9 @@ export function hasLoneSurrogate(value: string): boolean {
 }
 
 /** A repository-rooted file path, or null when the value cannot be one. */
-export function normalizeEvidencePath(value: unknown): string | null {
+export function normalizeEvidencePath(value: unknown, options?: { trim?: boolean }): string | null {
   if (typeof value !== "string") return null;
-  const path = value.trim().replace(/^(?:\.\/)+/, "");
+  const path = (options?.trim === false ? value : value.trim()).replace(/^(?:\.\/)+/, "");
   if (
     !path ||
     path.length > CANVAS_EVIDENCE_LIMITS.pathLength ||

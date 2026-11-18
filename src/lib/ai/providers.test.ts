@@ -3,6 +3,7 @@ import {
   AI_PROVIDERS,
   DEFAULT_AI_SELECTION,
   formatModelReference,
+  modelOption,
   parseModelReference,
   providerKeyShapeError,
 } from "@/lib/ai/providers";
@@ -32,6 +33,23 @@ describe("model references", () => {
         expect(parseModelReference(formatModelReference(selection))).toEqual(selection);
       }
     }
+  });
+});
+
+describe("modelOption", () => {
+  it("returns the suggested model's context and prices", () => {
+    expect(modelOption({ provider: "anthropic", model: "claude-sonnet-5" })).toEqual({
+      id: "claude-sonnet-5",
+      name: "Claude Sonnet 5",
+      contextTokens: 1_000_000,
+      inputPerMillion: 2,
+      outputPerMillion: 10,
+    });
+  });
+
+  it("returns null for custom IDs and models belonging to another provider", () => {
+    expect(modelOption({ provider: "openai", model: "custom-model" })).toBeNull();
+    expect(modelOption({ provider: "openai", model: "claude-sonnet-5" })).toBeNull();
   });
 });
 

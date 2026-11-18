@@ -18,6 +18,7 @@ import { getBrowserWorkspaceVault, type WorkspaceVault } from "@/lib/vault/works
 
 export interface ProviderKeyFieldProps {
   keyManager?: ProviderKeyManager;
+  provider?: AiProviderId;
   aiSettings?: Pick<WorkspaceVault, "getAiSelection" | "selectAiProvider">;
   onReady?: (status: ProviderKeyStatus) => void;
   inputRef?: RefObject<HTMLInputElement | null>;
@@ -70,6 +71,7 @@ export function KeyStateChip({
  */
 export default function ProviderKeyField({
   keyManager,
+  provider: fixedProvider,
   aiSettings,
   onReady,
   inputRef,
@@ -87,6 +89,12 @@ export default function ProviderKeyField({
   const [persisted, setPersisted] = useState<AiProviderId | null>(null);
   const [errorTarget, setErrorTarget] = useState<"select" | "input">("input");
   const changeToken = useRef(0);
+  const mountedRef = useRef(false);
+  const fixedProviderRef = useRef(fixedProvider);
+  if (fixedProviderRef.current !== fixedProvider) {
+    fixedProviderRef.current = fixedProvider;
+    changeToken.current++;
+  }
   const [value, setValue] = useState("");
   const [remember, setRemember] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -95,13 +103,21 @@ export default function ProviderKeyField({
   onReadyRef.current = onReady;
 
   useEffect(() => {
+    mountedRef.current = true;
     let cancelled = false;
+    const token = ++changeToken.current;
+    setStatus(null);
+    setValue("");
+    setError("");
+    setSaving(false);
     (async () => {
-      let selected: AiProviderId = DEFAULT_AI_SELECTION.provider;
-      try {
-        selected = (await settings.getAiSelection()).provider;
-      } catch {
-        // An unreadable preference falls back to the default provider.
+      let selected: AiProviderId = fixedProvider ?? DEFAULT_AI_SELECTION.provider;
+      if (!fixedProvider) {
+        try {
+          selected = (await settings.getAiSelection()).provider;
+        } catch {
+          // An unreadable preference falls back to the default provider.
+        }
       }
       let next: ProviderKeyStatus;
       try {
@@ -110,7 +126,7 @@ export default function ProviderKeyField({
         // Treat an unreadable credential store as "no key" and let the user try.
         next = { provider: selected, state: "absent", generation: "" };
       }
-      if (cancelled) return;
+      if (cancelled || token !== changeToken.current) return;
       setProvider(selected);
       setPersisted(selected);
       setStatus(next);
@@ -118,8 +134,9 @@ export default function ProviderKeyField({
     })();
     return () => {
       cancelled = true;
+      mountedRef.current = false;
     };
-  }, [manager, settings]);
+  }, [fixedProvider, manager, settings]);
 
   async function changeProvider(next: AiProviderId) {
     if (saving || next === provider) return;
@@ -139,6 +156,7 @@ export default function ProviderKeyField({
   }
 
   async function persistProvider(next: AiProviderId): Promise<boolean> {
+    if (fixedProvider) return true;
     if (next === persisted) return true;
     try {
       await settings.selectAiProvider(next);
@@ -173,31 +191,35 @@ export default function ProviderKeyField({
       return;
     }
     setSaving(true);
+    const token = changeToken.current;
     setError("");
     try {
       if (!(await persistProvider(provider))) return;
+      if (!mountedRef.current || token !== changeToken.current) return;
       try {
         const next = remember
           ? await manager.rememberKey(provider, key)
           : await manager.useSessionKey(provider, key);
+        if (!mountedRef.current || token !== changeToken.current) return;
         setStatus(next);
         setValue("");
         onReadyRef.current?.(next);
       } catch {
+        if (!mountedRef.current || token !== changeToken.current) return;
         setErrorTarget("input");
         setError("That key could not be stored on this device. Try again.");
       }
     } finally {
-      setSaving(false);
+      if (mountedRef.current && token === changeToken.current) setSaving(false);
     }
   }
 
   // Nothing to ask for once a key is active, and nothing to render before we
   // know: a field that flashes in and out is worse than one that arrives late.
-  if (!status || !provider) return null;
+  if (!status || !provider || (fixedProvider && provider !== fixedProvider)) return null;
   const loading = status.provider !== provider;
   const keyed = !loading && status.state !== "absent";
-  if (keyed && provider === persisted) return null;
+  if (keyed && (fixedProvider || provider === persisted)) return null;
 
   const definition = AI_PROVIDERS[provider];
 
@@ -212,26 +234,28 @@ export default function ProviderKeyField({
           <KeyStateChip state={keyed ? status.state : "absent"} />
         </div>
       ) : null}
-      <div className="mb-2 max-w-[47.5rem]">
-        <label htmlFor={selectId} className="sr-only">
-          AI provider
-        </label>
-        <select
-          id={selectId}
-          value={provider}
-          disabled={saving}
-          aria-invalid={error && errorTarget === "select" ? true : undefined}
-          aria-describedby={error && errorTarget === "select" ? errorId : undefined}
-          onChange={(event) => void changeProvider(event.target.value as AiProviderId)}
-          className="field-select"
-        >
-          {AI_PROVIDER_IDS.map((id) => (
-            <option key={id} value={id}>
-              {AI_PROVIDERS[id].name}
-            </option>
-          ))}
-        </select>
-      </div>
+      {!fixedProvider ? (
+        <div className="mb-2 max-w-[47.5rem]">
+          <label htmlFor={selectId} className="sr-only">
+            AI provider
+          </label>
+          <select
+            id={selectId}
+            value={provider}
+            disabled={saving}
+            aria-invalid={error && errorTarget === "select" ? true : undefined}
+            aria-describedby={error && errorTarget === "select" ? errorId : undefined}
+            onChange={(event) => void changeProvider(event.target.value as AiProviderId)}
+            className="field-select"
+          >
+            {AI_PROVIDER_IDS.map((id) => (
+              <option key={id} value={id}>
+                {AI_PROVIDERS[id].name}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
       {keyed ? (
         <div className="max-w-[47.5rem]">
           <button
