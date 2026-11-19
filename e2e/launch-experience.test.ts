@@ -23,7 +23,7 @@ test("the landing page accurately explains the working product and trust boundar
   await expect(slot).toBeVisible();
 
   // The tour waits for the visitor, then really plays and carries English captions.
-  const tour = slot.getByLabel("StackHatch in two minutes");
+  const tour = slot.getByLabel("StackHatch in two and a half minutes");
   await expect(tour).not.toHaveAttribute("controls");
   expect(await tour.evaluate((video: HTMLVideoElement) => video.paused)).toBe(true);
   await slot.getByRole("button", { name: /Watch the tour/ }).click();

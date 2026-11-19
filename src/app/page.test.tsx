@@ -75,7 +75,7 @@ describe("LandingPage", () => {
     render(<LandingPage />);
 
     const slot = screen.getByTestId("hero-proof");
-    const video = within(slot).getByLabelText<HTMLVideoElement>("StackHatch in two minutes");
+    const video = within(slot).getByLabelText<HTMLVideoElement>("StackHatch in two and a half minutes");
     expect(video.autoplay).toBe(false);
     expect(video).not.toHaveAttribute("controls");
     expect(video.querySelector('track[kind="captions"][srclang="en"]')).not.toBeNull();

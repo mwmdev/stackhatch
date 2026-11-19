@@ -7,7 +7,7 @@ import styles from "./landing.module.css";
 const TOUR = "/video/stackhatch-tour";
 
 /**
- * The narrated two-minute tour. It shows its poster until someone asks for it, then plays with
+ * The narrated two-and-a-half-minute tour. It shows its poster until someone asks for it, then plays with
  * sound, native controls and English captions; it never autoplays.
  */
 export default function HeroTour() {
@@ -34,7 +34,7 @@ export default function HeroTour() {
         preload="none"
         playsInline
         controls={started}
-        aria-label="StackHatch in two minutes"
+        aria-label="StackHatch in two and a half minutes"
         onClick={started ? undefined : start}
       >
         <source src={`${TOUR}-720.mp4`} type="video/mp4" media="(max-width: 760px)" />
@@ -44,7 +44,7 @@ export default function HeroTour() {
       {started ? null : (
         <button type="button" className={`btn btn--primary btn--lg ${styles.play}`} onClick={start}>
           <Play aria-hidden="true" />
-          Watch the tour <span className={styles.runtime}>2 min</span>
+          Watch the tour <span className={styles.runtime}>2½ min</span>
         </button>
       )}
     </div>
