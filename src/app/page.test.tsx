@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { AI_PROVIDERS, AI_PROVIDER_IDS } from "@/lib/ai/providers";
+import { takePickedLocalFolder } from "@/lib/local-source/folder-session";
 import LandingPage from "./page";
 
 const { push } = vi.hoisted(() => ({ push: vi.fn() }));
@@ -40,6 +41,7 @@ describe("LandingPage", () => {
       "href",
       "/project/new?mode=blank"
     );
+    expect(within(hero).queryByText("or", { exact: true })).toBeNull();
     // Every page-level conversion starts a new map; the bar's own link is the
     // shared public chrome.
     for (const link of within(screen.getByRole("main")).getAllByRole("link", {
@@ -48,6 +50,30 @@ describe("LandingPage", () => {
       expect(link).toHaveAttribute("href", "/project/new");
     }
     expect(screen.queryByRole("link", { name: /pricing|plans|sign in/i })).toBeNull();
+  });
+
+  it("offers a local folder start that hands the picked folder to the New map page", async () => {
+    push.mockClear();
+    const handle = { kind: "directory", name: "repo" } as FileSystemDirectoryHandle;
+    const picker = vi.fn().mockResolvedValue(handle);
+    Object.defineProperty(window, "showDirectoryPicker", { configurable: true, value: picker });
+    render(<LandingPage />);
+    fireEvent.click(within(region("hero")).getByRole("button", { name: "Choose a local folder" }));
+    await vi.waitFor(() => expect(push).toHaveBeenCalledWith("/project/new"));
+    expect(picker).toHaveBeenCalledWith({ id: "stackhatch-local-source", mode: "read" });
+    expect(takePickedLocalFolder()).toBe(handle);
+    Reflect.deleteProperty(window, "showDirectoryPicker");
+  });
+
+  it("disables the local start where folders cannot be opened", () => {
+    render(<LandingPage />);
+    expect(
+      within(region("hero")).getByRole("button", { name: "Choose a local folder" })
+    ).toBeDisabled();
+    expect(region("hero")).toHaveTextContent("Needs a desktop browser that can open folders.");
+    expect(within(region("hero")).getByText(/Needs a desktop browser/)).not.toHaveTextContent(
+      /Chrome|Edge/
+    );
   });
 
   it("hands a pasted GitHub link to the repository start, and rejects anything else", () => {

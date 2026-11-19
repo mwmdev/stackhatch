@@ -7,7 +7,7 @@
     </feComponentTransfer>
     <feColorMatrix
       type="matrix"
-      values="0 0 0 0 0.9372549019607843 0 0 0 0 0.8980392156862745 0 0 0 0 0.8235294117647058 0 0 0 0.055 0"
+      values="0 0 0 0 0.9333333333333333 0 0 0 0 0.9215686274509803 0 0 0 0 0.8941176470588236 0 0 0 0.055 0"
     />
   </filter>
   <rect width="100%" height="100%" filter="url(#paper)" />

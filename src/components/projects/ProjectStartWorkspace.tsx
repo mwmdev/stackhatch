@@ -463,7 +463,7 @@ export default function ProjectStartWorkspace({
   );
 
   const optionClass =
-    "relative flex min-w-0 flex-col py-8 lg:min-h-[300px] lg:pt-[34px] lg:pb-[30px] max-lg:[&+&]:border-t-[1.5px] lg:[&+&]:border-l-[1.5px] border-column-rule lg:pr-[34px] lg:[&+&]:pl-[34px] lg:[&+&]:before:absolute lg:[&+&]:before:top-1/2 lg:[&+&]:before:left-0 lg:[&+&]:before:-translate-x-1/2 lg:[&+&]:before:-translate-y-1/2 lg:[&+&]:before:bg-[var(--bg)] lg:[&+&]:before:px-1 lg:[&+&]:before:py-1.5 lg:[&+&]:before:type-small lg:[&+&]:before:text-ink2 lg:[&+&]:before:content-['or']";
+    "relative flex min-w-0 flex-col lg:grid lg:row-span-5 lg:grid-rows-subgrid py-8 lg:min-h-[300px] lg:pt-[34px] lg:pb-[30px] max-lg:[&+&]:border-t-[1.5px] lg:[&+&]:border-l-[1.5px] border-column-rule lg:pr-[34px] lg:[&+&]:pl-[34px] lg:[&+&]:before:absolute lg:[&+&]:before:top-1/2 lg:[&+&]:before:left-0 lg:[&+&]:before:-translate-x-1/2 lg:[&+&]:before:-translate-y-1/2 lg:[&+&]:before:bg-[var(--bg)] lg:[&+&]:before:px-1 lg:[&+&]:before:py-1.5 lg:[&+&]:before:type-small lg:[&+&]:before:text-ink2 lg:[&+&]:before:content-['or']";
 
   return (
     <AppPageShell
@@ -496,7 +496,7 @@ export default function ProjectStartWorkspace({
       <section aria-labelledby="project-start-title" className="page-gutter pb-12">
         {keyStatus ? (
           <>
-            <div className="grid lg:grid-cols-4">
+            <div className="grid lg:grid-cols-4 lg:grid-rows-[auto_auto_auto_auto_1fr]">
               <div className={optionClass}>
                 <Scan
                   className="mb-[22px] size-[34px] text-ink2"

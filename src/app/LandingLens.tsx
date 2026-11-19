@@ -109,6 +109,8 @@ export function LensProvider({ children }: { children: ReactNode }) {
           continue;
         }
         if (key === "hero") {
+          // Hidden below 1200 px: no box, so no connectors from the page's top-left corner.
+          if (box.width === 0 || box.height === 0) continue;
           next.hero = box;
           const scale = Math.min(box.width / HERO_VIEWBOX.width, box.height / HERO_VIEWBOX.height);
           const originX = box.left + box.width - HERO_VIEWBOX.width * scale;

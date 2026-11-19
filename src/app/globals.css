@@ -95,64 +95,64 @@
   color-scheme: light;
 
   /* The ink frame: top bar, tool rail, legend strip, footer. */
-  --frame: #2a251f;
-  --frame-fg: #f1e9d8;
-  --frame-muted: #b9ac93;
+  --frame: #181714;
+  --frame-fg: #f2f0eb;
+  --frame-muted: #b4b1aa;
   /* Decorative dividers and frame-button outlines; exempt from 3:1. */
-  --frame-rule: #4b4236;
-  --frame-raised: #3a332a;
+  --frame-rule: #3b3936;
+  --frame-raised: #292724;
 
   /* Work surfaces inside the frame. */
-  --bg: #f2ede3;
-  --paper: #fbf8f1;
-  --canvas: #e9e2d3;
+  --bg: #f2f0ec;
+  --paper: #fdfcfa;
+  --canvas: #e3e0db;
   --canvas-texture: url("/textures/canvas-paper-light.svg");
-  --muted: #e6dfcf;
-  --field: #f6f1e7;
+  --muted: #dfdcd7;
+  --field: #f8f6f3;
 
-  --ink: #2a251f;
-  --ink2: #63574a;
+  --ink: #181714;
+  --ink2: #55524d;
   /* --rule is a decorative separator; --rule-strong bounds every control a user
      types into or presses, which WCAG 2.2 SC 1.4.11 holds to 3:1. */
-  --rule: #d8cdb9;
+  --rule: #d6d3ce;
   /* Hero video slot: light in both themes, because the hero video is light. */
-  --hero-slot: #e9e2d3; /* the light --canvas value, literal */
-  --hero-slot-edge: #d8cdb9; /* the light --rule value, literal */
+  --hero-slot: #e3e0db; /* the light --canvas value, literal */
+  --hero-slot-edge: #d6d3ce; /* the light --rule value, literal */
   /* Landing hero only: one ambient ochre wash, under the paper grain. */
   --hero-wash: rgb(212 160 40 / 0.16);
-  --rule-strong: #877861;
+  --rule-strong: #7a7770;
   /* The inner edge of docked panels (detail, chat, library side column). */
   --panel-edge: var(--ink);
   /* Structural rules between side-by-side columns (new-map options). */
   --column-rule: var(--ink);
 
   /* Colour is spent once: an ochre primary, one filled action per view. */
-  --primary: #d09a2b;
-  --primary-hover: #bb8820;
-  --primary-fg: #2a251f;
+  --primary: #e1a618;
+  --primary-hover: #d19500;
+  --primary-fg: #181714;
   --btn-primary-border: var(--ink);
-  --link: #75550c;
+  --link: #7b5200;
 
   /* Focus is ink on paper and canvas, ochre on the frame. `--ring` is what
      every outline reads; `.ink-frame` points it at `--ring-frame` and paper
      surfaces nested in the frame point it back at `--ring-paper`. */
-  --ring-paper: #2a251f;
-  --ring-frame: #e3b24c;
+  --ring-paper: #181714;
+  --ring-frame: #ecb93f;
   --ring: var(--ring-paper);
 
   /* Crimson rather than terra: destructive actions must not read as primary. */
   --danger: #9b2c3a;
   --danger-hover: #7f1f2e;
-  --danger-fg: #fbf8f1;
+  --danger-fg: #fdfcfa;
   --danger-surface: #f5e0df;
   --moss: #44693a;
 
   --success: #44693a;
   --warning: #8a5312;
 
-  --select: #2a251f;
+  --select: #181714;
   /* Canvas dot grid; decorative. */
-  --dot: #d3c8b2;
+  --dot: #cecbc6;
 
   /* Toasts are an ink chip in light and a cream chip in dark. */
   --toast-bg: var(--frame);
@@ -161,31 +161,31 @@
   --toast-success: var(--moss);
   --toast-danger: var(--danger);
 
-  --overlay: rgb(42 37 31 / 0.55);
+  --overlay: rgb(24 23 21 / 0.55);
 
   /* Category tones climb a luminance ladder so the map survives greyscale
      printing and PNG export, not just colour vision. The tone is judged against
      the canvas; the fill carries the tag text. */
   --color-client: #923f1e;
   --color-client-fill: #923f1e;
-  --color-client-foreground: #fbf8f1;
+  --color-client-foreground: #fdfcfa;
   --color-api: #426b45;
   --color-api-fill: #426b45;
-  --color-api-foreground: #fbf8f1;
+  --color-api-foreground: #fdfcfa;
   --color-services: #603f67;
   --color-services-fill: #603f67;
-  --color-services-foreground: #fbf8f1;
+  --color-services-foreground: #fdfcfa;
   /* The lighter rungs need a darker fill than their tone so the tag text still
      clears 4.5:1; the tone keeps the ladder position. */
-  --color-data: #976c13;
-  --color-data-fill: #7a560c;
-  --color-data-foreground: #fbf8f1;
-  --color-infrastructure: #746b5b;
-  --color-infrastructure-fill: #5c5548;
-  --color-infrastructure-foreground: #fbf8f1;
+  --color-data: #277f91;
+  --color-data-fill: #186575;
+  --color-data-foreground: #fdfcfa;
+  --color-infrastructure: #6f6d68;
+  --color-infrastructure-fill: #55524d;
+  --color-infrastructure-foreground: #fdfcfa;
   --color-external: #2d3e4d;
   --color-external-fill: #2d3e4d;
-  --color-external-foreground: #fbf8f1;
+  --color-external-foreground: #fdfcfa;
   --color-note: #a07711;
   --color-note-fill: var(--note-yellow-fill);
   --color-note-foreground: var(--note-yellow-foreground);
@@ -209,8 +209,8 @@
   --edge-http: #a0461f;
   --edge-websocket: #2f6b58;
   --edge-grpc: #6b4472;
-  --edge-tcp: #6c6250;
-  --edge-pub-sub: #8a610c;
+  --edge-tcp: #65635e;
+  --edge-pub-sub: #3164a3;
   --edge-file-io: #7a5828;
 
   /* Geometry. The frame is square; controls 3 px, nodes 4 px, tags 2 px,
@@ -248,50 +248,50 @@
 .dark {
   color-scheme: dark;
 
-  --frame: #0c0a08;
-  --frame-fg: #efe5d2;
-  --frame-muted: #a89b84;
-  --frame-rule: #3d352c;
-  --frame-raised: #211d18;
+  --frame: #070605;
+  --frame-fg: #ece9e2;
+  --frame-muted: #aba79f;
+  --frame-rule: #302f2c;
+  --frame-raised: #1a1815;
 
-  --bg: #221e19;
-  --paper: #2b261f;
-  --canvas: #1e1a15;
+  --bg: #1f1e1b;
+  --paper: #2a2926;
+  --canvas: #161512;
   --canvas-texture: url("/textures/canvas-paper-dark.svg");
-  --muted: #363027;
-  --field: #1a1612;
+  --muted: #373531;
+  --field: #12100e;
 
-  --ink: #efe5d2;
-  --ink2: #bcae96;
-  --rule: #40382e;
+  --ink: #eeebe4;
+  --ink2: #b3afa7;
+  --rule: #3e3d3a;
   /* Hero video slot: light in both themes, because the hero video is light. */
-  --hero-slot: #e9e2d3; /* the light --canvas value, literal */
-  --hero-slot-edge: #d8cdb9; /* the light --rule value, literal */
+  --hero-slot: #e3e0db; /* the light --canvas value, literal */
+  --hero-slot-edge: #d6d3ce; /* the light --rule value, literal */
   --hero-wash: rgb(226 176 78 / 0.09);
-  --rule-strong: #8e8170;
+  --rule-strong: #86837c;
   --panel-edge: var(--frame-rule);
   --column-rule: var(--rule-strong);
 
-  --primary: #e2b04e;
-  --primary-hover: #ecc167;
-  --primary-fg: #1c1611;
+  --primary: #eab742;
+  --primary-hover: #f7c95d;
+  --primary-fg: #110f0c;
   --btn-primary-border: var(--primary);
-  --link: #e8bd62;
+  --link: #edc160;
 
-  --ring-paper: #e2b04e;
-  --ring-frame: #e2b04e;
+  --ring-paper: #eab742;
+  --ring-frame: #eab742;
 
   --danger: #ec8a98;
   --danger-hover: #f2a3ae;
-  --danger-fg: #1c1611;
+  --danger-fg: #110f0c;
   --danger-surface: #3a1f24;
   --moss: #9dbf7e;
 
   --success: #9dbf7e;
   --warning: #e0ad5a;
 
-  --select: #e2b04e;
-  --dot: #312a22;
+  --select: #eab742;
+  --dot: #282623;
 
   --toast-bg: var(--frame-fg);
   --toast-fg: var(--frame);
@@ -299,26 +299,26 @@
   --toast-success: #44693a;
   --toast-danger: #9b2c3a;
 
-  --overlay: rgb(8 6 4 / 0.7);
+  --overlay: rgb(6 6 5 / 0.7);
 
   --color-client: #d67d44;
   --color-client-fill: #d67d44;
-  --color-client-foreground: #181511;
+  --color-client-foreground: #0e0d0a;
   --color-api: #7bb370;
   --color-api-fill: #7bb370;
-  --color-api-foreground: #181511;
+  --color-api-foreground: #0e0d0a;
   --color-services: #a477b0;
   --color-services-fill: #a477b0;
-  --color-services-foreground: #181511;
-  --color-data: #dfa73b;
-  --color-data-fill: #dfa73b;
-  --color-data-foreground: #181511;
-  --color-infrastructure: #a79b84;
-  --color-infrastructure-fill: #a79b84;
-  --color-infrastructure-foreground: #181511;
+  --color-services-foreground: #0e0d0a;
+  --color-data: #60bccc;
+  --color-data-fill: #60bccc;
+  --color-data-foreground: #0e0d0a;
+  --color-infrastructure: #a19e99;
+  --color-infrastructure-fill: #a19e99;
+  --color-infrastructure-foreground: #0e0d0a;
   --color-external: #5980a0;
   --color-external-fill: #698dac;
-  --color-external-foreground: #181511;
+  --color-external-foreground: #0e0d0a;
   --color-note: #d9bd69;
   --note-yellow-fill: #3d3218;
   --note-yellow-border: #a08a3e;
@@ -339,8 +339,8 @@
   --edge-http: #e0905a;
   --edge-websocket: #6fae95;
   --edge-grpc: #b192bb;
-  --edge-tcp: #b3a893;
-  --edge-pub-sub: #dcae4e;
+  --edge-tcp: #aaa7a2;
+  --edge-pub-sub: #73a9e5;
   --edge-file-io: #c19a63;
 }
 
@@ -386,7 +386,7 @@
 
 @utility type-page-title {
   font-family: var(--font-display), var(--font-body), sans-serif;
-  font-size: clamp(2.75rem, 2.1rem + 2.67vw, 4.5rem);
+  font-size: clamp(2rem, 1.5rem + 1.4vw, 2.75rem);
   font-weight: 800;
   font-stretch: 62%;
   line-height: 0.9;
@@ -395,7 +395,7 @@
 
 @utility type-option-title {
   font-family: var(--font-display), var(--font-body), sans-serif;
-  font-size: clamp(2rem, 0.9rem + 2.2vw, 2.75rem);
+  font-size: clamp(1.375rem, 0.85rem + 0.9vw, 1.75rem);
   font-weight: 800;
   font-stretch: 68%;
   line-height: 0.95;
@@ -1569,7 +1569,7 @@
   .app-shell__title {
     margin: 0;
     font-family: var(--font-display), var(--font-body), sans-serif;
-    font-size: clamp(2.75rem, 2.1rem + 2.67vw, 4.5rem);
+    font-size: clamp(2rem, 1.5rem + 1.4vw, 2.75rem);
     font-weight: 800;
     font-stretch: 62%;
     line-height: 0.9;
@@ -1711,7 +1711,7 @@
   .public-shell__title {
     margin: 0;
     font-family: var(--font-display), var(--font-body), sans-serif;
-    font-size: clamp(2.75rem, 2.1rem + 2.67vw, 4.5rem);
+    font-size: clamp(2rem, 1.5rem + 1.4vw, 2.75rem);
     font-weight: 800;
     font-stretch: 62%;
     line-height: 0.9;

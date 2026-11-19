@@ -77,6 +77,18 @@ function relativeLuminance([r, g, b]: [number, number, number]) {
   return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
 }
 
+/** OKLCH chroma and hue (degrees) of sRGB channels in 0-1. */
+function oklch([r, g, b]: [number, number, number]) {
+  const lin = (c: number) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+  const [lr, lg, lb] = [lin(r), lin(g), lin(b)];
+  const l = Math.cbrt(0.4122214708 * lr + 0.5363325363 * lg + 0.0514459929 * lb);
+  const m = Math.cbrt(0.2119034982 * lr + 0.6806995451 * lg + 0.1073969566 * lb);
+  const s = Math.cbrt(0.0883024619 * lr + 0.2817188376 * lg + 0.6299787005 * lb);
+  const a = 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s;
+  const bb = 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s;
+  return { chroma: Math.hypot(a, bb), hue: ((Math.atan2(bb, a) * 180) / Math.PI + 360) % 360 };
+}
+
 function contrast(foreground: string, background: string) {
   const a = parseColor(foreground);
   const b = parseColor(background);
@@ -200,6 +212,25 @@ describe.each(Object.entries(THEMES))("%s theme", (_theme, declarations) => {
         `${luminances[i - 1].name} and ${luminances[i].name} are too close in greyscale`
       ).toBeGreaterThan(0.02);
     }
+  });
+
+  it("lifts paper off the canvas", () => {
+    const ratio = contrast(resolve("--paper", declarations), resolve("--canvas", declarations));
+    expect(ratio).not.toBeNull();
+    expect(ratio!).toBeGreaterThanOrEqual(1.25);
+  });
+
+  it.each([
+    ...CATEGORIES.filter((c) => c !== "note").map((c) => `--color-${c}`),
+    ...EDGES.map((e) => `--edge-${e}`),
+  ])("%s stays off the primary's hue", (token) => {
+    // Ochre means an action. A map tone that sits near its hue and is chromatic
+    // enough to read as yellow would blur that.
+    const tone = oklch(parseColor(resolve(token, declarations))!);
+    const primary = oklch(parseColor(resolve("--primary", declarations))!);
+    const raw = Math.abs(tone.hue - primary.hue);
+    const distance = Math.min(raw, 360 - raw);
+    expect(distance <= 20 && tone.chroma >= 0.09, `${token} reads as the primary`).toBe(false);
   });
 });
 

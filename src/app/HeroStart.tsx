@@ -91,44 +91,34 @@ export default function HeroStart() {
           </p>
         ) : null}
       </form>
-      <span className={styles.alt}>
-        <span className={styles.or} aria-hidden="true">
-          or
-        </span>
-        <span className={styles.localStart}>
-          <button
-            type="button"
-            className="btn btn--lg"
-            disabled={hydrated && !localSupported}
-            aria-describedby={hydrated && !localSupported ? "hero-local-note" : undefined}
-            onClick={chooseFolder}
-          >
-            Choose local folder
-          </button>
-          {hydrated && !localSupported ? (
-            <span id="hero-local-note" className={styles.localNote}>
-              Needs a desktop browser that can open folders.
-            </span>
-          ) : null}
-          {localError ? (
-            <span className="field-error" role="alert">
-              {localError}
-            </span>
-          ) : null}
-        </span>
-      </span>
-      <span className={styles.alt}>
-        <span className={styles.or} aria-hidden="true">
-          or
-        </span>
+      <div className={styles.altStarts}>
+        <button
+          type="button"
+          className={styles.altStart}
+          disabled={hydrated && !localSupported}
+          aria-describedby={hydrated && !localSupported ? "hero-local-note" : undefined}
+          onClick={chooseFolder}
+        >
+          Choose a local folder
+        </button>
         <Link
           href={buildProjectStartPath("blank")}
-          className="btn btn--lg"
+          className={styles.altStart}
           onClick={() => markProjectStart("blank")}
         >
           Start a blank map
         </Link>
-      </span>
+      </div>
+      {hydrated && !localSupported ? (
+        <p id="hero-local-note" className={styles.localNote}>
+          Needs a desktop browser that can open folders.
+        </p>
+      ) : null}
+      {localError ? (
+        <p className="field-error" role="alert">
+          {localError}
+        </p>
+      ) : null}
     </div>
   );
 }

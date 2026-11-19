@@ -141,9 +141,9 @@ function CardHead({ icon: Icon, title }: { icon: LucideIcon; title: string }) {
 /** A repository fanning out into the map it drafts; draws itself as the tile scrolls in. */
 function LeadSketch() {
   const leaves = [
-    { x: 20, tone: styles.toneApi },
-    { x: 138, tone: styles.toneServices },
-    { x: 256, tone: styles.toneData },
+    { x: 20, tone: styles.toneApi, name: "API" },
+    { x: 138, tone: styles.toneServices, name: "Worker" },
+    { x: 256, tone: styles.toneData, name: "Postgres" },
   ];
   return (
     <svg className={styles.sketch} viewBox="0 0 360 160" aria-hidden="true" focusable="false">
@@ -155,14 +155,18 @@ function LeadSketch() {
           pathLength={1}
         />
       ))}
-      {[{ x: 138, y: 14, tone: styles.toneClient }, ...leaves.map((l) => ({ ...l, y: 116 }))].map(
-        ({ x, y, tone }) => (
-          <g key={`${x}-${y}`} className={styles.sketchNode}>
-            <rect x={x} y={y} width={84} height={30} rx={4} />
-            <rect className={tone} x={x + 6} y={y - 4} width={28} height={8} rx={2} />
-          </g>
-        )
-      )}
+      {[
+        { x: 138, y: 14, tone: styles.toneClient, name: "Web app" },
+        ...leaves.map((l) => ({ ...l, y: 116 })),
+      ].map(({ x, y, tone, name }) => (
+        <g key={`${x}-${y}`} className={styles.sketchNode}>
+          <rect x={x} y={y} width={84} height={30} rx={4} />
+          <rect className={tone} x={x + 6} y={y - 4} width={28} height={8} rx={2} />
+          <text className={styles.sketchName} x={x + 8} y={y + 20}>
+            {name}
+          </text>
+        </g>
+      ))}
     </svg>
   );
 }
@@ -176,13 +180,13 @@ export default function LandingPage() {
         <main id="main" tabIndex={-1} className={styles.main}>
           <section aria-labelledby="hero-heading" data-landing-region="hero">
             <div className={styles.headline}>
-              <HeroBackdrop />
-              <HeroLens />
               {/* One line on desktop; three forced lines on a phone. */}
               <h1 id="hero-heading" className={`type-display-xl ${styles.title}`}>
                 <span>Keep the</span> <span>whole stack</span> <span>in view</span>
               </h1>
               <div className={styles.lede}>
+                <HeroBackdrop />
+                <HeroLens />
                 <div className={styles.ledeText}>
                   <p>
                     StackHatch turns a GitHub repository or a Markdown brief into an editable
