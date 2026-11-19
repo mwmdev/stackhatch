@@ -10,6 +10,18 @@ import { createBlankMap, mockGitHub, useProviderKey } from "./helpers/sse-mock";
 const RULES = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 
 async function scan(page: Page) {
+  // Let finite entrance animations finish, so axe reads resting colours and positions.
+  await page.evaluate(() =>
+    Promise.race([
+      Promise.all(
+        document
+          .getAnimations()
+          .filter((animation) => animation.effect?.getComputedTiming().endTime !== Infinity)
+          .map((animation) => animation.finished.catch(() => undefined))
+      ),
+      new Promise((resolve) => setTimeout(resolve, 3000)),
+    ])
+  );
   const { violations } = await new AxeBuilder({ page }).withTags(RULES).analyze();
   return violations.map((violation) => ({
     id: violation.id,

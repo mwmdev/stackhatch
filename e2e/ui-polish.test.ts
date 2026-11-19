@@ -940,6 +940,102 @@ test("the landing page holds its layout through the tablet band", async ({ page 
   }
 });
 
+test("landing reveals play once and leave every section at rest", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+
+  // Below the fold waits; nothing on screen at load is ever hidden.
+  await expect(page.locator("#features-heading")).toHaveAttribute("data-reveal", "pending");
+  const hiddenOnScreen = await page.evaluate(
+    () =>
+      [...document.querySelectorAll('[data-reveal="pending"]')].filter(
+        (el) => el.getBoundingClientRect().top < window.innerHeight
+      ).length
+  );
+  expect(hiddenOnScreen).toBe(0);
+
+  // The hero entrance is at rest within a second; its map keeps drawing for a few seconds more.
+  await page.waitForTimeout(1000);
+  const heroRunning = await page.evaluate(
+    () =>
+      document
+        .querySelector('[data-landing-region="hero"]')!
+        .getAnimations({ subtree: true })
+        .filter((animation) => !(animation.effect as KeyframeEffect).target?.closest("svg")).length
+  );
+  expect(heroRunning).toBe(0);
+
+  // Scroll through the whole page, then everything has played.
+  const height = await page.evaluate(() => document.documentElement.scrollHeight);
+  for (let y = 0; y <= height; y += 300) {
+    await page.evaluate((top) => window.scrollTo(0, top), y);
+    await page.waitForTimeout(100);
+  }
+  await expect(page.locator('[data-reveal="pending"]')).toHaveCount(0);
+  await page.waitForTimeout(1500);
+
+  const notAtRest = await page.evaluate(() => {
+    const problems: string[] = [];
+    const describe = (el: Element) =>
+      `${el.tagName.toLowerCase()}${el.id ? `#${el.id}` : ""}.${String(el.className).slice(0, 40)}`;
+    for (const el of document.querySelectorAll("[data-reveal], [data-reveal] > *")) {
+      const style = getComputedStyle(el);
+      if (style.opacity !== "1") problems.push(`${describe(el)} opacity ${style.opacity}`);
+      if (style.translate !== "none" && style.translate !== "0px") {
+        problems.push(`${describe(el)} translate ${style.translate}`);
+      }
+      if (style.clipPath !== "none") problems.push(`${describe(el)} clip-path ${style.clipPath}`);
+    }
+    const ruleSizes: [string, string][] = [
+      ['[data-landing-region="audience"] li[data-reveal]', "100% 2px"],
+      ['[data-landing-region="final-cta"]', "100% 2px"],
+      ['[data-landing-region="privacy"] li[data-reveal]', "1px 100%"],
+    ];
+    for (const [selector, size] of ruleSizes) {
+      for (const el of document.querySelectorAll(selector)) {
+        const actual = getComputedStyle(el).backgroundSize;
+        if (actual !== size) problems.push(`${describe(el)} background-size ${actual}`);
+      }
+    }
+    return problems;
+  });
+  expect(notAtRest).toEqual([]);
+
+  // The lens measured while the heading was still displaced, so it must sit at the resting heading.
+  const gap = await page.evaluate(() => {
+    const heading = document.querySelector("#audience-heading")!;
+    const range = document.createRange();
+    range.selectNodeContents(heading);
+    const rect = range.getBoundingClientRect();
+    const centre = rect.top + window.scrollY + rect.height / 2;
+    const nodes = document.querySelectorAll(
+      '[data-landing-region="audience"] > div[aria-hidden="true"] g > rect:first-child'
+    );
+    let smallest: number | null = null;
+    for (const node of nodes) {
+      const middle = Number(node.getAttribute("y")) + Number(node.getAttribute("height")) / 2;
+      const distance = Math.abs(middle - centre);
+      if (smallest === null || distance < smallest) smallest = distance;
+    }
+    return smallest;
+  });
+  expect(gap).not.toBeNull();
+  expect(gap!).toBeLessThan(2);
+});
+
+test("landing reveals never hide anything under reduced motion", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  await page.waitForLoadState("networkidle");
+  await expect(page.locator('[data-reveal="pending"]')).toHaveCount(0);
+  await expect(page.locator("#features-heading")).toHaveCSS("translate", "none");
+  await expect(page.locator('[data-landing-region="hero"] h1 span').first()).toHaveCSS(
+    "animation-name",
+    "none"
+  );
+});
+
 test("rail menus close when pressing the canvas, a node or an edge", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await openBlankEditor(page);

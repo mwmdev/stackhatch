@@ -103,6 +103,26 @@
   .mapPacket {
     animation: map-packet 1.6s ease-in-out 2s both;
   }
+
+  .title span {
+    animation: line-rise 600ms var(--motion-ease) backwards;
+  }
+
+  .title span:nth-child(2) {
+    animation-delay: 90ms;
+  }
+
+  .title span:nth-child(3) {
+    animation-delay: 180ms;
+  }
+
+  .ledeText {
+    animation: card-rise 500ms var(--motion-ease) 300ms backwards;
+  }
+
+  .actions {
+    animation: card-rise 500ms var(--motion-ease) 400ms backwards;
+  }
 }
 
 @keyframes map-fade {
@@ -143,6 +163,7 @@
 
 /* Break only between the three phrases, never strand "view" alone. */
 .title span {
+  display: inline-block;
   white-space: nowrap;
 }
 
@@ -320,7 +341,8 @@
   flex-direction: column;
   gap: 0.625rem;
   padding-top: 1.5rem;
-  border-top: 2px solid var(--ink);
+  border-top: 2px solid transparent;
+  background: linear-gradient(var(--ink), var(--ink)) 0 0 / 100% 2px no-repeat border-box;
 }
 
 .privacy {
@@ -331,7 +353,8 @@
 .privacy .column {
   padding: 0.25rem clamp(1.25rem, 2.5vw, 2rem) 0;
   border-top: 0;
-  border-left: 1px solid var(--rule);
+  border-left: 1px solid transparent;
+  background: linear-gradient(var(--rule), var(--rule)) 0 0 / 1px 100% no-repeat border-box;
 }
 
 /* Features sit on the map table: the canvas bed, its paper grain and dot grid, full bleed. */
@@ -632,54 +655,106 @@
   stroke-dasharray: 2 4;
 }
 
-/* Scroll-linked reveal: each column and tile rises in as it enters, a beat behind its left
-   neighbour, and the lead sketch draws itself. Scrolling drives it, so it never runs on its own;
-   without scroll timelines or with reduced motion everything is simply there. */
+/* Play-once reveals (LandingReveal.tsx): an element still below the fold at load waits on its
+   first frame ("pending") and plays its entrance once it comes into view ("shown"), each a beat
+   behind its left neighbour. Anything on screen at load, reduced motion and no-JS never wait. */
 @media (prefers-reduced-motion: no-preference) {
-  @supports (animation-timeline: view()) {
-    .column,
-    .tile {
-      animation: card-rise linear both;
-      animation-timeline: view();
-      animation-range: entry 0% entry 100%;
-    }
+  .column,
+  .tile {
+    --beat: 0ms;
+  }
 
-    .column:nth-child(2),
-    .tile:nth-child(3),
-    .tile:nth-child(5) {
-      animation-range: entry 10% entry 100%;
-    }
+  .column:nth-child(2),
+  .tile:nth-child(2),
+  .tile:nth-child(4),
+  .tile:nth-child(7) {
+    --beat: 80ms;
+  }
 
-    .column:nth-child(3),
-    .tile:nth-child(2),
-    .tile:nth-child(4) {
-      animation-range: entry 20% entry 100%;
-    }
+  .column:nth-child(3),
+  .tile:nth-child(3),
+  .tile:nth-child(5) {
+    --beat: 160ms;
+  }
 
-    .column:nth-child(4),
-    .tile:nth-child(7) {
-      animation-range: entry 30% entry 100%;
-    }
+  .column:nth-child(4) {
+    --beat: 240ms;
+  }
 
-    .lead {
-      view-timeline: --lead-tile block;
-    }
+  /* First frames. */
+  .band > h2[data-reveal="pending"],
+  .closing[data-reveal="pending"] h2 {
+    translate: 0 calc(100% + 0.4em);
+    clip-path: inset(-0.3em -0.3em calc(100% + 0.2em) -0.3em);
+  }
 
-    .sketchNode {
-      animation: map-fade linear both;
-      animation-timeline: --lead-tile;
-      animation-range: entry 20% entry 70%;
-    }
+  .column[data-reveal="pending"] > *,
+  .tile[data-reveal="pending"],
+  .closing[data-reveal="pending"] :global(.btn) {
+    opacity: 0;
+    translate: 0 1.5rem;
+  }
 
-    .sketchNode + .sketchNode {
-      animation-range: entry 40% entry 90%;
-    }
+  .columns:not(.privacy) > .column[data-reveal="pending"],
+  .closing[data-reveal="pending"] {
+    background-size: 0% 2px;
+  }
 
-    .sketchEdge {
-      animation: map-draw linear both;
-      animation-timeline: --lead-tile;
-      animation-range: entry 50% entry 100%;
-    }
+  .privacy > .column[data-reveal="pending"] {
+    background-size: 1px 0%;
+  }
+
+  .lead[data-reveal="pending"] .sketchNode {
+    opacity: 0;
+  }
+
+  .lead[data-reveal="pending"] .sketchEdge {
+    stroke-dashoffset: 1;
+  }
+
+  /* Entrances. A column draws its rule first, then its content rises. */
+  .band > h2[data-reveal="shown"] {
+    animation: line-rise 600ms var(--motion-ease) backwards;
+  }
+
+  .columns:not(.privacy) > .column[data-reveal="shown"] {
+    animation: rule-across 600ms var(--motion-ease) var(--beat) backwards;
+  }
+
+  .privacy > .column[data-reveal="shown"] {
+    animation: rule-down 600ms var(--motion-ease) var(--beat) backwards;
+  }
+
+  .column[data-reveal="shown"] > * {
+    animation: card-rise 500ms var(--motion-ease) calc(var(--beat) + 150ms) backwards;
+  }
+
+  .tile[data-reveal="shown"] {
+    animation: card-rise 500ms var(--motion-ease) var(--beat) backwards;
+  }
+
+  .lead[data-reveal="shown"] .sketchNode {
+    animation: map-fade 400ms ease-out 250ms backwards;
+  }
+
+  .lead[data-reveal="shown"] .sketchNode + .sketchNode {
+    animation-delay: 450ms;
+  }
+
+  .lead[data-reveal="shown"] .sketchEdge {
+    animation: map-draw 600ms ease-in-out 550ms backwards;
+  }
+
+  .closing[data-reveal="shown"] {
+    animation: rule-across 600ms var(--motion-ease) backwards;
+  }
+
+  .closing[data-reveal="shown"] h2 {
+    animation: line-rise 600ms var(--motion-ease) 150ms backwards;
+  }
+
+  .closing[data-reveal="shown"] :global(.btn) {
+    animation: card-rise 500ms var(--motion-ease) 350ms backwards;
   }
 }
 
@@ -687,6 +762,31 @@
   from {
     opacity: 0;
     translate: 0 1.5rem;
+  }
+}
+
+/* Rises out of an invisible line just under the element: the clip edge stays put while the text
+   travels up through it, because the translate and the bottom inset change by the same amount. */
+@keyframes line-rise {
+  from {
+    translate: 0 calc(100% + 0.4em);
+    clip-path: inset(-0.3em -0.3em calc(100% + 0.2em) -0.3em);
+  }
+  to {
+    translate: 0 0;
+    clip-path: inset(-0.3em -0.3em -0.2em -0.3em);
+  }
+}
+
+@keyframes rule-across {
+  from {
+    background-size: 0% 2px;
+  }
+}
+
+@keyframes rule-down {
+  from {
+    background-size: 1px 0%;
   }
 }
 
@@ -702,7 +802,8 @@
   gap: 2rem;
   margin: 4.5rem var(--gutter) 0;
   padding: 3.5rem 0 4rem;
-  border-top: 2px solid var(--ink);
+  border-top: 2px solid transparent;
+  background: linear-gradient(var(--ink), var(--ink)) 0 0 / 100% 2px no-repeat border-box;
 }
 
 .closing h2 {
@@ -811,4 +912,20 @@
   .closing {
     margin-top: 3rem;
   }
+}
+
+/* ---------- Back to top ---------- */
+
+.backToTop {
+  position: sticky;
+  bottom: 0;
+  z-index: 30;
+  height: 0;
+}
+
+.backToTop > :global(.icon-control-wrap) {
+  position: absolute;
+  right: var(--gutter);
+  bottom: 1.5rem;
+  background: var(--paper);
 }

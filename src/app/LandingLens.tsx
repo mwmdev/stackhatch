@@ -83,6 +83,21 @@ function toPage(rect: DOMRect): Box {
   };
 }
 
+/** How far a waiting or playing reveal has moved an element down, so the lens measures where it rests. */
+function revealOffset(el: Element): number {
+  // Computed `translate` is "none", "0px 24px" or "0px calc(100% + 30.4px)"; x is always 0.
+  const value = getComputedStyle(el).translate;
+  if (value === "none") return 0;
+  const y = value.replace(/^\S+\s+/, "").replace(/\s-\s/g, " + -");
+  let px = 0;
+  let percent = 0;
+  for (const [, amount, unit] of y.matchAll(/(-?[\d.]+)(px|%)/g)) {
+    if (unit === "%") percent += Number(amount);
+    else px += Number(amount);
+  }
+  return px + (percent / 100) * el.getBoundingClientRect().height;
+}
+
 export function LensProvider({ children }: { children: ReactNode }) {
   const mapShown = useMediaQuery(MAP_QUERY);
   const lensOn = useMediaQuery(LENS_QUERY);
@@ -129,11 +144,14 @@ export function LensProvider({ children }: { children: ReactNode }) {
           const range = document.createRange();
           range.selectNodeContents(heading);
           const text = toPage(range.getBoundingClientRect());
+          text.top -= revealOffset(heading);
           obstacles.push(text);
           headY = text.top + text.height / 2;
         }
         section?.querySelectorAll("a.btn").forEach((a) => {
-          obstacles.push(toPage(a.getBoundingClientRect()));
+          const button = toPage(a.getBoundingClientRect());
+          button.top -= revealOffset(a);
+          obstacles.push(button);
         });
         next.bands[key] = { box, headY, obstacles };
       }

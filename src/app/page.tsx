@@ -20,6 +20,8 @@ import {
 import { PublicBar, PublicFooter } from "@/components/shells/PublicChrome";
 import HeroBackdrop from "./HeroBackdrop";
 import { HeroLens, LensLayer, LensOverlay, LensProvider } from "./LandingLens";
+import BackToTop from "./BackToTop";
+import LandingReveal from "./LandingReveal";
 import HeroStart from "./HeroStart";
 import HeroTour from "./HeroTour";
 import styles from "./landing.module.css";
@@ -209,12 +211,12 @@ export default function LandingPage() {
             data-landing-region="audience"
           >
             <LensLayer band="audience" />
-            <h2 id="audience-heading" className="type-display">
+            <h2 id="audience-heading" className="type-display" data-reveal="">
               Who it&apos;s for
             </h2>
             <ul className={styles.columns}>
               {AUDIENCES.map(({ icon, title, uses }) => (
-                <li key={title} className={styles.column}>
+                <li key={title} className={styles.column} data-reveal="">
                   <CardHead icon={icon} title={title} />
                   <ul className={styles.uses}>
                     {uses.map((use) => (
@@ -233,7 +235,7 @@ export default function LandingPage() {
             data-landing-region="features"
           >
             <LensLayer band="features" />
-            <h2 id="features-heading" className="type-display">
+            <h2 id="features-heading" className="type-display" data-reveal="">
               Features
             </h2>
             <ul className={styles.mosaic}>
@@ -245,6 +247,7 @@ export default function LandingPage() {
                     size === "lead" ? `${styles.wide} ${styles.lead}` : "",
                     size === "wide" ? styles.wide : "",
                   ].join(" ")}
+                  data-reveal=""
                 >
                   {size === "lead" && <LeadSketch />}
                   <CardHead icon={icon} title={title} />
@@ -260,17 +263,17 @@ export default function LandingPage() {
             data-landing-region="privacy"
           >
             <LensLayer band="privacy" />
-            <h2 id="privacy-heading" className="type-display">
+            <h2 id="privacy-heading" className="type-display" data-reveal="">
               Your maps stay yours
             </h2>
             <ul className={`${styles.columns} ${styles.privacy}`}>
               {PRIVACY.map(({ description, icon, title }) => (
-                <li key={title} className={styles.column}>
+                <li key={title} className={styles.column} data-reveal="">
                   <CardHead icon={icon} title={title} />
                   <p>{description}</p>
                 </li>
               ))}
-              <li className={styles.column}>
+              <li className={styles.column} data-reveal="">
                 <CardHead icon={FileCode} title="Open source" />
                 <p>
                   Free and MIT licensed.{" "}
@@ -286,6 +289,7 @@ export default function LandingPage() {
             className={styles.closing}
             aria-labelledby="final-cta-heading"
             data-landing-region="final-cta"
+            data-reveal=""
           >
             <LensLayer band="closing" />
             <h2 id="final-cta-heading" className="type-display">
@@ -296,6 +300,8 @@ export default function LandingPage() {
             </Link>
           </section>
           <LensOverlay />
+          <LandingReveal />
+          <BackToTop />
         </main>
       </LensProvider>
 
