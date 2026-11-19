@@ -22,7 +22,7 @@ test("the landing page accurately explains the working product and trust boundar
   const slot = page.getByTestId("hero-proof");
   await expect(slot).toBeVisible();
 
-  // The tour waits for the visitor, then really plays and carries English captions.
+  // The tour waits for the visitor, then really plays.
   const tour = slot.getByLabel("StackHatch in two and a half minutes");
   await expect(tour).not.toHaveAttribute("controls");
   expect(await tour.evaluate((video: HTMLVideoElement) => video.paused)).toBe(true);
@@ -32,17 +32,6 @@ test("the landing page accurately explains the working product and trust boundar
   await expect
     .poll(() => tour.evaluate((video: HTMLVideoElement) => video.currentTime), { timeout: 15000 })
     .toBeGreaterThan(0.5);
-  await expect
-    .poll(
-      () =>
-        tour.evaluate((video: HTMLVideoElement) => {
-          const captions = video.textTracks[0];
-          captions.mode = "hidden";
-          return captions.cues?.length ?? 0;
-        }),
-      { timeout: 15000 }
-    )
-    .toBeGreaterThan(20);
   await tour.evaluate((video: HTMLVideoElement) => video.pause());
 
   await hero.getByRole("textbox", { name: "GitHub repository" }).fill("umami-software/umami");

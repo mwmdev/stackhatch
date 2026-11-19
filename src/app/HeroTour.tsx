@@ -8,7 +8,7 @@ const TOUR = "/video/stackhatch-tour";
 
 /**
  * The narrated two-and-a-half-minute tour. It shows its poster until someone asks for it, then plays with
- * sound, native controls and English captions; it never autoplays.
+ * sound, native controls and English captions burned into the picture; it never autoplays.
  */
 export default function HeroTour() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -39,7 +39,6 @@ export default function HeroTour() {
       >
         <source src={`${TOUR}-720.mp4`} type="video/mp4" media="(max-width: 760px)" />
         <source src={`${TOUR}.mp4`} type="video/mp4" />
-        <track kind="captions" src={`${TOUR}.en.vtt`} srcLang="en" label="English" />
       </video>
       {started ? null : (
         <button type="button" className={`btn btn--primary btn--lg ${styles.play}`} onClick={start}>
